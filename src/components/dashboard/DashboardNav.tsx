@@ -62,7 +62,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const { logout } = useAuth();
   const { state, toggleSidebar } = useSidebar();
   const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/staff'));
-  const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
   const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant') || pathname.startsWith('/reseller/ai-accountant'));
 
   const handleLogout = () => {
@@ -101,17 +100,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
      { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin'] },
   ];
 
-  const capSupplierItems = [
-    { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/payment-batches', label: 'Payment Batches', icon: Banknote, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/rejected', label: 'Rejected', icon: FileX2, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/commission', label: 'Commission', icon: HandCoins, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-  ]
-
   const settingsNavItems = [
     { href: '/admin/profile', label: 'My Profile', icon: User, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor']},
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
@@ -139,18 +127,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
   const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.includes(user.role));
-  const visibleCapSupplierItems = capSupplierItems.filter(item => {
-    if (user.role === 'cap_staff') {
-      return item.href === '/admin/cap-suppliers/payment-control-sheet' || item.href === '/admin/cap-suppliers/control-sheet' || item.href === '/admin/cap-suppliers/payment-batches';
-    }
-    if (user.role === 'cap_supervisor') {
-      return true; // Supervisor sees all CAP items
-    }
-     if (user.role === 'staff' && user.department === 'Accounting and Tax') {
-      return true; // Staff in this dept see all CAP items
-    }
-    return item.roles.includes(user.role) && (!item.department || item.department === user.department);
-  });
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
 
@@ -239,33 +215,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
         
         {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor') && (
             <>
-            {visibleCapSupplierItems.length > 0 && (
-                <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
-                <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                    <SidebarMenuButton isActive={pathname.startsWith('/admin/cap-suppliers')} tooltip="CAP Suppliers">
-                        <FileText />
-                        <span>CAP Suppliers</span>
-                        <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
-                    </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                </SidebarMenuItem>
-                <CollapsibleContent asChild>
-                    <SidebarMenu className="pl-4">
-                    {visibleCapSupplierItems.map(item => (
-                        <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
-                            <Link href={item.href}>
-                            <item.icon />
-                            <span>{item.label}</span>
-                            </Link>
-                        </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    ))}
-                    </SidebarMenu>
-                </CollapsibleContent>
-                </Collapsible>
-            )}
             {(user.role === 'admin' || user.role === 'staff') && (
               <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                   <SidebarMenuItem>
