@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, MessageSquare, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -21,6 +21,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
+import PaymentFollowUpEmail from '@/components/emails/PaymentFollowUpEmail';
 
 const db = getFirestore(firebaseApp);
 
@@ -45,6 +50,7 @@ export default function ResellerOrderDetailsPage() {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [allStaff, setAllStaff] = useState<User[]>([]);
+  const [allServices, setAllServices] = useState<Service[]>([]);
 
   const noteForm = useForm<z.infer<typeof noteFormSchema>>({
     resolver: zodResolver(noteFormSchema),
@@ -55,10 +61,15 @@ export default function ResellerOrderDetailsPage() {
       if (!id || !currentUser) return;
       setIsLoading(true);
       try {
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin', 'reseller']));
         const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setAllStaff(fetchedStaff);
+
+        const servicesQuery = query(collection(db, 'services'));
+        const servicesSnapshot = await getDocs(servicesQuery);
+        const fetchedServices = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+        setAllServices(fetchedServices);
 
         const docRef = doc(db, 'orders', id);
         const docSnap = await getDoc(docRef);
@@ -76,6 +87,18 @@ export default function ResellerOrderDetailsPage() {
             date: data.date.toDate(),
             notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
           } as Order;
+
+          if (fetchedOrder.resellerId && fetchedOrder.originalOrderId) {
+            const originalOrderRef = doc(db, 'orders', fetchedOrder.originalOrderId);
+            const originalOrderSnap = await getDoc(originalOrderRef);
+            if (originalOrderSnap.exists()) {
+                const originalOrderData = originalOrderSnap.data();
+                fetchedOrder.endCustomerName = originalOrderData.customerName;
+                fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
+                fetchedOrder.customerPhone = originalOrderData.customerPhone; 
+            }
+          }
+
           setOrder(fetchedOrder);
 
         } else {
@@ -111,15 +134,37 @@ export default function ResellerOrderDetailsPage() {
 
       toast({ title: "Note Added", description: "Your note has been saved." });
       noteForm.reset();
-      await fetchOrder(); // Re-fetch to display the new note
+      await fetchOrder();
     } catch (error) {
       console.error("Error adding note:", error);
       toast({ title: "Error", description: "Failed to add note.", variant: "destructive" });
     }
   };
+
+  const addEmailToHistory = async (subject: string, message: string) => {
+    if (!currentUser || !order) return;
+
+     const emailNote: OrderNote = {
+      text: message,
+      subject: subject || null,
+      authorId: currentUser.uid,
+      date: Timestamp.now(),
+      type: 'email',
+    };
+
+    try {
+      const orderRef = doc(db, 'orders', order.id);
+      await updateDoc(orderRef, {
+        notes: arrayUnion(emailNote),
+      });
+      await fetchOrder();
+    } catch (error) {
+        console.error("Error logging email to history:", error);
+    }
+  };
   
    const getAuthor = (authorId: string): User | undefined => {
-    return allStaff.find(u => u.id === authorId);
+    return allStaff.find(u => u.uid === authorId);
   }
 
    const getStatusVariant = (status: Order['status']) => {
@@ -138,6 +183,65 @@ export default function ResellerOrderDetailsPage() {
         return 'secondary';
     }
   };
+
+  const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {
+    if (!order || !currentUser) return;
+    
+    const isOutsourced = !!order.resellerId;
+    const resellerDetails = isOutsourced ? allStaff.find(u => u.uid === order.resellerId) : null;
+    
+    let emailTo: string | undefined;
+    let customerNameToUse: string;
+
+    if (isOutsourced) {
+        const contactIsClient = order.documentContact === 'client';
+        emailTo = contactIsClient ? order.endCustomerEmail : resellerDetails?.email;
+        customerNameToUse = contactIsClient ? (order.endCustomerName || 'Valued Customer') : (resellerDetails?.companyName || resellerDetails?.name || 'Valued Partner');
+    } else {
+        emailTo = order.customerEmail;
+        customerNameToUse = order.customerName;
+    }
+    
+    if (!emailTo) {
+        toast({ title: "Recipient Error", description: "No recipient email address could be determined for this action.", variant: "destructive" });
+        return;
+    }
+
+    let emailHtml = '';
+    let subject = '';
+    let message = '';
+    const orderForEmail = { ...order, customerName: customerNameToUse, id: order.originalOrderId || order.id };
+
+    if (type === 'docs') {
+        const itemsWithServices = order.items.map(item => {
+            const service = allServices.find(s => s.id === item.id);
+            return { ...item, service };
+        }).filter(item => item.service) as { service: Service }[];
+        
+        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={resellerDetails || undefined} replyTo={currentUser.email || 'info@myacc.co.za'} />);
+        subject = `Action Required for Your Order #${orderForEmail.id}`;
+        message = `Sent 'Request Documents' email to ${emailTo}.`;
+    } else if (type === 'payment') {
+         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={resellerDetails || undefined} />);
+         subject = `Payment Reminder for Your Order: #${orderForEmail.id}`;
+         message = `Sent 'Payment Follow-up' email to ${emailTo}.`;
+    } else if (type === 'review') {
+         emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={resellerDetails || undefined} />);
+         subject = `We'd love your feedback on order #${orderForEmail.id}`;
+         message = `Sent 'Request a Review' email to ${emailTo}.`;
+    }
+
+    toast({ title: 'Sending email...', description: 'Please wait a moment.' });
+    
+     try {
+          await sendEmail({ to: emailTo, subject, html: emailHtml, resellerId: order.resellerId });
+          await addEmailToHistory(subject, message);
+          toast({ title: 'Email Sent!', description: `The email has been successfully sent to ${emailTo}.` });
+      } catch (error) {
+          console.error(`Failed to send ${type} email:`, error);
+          toast({ title: 'Error', description: 'Failed to send the email.', variant: 'destructive' });
+      }
+  };
   
   if (isLoading) {
     return (
@@ -150,6 +254,15 @@ export default function ResellerOrderDetailsPage() {
   if (!order) {
     return notFound();
   }
+  
+  const isOutsourced = !!order.resellerId;
+  const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
+  const contactIsClient = order.documentContact === 'client';
+  
+  const contactName = contactIsClient ? order.endCustomerName : (isOutsourced ? resellerDetails?.companyName || resellerDetails?.name : order.customerName);
+  const contactEmail = contactIsClient ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
+  const contactPhone = contactIsClient ? order.customerPhone : (isOutsourced ? resellerDetails?.contactNumber : order.customerPhone);
+
 
   return (
     <div className="space-y-8">
@@ -172,21 +285,60 @@ export default function ResellerOrderDetailsPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-4">
-                        {order.items.map((item: any) => (
-                            <div key={item.id} className="flex justify-between items-center">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <p className="font-semibold">{item.title}</p>
-                                <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+                                <h3 className="font-semibold text-muted-foreground mb-2">Order Items</h3>
+                                <div className="space-y-4">
+                                {order.items.map((item: any) => (
+                                    <div key={item.id} className="flex justify-between items-center">
+                                    <div>
+                                        <p className="font-semibold">{item.title}</p>
+                                        <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+                                    </div>
+                                    <p>{formatPrice(item.clientPrice || 0)}</p>
+                                    </div>
+                                ))}
+                                </div>
+                                <Separator className="my-4" />
+                                <div className="flex justify-between font-bold text-lg">
+                                <span>Total</span>
+                                <span>{formatPrice(order.clientTotal || 0)}</span>
+                                </div>
                             </div>
-                            <p>{formatPrice(item.clientPrice || 0)}</p>
+                            <div>
+                                <h3 className="font-semibold text-muted-foreground mb-2">Client Details</h3>
+                                <div className="space-y-3">
+                                    <p className="font-semibold text-lg">{order.customerName}</p>
+                                    {order.customerEmail && (
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Mail className="h-4 w-4 text-muted-foreground" />
+                                            <a href={`mailto:${order.customerEmail}`} className="text-primary hover:underline">{order.customerEmail}</a>
+                                        </div>
+                                    )}
+                                    {order.customerPhone && (
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Phone className="h-4 w-4 text-muted-foreground" />
+                                            <span>{order.customerPhone}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {isOutsourced && (
+                                    <div className="mt-4 pt-4 border-t">
+                                        <h3 className="font-semibold text-muted-foreground mb-2">Contact for Documents</h3>
+                                        <div className="flex items-center gap-2">
+                                            <Users className="h-4 w-4 text-muted-foreground" />
+                                            <span className="text-sm font-medium capitalize">{order.documentContact}</span>
+                                        </div>
+                                        {contactEmail && (
+                                        <div className="flex items-center gap-2 text-sm mt-1">
+                                            <Mail className="h-4 w-4 text-muted-foreground" />
+                                            <a href={`mailto:${contactEmail}`} className="text-primary hover:underline">{contactEmail}</a>
+                                        </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                        ))}
-                        </div>
-                        <Separator className="my-4" />
-                        <div className="flex justify-between font-bold text-lg">
-                        <span>Total Selling Price</span>
-                        <span>{formatPrice(order.clientTotal || 0)}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -243,15 +395,14 @@ export default function ResellerOrderDetailsPage() {
                  <Card>
                     <CardHeader className="flex flex-row items-center gap-3 space-y-0">
                         <UserIcon className="h-5 w-5 text-muted-foreground"/>
-                        <CardTitle className="text-lg">Client Details</CardTitle>
+                        <CardTitle className="text-lg">Quick Actions</CardTitle>
                     </CardHeader>
                      <CardContent className="space-y-2">
-                        <p className="font-semibold">{order.customerName}</p>
-                        <div className="flex items-center gap-2 text-sm">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
-                            <a href={`mailto:${order.customerEmail}`} className="text-primary hover:underline">{order.customerEmail}</a>
-                        </div>
-                    </CardContent>
+                        <p className="text-sm text-muted-foreground">Send pre-made emails related to this order.</p>
+                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('payment')}>
+                           <Phone className="mr-2 h-4 w-4" /> Follow Up On Payment
+                        </Button>
+                     </CardContent>
                  </Card>
             </div>
         </div>
