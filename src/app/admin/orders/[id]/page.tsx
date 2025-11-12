@@ -270,14 +270,15 @@ export default function AdminOrderDetailsPage() {
             itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt.toDate() })),
           } as Order;
           
-          if (fetchedOrder.resellerId && fetchedOrder.originalOrderId && !fetchedOrder.endCustomerEmail) {
+          // If it's a reseller order and we don't have end customer details, fetch them from the original order
+          if (fetchedOrder.resellerId && fetchedOrder.originalOrderId) {
             const originalOrderRef = doc(db, 'orders', fetchedOrder.originalOrderId);
             const originalOrderSnap = await getDoc(originalOrderRef);
             if (originalOrderSnap.exists()) {
                 const originalOrderData = originalOrderSnap.data();
                 fetchedOrder.endCustomerName = originalOrderData.customerName;
                 fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
-                fetchedOrder.customerPhone = originalOrderData.customerPhone;
+                fetchedOrder.customerPhone = originalOrderData.customerPhone; // Also copy phone
             }
           }
 
@@ -538,9 +539,9 @@ export default function AdminOrderDetailsPage() {
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
   const contactIsClient = isOutsourced && order.documentContact === 'client';
   
-  const contactName = isOutsourced ? (contactIsClient ? order.endCustomerName : resellerDetails?.companyName || resellerDetails?.name) : order.customerName;
-  const contactEmail = isOutsourced ? (contactIsClient ? order.endCustomerEmail : resellerDetails?.email) : order.customerEmail;
-  const contactPhone = isOutsourced ? (contactIsClient ? order.customerPhone : resellerDetails?.contactNumber) : order.customerPhone;
+  const contactName = contactIsClient ? order.endCustomerName : (isOutsourced ? resellerDetails?.companyName || resellerDetails?.name : order.customerName);
+  const contactEmail = contactIsClient ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
+  const contactPhone = contactIsClient ? order.customerPhone : (isOutsourced ? resellerDetails?.contactNumber : order.customerPhone);
 
 
   return (
@@ -649,20 +650,6 @@ export default function AdminOrderDetailsPage() {
                                             </div>
                                         </div>
                                     )}
-                                     {isOutsourced && order.documentContact === 'reseller' && (
-                                        <div className="mt-4 pt-4 border-t">
-                                            <h3 className="font-semibold text-muted-foreground mb-2">End Client Details</h3>
-                                            <div className="space-y-3">
-                                                <p className="font-semibold text-lg">{order.endCustomerName}</p>
-                                                {order.endCustomerEmail && (
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <Mail className="h-4 w-4 text-muted-foreground" />
-                                                        <span className="text-primary">{order.endCustomerEmail}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                     )}
                                 </div>
                             </div>
                         </CardContent>
