@@ -79,7 +79,7 @@ function BackendSummaryModal({ order }: { order: Order }) {
                     Status: <Badge variant={log.status === 'Success' ? 'success' : 'destructive'}>{log.status}</Badge>
                   </span>
                    <span className="text-xs font-normal text-muted-foreground">
-                    {format(log.receivedAt.toDate(), 'dd/MM/yyyy, HH:mm:ss')}
+                    {log.receivedAt ? format(log.receivedAt.toDate(), 'dd/MM/yyyy, HH:mm:ss') : 'N/A'}
                   </span>
                 </CardTitle>
                 <CardDescription className="pt-2">{log.message}</CardDescription>
@@ -140,9 +140,7 @@ export default function AdminOrdersPage() {
         setAllStaff(fetchedStaff);
 
         const ordersRef = collection(db, 'orders');
-        let filteredOrders: Order[] = [];
-
-        // Admins and Staff see all non-cancelled orders
+        
         const allOrdersSnapshot = await getDocs(query(ordersRef, orderBy('date', 'desc')));
         const allFetchedOrders = allOrdersSnapshot.docs.map(doc => {
             const data = doc.data();
@@ -167,10 +165,8 @@ export default function AdminOrdersPage() {
             }
             return order;
         }));
-
-        filteredOrders = ordersWithClientDetails.filter(order => !order.resellerId || (order.resellerId && order.originalOrderId));
         
-        setOrders(filteredOrders.filter(order => order.status !== 'Cancelled'));
+        setOrders(ordersWithClientDetails.filter(order => order.status !== 'Cancelled'));
       } catch (error) {
         console.error("Error fetching orders: ", error);
       } finally {
