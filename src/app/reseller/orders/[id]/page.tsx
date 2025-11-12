@@ -394,10 +394,10 @@ export default function ResellerOrderDetailsPage() {
             <div className="lg:col-span-1 space-y-6 sticky top-24">
                  <Card>
                     <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-                        <UserIcon className="h-5 w-5 text-muted-foreground"/>
-                        <CardTitle className="text-lg">Quick Actions</CardTitle>
-                    </CardHeader>
-                     <CardContent className="space-y-2">
+                           <UserIcon className="h-5 w-5 text-muted-foreground"/>
+                           <CardTitle className="text-lg">Quick Actions</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
                         <p className="text-sm text-muted-foreground">Send pre-made emails related to this order.</p>
                         <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('payment')}>
                            <Phone className="mr-2 h-4 w-4" /> Follow Up On Payment
