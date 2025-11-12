@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MoreHorizontal, Loader2, PlusCircle, MessageSquare } from 'lucide-react';
+import { MoreHorizontal, Loader2, PlusCircle, MessageSquare, Server } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -149,7 +149,7 @@ export default function AdminOrdersPage() {
                 id: doc.id,
                 date: data.date.toDate(),
                 notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
-                itnHistory: (data.itnHistory || []).map((log: any) => ({...log, receivedAt: log.receivedAt.toDate()})),
+                itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt.toDate() })),
             } as Order;
         });
         
@@ -404,8 +404,20 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const getCustomerName = (order: Order) => {
+    if (order.source === 'Reseller') {
+      if (order.documentContact === 'client' && order.endCustomerName) {
+        return order.endCustomerName;
+      }
+      return order.customerName; // This would be the reseller's name
+    }
+    return order.customerName;
+  }
+
   const getSourceText = (order: Order) => {
-    if (order.resellerId) return 'Reseller';
+    if (order.source === 'Reseller' && order.documentContact === 'client' && order.endCustomerName) {
+      return `Reseller (Client: ${order.endCustomerName})`;
+    }
     return order.source || 'Client';
   }
 
@@ -455,7 +467,7 @@ export default function AdminOrdersPage() {
                     const assignee = getAssignee(order.assignedTo?.[0]);
                     const lastNote = order.notes && order.notes.length > 0 ? order.notes[order.notes.length - 1] : null;
                     const lastNoteAuthor = lastNote ? getAssignee(lastNote.authorId) : null;
-                    const customerName = order.resellerId ? order.endCustomerName : order.customerName;
+                    const customerName = getCustomerName(order);
                     return (
                     <TableRow key={order.id}>
                         <TableCell className="font-medium">
