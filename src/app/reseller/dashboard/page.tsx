@@ -537,4 +537,3 @@ export default function ResellerDashboardPage() {
     </div>
     );
 }
-
