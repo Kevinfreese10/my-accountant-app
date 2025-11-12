@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -165,7 +166,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
         customerPhone: isClientContact ? values.customerPhone! : reseller.contactNumber,
         documentContact: values.documentContact,
         items: values.items.map(item => ({ 
-            id: item.serviceId || item.description.toLowerCase().replace(/\\s/g, '-'),
+            id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
             title: item.description, 
             price: item.resellerPrice,
             clientPrice: item.resellerPrice, // Set client price to reseller price for consistency
@@ -182,11 +183,12 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       await setDoc(doc(db, 'orders', orderId), orderData);
 
       try {
+        const confirmationEmailSubject = `Your Order Confirmation: #${orderId}`;
         const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={reseller} />);
         await sendEmail({
-          to: orderData.customerEmail,
+          to: reseller.email, // Always send confirmation to the reseller
           bcc: 'kev@thinkestry.co.za',
-          subject: `Your Order Confirmation: #${orderId}`,
+          subject: confirmationEmailSubject,
           html: emailHtml,
           resellerId: reseller.id,
         });

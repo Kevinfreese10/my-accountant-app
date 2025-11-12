@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -110,8 +111,8 @@ function EmailClientDialog({ order, user, allStaff, onEmailSent }: { order: Orde
     const [isSending, setIsSending] = useState(false);
 
     const isOutsourced = !!order.resellerId;
-    const emailTo = isOutsourced ? order.endCustomerEmail : order.customerEmail;
-    const nameTo = isOutsourced ? order.endCustomerName : order.customerName;
+    const emailTo = order.documentContact === 'client' && isOutsourced ? order.endCustomerEmail : order.customerEmail;
+    const nameTo = order.documentContact === 'client' && isOutsourced ? order.endCustomerName : order.customerName;
 
     const form = useForm<z.infer<typeof emailFormSchema>>({
         resolver: zodResolver(emailFormSchema),
@@ -425,46 +426,69 @@ export default function AdminOrderDetailsPage() {
 
   const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {
       if (!order || !currentUser) return;
-
+  
+      const isOutsourced = !!order.resellerId;
+      let emailTo: string | undefined;
+      let customerName: string;
+      let reseller: User | undefined;
+  
+      if (isOutsourced) {
+          reseller = allStaff.find(u => u.uid === order.resellerId);
+          if (type === 'review') {
+              // Review requests ALWAYS go to the reseller
+              emailTo = reseller?.email;
+              customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
+          } else {
+              // For docs/payment, respect the contact preference
+              if (order.documentContact === 'client') {
+                  emailTo = order.endCustomerEmail;
+                  customerName = order.endCustomerName || 'Valued Customer';
+              } else {
+                  emailTo = reseller?.email;
+                  customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
+              }
+          }
+      } else {
+          // Standard direct client order
+          emailTo = order.customerEmail;
+          customerName = order.customerName;
+      }
+  
+      if (!emailTo) {
+          toast({ title: "Recipient Error", description: "No recipient email address could be determined for this action.", variant: "destructive" });
+          return;
+      }
+  
       let emailHtml = '';
       let subject = '';
       let message = '';
-      const isOutsourced = !!order.resellerId;
-      const reseller = isOutsourced ? allStaff.find(u => u.uid === order.resellerId) : undefined;
-      const emailTo = isOutsourced ? order.endCustomerEmail : order.customerEmail;
-      const customerName = isOutsourced ? order.endCustomerName : order.customerName;
       const orderForEmail = { ...order, customerName, id: order.originalOrderId || order.id };
-
-      if (!emailTo) {
-          toast({ title: "Recipient Error", description: "No recipient email address found for this order.", variant: "destructive" });
-          return;
-      }
-
+  
       if (type === 'docs') {
-        const itemsWithServices = order.items.map(item => {
-            const service = allServices.find(s => s.id === item.id);
-            return { ...item, service };
-        }).filter(item => item.service) as { service: Service }[];
-        
-        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={reseller} replyTo={currentUser.email || 'info@myacc.co.za'} />);
-        subject = `Action Required for Your Order #${orderForEmail.id}`;
-        message = "Sent 'Request Documents' email to client.";
+          const itemsWithServices = order.items.map(item => {
+              const service = allServices.find(s => s.id === item.id);
+              return { ...item, service };
+          }).filter(item => item.service) as { service: Service }[];
+          
+          emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={reseller} replyTo={currentUser.email || 'info@myacc.co.za'} />);
+          subject = `Action Required for Your Order #${orderForEmail.id}`;
+          message = `Sent 'Request Documents' email to ${emailTo}.`;
       } else if (type === 'payment') {
-         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={reseller} />);
-         subject = `Payment Reminder for Your Order: #${orderForEmail.id}`;
-         message = "Sent 'Payment Follow-up' email to client.";
+           emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={reseller} />);
+           subject = `Payment Reminder for Your Order: #${orderForEmail.id}`;
+           message = `Sent 'Payment Follow-up' email to ${emailTo}.`;
       } else if (type === 'review') {
-         emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={reseller} />);
-         subject = `We'd love your feedback on order #${orderForEmail.id}`;
-         message = "Sent 'Request a Review' email to client.";
+           emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={reseller} />);
+           subject = `We'd love your feedback on order #${orderForEmail.id}`;
+           message = `Sent 'Request a Review' email to ${emailTo}.`;
       }
-
+  
       toast({ title: 'Sending email...', description: 'Please wait a moment.' });
       
        try {
             await sendEmail({ to: emailTo, subject, html: emailHtml, resellerId: order.resellerId });
             await addEmailToHistory(subject, message);
-            toast({ title: 'Email Sent!', description: 'The email has been successfully sent to the client.' });
+            toast({ title: 'Email Sent!', description: `The email has been successfully sent to ${emailTo}.` });
         } catch (error) {
             console.error(`Failed to send ${type} email:`, error);
             toast({ title: 'Error', description: 'Failed to send the email.', variant: 'destructive' });
@@ -475,21 +499,31 @@ export default function AdminOrderDetailsPage() {
 
     const handleSendFeedback = async () => {
         if (!order || !order.documentUploads) return;
+        
+        const isOutsourced = !!order.resellerId;
+        const emailTo = isOutsourced ? order.endCustomerEmail : order.customerEmail;
+        const clientName = isOutsourced ? order.endCustomerName : order.customerName;
+
+        if (!emailTo || !clientName) {
+            toast({ title: "Cannot send feedback", description: "Missing client contact details.", variant: "destructive" });
+            return;
+        }
+
         setIsSendingFeedback(true);
         toast({ title: "Sending Feedback...", description: "Notifying the client of the document review status." });
 
         try {
             await sendDocumentReviewFeedback({
                 orderId: order.originalOrderId || order.id,
-                clientName: isOutsourced ? order.endCustomerName! : order.customerName,
-                clientEmail: isOutsourced ? order.endCustomerEmail! : order.customerEmail,
+                clientName: clientName,
+                clientEmail: emailTo,
                 documentUploads: order.documentUploads,
                 resellerId: order.resellerId
             });
 
             await addEmailToHistory(
                 `Feedback on Your Submitted Documents for Order #${order.originalOrderId || order.id}`,
-                "Sent 'Document Review Feedback' email to client."
+                `Sent 'Document Review Feedback' email to ${emailTo}.`
             );
 
             toast({ title: "Feedback Sent!", description: "The client has been notified of the review outcome." });
@@ -522,6 +556,7 @@ export default function AdminOrderDetailsPage() {
   }
   
   const isOutsourced = !!order.resellerId;
+  const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
   const displayCustomerName = isOutsourced ? order.endCustomerName : order.customerName;
   const displayCustomerEmail = isOutsourced ? order.endCustomerEmail : order.customerEmail;
   const displayCustomer = isOutsourced ? null : customer;
@@ -573,6 +608,7 @@ export default function AdminOrderDetailsPage() {
                                     <CardTitle>Order {order.id}</CardTitle>
                                     <div className="text-sm text-muted-foreground">
                                         Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                                        {isOutsourced && resellerDetails && <span className="ml-2">| Reseller: {resellerDetails.companyName || resellerDetails.name}</span>}
                                         {order.originalOrderId && <span className="ml-2">| Original Order: <Link href={`/reseller/orders/${order.originalOrderId}`} className="text-primary hover:underline">{order.originalOrderId}</Link></span>}
                                     </div>
                                 </div>
