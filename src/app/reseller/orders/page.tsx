@@ -7,7 +7,7 @@ import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDo
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { services } from '@/lib/data';
+import { services as allServices } from '@/lib/data';
 import {
   Table,
   TableBody,
@@ -124,12 +124,12 @@ export default function ResellerOrdersPage() {
         setIsLoading(false);
       }
     };
-
-    useEffect(() => {
-        if (user) {
-            fetchOrdersAndStaff();
-        }
-    }, [user, toast]);
+    
+  useEffect(() => {
+    if (user) {
+        fetchOrdersAndStaff();
+    }
+  }, [user]);
 
     const handleOutsource = async (orderToOutsource: Order) => {
         if (!user) return;
@@ -142,7 +142,7 @@ export default function ResellerOrdersPage() {
         try {
             const newOrderId = `ORD-${Date.now().toString().slice(-6)}`;
             const firstServiceId = orderToOutsource.items[0]?.id;
-            const serviceDetails = services.find(s => s.id === firstServiceId);
+            const serviceDetails = allServices.find(s => s.id === firstServiceId);
             const department = serviceDetails?.department;
             
             const newOrderData: Partial<Order> = {
@@ -194,39 +194,6 @@ export default function ResellerOrdersPage() {
             });
         }
       };
-
-    const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
-    try {
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
-        status: newStatus,
-      });
-
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
-          order.id === orderId ? { ...order, status: newStatus } : order
-        )
-      );
-
-      toast({
-        title: 'Status Updated',
-        description: `Order ${orderId} has been marked as ${newStatus}.`,
-      });
-
-      if (newStatus === 'Cancelled') {
-        setTimeout(() => {
-          setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
-        }, 500);
-      }
-    } catch (error) {
-      console.error('Error updating order status: ', error);
-      toast({
-        title: 'Update Failed',
-        description: 'There was a problem updating the order status.',
-        variant: 'destructive',
-      });
-    }
-  };
 
     const getStatusVariant = (status: Order['status']) => {
         switch (status) {
@@ -294,6 +261,7 @@ export default function ResellerOrdersPage() {
                         <TableHead>Customer</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Fulfillment</TableHead>
+                        <TableHead>Doc Contact</TableHead>
                         <TableHead>Selling Price</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -316,6 +284,9 @@ export default function ResellerOrdersPage() {
                                     <Badge variant="secondary">Internal</Badge>
                                 )}
                             </TableCell>
+                            <TableCell>
+                                <Badge variant="outline" className="capitalize">{order.documentContact}</Badge>
+                            </TableCell>
                             <TableCell className="font-semibold">{formatPrice(order.clientTotal || 0)}</TableCell>
                             <TableCell className="text-right">
                             <AlertDialog>
@@ -332,20 +303,6 @@ export default function ResellerOrdersPage() {
                                     <Link href={`/reseller/orders/${order.id}`}>View/Add Notes</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger disabled={order.isOutsourced}>Change Status</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        {orderStatuses.map(status => (
-                                            <DropdownMenuItem 
-                                                key={status} 
-                                                onClick={() => handleUpdateStatus(order.id, status)} 
-                                                disabled={order.status === status}
-                                            >
-                                                Mark as {status}
-                                            </DropdownMenuItem>
-                                        ))}
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
                                 <AlertDialogTrigger asChild>
                                     <DropdownMenuItem disabled={order.isOutsourced}>
                                     Outsource to My Accountant
