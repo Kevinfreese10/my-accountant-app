@@ -48,10 +48,10 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
   // Fallback to system default if reseller config is not found or not provided
   if (!transportConfig) {
     const systemSmtpConfig = {
-      host: process.env.SYSTEM_SMTP_HOST,
-      port: process.env.SYSTEM_SMTP_PORT,
-      user: process.env.SYSTEM_SMTP_USER,
-      pass: process.env.SYSTEM_SMTP_PASS,
+      host: 'mail.myacc.co.za',
+      port: '465',
+      user: 'no_reply@myacc.co.za',
+      pass: 'Thinkestry10$',
     };
     
     if (!systemSmtpConfig.host || !systemSmtpConfig.port || !systemSmtpConfig.user || !systemSmtpConfig.pass) {
