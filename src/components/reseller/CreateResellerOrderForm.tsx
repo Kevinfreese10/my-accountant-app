@@ -32,13 +32,6 @@ const lineItemSchema = z.object({
   description: z.string().min(1, 'Description is required.'),
   quantity: z.preprocess(val => Number(val), z.number().min(1, 'Quantity must be at least 1.')),
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
-  clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Client price cannot be negative.')),
-}).refine(data => {
-    if (data.serviceId) return data.clientPrice >= data.resellerPrice;
-    return true;
-}, {
-  message: "Your selling price cannot be less than the outsourcing cost.",
-  path: ["clientPrice"],
 });
 
 
@@ -99,7 +92,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       customerEmail: '',
       customerPhone: '',
       documentContact: 'reseller',
-      items: [{ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 }],
+      items: [{ serviceId: '', description: '', quantity: 1, resellerPrice: 0 }],
     },
     mode: 'onChange',
   });
@@ -115,8 +108,8 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
   const calculateTotal = (items: any[]) => {
     return (items || []).reduce((acc, item) => {
         const quantity = item?.quantity || 0;
-        const clientPrice = item?.clientPrice || 0;
-        return acc + (clientPrice * quantity);
+        const resellerPrice = item?.resellerPrice || 0;
+        return acc + (resellerPrice * quantity);
     }, 0);
   }
 
@@ -133,17 +126,9 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
     if (selectedService) {
         form.setValue(`items.${index}.description`, selectedService.title);
         form.setValue(`items.${index}.resellerPrice`, selectedService.resellerPrice || selectedService.price);
-        form.setValue(`items.${index}.clientPrice`, selectedService.price); // Default client price to public price
         form.trigger(`items.${index}`);
     }
   };
-
-  const getLineItemProfit = (item: any) => {
-    const quantity = item.quantity || 0;
-    const resellerPrice = item.resellerPrice || 0;
-    const clientPrice = item.clientPrice || 0;
-    return (clientPrice - resellerPrice) * quantity;
-  }
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -169,7 +154,6 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
     try {
       const orderId = await getNextOrderId();
       const resellerTotalCost = values.items.reduce((acc, item) => acc + (item.resellerPrice * item.quantity), 0);
-      const clientTotal = values.items.reduce((acc, item) => acc + (item.clientPrice * item.quantity), 0);
       
       const isClientContact = values.documentContact === 'client';
 
@@ -183,12 +167,12 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
         items: values.items.map(item => ({ 
             id: item.serviceId || item.description.toLowerCase().replace(/\\s/g, '-'),
             title: item.description, 
-            price: item.resellerPrice, // The price the reseller pays
-            clientPrice: item.clientPrice, // The price the client pays
+            price: item.resellerPrice,
+            clientPrice: item.resellerPrice, // Set client price to reseller price for consistency
             quantity: item.quantity
         })),
-        total: resellerTotalCost, // The total cost for the reseller
-        clientTotal: clientTotal,
+        total: resellerTotalCost,
+        clientTotal: resellerTotalCost,
         status: 'Pending Payment',
         date: Timestamp.now(),
         isOutsourced: false,
@@ -321,15 +305,14 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
             <h3 className="text-lg font-medium mb-2">Order Items</h3>
             <div className="space-y-4">
                 {fields.map((field, index) => {
-                    const lineItem = form.watch(`items.${index}`);
                     const resellerPrice = form.watch(`items.${index}.resellerPrice`);
                     const serviceId = form.watch(`items.${index}.serviceId`);
                     const selectedService = serviceId ? allServices.find(s => s.id === serviceId) : null;
                     
                     return (
                     <div key={field.id} className="p-3 border rounded-md space-y-3">
-                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="md:col-span-3 space-y-2">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2 space-y-2">
                                 <FormField
                                     control={form.control}
                                     name={`items.${index}.serviceId`}
@@ -366,7 +349,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                                 )}
                             </div>
                          </div>
-                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
+                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
                             <FormField
                                 control={form.control}
                                 name={`items.${index}.quantity`}
@@ -384,24 +367,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                                     <span>{formatPrice(resellerPrice)}</span>
                                 </div>
                              </FormItem>
-                             <FormField
-                                control={form.control}
-                                name={`items.${index}.clientPrice`}
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Your selling price</FormLabel>
-                                        <FormControl><Input type="number" step="0.01" min={resellerPrice} {...field} /></FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                                />
-                             <FormItem>
-                                <FormLabel>Profit</FormLabel>
-                                <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
-                                    {formatPrice(getLineItemProfit(lineItem))}
-                                </div>
-                             </FormItem>
-                            <div className="flex items-end">
+                             <div className="md:col-span-2 flex items-end">
                                 <Button
                                     type="button"
                                     variant="destructive"
@@ -423,7 +389,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                     variant="outline"
                     size="sm"
                     className="mt-4"
-                    onClick={() => append({ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 })}
+                    onClick={() => append({ serviceId: '', description: '', quantity: 1, resellerPrice: 0 })}
                 >
                     <Plus className="mr-2 h-4 w-4" /> Add Line Item
                 </Button>
@@ -443,7 +409,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
         
         <div className="flex justify-end items-start gap-8">
             <div className="text-right">
-                <p className="text-sm text-muted-foreground">Total order price</p>
+                <p className="text-sm text-muted-foreground">Total Outsourcing Cost</p>
                 <p className="text-2xl font-bold">{formatPrice(total)}</p>
             </div>
         </div>
