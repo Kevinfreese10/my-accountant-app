@@ -225,7 +225,6 @@ export default function AdminOrderDetailsPage() {
   const params = useParams();
   const id = params.id as string;
   const [assignee, setAssignee] = useState<User | null>(null);
-  const [customer, setCustomer] = useState<User | null>(null);
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [allStaff, setAllStaff] = useState<User[]>([]);
@@ -251,7 +250,7 @@ export default function AdminOrderDetailsPage() {
       if (!id) return;
       setIsLoading(true);
       try {
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin', 'reseller']));
         const staffSnapshot = await getDocs(staffQuery);
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setAllStaff(fetchedStaff);
@@ -263,6 +262,7 @@ export default function AdminOrderDetailsPage() {
 
         const docRef = doc(db, 'orders', id);
         const docSnap = await getDoc(docRef);
+        
         if (docSnap.exists()) {
           const data = docSnap.data();
           let fetchedOrder = {
@@ -281,13 +281,7 @@ export default function AdminOrderDetailsPage() {
                 const originalOrderData = originalOrderSnap.data();
                 fetchedOrder.endCustomerName = originalOrderData.customerName;
                 fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
-                
-                const resellerRef = doc(db, 'users', fetchedOrder.resellerId);
-                const resellerSnap = await getDoc(resellerRef);
-                if (resellerSnap.exists()) {
-                    // Overwrite customerName with reseller's name if it's an outsourced order
-                    fetchedOrder.customerName = resellerSnap.data().companyName || resellerSnap.data().name;
-                }
+                fetchedOrder.customerPhone = originalOrderData.customerPhone; // Pass phone too
             }
           }
 
@@ -296,11 +290,6 @@ export default function AdminOrderDetailsPage() {
           if (fetchedOrder.assignedTo && fetchedOrder.assignedTo.length > 0) {
             const assignedUser = fetchedStaff.find(u => u.uid === fetchedOrder.assignedTo![0]);
             setAssignee(assignedUser || null);
-          }
-          
-          if (fetchedOrder.userId) {
-            let customerUser = fetchedStaff.find(u => u.uid === fetchedOrder.userId);
-            setCustomer(customerUser || null);
           }
 
           const itemsWithServices = fetchedOrder.items.map(item => {
@@ -441,11 +430,9 @@ export default function AdminOrderDetailsPage() {
       if (isOutsourced) {
           reseller = allStaff.find(u => u.uid === order.resellerId);
           if (type === 'review') {
-              // Review requests ALWAYS go to the reseller
               emailTo = reseller?.email;
               customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
           } else {
-              // For docs/payment, respect the contact preference
               if (order.documentContact === 'client') {
                   emailTo = order.endCustomerEmail;
                   customerName = order.endCustomerName || 'Valued Customer';
@@ -455,7 +442,6 @@ export default function AdminOrderDetailsPage() {
               }
           }
       } else {
-          // Standard direct client order
           emailTo = order.customerEmail;
           customerName = order.customerName;
       }
@@ -565,10 +551,9 @@ export default function AdminOrderDetailsPage() {
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
   const customerIsReseller = isOutsourced && order.documentContact !== 'client';
 
-  const customerName = isOutsourced ? (customerIsReseller ? (resellerDetails?.companyName || resellerDetails?.name) : order.endCustomerName) : order.customerName;
-  const customerEmail = isOutsourced ? (customerIsReseller ? resellerDetails?.email : order.endCustomerEmail) : order.customerEmail;
-  const customerPhone = isOutsourced ? (customerIsReseller ? resellerDetails?.contactNumber : undefined) : order.customerPhone;
-
+  const contactName = customerIsReseller ? (resellerDetails?.companyName || resellerDetails?.name) : order.customerName;
+  const contactEmail = customerIsReseller ? resellerDetails?.email : order.customerEmail;
+  const contactPhone = customerIsReseller ? resellerDetails?.contactNumber : order.customerPhone;
 
   return (
     <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
@@ -651,19 +636,19 @@ export default function AdminOrderDetailsPage() {
                                     </div>
                                 </div>
                                 <div>
-                                     <h3 className="font-semibold text-muted-foreground mb-2">{customerIsReseller ? 'Reseller Details' : 'Contact Details'}</h3>
+                                     <h3 className="font-semibold text-muted-foreground mb-2">{isOutsourced ? (customerIsReseller ? 'Reseller Details' : 'End Client Details') : 'Contact Details'}</h3>
                                     <div className="space-y-3">
-                                        <p className="font-semibold text-lg">{customerName}</p>
-                                        {customerEmail && (
+                                        <p className="font-semibold text-lg">{contactName}</p>
+                                        {contactEmail && (
                                             <div className="flex items-center gap-2 text-sm">
                                                 <Mail className="h-4 w-4 text-muted-foreground" />
-                                                <a href={`mailto:${customerEmail}`} className="text-primary hover:underline">{customerEmail}</a>
+                                                <a href={`mailto:${contactEmail}`} className="text-primary hover:underline">{contactEmail}</a>
                                             </div>
                                         )}
-                                        {customerPhone && (
+                                        {contactPhone && (
                                             <div className="flex items-center gap-2 text-sm">
                                                 <Phone className="h-4 w-4 text-muted-foreground" />
-                                                <span>{customerPhone}</span>
+                                                <span>{contactPhone}</span>
                                             </div>
                                         )}
                                     </div>
@@ -822,7 +807,7 @@ export default function AdminOrderDetailsPage() {
                                 <FileText className="mr-2 h-4 w-4" /> Request Documents
                             </Button>
                             <Separator className="my-2" />
-                            <EmailClientDialog order={order} user={customer} allStaff={allStaff} onEmailSent={addEmailToHistory} />
+                            <EmailClientDialog order={order} user={null} allStaff={allStaff} onEmailSent={addEmailToHistory} />
                             <Separator className="my-2" />
                             <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('review')}>
                                 <Star className="mr-2 h-4 w-4" /> Request a Review
@@ -839,5 +824,3 @@ export default function AdminOrderDetailsPage() {
     </Dialog>
   );
 }
-
-    
