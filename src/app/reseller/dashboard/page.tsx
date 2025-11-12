@@ -251,7 +251,7 @@ export default function ResellerDashboardPage() {
             </div>
 
             <section>
-              <CommunityQnA />
+                <CommunityQnA />
             </section>
 
             <section>
