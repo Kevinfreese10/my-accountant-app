@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -282,6 +281,12 @@ export default function AdminOrderDetailsPage() {
                 const originalOrderData = originalOrderSnap.data();
                 fetchedOrder.endCustomerName = originalOrderData.customerName;
                 fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
+                // Also get the reseller's name
+                const resellerRef = doc(db, 'users', fetchedOrder.resellerId);
+                const resellerSnap = await getDoc(resellerRef);
+                if (resellerSnap.exists()) {
+                    fetchedOrder.customerName = resellerSnap.data().companyName || resellerSnap.data().name;
+                }
             }
           }
 
@@ -557,9 +562,11 @@ export default function AdminOrderDetailsPage() {
   
   const isOutsourced = !!order.resellerId;
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
-  const displayCustomerName = isOutsourced ? order.endCustomerName : order.customerName;
-  const displayCustomerEmail = isOutsourced ? order.endCustomerEmail : order.customerEmail;
-  const displayCustomer = isOutsourced ? null : customer;
+  const customerName = isOutsourced && order.documentContact === 'client' ? order.endCustomerName : order.customerName;
+  const customerEmail = isOutsourced && order.documentContact === 'client' ? order.endCustomerEmail : order.customerEmail;
+  const customerPhone = isOutsourced && order.documentContact === 'client' ? undefined : order.customerPhone; // Phone not stored for end client
+  const customerIsReseller = isOutsourced && order.documentContact !== 'client';
+
 
   return (
     <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
@@ -642,19 +649,19 @@ export default function AdminOrderDetailsPage() {
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-muted-foreground mb-2">{isOutsourced ? 'End Client Details' : 'Customer Details'}</h3>
+                                     <h3 className="font-semibold text-muted-foreground mb-2">{customerIsReseller ? 'Reseller Details' : isOutsourced ? 'End Client Details' : 'Customer Details'}</h3>
                                     <div className="space-y-3">
-                                        <p className="font-semibold text-lg">{displayCustomerName}</p>
-                                        {displayCustomerEmail && (
+                                        <p className="font-semibold text-lg">{customerName}</p>
+                                        {customerEmail && (
                                             <div className="flex items-center gap-2 text-sm">
                                                 <Mail className="h-4 w-4 text-muted-foreground" />
-                                                <a href={`mailto:${displayCustomerEmail}`} className="text-primary hover:underline">{displayCustomerEmail}</a>
+                                                <a href={`mailto:${customerEmail}`} className="text-primary hover:underline">{customerEmail}</a>
                                             </div>
                                         )}
-                                        {displayCustomer?.contactNumber && (
+                                        {customerPhone && (
                                             <div className="flex items-center gap-2 text-sm">
                                                 <Phone className="h-4 w-4 text-muted-foreground" />
-                                                <span>{displayCustomer.contactNumber}</span>
+                                                <span>{customerPhone}</span>
                                             </div>
                                         )}
                                     </div>
