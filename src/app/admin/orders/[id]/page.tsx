@@ -277,7 +277,7 @@ export default function AdminOrderDetailsPage() {
                 const originalOrderData = originalOrderSnap.data();
                 fetchedOrder.endCustomerName = originalOrderData.customerName;
                 fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
-                fetchedOrder.customerPhone = originalOrderData.customerPhone; // Corrected to use customerPhone
+                fetchedOrder.customerPhone = originalOrderData.customerPhone;
             }
           }
 
@@ -419,18 +419,15 @@ export default function AdminOrderDetailsPage() {
     if (!order || !currentUser) return;
     
     const isOutsourced = !!order.resellerId;
-    const contactIsClient = isOutsourced && order.documentContact === 'client';
     const resellerDetails = isOutsourced ? allStaff.find(u => u.uid === order.resellerId) : null;
-
+    
     let emailTo: string | undefined;
     let customerName: string;
 
-    if (contactIsClient) {
-        emailTo = order.endCustomerEmail;
-        customerName = order.endCustomerName || 'Valued Customer';
-    } else if (isOutsourced) {
-        emailTo = resellerDetails?.email;
-        customerName = resellerDetails?.companyName || resellerDetails?.name || 'Valued Partner';
+    if (isOutsourced) {
+        const contactIsClient = order.documentContact === 'client';
+        emailTo = contactIsClient ? order.endCustomerEmail : resellerDetails?.email;
+        customerName = contactIsClient ? (order.endCustomerName || 'Valued Customer') : (resellerDetails?.companyName || resellerDetails?.name || 'Valued Partner');
     } else {
         emailTo = order.customerEmail;
         customerName = order.customerName;
@@ -541,22 +538,9 @@ export default function AdminOrderDetailsPage() {
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
   const contactIsClient = isOutsourced && order.documentContact === 'client';
   
-  let contactName = order.customerName;
-  let contactEmail = order.customerEmail;
-  let contactPhone = order.customerPhone;
-  
-  if (isOutsourced) {
-    if (contactIsClient) {
-        contactName = order.endCustomerName || 'N/A';
-        contactEmail = order.endCustomerEmail || 'N/A';
-        contactPhone = order.customerPhone;
-    } else {
-        contactName = resellerDetails?.companyName || resellerDetails?.name || 'N/A';
-        contactEmail = resellerDetails?.email || 'N/A';
-        contactPhone = resellerDetails?.contactNumber;
-    }
-  }
-
+  let contactName = isOutsourced ? (resellerDetails?.companyName || resellerDetails?.name || 'N/A') : order.customerName;
+  let contactEmail = isOutsourced ? (resellerDetails?.email || 'N/A') : order.customerEmail;
+  let contactPhone = isOutsourced ? (resellerDetails?.contactNumber) : order.customerPhone;
 
   return (
     <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
@@ -655,7 +639,7 @@ export default function AdminOrderDetailsPage() {
                                             </div>
                                         )}
                                     </div>
-                                    {isOutsourced && !contactIsClient && order.endCustomerName && (
+                                    {contactIsClient && (
                                         <div className="mt-4 pt-4 border-t">
                                             <h3 className="font-semibold text-muted-foreground mb-2">End Client Details</h3>
                                             <div className="space-y-3">
