@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,7 +7,7 @@ import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDo
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { services as allServices } from '@/lib/data';
+import { services } from '@/lib/data';
 import {
   Table,
   TableBody,
@@ -30,7 +29,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -42,9 +40,9 @@ import {
 } from '@/components/ui/tooltip';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
-import PaymentConfirmationEmail from '../emails/PaymentConfirmationEmail';
-import DocumentRequestEmail from '../emails/DocumentRequestEmail';
-import ReviewRequestEmail from '../emails/ReviewRequestEmail';
+import PaymentConfirmationEmail from '@/components/emails/PaymentConfirmationEmail';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -58,7 +56,6 @@ export default function ResellerOrdersPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
@@ -115,18 +112,6 @@ export default function ResellerOrdersPage() {
         });
         setOrders(clientOrders.filter(order => order.status !== 'Cancelled'));
 
-        const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
-        const outsourcedOrdersSnapshot = await getDocs(outsourcedOrdersQuery);
-        let fetchedOutsourcedOrders = outsourcedOrdersSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                ...data,
-                id: doc.id,
-                date: data.date.toDate(),
-            } as Order;
-        });
-        setOutsourcedOrders(fetchedOutsourcedOrders);
-
       } catch (error) {
         console.error("Error fetching orders: ", error);
         toast({
@@ -156,7 +141,7 @@ export default function ResellerOrdersPage() {
         try {
             const newOrderId = `ORD-${Date.now().toString().slice(-6)}`;
             const firstServiceId = orderToOutsource.items[0]?.id;
-            const serviceDetails = allServices.find(s => s.id === firstServiceId);
+            const serviceDetails = services.find(s => s.id === firstServiceId);
             const department = serviceDetails?.department;
             
             const newOrderData: Partial<Order> = {
@@ -263,9 +248,6 @@ export default function ResellerOrdersPage() {
         setIsCreateOrderOpen(false);
         fetchOrdersAndStaff();
     };
-
-    const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
-    const activeOutsourcedOrders = outsourcedOrders.filter(o => o.status !== 'Pending Payment');
 
     return (
         <div className="space-y-8">
@@ -393,124 +375,6 @@ export default function ResellerOrdersPage() {
                 )}
                 </CardContent>
             </Card>
-      
-       <Card>
-        <CardHeader>
-          <CardTitle>Pending Approval</CardTitle>
-          <CardDescription>
-            These outsourced orders are awaiting your payment to be processed by My Accountant.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             </div>
-          ) : pendingApprovalOrders.length === 0 ? (
-             <p className="text-center text-muted-foreground py-4">No orders are pending approval.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Original Order</TableHead>
-                  <TableHead>Outsourced Date</TableHead>
-                  <TableHead className="text-right">Amount Due</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pendingApprovalOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>
-                      <Button variant="link" asChild className="p-0 h-auto">
-                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
-                      </Button>
-                    </TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
-                    <TableCell className="text-right">
-                       <Button asChild>
-                           <Link href={`/order-confirmation/${order.id}`}>Pay Now</Link>
-                        </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-       <Card>
-        <CardHeader>
-          <CardTitle>My Outsourced Orders</CardTitle>
-          <CardDescription>
-            These are the orders you have sent to My Accountant for fulfillment.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             </div>
-          ) : activeOutsourcedOrders.length === 0 ? (
-             <p className="text-center text-muted-foreground py-4">You have no active outsourced orders.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Original Order</TableHead>
-                  <TableHead>Outsourced Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount Paid</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeOutsourcedOrders.map((order) => {
-                  return (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>
-                      <Button variant="link" asChild className="p-0 h-auto">
-                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
-                      </Button>
-                    </TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusVariant(order.status)}>
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/reseller/outsourced-orders/${order.id}`}>
-                                <ArrowRight className="mr-2 h-4 w-4" />
-                                View Details & History
-                            </Link>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )})}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
     );
 }
