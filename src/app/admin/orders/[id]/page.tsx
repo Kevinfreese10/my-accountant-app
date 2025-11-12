@@ -420,72 +420,72 @@ export default function AdminOrderDetailsPage() {
   }
 
   const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {
-      if (!order || !currentUser) return;
-  
-      const isOutsourced = !!order.resellerId;
-      let emailTo: string | undefined;
-      let customerName: string;
-      let reseller: User | undefined;
-  
-      if (isOutsourced) {
-          reseller = allStaff.find(u => u.uid === order.resellerId);
-          if (type === 'review') {
-              emailTo = reseller?.email;
-              customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
-          } else {
-              if (order.documentContact === 'client') {
-                  emailTo = order.endCustomerEmail;
-                  customerName = order.endCustomerName || 'Valued Customer';
-              } else {
-                  emailTo = reseller?.email;
-                  customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
-              }
-          }
-      } else {
-          emailTo = order.customerEmail;
-          customerName = order.customerName;
-      }
-  
-      if (!emailTo) {
-          toast({ title: "Recipient Error", description: "No recipient email address could be determined for this action.", variant: "destructive" });
-          return;
-      }
-  
-      let emailHtml = '';
-      let subject = '';
-      let message = '';
-      const orderForEmail = { ...order, customerName, id: order.originalOrderId || order.id };
-  
-      if (type === 'docs') {
-          const itemsWithServices = order.items.map(item => {
-              const service = allServices.find(s => s.id === item.id);
-              return { ...item, service };
-          }).filter(item => item.service) as { service: Service }[];
-          
-          emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={reseller} replyTo={currentUser.email || 'info@myacc.co.za'} />);
-          subject = `Action Required for Your Order #${orderForEmail.id}`;
-          message = `Sent 'Request Documents' email to ${emailTo}.`;
-      } else if (type === 'payment') {
-           emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={reseller} />);
-           subject = `Payment Reminder for Your Order: #${orderForEmail.id}`;
-           message = `Sent 'Payment Follow-up' email to ${emailTo}.`;
-      } else if (type === 'review') {
-           emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={reseller} />);
-           subject = `We'd love your feedback on order #${orderForEmail.id}`;
-           message = `Sent 'Request a Review' email to ${emailTo}.`;
-      }
-  
-      toast({ title: 'Sending email...', description: 'Please wait a moment.' });
-      
-       try {
-            await sendEmail({ to: emailTo, subject, html: emailHtml, resellerId: order.resellerId });
-            await addEmailToHistory(subject, message);
-            toast({ title: 'Email Sent!', description: `The email has been successfully sent to ${emailTo}.` });
-        } catch (error) {
-            console.error(`Failed to send ${type} email:`, error);
-            toast({ title: 'Error', description: 'Failed to send the email.', variant: 'destructive' });
+    if (!order || !currentUser) return;
+    
+    const isOutsourced = !!order.resellerId;
+    let emailTo: string | undefined;
+    let customerName: string;
+    let reseller: User | undefined;
+
+    if (isOutsourced) {
+        reseller = allStaff.find(u => u.uid === order.resellerId);
+        if (type === 'review') {
+            emailTo = reseller?.email;
+            customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
+        } else {
+            if (order.documentContact === 'client') {
+                emailTo = order.endCustomerEmail;
+                customerName = order.endCustomerName || 'Valued Customer';
+            } else {
+                emailTo = reseller?.email;
+                customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
+            }
         }
-    };
+    } else {
+        emailTo = order.customerEmail;
+        customerName = order.customerName;
+    }
+    
+    if (!emailTo) {
+        toast({ title: "Recipient Error", description: "No recipient email address could be determined for this action.", variant: "destructive" });
+        return;
+    }
+
+    let emailHtml = '';
+    let subject = '';
+    let message = '';
+    const orderForEmail = { ...order, customerName, id: order.originalOrderId || order.id };
+
+    if (type === 'docs') {
+        const itemsWithServices = order.items.map(item => {
+            const service = allServices.find(s => s.id === item.id);
+            return { ...item, service };
+        }).filter(item => item.service) as { service: Service }[];
+        
+        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={reseller} replyTo={currentUser.email || 'info@myacc.co.za'} />);
+        subject = `Action Required for Your Order #${orderForEmail.id}`;
+        message = `Sent 'Request Documents' email to ${emailTo}.`;
+    } else if (type === 'payment') {
+         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={reseller} />);
+         subject = `Payment Reminder for Your Order: #${orderForEmail.id}`;
+         message = `Sent 'Payment Follow-up' email to ${emailTo}.`;
+    } else if (type === 'review') {
+         emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={reseller} />);
+         subject = `We'd love your feedback on order #${orderForEmail.id}`;
+         message = `Sent 'Request a Review' email to ${emailTo}.`;
+    }
+
+    toast({ title: 'Sending email...', description: 'Please wait a moment.' });
+    
+     try {
+          await sendEmail({ to: emailTo, subject, html: emailHtml, resellerId: order.resellerId });
+          await addEmailToHistory(subject, message);
+          toast({ title: 'Email Sent!', description: `The email has been successfully sent to ${emailTo}.` });
+      } catch (error) {
+          console.error(`Failed to send ${type} email:`, error);
+          toast({ title: 'Error', description: 'Failed to send the email.', variant: 'destructive' });
+      }
+  };
   
     const allDocumentsReviewed = order?.documentUploads && order.documentUploads.length > 0 && order.documentUploads.every(d => d.status !== 'pending');
 
@@ -551,9 +551,13 @@ export default function AdminOrderDetailsPage() {
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
   const customerIsReseller = isOutsourced && order.documentContact !== 'client';
 
-  const contactName = customerIsReseller ? (resellerDetails?.companyName || resellerDetails?.name) : order.customerName;
-  const contactEmail = customerIsReseller ? resellerDetails?.email : order.customerEmail;
-  const contactPhone = customerIsReseller ? resellerDetails?.contactNumber : order.customerPhone;
+  const contactName = order.customerName;
+  const contactEmail = order.customerEmail;
+  const contactPhone = order.customerPhone;
+
+  const endClientName = order.endCustomerName;
+  const endClientEmail = order.endCustomerEmail;
+
 
   return (
     <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
@@ -636,7 +640,7 @@ export default function AdminOrderDetailsPage() {
                                     </div>
                                 </div>
                                 <div>
-                                     <h3 className="font-semibold text-muted-foreground mb-2">{isOutsourced ? (customerIsReseller ? 'Reseller Details' : 'End Client Details') : 'Contact Details'}</h3>
+                                     <h3 className="font-semibold text-muted-foreground mb-2">Contact Details</h3>
                                     <div className="space-y-3">
                                         <p className="font-semibold text-lg">{contactName}</p>
                                         {contactEmail && (
@@ -652,6 +656,20 @@ export default function AdminOrderDetailsPage() {
                                             </div>
                                         )}
                                     </div>
+                                     {isOutsourced && endClientName && (
+                                        <div className="mt-4 pt-4 border-t">
+                                            <h3 className="font-semibold text-muted-foreground mb-2">End Client Details</h3>
+                                            <div className="space-y-3">
+                                                <p className="font-semibold text-lg">{endClientName}</p>
+                                                {endClientEmail && (
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <Mail className="h-4 w-4 text-muted-foreground" />
+                                                        <span className="text-primary">{endClientEmail}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                     )}
                                 </div>
                             </div>
                         </CardContent>
