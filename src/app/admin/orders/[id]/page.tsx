@@ -104,14 +104,10 @@ function BackendSummaryModal({ order }: { order: Order }) {
 }
 
 
-function EmailClientDialog({ order, user, allStaff, onEmailSent }: { order: Order, user: User | null, allStaff: User[], onEmailSent: (subject: string, message: string) => Promise<void> }) {
+function EmailClientDialog({ order, user, allStaff, onEmailSent, contactEmail, contactName }: { order: Order, user: User | null, allStaff: User[], onEmailSent: (subject: string, message: string) => Promise<void>, contactEmail: string, contactName: string }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isSending, setIsSending] = useState(false);
-
-    const isOutsourced = !!order.resellerId;
-    const emailTo = isOutsourced && order.documentContact === 'client' ? order.endCustomerEmail : order.customerEmail;
-    const nameTo = isOutsourced && order.documentContact === 'client' ? order.endCustomerName : order.customerName;
 
     const form = useForm<z.infer<typeof emailFormSchema>>({
         resolver: zodResolver(emailFormSchema),
@@ -122,14 +118,14 @@ function EmailClientDialog({ order, user, allStaff, onEmailSent }: { order: Orde
     });
 
     const onSubmit = async (values: z.infer<typeof emailFormSchema>) => {
-        if (!emailTo) {
+        if (!contactEmail) {
             toast({ title: "Recipient Error", description: "No recipient email address found for this order.", variant: "destructive" });
             return;
         }
         setIsSending(true);
         try {
             await sendEmail({
-                to: emailTo,
+                to: contactEmail,
                 subject: values.subject,
                 html: `<p>${values.message.replace(/\n/g, '<br>')}</p>`,
                 resellerId: order.resellerId
@@ -163,9 +159,9 @@ function EmailClientDialog({ order, user, allStaff, onEmailSent }: { order: Orde
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>Send Email to {nameTo}</DialogTitle>
+                    <DialogTitle>Send Email to {contactName}</DialogTitle>
                     <DialogDescription>
-                        Recipient: <span className="font-semibold">{emailTo}</span>
+                        Recipient: <span className="font-semibold">{contactEmail}</span>
                         <br/>
                         {order.resellerId ? "This will be sent from the reseller's email." : "The email will be sent from the default company address."}
                     </DialogDescription>
@@ -189,7 +185,7 @@ function EmailClientDialog({ order, user, allStaff, onEmailSent }: { order: Orde
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Message</FormLabel>
-                                    <FormControl><Textarea {...field} rows={8} placeholder={`Hi ${nameTo}...`}/></FormControl>
+                                    <FormControl><Textarea {...field} rows={8} placeholder={`Hi ${contactName}...`}/></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -273,15 +269,15 @@ export default function AdminOrderDetailsPage() {
             documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt.toDate()})),
             itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt.toDate() })),
           } as Order;
-
-          if (fetchedOrder.resellerId && fetchedOrder.originalOrderId) {
+          
+          if (fetchedOrder.resellerId && fetchedOrder.originalOrderId && !fetchedOrder.endCustomerEmail) {
             const originalOrderRef = doc(db, 'orders', fetchedOrder.originalOrderId);
             const originalOrderSnap = await getDoc(originalOrderRef);
             if (originalOrderSnap.exists()) {
                 const originalOrderData = originalOrderSnap.data();
                 fetchedOrder.endCustomerName = originalOrderData.customerName;
                 fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
-                fetchedOrder.customerPhone = originalOrderData.customerPhone; // Pass phone too
+                fetchedOrder.customerPhone = originalOrderData.customerPhone;
             }
           }
 
@@ -421,29 +417,20 @@ export default function AdminOrderDetailsPage() {
 
   const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {
     if (!order || !currentUser) return;
-    
-    const isOutsourced = !!order.resellerId;
-    let emailTo: string | undefined;
-    let customerName: string;
+
+    let emailTo: string | undefined = order.customerEmail;
+    let customerName: string = order.customerName;
     let reseller: User | undefined;
 
-    if (isOutsourced) {
-        reseller = allStaff.find(u => u.uid === order.resellerId);
-        if (type === 'review') {
-            emailTo = reseller?.email;
-            customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
-        } else {
-            if (order.documentContact === 'client') {
-                emailTo = order.endCustomerEmail;
-                customerName = order.endCustomerName || 'Valued Customer';
-            } else {
-                emailTo = reseller?.email;
-                customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
-            }
-        }
-    } else {
-        emailTo = order.customerEmail;
-        customerName = order.customerName;
+    if (order.resellerId) {
+      reseller = allStaff.find(u => u.uid === order.resellerId);
+      if (order.documentContact === 'client' && order.endCustomerEmail) {
+        emailTo = order.endCustomerEmail;
+        customerName = order.endCustomerName || 'Valued Customer';
+      } else {
+        emailTo = reseller?.email;
+        customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
+      }
     }
     
     if (!emailTo) {
@@ -549,15 +536,9 @@ export default function AdminOrderDetailsPage() {
   
   const isOutsourced = !!order.resellerId;
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
-  const customerIsReseller = isOutsourced && order.documentContact !== 'client';
-
-  const contactName = order.customerName;
-  const contactEmail = order.customerEmail;
+  const contactName = isOutsourced && order.documentContact === 'client' ? order.endCustomerName : (isOutsourced ? resellerDetails?.companyName : order.customerName);
+  const contactEmail = isOutsourced && order.documentContact === 'client' ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
   const contactPhone = order.customerPhone;
-
-  const endClientName = order.endCustomerName;
-  const endClientEmail = order.endCustomerEmail;
-
 
   return (
     <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
@@ -656,15 +637,15 @@ export default function AdminOrderDetailsPage() {
                                             </div>
                                         )}
                                     </div>
-                                     {isOutsourced && endClientName && (
+                                    {isOutsourced && order.documentContact === 'reseller' && order.endCustomerName && (
                                         <div className="mt-4 pt-4 border-t">
                                             <h3 className="font-semibold text-muted-foreground mb-2">End Client Details</h3>
                                             <div className="space-y-3">
-                                                <p className="font-semibold text-lg">{endClientName}</p>
-                                                {endClientEmail && (
+                                                <p className="font-semibold text-lg">{order.endCustomerName}</p>
+                                                {order.endCustomerEmail && (
                                                     <div className="flex items-center gap-2 text-sm">
                                                         <Mail className="h-4 w-4 text-muted-foreground" />
-                                                        <span className="text-primary">{endClientEmail}</span>
+                                                        <span className="text-primary">{order.endCustomerEmail}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -825,7 +806,7 @@ export default function AdminOrderDetailsPage() {
                                 <FileText className="mr-2 h-4 w-4" /> Request Documents
                             </Button>
                             <Separator className="my-2" />
-                            <EmailClientDialog order={order} user={null} allStaff={allStaff} onEmailSent={addEmailToHistory} />
+                            <EmailClientDialog order={order} user={null} allStaff={allStaff} onEmailSent={addEmailToHistory} contactEmail={contactEmail || ''} contactName={contactName || ''}/>
                             <Separator className="my-2" />
                             <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('review')}>
                                 <Star className="mr-2 h-4 w-4" /> Request a Review
