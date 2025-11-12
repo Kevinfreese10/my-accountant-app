@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -640,7 +640,16 @@ export default function AdminOrderDetailsPage() {
                                             </div>
                                         )}
                                     </div>
-                                    {contactIsClient && (
+                                    {isOutsourced && (
+                                        <div className="mt-4 pt-4 border-t">
+                                            <h3 className="font-semibold text-muted-foreground mb-2">Contact for Documents</h3>
+                                            <div className="flex items-center gap-2">
+                                                <Users className="h-4 w-4 text-muted-foreground" />
+                                                <span className="text-sm font-medium capitalize">{order.documentContact}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                     {isOutsourced && order.documentContact === 'reseller' && (
                                         <div className="mt-4 pt-4 border-t">
                                             <h3 className="font-semibold text-muted-foreground mb-2">End Client Details</h3>
                                             <div className="space-y-3">
