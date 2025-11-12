@@ -4,11 +4,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { allServices } from '@/lib/data';
+import { services as allServices } from '@/lib/data';
 import {
   Table,
   TableBody,
@@ -42,9 +42,9 @@ import {
 } from '@/components/ui/tooltip';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
-import PaymentConfirmationEmail from '@/components/emails/PaymentConfirmationEmail';
-import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
-import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
+import PaymentConfirmationEmail from '../emails/PaymentConfirmationEmail';
+import DocumentRequestEmail from '../emails/DocumentRequestEmail';
+import ReviewRequestEmail from '../emails/ReviewRequestEmail';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
