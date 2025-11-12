@@ -20,8 +20,6 @@ import { Order, User } from '@/lib/types';
 interface OrderConfirmationEmailProps {
   order: Order;
   reseller?: User;
-  isNewUser?: boolean;
-  generatedPassword?: string | null;
 }
 
 const formatPrice = (price: number) => {
@@ -126,7 +124,7 @@ const referenceValue = {
     borderRadius: '4px',
 }
 
-export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPassword }: OrderConfirmationEmailProps) => {
+export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEmailProps) => {
     const previewText = `Order Confirmation #${order.id}`;
 
     const bankingDetails = reseller?.bankingDetails || {
@@ -180,29 +178,6 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                     </tbody>
                 </table>
                 <Hr style={hr} />
-                
-                {isNewUser && generatedPassword && (
-                    <>
-                        <Heading style={{...heading, fontSize: '20px', marginTop: '30px'}}>Your New Client Portal Account</Heading>
-                        <Text style={paragraph}>
-                            An account has been created for you. You can use these details to log in and upload the documents required for your order.
-                        </Text>
-                        <Section style={paymentInstructionSection}>
-                            <div style={detailItem}>
-                                <p style={detailLabel}>Login Email:</p>
-                                <p style={detailValue}>{order.customerEmail}</p>
-                            </div>
-                            <div style={detailItem}>
-                                <p style={detailLabel}>Your Password:</p>
-                                <p style={{...referenceValue, display: 'inline-block'}}>{generatedPassword}</p>
-                            </div>
-                        </Section>
-                        <Text style={{ ...paragraph, textAlign: 'center', margin: '20px 0' }}>
-                            <Link href={`${siteUrl}/login`} style={button}>Login to Your Account</Link>
-                        </Text>
-                        <Hr style={hr} />
-                    </>
-                )}
                 
                 <Heading style={{...heading, fontSize: '20px', marginTop: '30px'}}>Payment Instructions</Heading>
                 <Text style={paragraph}>

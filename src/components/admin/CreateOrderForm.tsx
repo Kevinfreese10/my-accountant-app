@@ -63,9 +63,6 @@ export default function CreateOrderForm() {
   const { user: currentUser } = useAuth();
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [isServicesLoading, setIsServicesLoading] = useState(true);
-  const [existingUser, setExistingUser] = useState<User | null>(null);
-  const [isCheckingUser, setIsCheckingUser] = useState(false);
-
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -100,13 +97,6 @@ export default function CreateOrderForm() {
     control: form.control,
     name: 'items',
   });
-  
-  const watchedItems = form.watch('items');
-  const watchedEmail = form.watch('customerEmail');
-
-  useEffect(() => {
-    setExistingUser(null);
-  }, [watchedEmail]);
 
   const calculateTotal = (items: any[]) => {
      return (items || []).reduce((acc, item) => {
@@ -137,34 +127,6 @@ export default function CreateOrderForm() {
     setTotal(calculateTotal(form.getValues('items')));
   }, []);
   
-  const handleCheckUser = async () => {
-      const email = form.getValues('customerEmail');
-      if (!email) {
-          form.setError('customerEmail', { message: 'Please enter an email to check.'});
-          return;
-      }
-      setIsCheckingUser(true);
-      setExistingUser(null);
-      try {
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('email', '==', email));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-            const userData = querySnapshot.docs[0].data() as User;
-            setExistingUser(userData);
-            form.setValue('customerName', userData.name);
-            if(userData.contactNumber) form.setValue('customerPhone', userData.contactNumber);
-            toast({ title: 'User Found', description: 'This order will be linked to the existing user account.'})
-        } else {
-            toast({ title: 'User Not Found', description: 'A new user account will be created with this order.'});
-        }
-      } catch (error) {
-          toast({ title: 'Error', description: 'Could not check for existing user.', variant: 'destructive'});
-      } finally {
-          setIsCheckingUser(false);
-      }
-  }
-
   const handleServiceChange = (serviceId: string, index: number) => {
     const selectedService = allServices.find(s => s.id === serviceId);
     if (selectedService) {
@@ -200,15 +162,6 @@ export default function CreateOrderForm() {
     });
 
     try {
-        let userId = existingUser?.uid;
-
-        if (!existingUser) {
-            // A new user record will be created in Firestore, but not in Firebase Auth
-            // For simplicity, we can use a generated ID or the email as a temporary ID.
-            // A more robust solution would be to create a proper user record without auth credentials.
-            // For now, we will link the order to the email and name, not a full user profile.
-        }
-
         const orderId = await getNextOrderId();
         const firstService = allServices.find(s => s.id === values.items[0]?.serviceId);
         const department = firstService?.department;
@@ -225,7 +178,7 @@ export default function CreateOrderForm() {
 
       const orderData: Order = {
         id: orderId,
-        userId: userId || null, // Can be null if it's a new client without an account
+        userId: null, // No user account is created
         customerName: values.customerName,
         customerEmail: values.customerEmail,
         customerPhone: values.customerPhone,
@@ -249,7 +202,7 @@ export default function CreateOrderForm() {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} isNewUser={!existingUser} generatedPassword={null} />);
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
       await sendEmail({
         to: values.customerEmail,
         bcc: 'kev@thinkestry.co.za',
@@ -259,7 +212,7 @@ export default function CreateOrderForm() {
 
       toast({
         title: 'Order Created Successfully',
-        description: `Order ${orderId} has been created for ${existingUser ? 'existing' : 'new'} client.`,
+        description: `Order ${orderId} has been created for the client.`,
       });
       
       setIsLoading(false);
@@ -279,34 +232,6 @@ export default function CreateOrderForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 gap-4">
-            <FormField
-            control={form.control}
-            name="customerEmail"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Customer Email</FormLabel>
-                 <div className="flex gap-2">
-                    <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
-                    <Button type="button" variant="secondary" onClick={handleCheckUser} disabled={isCheckingUser}>
-                        {isCheckingUser ? <Loader2 className="h-4 w-4 animate-spin"/> : <Search className="h-4 w-4"/>}
-                        <span className="ml-2 hidden sm:inline">Check User</span>
-                    </Button>
-                </div>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-
-            {existingUser && (
-                 <Alert>
-                    <AlertTitle>Existing User Found</AlertTitle>
-                    <AlertDescription>
-                        This order will be linked to {existingUser.name}. The fields below have been pre-filled.
-                    </AlertDescription>
-                </Alert>
-            )}
-        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
             control={form.control}
@@ -315,6 +240,17 @@ export default function CreateOrderForm() {
                 <FormItem>
                 <FormLabel>Customer Full Name</FormLabel>
                 <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+            <FormField
+            control={form.control}
+            name="customerEmail"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Customer Email</FormLabel>
+                <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
                 <FormMessage />
                 </FormItem>
             )}
@@ -331,14 +267,6 @@ export default function CreateOrderForm() {
             )}
             />
         </div>
-        {!existingUser && (
-            <Alert variant="destructive">
-                <AlertTitle>New Client</AlertTitle>
-                <AlertDescription>
-                   No existing account found. A new client record will be associated with this order.
-                </AlertDescription>
-            </Alert>
-        )}
         
         <Separator />
 

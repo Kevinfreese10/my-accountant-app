@@ -10,10 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Loader2, LogIn } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getNextOrderId } from '@/lib/sequence';
 import { Checkbox } from '../ui/checkbox';
-import { nanoid } from 'nanoid';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { sendEmail } from '@/lib/email';
@@ -26,7 +24,6 @@ import Link from 'next/link';
 
 
 const db = getFirestore(firebaseApp);
-const auth = getAuth(firebaseApp);
 
 
 const guestFormSchema = z.object({
@@ -65,46 +62,10 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     });
 
     try {
-      let userId: string;
-      let isNewUser = false;
-      let generatedPassword: string | null = null;
-      
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', values.email_address));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        // New user - create them in Auth and Firestore
-        isNewUser = true;
-        generatedPassword = nanoid(8);
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email_address, generatedPassword);
-        userId = userCredential.user.uid;
-        
-        const newUser: Partial<User> = {
-            uid: userId,
-            id: userId,
-            name: `${values.name_first} ${values.name_last}`,
-            email: values.email_address,
-            contactNumber: values.cell_number,
-            role: 'client',
-            createdAt: serverTimestamp(),
-        };
-        await setDoc(doc(db, 'users', userId), newUser);
-      } else {
-        // Existing user, just get their ID
-        userId = querySnapshot.docs[0].id;
-        isNewUser = false; // Not a new user after all
-      }
-      
-      await createOrder(userId, `${values.name_first} ${values.name_last}`, values.email_address, isNewUser, generatedPassword);
-      
+      await createOrder(null, `${values.name_first} ${values.name_last}`, values.email_address, values.cell_number);
     } catch (error: any) {
         console.error("Error in guest checkout: ", error);
-        let description = 'There was a problem placing your order. Please try again.';
-        if (error.code === 'auth/email-already-in-use') {
-            description = 'An account with this email already exists. Please log in to complete your purchase.';
-        }
-        toast({ title: 'Order Failed', description, variant: 'destructive' });
+        toast({ title: 'Order Failed', description: 'There was a problem placing your order. Please try again.', variant: 'destructive' });
         setIsLoading(false);
     }
   };
@@ -119,7 +80,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     });
 
     try {
-      await createOrder(user.uid, user.name, user.email, false, null);
+      await createOrder(user.uid, user.name, user.email, user.contactNumber);
     } catch (error) {
       console.error("Error creating order: ", error);
       toast({
@@ -131,13 +92,14 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     }
   }
 
-  async function createOrder(userId: string, customerName: string, customerEmail: string, isNewUser: boolean, generatedPassword: string | null) {
+  async function createOrder(userId: string | null, customerName: string, customerEmail: string, customerPhone?: string) {
       const orderId = await getNextOrderId();
       const orderData: Order = {
         id: orderId,
         userId: userId,
         customerName: customerName,
         customerEmail: customerEmail,
+        customerPhone: customerPhone,
         items: [{ id: service.id, title: service.title, price: service.price, quantity: 1 }],
         total: service.price,
         discountCode: null,
@@ -151,7 +113,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} isNewUser={isNewUser} generatedPassword={generatedPassword} />);
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
       await sendEmail({
           to: orderData.customerEmail,
           bcc: 'kev@thinkestry.co.za',
