@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck, Search } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, OrderNote, User } from '@/lib/types';
 import { Separator } from '../ui/separator';
@@ -272,9 +272,9 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                     <RadioGroup
                     onValueChange={field.onChange}
                     defaultValue={field.value}
-                    className="flex flex-col space-y-1"
+                    className="flex flex-col space-y-2"
                     >
-                    <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormItem className="flex items-center space-x-3 space-y-0 rounded-md border p-4">
                         <FormControl>
                         <RadioGroupItem value="reseller" />
                         </FormControl>
@@ -282,13 +282,18 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                         Contact me (the reseller)
                         </FormLabel>
                     </FormItem>
-                    <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                        <RadioGroupItem value="client" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                        Contact my client directly
-                        </FormLabel>
+                    <FormItem className="space-y-2 rounded-md border p-4">
+                        <div className="flex items-center space-x-3">
+                            <FormControl>
+                            <RadioGroupItem value="client" />
+                            </FormControl>
+                            <FormLabel className="font-normal">
+                            Contact my client directly
+                            </FormLabel>
+                        </div>
+                        <FormDescription className="pl-8 text-xs">
+                          Emails will come from "{reseller?.companyName || 'My Accountant'}" &lt;no_reply@myacc.co.za&gt; and will not contain links to our website to protect your brand.
+                        </FormDescription>
                     </FormItem>
                     </RadioGroup>
                 </FormControl>
