@@ -302,12 +302,6 @@ export default function ResellerOrdersPage() {
                                 <DropdownMenuItem asChild>
                                     <Link href={`/reseller/orders/${order.id}`}>View/Add Notes</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem disabled={order.isOutsourced}>
-                                    Outsource to My Accountant
-                                    </DropdownMenuItem>
-                                </AlertDialogTrigger>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                             <AlertDialogContent>
