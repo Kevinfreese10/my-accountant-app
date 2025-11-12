@@ -110,8 +110,8 @@ function EmailClientDialog({ order, user, allStaff, onEmailSent }: { order: Orde
     const [isSending, setIsSending] = useState(false);
 
     const isOutsourced = !!order.resellerId;
-    const emailTo = order.documentContact === 'client' && isOutsourced ? order.endCustomerEmail : order.customerEmail;
-    const nameTo = order.documentContact === 'client' && isOutsourced ? order.endCustomerName : order.customerName;
+    const emailTo = isOutsourced && order.documentContact === 'client' ? order.endCustomerEmail : order.customerEmail;
+    const nameTo = isOutsourced && order.documentContact === 'client' ? order.endCustomerName : order.customerName;
 
     const form = useForm<z.infer<typeof emailFormSchema>>({
         resolver: zodResolver(emailFormSchema),
@@ -281,10 +281,11 @@ export default function AdminOrderDetailsPage() {
                 const originalOrderData = originalOrderSnap.data();
                 fetchedOrder.endCustomerName = originalOrderData.customerName;
                 fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
-                // Also get the reseller's name
+                
                 const resellerRef = doc(db, 'users', fetchedOrder.resellerId);
                 const resellerSnap = await getDoc(resellerRef);
                 if (resellerSnap.exists()) {
+                    // Overwrite customerName with reseller's name if it's an outsourced order
                     fetchedOrder.customerName = resellerSnap.data().companyName || resellerSnap.data().name;
                 }
             }
@@ -292,8 +293,8 @@ export default function AdminOrderDetailsPage() {
 
           setOrder(fetchedOrder);
           
-          if (fetchedOrder.assignedTo) {
-            const assignedUser = fetchedStaff.find(u => u.uid === fetchedOrder.assignedTo);
+          if (fetchedOrder.assignedTo && fetchedOrder.assignedTo.length > 0) {
+            const assignedUser = fetchedStaff.find(u => u.uid === fetchedOrder.assignedTo![0]);
             setAssignee(assignedUser || null);
           }
           
@@ -562,10 +563,11 @@ export default function AdminOrderDetailsPage() {
   
   const isOutsourced = !!order.resellerId;
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
-  const customerName = isOutsourced && order.documentContact === 'client' ? order.endCustomerName : order.customerName;
-  const customerEmail = isOutsourced && order.documentContact === 'client' ? order.endCustomerEmail : order.customerEmail;
-  const customerPhone = isOutsourced && order.documentContact === 'client' ? undefined : order.customerPhone; // Phone not stored for end client
   const customerIsReseller = isOutsourced && order.documentContact !== 'client';
+
+  const customerName = isOutsourced ? (customerIsReseller ? (resellerDetails?.companyName || resellerDetails?.name) : order.endCustomerName) : order.customerName;
+  const customerEmail = isOutsourced ? (customerIsReseller ? resellerDetails?.email : order.endCustomerEmail) : order.customerEmail;
+  const customerPhone = isOutsourced ? (customerIsReseller ? resellerDetails?.contactNumber : undefined) : order.customerPhone;
 
 
   return (
@@ -649,7 +651,7 @@ export default function AdminOrderDetailsPage() {
                                     </div>
                                 </div>
                                 <div>
-                                     <h3 className="font-semibold text-muted-foreground mb-2">{customerIsReseller ? 'Reseller Details' : isOutsourced ? 'End Client Details' : 'Customer Details'}</h3>
+                                     <h3 className="font-semibold text-muted-foreground mb-2">{customerIsReseller ? 'Reseller Details' : 'Contact Details'}</h3>
                                     <div className="space-y-3">
                                         <p className="font-semibold text-lg">{customerName}</p>
                                         {customerEmail && (
@@ -837,3 +839,5 @@ export default function AdminOrderDetailsPage() {
     </Dialog>
   );
 }
+
+    
