@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -259,9 +258,13 @@ export default function ResellerOrderDetailsPage() {
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
   const contactIsClient = order.documentContact === 'client';
   
-  const contactName = contactIsClient ? order.endCustomerName : (isOutsourced ? resellerDetails?.companyName || resellerDetails?.name : order.customerName);
-  const contactEmail = contactIsClient ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
-  const contactPhone = contactIsClient ? order.customerPhone : (isOutsourced ? resellerDetails?.contactNumber : order.customerPhone);
+  // This logic determines the primary contact for the order display
+  const contactName = order.customerName;
+  const contactEmail = order.customerEmail;
+  const contactPhone = order.customerPhone;
+
+  // This logic determines who to contact for documents
+  const docContactEmail = contactIsClient ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
 
 
   return (
@@ -308,17 +311,17 @@ export default function ResellerOrderDetailsPage() {
                             <div>
                                 <h3 className="font-semibold text-muted-foreground mb-2">Client Details</h3>
                                 <div className="space-y-3">
-                                    <p className="font-semibold text-lg">{order.customerName}</p>
-                                    {order.customerEmail && (
+                                    <p className="font-semibold text-lg">{contactName}</p>
+                                    {contactEmail && (
                                         <div className="flex items-center gap-2 text-sm">
                                             <Mail className="h-4 w-4 text-muted-foreground" />
-                                            <a href={`mailto:${order.customerEmail}`} className="text-primary hover:underline">{order.customerEmail}</a>
+                                            <a href={`mailto:${contactEmail}`} className="text-primary hover:underline">{contactEmail}</a>
                                         </div>
                                     )}
-                                    {order.customerPhone && (
+                                    {contactPhone && (
                                         <div className="flex items-center gap-2 text-sm">
                                             <Phone className="h-4 w-4 text-muted-foreground" />
-                                            <span>{order.customerPhone}</span>
+                                            <span>{contactPhone}</span>
                                         </div>
                                     )}
                                 </div>
@@ -330,10 +333,10 @@ export default function ResellerOrderDetailsPage() {
                                             <Users className="h-4 w-4 text-muted-foreground" />
                                             <span className="text-sm font-medium capitalize">{order.documentContact}</span>
                                         </div>
-                                        {contactEmail && (
+                                        {docContactEmail && (
                                         <div className="flex items-center gap-2 text-sm mt-1">
                                             <Mail className="h-4 w-4 text-muted-foreground" />
-                                            <a href={`mailto:${contactEmail}`} className="text-primary hover:underline">{contactEmail}</a>
+                                            <a href={`mailto:${docContactEmail}`} className="text-primary hover:underline">{docContactEmail}</a>
                                         </div>
                                         )}
                                     </div>
