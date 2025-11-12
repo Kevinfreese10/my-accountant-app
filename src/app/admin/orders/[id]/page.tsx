@@ -422,15 +422,15 @@ export default function AdminOrderDetailsPage() {
     const resellerDetails = isOutsourced ? allStaff.find(u => u.uid === order.resellerId) : null;
     
     let emailTo: string | undefined;
-    let customerName: string;
+    let customerNameToUse: string;
 
     if (isOutsourced) {
         const contactIsClient = order.documentContact === 'client';
         emailTo = contactIsClient ? order.endCustomerEmail : resellerDetails?.email;
-        customerName = contactIsClient ? (order.endCustomerName || 'Valued Customer') : (resellerDetails?.companyName || resellerDetails?.name || 'Valued Partner');
+        customerNameToUse = contactIsClient ? (order.endCustomerName || 'Valued Customer') : (resellerDetails?.companyName || resellerDetails?.name || 'Valued Partner');
     } else {
         emailTo = order.customerEmail;
-        customerName = order.customerName;
+        customerNameToUse = order.customerName;
     }
     
     if (!emailTo) {
@@ -441,7 +441,7 @@ export default function AdminOrderDetailsPage() {
     let emailHtml = '';
     let subject = '';
     let message = '';
-    const orderForEmail = { ...order, customerName, id: order.originalOrderId || order.id };
+    const orderForEmail = { ...order, customerName: customerNameToUse, id: order.originalOrderId || order.id };
 
     if (type === 'docs') {
         const itemsWithServices = order.items.map(item => {
@@ -538,9 +538,10 @@ export default function AdminOrderDetailsPage() {
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
   const contactIsClient = isOutsourced && order.documentContact === 'client';
   
-  let contactName = isOutsourced ? (resellerDetails?.companyName || resellerDetails?.name || 'N/A') : order.customerName;
-  let contactEmail = isOutsourced ? (resellerDetails?.email || 'N/A') : order.customerEmail;
-  let contactPhone = isOutsourced ? (resellerDetails?.contactNumber) : order.customerPhone;
+  const contactName = isOutsourced ? (contactIsClient ? order.endCustomerName : resellerDetails?.companyName || resellerDetails?.name) : order.customerName;
+  const contactEmail = isOutsourced ? (contactIsClient ? order.endCustomerEmail : resellerDetails?.email) : order.customerEmail;
+  const contactPhone = isOutsourced ? (contactIsClient ? order.customerPhone : resellerDetails?.contactNumber) : order.customerPhone;
+
 
   return (
     <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
