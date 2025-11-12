@@ -167,9 +167,9 @@ export default function ResellerOrderDetailsPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Order {order.id}</CardTitle>
-                        <CardDescription>
-                        Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
-                        </CardDescription>
+                        <div className="text-sm text-muted-foreground">
+                            Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
