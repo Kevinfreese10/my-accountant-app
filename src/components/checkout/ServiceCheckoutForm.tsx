@@ -74,6 +74,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
+        // New user - create them in Auth and Firestore
         isNewUser = true;
         generatedPassword = nanoid(8);
         const userCredential = await createUserWithEmailAndPassword(auth, values.email_address, generatedPassword);
@@ -90,7 +91,9 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         };
         await setDoc(doc(db, 'users', userId), newUser);
       } else {
+        // Existing user, just get their ID
         userId = querySnapshot.docs[0].id;
+        isNewUser = false; // Not a new user after all
       }
       
       await createOrder(userId, `${values.name_first} ${values.name_last}`, values.email_address, isNewUser, generatedPassword);
