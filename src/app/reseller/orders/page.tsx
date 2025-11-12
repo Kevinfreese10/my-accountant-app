@@ -1,45 +1,73 @@
 
+
 'use client';
-import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
-import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus } from 'lucide-react';
-import Image from 'next/image';
-import { format } from 'date-fns';
-import { Order, Service, User } from '@/lib/types';
+
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useToast } from '@/hooks/use-toast';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { allServices } from '@/lib/data';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { MoreHorizontal, Loader2, PlusCircle, MessageSquare } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from '@/components/ui/dropdown-menu';
+import { format, formatDistanceToNow } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import PaymentConfirmationEmail from '@/components/emails/PaymentConfirmationEmail';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
-import { services as allServices } from '@/lib/data';
-import { Separator } from '@/components/ui/separator';
 import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderForm';
-import CommunityQnA from '@/components/reseller/CommunityQnA';
 import { useRouter } from 'next/navigation';
+
 
 const db = getFirestore(firebaseApp);
 
 export default function ResellerOrdersPage() {
-    const { user } = useAuth();
-    const router = useRouter();
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const { toast } = useToast();
-    const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
-    const [allStaff, setAllStaff] = useState<User[]>([]);
-    const staffCounters = useRef<{ [key: string]: number }>({});
+  const { user } = useAuth();
+  const router = useRouter();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
+  const [allStaff, setAllStaff] = useState<User[]>([]);
+  const staffCounters = useRef<{ [key: string]: number }>({});
     
-    const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
+  const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
 
-    const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
+  const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
       const staffInDept = allStaff.filter(u => u.role === 'staff' && u.department === department);
       if (staffInDept.length === 0) return undefined;
 
@@ -49,9 +77,19 @@ export default function ResellerOrdersPage() {
       staffCounters.current[department] = (currentIndex + 1) % staffInDept.length;
       
       return nextStaff;
-    };
+  };
 
-    const fetchOrdersAndStaff = async () => {
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+  };
+
+
+  const fetchOrdersAndStaff = async () => {
       if (!user?.uid) {
         setIsLoading(false);
         return;
@@ -203,15 +241,6 @@ export default function ResellerOrdersPage() {
       });
     }
   };
-
-    const formatPrice = (price: number) => {
-        return new Intl.NumberFormat('en-ZA', {
-        style: 'currency',
-        currency: 'ZAR',
-        minimumFractionDigits: price % 1 === 0 ? 0 : 2,
-        maximumFractionDigits: 2,
-        }).format(price);
-    };
 
     const getStatusVariant = (status: Order['status']) => {
         switch (status) {
