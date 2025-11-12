@@ -277,7 +277,7 @@ export default function AdminOrderDetailsPage() {
                 const originalOrderData = originalOrderSnap.data();
                 fetchedOrder.endCustomerName = originalOrderData.customerName;
                 fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
-                fetchedOrder.customerPhone = originalOrderData.customerPhone;
+                fetchedOrder.customerPhone = originalOrderData.customerPhone; // Corrected to use customerPhone
             }
           }
 
@@ -417,20 +417,23 @@ export default function AdminOrderDetailsPage() {
 
   const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {
     if (!order || !currentUser) return;
+    
+    const isOutsourced = !!order.resellerId;
+    const contactIsClient = isOutsourced && order.documentContact === 'client';
+    const resellerDetails = isOutsourced ? allStaff.find(u => u.uid === order.resellerId) : null;
 
-    let emailTo: string | undefined = order.customerEmail;
-    let customerName: string = order.customerName;
-    let reseller: User | undefined;
+    let emailTo: string | undefined;
+    let customerName: string;
 
-    if (order.resellerId) {
-      reseller = allStaff.find(u => u.uid === order.resellerId);
-      if (order.documentContact === 'client' && order.endCustomerEmail) {
+    if (contactIsClient) {
         emailTo = order.endCustomerEmail;
         customerName = order.endCustomerName || 'Valued Customer';
-      } else {
-        emailTo = reseller?.email;
-        customerName = reseller?.companyName || reseller?.name || 'Valued Partner';
-      }
+    } else if (isOutsourced) {
+        emailTo = resellerDetails?.email;
+        customerName = resellerDetails?.companyName || resellerDetails?.name || 'Valued Partner';
+    } else {
+        emailTo = order.customerEmail;
+        customerName = order.customerName;
     }
     
     if (!emailTo) {
@@ -449,15 +452,15 @@ export default function AdminOrderDetailsPage() {
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
         
-        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={reseller} replyTo={currentUser.email || 'info@myacc.co.za'} />);
+        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={resellerDetails || undefined} replyTo={currentUser.email || 'info@myacc.co.za'} />);
         subject = `Action Required for Your Order #${orderForEmail.id}`;
         message = `Sent 'Request Documents' email to ${emailTo}.`;
     } else if (type === 'payment') {
-         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={reseller} />);
+         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={resellerDetails || undefined} />);
          subject = `Payment Reminder for Your Order: #${orderForEmail.id}`;
          message = `Sent 'Payment Follow-up' email to ${emailTo}.`;
     } else if (type === 'review') {
-         emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={reseller} />);
+         emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={resellerDetails || undefined} />);
          subject = `We'd love your feedback on order #${orderForEmail.id}`;
          message = `Sent 'Request a Review' email to ${emailTo}.`;
     }
@@ -480,8 +483,8 @@ export default function AdminOrderDetailsPage() {
         if (!order || !order.documentUploads) return;
         
         const isOutsourced = !!order.resellerId;
-        const emailTo = isOutsourced ? order.endCustomerEmail : order.customerEmail;
-        const clientName = isOutsourced ? order.endCustomerName : order.customerName;
+        const emailTo = isOutsourced && order.documentContact === 'client' ? order.endCustomerEmail : order.customerEmail;
+        const clientName = isOutsourced && order.documentContact === 'client' ? order.endCustomerName : order.customerName;
 
         if (!emailTo || !clientName) {
             toast({ title: "Cannot send feedback", description: "Missing client contact details.", variant: "destructive" });
@@ -536,9 +539,24 @@ export default function AdminOrderDetailsPage() {
   
   const isOutsourced = !!order.resellerId;
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
-  const contactName = isOutsourced && order.documentContact === 'client' ? order.endCustomerName : (isOutsourced ? resellerDetails?.companyName : order.customerName);
-  const contactEmail = isOutsourced && order.documentContact === 'client' ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
-  const contactPhone = order.customerPhone;
+  const contactIsClient = isOutsourced && order.documentContact === 'client';
+  
+  let contactName = order.customerName;
+  let contactEmail = order.customerEmail;
+  let contactPhone = order.customerPhone;
+  
+  if (isOutsourced) {
+    if (contactIsClient) {
+        contactName = order.endCustomerName || 'N/A';
+        contactEmail = order.endCustomerEmail || 'N/A';
+        contactPhone = order.customerPhone;
+    } else {
+        contactName = resellerDetails?.companyName || resellerDetails?.name || 'N/A';
+        contactEmail = resellerDetails?.email || 'N/A';
+        contactPhone = resellerDetails?.contactNumber;
+    }
+  }
+
 
   return (
     <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
@@ -637,7 +655,7 @@ export default function AdminOrderDetailsPage() {
                                             </div>
                                         )}
                                     </div>
-                                    {isOutsourced && order.documentContact === 'reseller' && order.endCustomerName && (
+                                    {isOutsourced && !contactIsClient && order.endCustomerName && (
                                         <div className="mt-4 pt-4 border-t">
                                             <h3 className="font-semibold text-muted-foreground mb-2">End Client Details</h3>
                                             <div className="space-y-3">
