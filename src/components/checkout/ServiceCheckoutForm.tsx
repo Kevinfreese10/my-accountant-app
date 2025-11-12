@@ -168,11 +168,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                     </label>
                 </div>
             </div>
-             {!user && (
-              <p className="text-xs text-center text-muted-foreground pt-2">
-                  You can <Link href="/login" className="text-primary underline">log in</Link> for a faster checkout.
-              </p>
-            )}
         </div>
       
       {showGuestForm && !user ? (
