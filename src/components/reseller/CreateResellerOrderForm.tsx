@@ -10,10 +10,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck } from 'lucide-react';
+import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck, Search } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service } from '@/lib/types';
+import { Order, Service, OrderNote, User } from '@/lib/types';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
@@ -22,6 +22,7 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { getNextOrderId } from '@/lib/sequence';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
 
 const db = getFirestore(firebaseApp);
@@ -45,6 +46,7 @@ const formSchema = z.object({
   customerName: z.string().min(2, 'Customer name is required.'),
   customerEmail: z.string().email('Invalid email address.'),
   customerPhone: z.string().min(10, 'A valid phone number is required.'),
+  documentContact: z.enum(['reseller', 'client'], { required_error: 'You must select who to contact for documents.' }),
   items: z.array(lineItemSchema).min(1, 'At least one line item is required.'),
 });
 
@@ -88,6 +90,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       customerName: '',
       customerEmail: '',
       customerPhone: '',
+      documentContact: 'reseller',
       items: [{ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 }],
     },
     mode: 'onChange',
@@ -164,6 +167,8 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
         resellerId: reseller.id,
         customerName: values.customerName,
         customerEmail: values.customerEmail,
+        customerPhone: values.customerPhone,
+        documentContact: values.documentContact,
         items: values.items.map(item => ({ 
             id: item.serviceId || item.description.toLowerCase().replace(/\\s/g, '-'),
             title: item.description, 
@@ -256,6 +261,41 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
             )}
             />
         </div>
+
+        <FormField
+            control={form.control}
+            name="documentContact"
+            render={({ field }) => (
+                <FormItem className="space-y-3">
+                <FormLabel>Who should we contact for required documents?</FormLabel>
+                <FormControl>
+                    <RadioGroup
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    className="flex flex-col space-y-1"
+                    >
+                    <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                        <RadioGroupItem value="reseller" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                        Contact me (the reseller)
+                        </FormLabel>
+                    </FormItem>
+                    <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                        <RadioGroupItem value="client" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                        Contact my client directly
+                        </FormLabel>
+                    </FormItem>
+                    </RadioGroup>
+                </FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
         
         <Separator />
 
