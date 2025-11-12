@@ -43,11 +43,19 @@ const lineItemSchema = z.object({
 
 
 const formSchema = z.object({
-  customerName: z.string().min(2, 'Customer name is required.'),
-  customerEmail: z.string().email('Invalid email address.'),
-  customerPhone: z.string().min(10, 'A valid phone number is required.'),
+  customerName: z.string().optional(),
+  customerEmail: z.string().optional(),
+  customerPhone: z.string().optional(),
   documentContact: z.enum(['reseller', 'client'], { required_error: 'You must select who to contact for documents.' }),
   items: z.array(lineItemSchema).min(1, 'At least one line item is required.'),
+}).refine(data => {
+    if (data.documentContact === 'client') {
+        return !!data.customerName && !!data.customerEmail && !!data.customerPhone;
+    }
+    return true;
+}, {
+    message: 'Client details are required when client is the contact.',
+    path: ['customerName'], // Show error on first client field
 });
 
 type CreateOrderFormValues = z.infer<typeof formSchema>;
@@ -102,6 +110,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
   });
 
   const watchedItems = form.watch('items');
+  const documentContact = form.watch('documentContact');
 
   const calculateTotal = (items: any[]) => {
     return (items || []).reduce((acc, item) => {
@@ -161,13 +170,15 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       const orderId = await getNextOrderId();
       const resellerTotalCost = values.items.reduce((acc, item) => acc + (item.resellerPrice * item.quantity), 0);
       const clientTotal = values.items.reduce((acc, item) => acc + (item.clientPrice * item.quantity), 0);
+      
+      const isClientContact = values.documentContact === 'client';
 
       const orderData: Order = {
         id: orderId,
         resellerId: reseller.id,
-        customerName: values.customerName,
-        customerEmail: values.customerEmail,
-        customerPhone: values.customerPhone,
+        customerName: isClientContact ? values.customerName! : (reseller.contactPerson || reseller.name),
+        customerEmail: isClientContact ? values.customerEmail! : reseller.email,
+        customerPhone: isClientContact ? values.customerPhone! : reseller.contactNumber,
         documentContact: values.documentContact,
         items: values.items.map(item => ({ 
             id: item.serviceId || item.description.toLowerCase().replace(/\\s/g, '-'),
@@ -189,7 +200,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       try {
         const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={reseller} />);
         await sendEmail({
-          to: values.customerEmail,
+          to: orderData.customerEmail,
           bcc: 'kev@thinkestry.co.za',
           subject: `Your Order Confirmation: #${orderId}`,
           html: emailHtml,
@@ -226,42 +237,6 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <FormField
-            control={form.control}
-            name="customerName"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Your Client's Full Name</FormLabel>
-                <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-            <FormField
-            control={form.control}
-            name="customerEmail"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Your Client's Email</FormLabel>
-                <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-            <FormField
-            control={form.control}
-            name="customerPhone"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Your Client's Phone</FormLabel>
-                <FormControl><Input placeholder="0821234567" {...field} /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-        </div>
-
         <FormField
             control={form.control}
             name="documentContact"
@@ -301,6 +276,44 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                 </FormItem>
             )}
             />
+
+        {documentContact === 'client' && (
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+                <FormField
+                control={form.control}
+                name="customerName"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Your Client's Full Name</FormLabel>
+                    <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <FormField
+                control={form.control}
+                name="customerEmail"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Your Client's Email</FormLabel>
+                    <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <FormField
+                control={form.control}
+                name="customerPhone"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Your Client's Phone</FormLabel>
+                    <FormControl><Input placeholder="0821234567" {...field} /></FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+            </div>
+        )}
         
         <Separator />
 
