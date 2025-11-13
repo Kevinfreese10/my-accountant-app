@@ -329,7 +329,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                         </div>
                      }
                      
-                     {periodAnalysis.length > 0 && extractedTransactions.length === 0 && !isExtracting && (
+                    {periodAnalysis.length > 0 && extractedTransactions.length === 0 && !isExtracting && (
                         <div className="pt-4 space-y-4">
                             <Card>
                                 <CardHeader>
@@ -337,7 +337,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                     <CardDescription>Review the detected statement periods before proceeding.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    {missingMonths.length > 0 && (
+                                    {missingMonths.length > 0 ? (
                                         <Alert variant="destructive" className="mb-4">
                                             <AlertTriangle className="h-4 w-4" />
                                             <div className="flex justify-between items-center">
@@ -350,25 +350,26 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                                  <Button variant="outline" size="sm" onClick={handleRequestStatements}><Mail className="mr-2 h-4 w-4"/> Request from Client</Button>
                                             </div>
                                         </Alert>
-                                    )}
-                                     <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>File Name</TableHead>
-                                                <TableHead>Start Date</TableHead>
-                                                <TableHead>End Date</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {periodAnalysis.map((p, i) => (
-                                                <TableRow key={i}>
-                                                    <TableCell>{p.fileName}</TableCell>
-                                                    <TableCell>{format(parseISO(p.startDate), 'dd MMMM yyyy')}</TableCell>
-                                                    <TableCell>{format(parseISO(p.endDate), 'dd MMMM yyyy')}</TableCell>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>File Name</TableHead>
+                                                    <TableHead>Start Date</TableHead>
+                                                    <TableHead>End Date</TableHead>
                                                 </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {periodAnalysis.map((p, i) => (
+                                                    <TableRow key={i}>
+                                                        <TableCell>{p.fileName}</TableCell>
+                                                        <TableCell>{format(parseISO(p.startDate), 'dd MMMM yyyy')}</TableCell>
+                                                        <TableCell>{format(parseISO(p.endDate), 'dd MMMM yyyy')}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    )}
                                 </CardContent>
                             </Card>
                         </div>
@@ -948,7 +949,7 @@ const NewTransactionsTab = React.forwardRef<
         if (activeSubTab === 'expenses') {
             constraints.push(where('amount', '<', 0));
         } else {
-            constraints.push(where('amount', '>=', 0));
+             constraints.push(where('amount', '>=', 0));
         }
     
         if(constraints.some(c => c.type === 'where' && (c as any)._op === '<')) {
@@ -2224,5 +2225,6 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
 
 
