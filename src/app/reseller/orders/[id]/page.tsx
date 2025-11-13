@@ -96,6 +96,9 @@ export default function ResellerOrderDetailsPage() {
                 fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
                 fetchedOrder.customerPhone = originalOrderData.customerPhone; 
             }
+          } else { // This is a client order created by reseller
+            fetchedOrder.endCustomerName = data.customerName;
+            fetchedOrder.endCustomerEmail = data.customerEmail;
           }
 
           setOrder(fetchedOrder);
@@ -258,14 +261,7 @@ export default function ResellerOrderDetailsPage() {
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
   const contactIsClient = order.documentContact === 'client';
   
-  // This logic determines the primary contact for the order display
-  const contactName = order.customerName;
-  const contactEmail = order.customerEmail;
-  const contactPhone = order.customerPhone;
-
-  // This logic determines who to contact for documents
   const docContactEmail = contactIsClient ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
-
 
   return (
     <div className="space-y-8">
@@ -311,17 +307,17 @@ export default function ResellerOrderDetailsPage() {
                             <div>
                                 <h3 className="font-semibold text-muted-foreground mb-2">Client Details</h3>
                                 <div className="space-y-3">
-                                    <p className="font-semibold text-lg">{contactName}</p>
-                                    {contactEmail && (
+                                    <p className="font-semibold text-lg">{order.endCustomerName}</p>
+                                    {order.endCustomerEmail && (
                                         <div className="flex items-center gap-2 text-sm">
                                             <Mail className="h-4 w-4 text-muted-foreground" />
-                                            <a href={`mailto:${contactEmail}`} className="text-primary hover:underline">{contactEmail}</a>
+                                            <a href={`mailto:${order.endCustomerEmail}`} className="text-primary hover:underline">{order.endCustomerEmail}</a>
                                         </div>
                                     )}
-                                    {contactPhone && (
+                                    {order.customerPhone && (
                                         <div className="flex items-center gap-2 text-sm">
                                             <Phone className="h-4 w-4 text-muted-foreground" />
-                                            <span>{contactPhone}</span>
+                                            <span>{order.customerPhone}</span>
                                         </div>
                                     )}
                                 </div>
