@@ -321,22 +321,6 @@ export default function ResellerOrderDetailsPage() {
                                         </div>
                                     )}
                                 </div>
-                                
-                                {isOutsourced && (
-                                    <div className="mt-4 pt-4 border-t">
-                                        <h3 className="font-semibold text-muted-foreground mb-2">Contact for Documents</h3>
-                                        <div className="flex items-center gap-2">
-                                            <Users className="h-4 w-4 text-muted-foreground" />
-                                            <span className="text-sm font-medium capitalize">{order.documentContact}</span>
-                                        </div>
-                                        {docContactEmail && (
-                                        <div className="flex items-center gap-2 text-sm mt-1">
-                                            <Mail className="h-4 w-4 text-muted-foreground" />
-                                            <a href={`mailto:${docContactEmail}`} className="text-primary hover:underline">{docContactEmail}</a>
-                                        </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </CardContent>
@@ -391,18 +375,21 @@ export default function ResellerOrderDetailsPage() {
                 </Card>
             </div>
             <div className="lg:col-span-1 space-y-6 sticky top-24">
-                 <Card>
-                    <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-                           <UserIcon className="h-5 w-5 text-muted-foreground"/>
-                           <CardTitle className="text-lg">Quick Actions</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                        <p className="text-sm text-muted-foreground">Send pre-made emails related to this order.</p>
-                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('payment')}>
-                           <Phone className="mr-2 h-4 w-4" /> Follow Up On Payment
-                        </Button>
-                     </CardContent>
-                 </Card>
+                {isOutsourced && (
+                    <div className="mt-4 pt-4 border-t">
+                        <h3 className="font-semibold text-muted-foreground mb-2">Contact for Documents</h3>
+                        <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium capitalize">{order.documentContact}</span>
+                        </div>
+                        {docContactEmail && (
+                        <div className="flex items-center gap-2 text-sm mt-1">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                            <a href={`mailto:${docContactEmail}`} className="text-primary hover:underline">{docContactEmail}</a>
+                        </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     </div>
