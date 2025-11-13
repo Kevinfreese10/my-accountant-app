@@ -260,7 +260,6 @@ export default function ResellerOrderDetailsPage() {
   const isOutsourced = !!order.resellerId;
   const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
   const contactIsClient = order.documentContact === 'client';
-  
   const docContactEmail = contactIsClient ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
 
   return (
