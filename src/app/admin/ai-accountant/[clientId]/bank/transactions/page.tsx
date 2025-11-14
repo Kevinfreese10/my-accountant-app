@@ -126,7 +126,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
           if (isSameMonth(rangeStart, currentMonth)) {
             ranges.push(format(rangeStart, 'MMMM yyyy'));
           } else {
-            ranges.push(`${format(rangeStart, 'MMMM yyyy')} to ${format(currentMonth, 'MMMM yyyy')}`);
+            ranges.push(`${format(rangeStart, 'MMMM')} to ${format(currentMonth, 'MMMM yyyy')}`);
           }
           if (nextMonthInArray) {
             rangeStart = nextMonthInArray;
@@ -136,8 +136,8 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
       return ranges;
     };
     
-    
     const handlePeriodAnalysis = async () => {
+        if (files.length === 0) return;
         setIsAnalyzing(true);
         toast({ title: `Analyzing ${files.length} file(s)...`, description: "The AI is checking the statement periods." });
 
@@ -169,35 +169,35 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
         }));
         
         const validResults = analysisResults.filter((r): r is PeriodAnalysisResult => r !== null);
+        setPeriodAnalysis(validResults);
         
-        if (validResults.length > 0) {
+        if (validResults.length > 1) {
             validResults.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-            setPeriodAnalysis(validResults);
+            
+            const minDate = parseISO(validResults[0].startDate);
+            const maxDate = parseISO(validResults[validResults.length - 1].endDate);
+            
+            const interval = { start: startOfMonth(minDate), end: endOfMonth(maxDate) };
+            const allMonthsInInterval = eachMonthOfInterval(interval);
 
-            const allDates = validResults.flatMap(r => [parseISO(r.startDate), parseISO(r.endDate)]);
-            if (allDates.length > 1) {
-                const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
-                const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
-                
-                const interval = { start: startOfMonth(minDate), end: endOfMonth(maxDate) };
-                const allMonthsInInterval = eachMonthOfInterval(interval);
-                
-                const presentMonths = new Set<string>();
-                validResults.forEach(r => {
-                    const start = parseISO(r.startDate);
-                    const end = parseISO(r.endDate);
-                    const monthsInFile = eachMonthOfInterval({ start: startOfMonth(start), end: endOfMonth(end) });
-                    monthsInFile.forEach(monthStart => {
-                        presentMonths.add(`${getYear(monthStart)}-${getMonth(monthStart)}`);
-                    });
+            const presentMonths = new Set<string>();
+            validResults.forEach(r => {
+                const start = parseISO(r.startDate);
+                const end = parseISO(r.endDate);
+                const monthsInFile = eachMonthOfInterval({ start: startOfMonth(start), end: endOfMonth(end) });
+                monthsInFile.forEach(monthStart => {
+                    presentMonths.add(format(monthStart, 'yyyy-MM'));
                 });
-                
-                const foundMissingMonthDates = allMonthsInInterval
-                    .filter(monthStart => !presentMonths.has(`${getYear(monthStart)}-${getMonth(monthStart)}`));
-                
-                setMissingMonths(groupConsecutiveMonths(foundMissingMonthDates));
-            }
+            });
+
+            const foundMissingMonthDates = allMonthsInInterval
+                .filter(monthStart => !presentMonths.has(format(monthStart, 'yyyy-MM')));
+            
+            setMissingMonths(groupConsecutiveMonths(foundMissingMonthDates));
+        } else {
+            setMissingMonths([]);
         }
+        
         setIsAnalyzing(false);
     };
 
@@ -2225,6 +2225,7 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
 
 
 
