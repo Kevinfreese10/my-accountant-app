@@ -35,7 +35,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
-import { extractStatementPeriod } from '@/ai/flows/extractStatement-period';
+import { extractStatementPeriod } from '@/ai/flows/extract-statement-period';
 import { suggestIncomeAllocation } from '@/ai/flows/suggest-income-allocation';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
@@ -72,7 +72,7 @@ type PeriodAnalysisResult = {
 function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
-    const [isAnalyzing, setIsAnalyzing] = useState(isAnalyzing);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isExtracting, setIsExtracting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [periodAnalysis, setPeriodAnalysis] = useState<PeriodAnalysisResult[]>([]);
@@ -2005,7 +2005,7 @@ export default function BankTransactionsPage() {
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
-    const reviewedTabRef = useRef<{ refetch: () void }>(null);
+    const reviewedTabRef = useRef<{ refetch: () => void }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     
@@ -2275,5 +2275,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-    
