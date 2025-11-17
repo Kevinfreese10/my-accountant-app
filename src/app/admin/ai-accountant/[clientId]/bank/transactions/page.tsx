@@ -35,7 +35,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
-import { extractStatementPeriod } from '@/ai/flows/extract-statement-period';
+import { extractStatementPeriod } from '@/ai/flows/extractStatement-period';
 import { suggestIncomeAllocation } from '@/ai/flows/suggest-income-allocation';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
@@ -72,7 +72,7 @@ type PeriodAnalysisResult = {
 function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(isAnalyzing);
     const [isExtracting, setIsExtracting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [periodAnalysis, setPeriodAnalysis] = useState<PeriodAnalysisResult[]>([]);
@@ -1572,6 +1572,7 @@ const ForReviewTab = React.forwardRef<
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isApprovingAll, setIsApprovingAll] = useState(false);
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
     const [sortField, setSortField] = useState<SortField>('date');
@@ -1680,6 +1681,51 @@ const ForReviewTab = React.forwardRef<
             toast({ title: "Action Failed", variant: "destructive" });
         }
     }
+    
+    const handleApproveAll = async () => {
+        if (!client || !client.uid || !bankAccountId) return;
+        
+        setIsApprovingAll(true);
+        toast({ title: "Approving All...", description: `Approving all pending ${activeSubTab}.` });
+
+        try {
+            let q = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
+                where('bankAccountId', '==', bankAccountId), 
+                where('status', '==', 'review')
+            );
+             if (activeSubTab === 'expenses') {
+                q = query(q, where('amount', '<', 0));
+            } else {
+                q = query(q, where('amount', '>=', 0));
+            }
+
+            const snapshot = await getDocs(q);
+            if (snapshot.empty) {
+                toast({ title: "No Transactions to Approve", description: "There are no items pending review in this category." });
+                setIsApprovingAll(false);
+                return;
+            }
+
+            const batch = writeBatch(db);
+            snapshot.docs.forEach(doc => {
+                batch.update(doc.ref, { status: 'allocated', allocatedAt: new Date() });
+            });
+
+            await batch.commit();
+
+            toast({ title: 'All Approved!', description: `${snapshot.size} transactions have been approved and allocated.` });
+            refetch();
+            fetchClientData();
+
+        } catch (error) {
+            console.error("Error approving all transactions:", error);
+            toast({ title: "Approval Failed", description: "An error occurred while approving all transactions.", variant: "destructive" });
+        } finally {
+            setIsApprovingAll(false);
+        }
+    };
+
 
     const getAllocationDescription = (tx: ImportedTransaction) => {
         if (!tx.allocatedTo) return 'N/A';
@@ -1703,6 +1749,10 @@ const ForReviewTab = React.forwardRef<
                     <div className="flex items-center gap-2">
                         <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
                             <CheckCircle className="mr-2 h-4 w-4" />Approve Selected
+                        </Button>
+                         <Button onClick={handleApproveAll} disabled={isApprovingAll || isLoading || transactions.length === 0}>
+                            {isApprovingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4" />}
+                            Approve All
                         </Button>
                         <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
                             <RotateCcw className="mr-2 h-4 w-4" />Reject Selected
@@ -1955,7 +2005,7 @@ export default function BankTransactionsPage() {
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
-    const reviewedTabRef = useRef<{ refetch: () => void }>(null);
+    const reviewedTabRef = useRef<{ refetch: () void }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     
@@ -2226,7 +2276,4 @@ export default function BankTransactionsPage() {
     );
 }
 
-
-
-
-
+    
