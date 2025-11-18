@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Loader2, PlusCircle, FileUp, Download } from 'lucide-react';
 import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -224,28 +224,18 @@ export default function ClientCustomersPage() {
             
             const customerControlAccount = clientData.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
             
-            const journalQuery = query(
-                collection(db, `aiAccountantClients/${clientId}/transactions`), 
-                where("bankAccountId", "==", "JOURNAL"),
-                orderBy("date", "desc")
-            );
-            
-            const journalSnapshot = await getDocs(journalQuery);
-            const allJournalTransactions = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
-            
-            const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
-            allJournalTransactions.forEach(tx => {
-                if (!journalGroups[tx.reference]) {
-                    journalGroups[tx.reference] = [];
-                }
-                journalGroups[tx.reference].push(tx);
-            });
-
-            const customerJournals = Object.values(journalGroups).filter(group => 
-                group.some(tx => tx.allocatedTo?.value === customerControlAccount)
-            ).flat();
-
-            setJournals(customerJournals);
+            if (customerControlAccount) {
+              const journalQuery = query(
+                  collection(db, `aiAccountantClients/${clientId}/transactions`), 
+                  where("bankAccountId", "==", "JOURNAL"),
+                  where("allocatedTo.value", "==", customerControlAccount),
+                  orderBy("date", "desc")
+              );
+              
+              const journalSnapshot = await getDocs(journalQuery);
+              const customerJournals = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
+              setJournals(customerJournals);
+            }
 
         } catch (error) {
             console.error("Error fetching data:", error);

@@ -199,28 +199,18 @@ export default function SuppliersPage() {
             
             const supplierControlAccount = clientData.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
             
-            const journalQuery = query(
-                collection(db, `aiAccountantClients/${clientId}/transactions`), 
-                where("bankAccountId", "==", "JOURNAL"),
-                orderBy("date", "desc")
-            );
-            
-            const journalSnapshot = await getDocs(journalQuery);
-            const allJournalTransactions = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
-
-            const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
-            allJournalTransactions.forEach(tx => {
-                if (!journalGroups[tx.reference]) {
-                    journalGroups[tx.reference] = [];
-                }
-                journalGroups[tx.reference].push(tx);
-            });
-
-            const supplierJournals = Object.values(journalGroups).filter(group => 
-                group.some(tx => tx.allocatedTo?.value === supplierControlAccount)
-            ).flat();
-
-            setJournals(supplierJournals);
+            if (supplierControlAccount) {
+              const journalQuery = query(
+                  collection(db, `aiAccountantClients/${clientId}/transactions`), 
+                  where("bankAccountId", "==", "JOURNAL"),
+                  where("allocatedTo.value", "==", supplierControlAccount),
+                  orderBy("date", "desc")
+              );
+              
+              const journalSnapshot = await getDocs(journalQuery);
+              const supplierJournals = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
+              setJournals(supplierJournals);
+            }
 
         } catch (error) {
             toast({ title: 'Error', description: 'Could not fetch suppliers or journals.', variant: 'destructive' });
@@ -248,7 +238,7 @@ export default function SuppliersPage() {
     const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
         try {
             if (selectedSupplier) {
-                await doc(db, `aiAccountantClients/${clientId}/suppliers`, selectedSupplier.id).set(data, { merge: true });
+                await setDoc(doc(db, `aiAccountantClients/${clientId}/suppliers`, selectedSupplier.id), data, { merge: true });
                 toast({ title: 'Supplier Updated' });
             } else {
                 await addDoc(collection(db, `aiAccountantClients/${clientId}/suppliers`), data);
