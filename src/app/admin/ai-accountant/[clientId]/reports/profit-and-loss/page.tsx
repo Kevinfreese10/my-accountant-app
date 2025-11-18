@@ -346,7 +346,17 @@ export default function ProfitAndLossPage() {
             });
 
             await batch.commit();
-            toast({ title: 'Success!', description: 'Income tax journal has been posted.'});
+            toast({
+                title: 'Success!',
+                description: (
+                    <div className="flex flex-col gap-2">
+                        <p>Income tax journal has been posted.</p>
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={`/admin/ai-accountant/${clientId}/general-journal`}>View Journal</Link>
+                        </Button>
+                    </div>
+                ),
+            });
 
         } catch (error) {
             console.error('Error posting tax journal:', error);
