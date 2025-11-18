@@ -1127,6 +1127,81 @@ const NewTransactionsTab = React.forwardRef<
         refetch();
         setIsAiAllocating(false);
     };
+    
+    const handleAiAllocateAllExpenses = async () => {
+        if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
+        setIsAiAllocating(true);
+        toast({ title: "Starting AI Allocation...", description: "Fetching all new expense transactions." });
+
+        let allNewExpenseTransactions: ImportedTransaction[] = [];
+        try {
+            const q = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'new'),
+                where('amount', '<', 0)
+            );
+            const snapshot = await getDocs(q);
+            allNewExpenseTransactions = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+        } catch (error) {
+            console.error("Error fetching all new expenses:", error);
+            toast({ title: "Error", description: "Could not fetch transactions to allocate.", variant: "destructive" });
+            setIsAiAllocating(false);
+            return;
+        }
+
+        if (allNewExpenseTransactions.length === 0) {
+            toast({ title: "No Transactions", description: "There are no new expenses to allocate." });
+            setIsAiAllocating(false);
+            return;
+        }
+
+        const totalToProcess = allNewExpenseTransactions.length;
+        const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
+        
+        let successCount = 0;
+        const batch = writeBatch(db);
+
+        for (let i = 0; i < totalToProcess; i++) {
+            const tx = allNewExpenseTransactions[i];
+            toast({
+                title: `Processing ${i + 1} of ${totalToProcess}`,
+                description: `AI is analyzing: ${tx.description}`
+            });
+            try {
+                const result = await suggestTransactionAllocation({
+                    description: tx.description,
+                    chartOfAccounts: chartOfAccountsJson,
+                });
+
+                if (result.accountId && result.confidence > 70) {
+                    const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                    batch.update(transactionRef, {
+                        status: 'review',
+                        allocatedTo: { value: result.accountId, type: 'account' },
+                        vatType: result.vatType,
+                        allocatedAt: new Date(),
+                    });
+                    successCount++;
+                }
+            } catch (error) {
+                console.error(`AI allocation failed for tx ${tx.id}:`, error);
+            }
+        }
+        
+        try {
+            await batch.commit();
+            toast({
+                title: "AI Bulk Allocation Complete",
+                description: `${successCount} out of ${totalToProcess} transactions were confidently allocated for review.`
+            });
+        } catch (error) {
+            toast({ title: "Error Saving Allocations", description: "Could not save all AI allocations.", variant: 'destructive' });
+        }
+        
+        refetch();
+        setIsAiAllocating(false);
+    };
 
     const handleAiIncomeAllocate = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
@@ -1342,7 +1417,7 @@ const NewTransactionsTab = React.forwardRef<
                                                                         {vat.label}
                                                                     </DropdownMenuItem>
                                                                 ))}
-                                                            </DropdownMenuSubContent>
+                             </DropdownMenuSubContent>
                                                         </DropdownMenuSub>
                                                     ))}
                                                 </CommandGroup>
@@ -1383,13 +1458,17 @@ const NewTransactionsTab = React.forwardRef<
 
                         {activeSubTab === 'expenses' ? (
                             <>
-                            <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating || transactions.length === 0}>
+                            <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating || isLoading || transactions.length === 0}>
                                 {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4"/>}
-                                Allocate All by Rules
+                                Run Rules on All
+                            </Button>
+                             <Button variant="outline" onClick={handleAiAllocateAllExpenses} disabled={isAiAllocating || isLoading || transactions.length === 0}>
+                                {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                                AI Allocate All
                             </Button>
                             <Button variant="outline" onClick={handleAiExpenseAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
-                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
-                            AI Allocate Selected
+                                {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                                AI Allocate Selected
                             </Button>
                             </>
                         ) : (
@@ -2005,7 +2084,7 @@ export default function BankTransactionsPage() {
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
-    const reviewedTabRef = useRef<{ refetch: () => void }>(null);
+    const reviewedTabRef = useRef<{ refetch: () void }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     
@@ -2275,3 +2354,5 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
+
