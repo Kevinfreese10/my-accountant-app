@@ -5,11 +5,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const isDashboardPage =
     pathname.startsWith('/admin') ||
@@ -20,7 +25,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {shouldShowHeaderFooter && (
+      {shouldShowHeaderFooter && isClient && (
         <>
           <Header />
         </>
