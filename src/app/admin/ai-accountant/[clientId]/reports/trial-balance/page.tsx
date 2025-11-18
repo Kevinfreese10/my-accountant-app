@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download } from "lucide-react";
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { getFirestore, doc, getDoc, collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from '@/lib/types';
@@ -32,6 +32,7 @@ import { format, startOfDay, endOfDay } from 'date-fns';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import * as XLSX from 'xlsx';
+import Link from "next/link";
 
 const db = getFirestore(firebaseApp);
 
@@ -210,15 +211,24 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
                         {trialBalanceData?.map(item => {
                             const debitAmount = item.balance > 0 ? item.balance : 0;
                             const creditAmount = item.balance < 0 ? -item.balance : 0;
+                            const hasActivity = debitAmount !== 0 || creditAmount !== 0;
                             
                             return (
                                 <TableRow key={item.id}>
                                     <TableCell>{item.accountNumber} - {item.description}</TableCell>
                                     <TableCell className="text-right font-mono">
-                                        {formatPrice(debitAmount)}
+                                        {debitAmount > 0 ? (
+                                            <Link href={`/admin/ai-accountant/${client.id}/reports/general-ledger?accountId=${item.id}`} className="hover:underline text-blue-600">
+                                                {formatPrice(debitAmount)}
+                                            </Link>
+                                        ) : ''}
                                     </TableCell>
                                     <TableCell className="text-right font-mono">
-                                        {formatPrice(creditAmount)}
+                                        {creditAmount > 0 ? (
+                                             <Link href={`/admin/ai-accountant/${client.id}/reports/general-ledger?accountId=${item.id}`} className="hover:underline text-blue-600">
+                                                {formatPrice(creditAmount)}
+                                            </Link>
+                                        ) : ''}
                                     </TableCell>
                                 </TableRow>
                             )

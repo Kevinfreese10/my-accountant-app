@@ -9,7 +9,7 @@ import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction } from 
 import { getFirestore, doc, getDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download } from "lucide-react";
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -239,13 +239,25 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
 export default function GeneralLedgerPage() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const clientId = params.clientId as string;
+    const accountIdFromQuery = searchParams.get('accountId');
+
     const [client, setClient] = useState<User | null>(null);
     const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [fromAccount, setFromAccount] = useState<string | undefined>();
     const [toAccount, setToAccount] = useState<string | undefined>();
+    const [isReportOpen, setIsReportOpen] = useState(false);
+
+    useEffect(() => {
+        if (accountIdFromQuery) {
+            setFromAccount(accountIdFromQuery);
+            setToAccount(accountIdFromQuery);
+            setIsReportOpen(true);
+        }
+    }, [accountIdFromQuery]);
 
 
     useEffect(() => {
@@ -329,7 +341,7 @@ export default function GeneralLedgerPage() {
                              {isLoading ? (
                                 <Loader2 className="animate-spin" />
                             ) : client ? (
-                                <Dialog>
+                                <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
                                     <DialogTrigger asChild>
                                         <Button>View Report</Button>
                                     </DialogTrigger>
