@@ -211,7 +211,6 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
                         {trialBalanceData?.map(item => {
                             const debitAmount = item.balance > 0 ? item.balance : 0;
                             const creditAmount = item.balance < 0 ? -item.balance : 0;
-                            const hasActivity = debitAmount !== 0 || creditAmount !== 0;
                             
                             return (
                                 <TableRow key={item.id}>

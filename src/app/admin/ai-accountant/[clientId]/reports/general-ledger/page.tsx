@@ -363,7 +363,6 @@ export default function GeneralLedgerPage() {
         if (accountIdFromQuery) {
             setFromAccount(accountIdFromQuery);
             setToAccount(accountIdFromQuery);
-            // This will not auto-open the dialog anymore, user clicks "View Report"
         }
     }, [accountIdFromQuery]);
 
@@ -414,7 +413,6 @@ export default function GeneralLedgerPage() {
                 vatType: values.vatType,
             });
             toast({ title: "Success", description: "Transaction reallocated successfully." });
-            // The onSnapshot listener will update the local state automatically.
         } catch (error) {
             console.error("Error reallocating transaction:", error);
             toast({ title: "Error", description: "Could not save the changes.", variant: "destructive" });
