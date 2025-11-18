@@ -5,9 +5,9 @@ import * as React from "react"
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Download, Eye } from "lucide-react";
+import { Loader2, Download, Eye, Calculator } from "lucide-react";
 import { useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc, collection, onSnapshot, query } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, onSnapshot, query, writeBatch, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from '@/lib/types';
 import {
@@ -34,6 +34,7 @@ import { DateRange } from "react-day-picker";
 import * as XLSX from 'xlsx';
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
 
 const db = getFirestore(firebaseApp);
 
@@ -60,7 +61,9 @@ function getFinancialYearStart(date: Date, endMonthName?: string) {
 }
 
 
-function ProfitAndLossReport({ client, transactions, dateRange }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange }) {
+function ProfitAndLossReport({ client, transactions, dateRange, onPostJournal }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange, onPostJournal: (taxAmount: number) => void }) {
+    
+    const [isTaxDialogOpen, setIsTaxDialogOpen] = useState(false);
     
     const reportData = useMemo(() => {
         const balances = new Map<string, number>();
@@ -130,6 +133,18 @@ function ProfitAndLossReport({ client, transactions, dateRange }: { client: User
         return { income, costOfSales, expenses, totalIncome, totalCostOfSales, grossProfit, totalExpenses, netProfit };
 
     }, [client, dateRange, transactions]);
+    
+    const taxCalculation = useMemo(() => {
+        const taxRate = 0.27; // 27%
+        const taxableIncome = reportData.netProfit > 0 ? reportData.netProfit : 0;
+        const taxAmount = taxableIncome * taxRate;
+        return {
+            taxRate,
+            taxableIncome,
+            taxAmount,
+            netProfitAfterTax: reportData.netProfit - taxAmount,
+        };
+    }, [reportData.netProfit]);
 
      const handleDownloadExcel = () => {
         let excelData: any[] = [
@@ -147,7 +162,10 @@ function ProfitAndLossReport({ client, transactions, dateRange }: { client: User
             ...reportData.expenses.map(item => ({ A: item.description, B: item.balance })),
             { A: 'Total Expenses', B: reportData.totalExpenses },
             {},
-            { A: 'Net Profit / (Loss)', B: reportData.netProfit },
+            { A: 'Net Profit / (Loss) Before Tax', B: reportData.netProfit },
+             {},
+            { A: 'Income Tax Expense (27%)', B: -taxCalculation.taxAmount },
+            { A: 'Net Profit / (Loss) After Tax', B: taxCalculation.netProfitAfterTax },
         ];
         
         const worksheet = XLSX.utils.json_to_sheet(excelData, { skipHeader: true });
@@ -207,15 +225,38 @@ function ProfitAndLossReport({ client, transactions, dateRange }: { client: User
 
                     </TableBody>
                     <TableFooter>
-                         <TableRow className="font-bold text-lg bg-muted/50 border-t-2"><TableCell>Net Profit / (Loss)</TableCell><TableCell className="text-right font-mono">{formatPrice(reportData.netProfit)}</TableCell></TableRow>
+                         <TableRow className="font-bold text-lg bg-muted/50 border-t-2"><TableCell>Net Profit / (Loss) Before Tax</TableCell><TableCell className="text-right font-mono">{formatPrice(reportData.netProfit)}</TableCell></TableRow>
                     </TableFooter>
                 </Table>
             </div>
-             <DialogFooter className="mt-4">
+             <DialogFooter className="mt-4 flex justify-between">
                 <Button variant="outline" onClick={handleDownloadExcel}>
                     <Download className="mr-2 h-4 w-4" />
                     Download Excel
                 </Button>
+                <Dialog open={isTaxDialogOpen} onOpenChange={setIsTaxDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="secondary" disabled={reportData.netProfit <= 0}><Calculator className="mr-2 h-4 w-4"/>Calculate Tax & Post Journal</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Income Tax Calculation</DialogTitle>
+                            <DialogDescription>Based on a corporate income tax rate of {taxCalculation.taxRate * 100}%. This is an estimate for provisioning purposes only.</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                            <div className="flex justify-between items-center"><span className="text-muted-foreground">Net Profit Before Tax:</span><span className="font-semibold">{formatPrice(taxCalculation.taxableIncome)}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-muted-foreground">Tax Rate:</span><span className="font-semibold">{taxCalculation.taxRate * 100}%</span></div>
+                            <Separator />
+                            <div className="flex justify-between items-center text-lg"><span className="font-bold">Estimated Tax Expense:</span><span className="font-bold text-destructive">{formatPrice(taxCalculation.taxAmount)}</span></div>
+                            <Separator />
+                            <div className="flex justify-between items-center"><span className="text-muted-foreground">Net Profit After Tax:</span><span className="font-semibold">{formatPrice(taxCalculation.netProfitAfterTax)}</span></div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="ghost" onClick={() => setIsTaxDialogOpen(false)}>Cancel</Button>
+                            <Button onClick={() => { onPostJournal(taxCalculation.taxAmount); setIsTaxDialogOpen(false); }}>Post Tax Journal</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </DialogFooter>
         </>
     );
@@ -229,6 +270,7 @@ export default function ProfitAndLossPage() {
     const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const { toast } = useToast();
     
     useEffect(() => {
         const fetchClientData = async () => {
@@ -255,6 +297,63 @@ export default function ProfitAndLossPage() {
         
         return () => transUnsubscribe();
     }, [clientId]);
+    
+    const handlePostTaxJournal = async (taxAmount: number) => {
+        if (!client || taxAmount <= 0) return;
+
+        toast({ title: 'Posting Journal...', description: 'Please wait.'});
+
+        const taxExpenseAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '3000-056');
+        const taxPayableAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-015');
+
+        if (!taxExpenseAccount || !taxPayableAccount) {
+            toast({ title: 'Error', description: 'Tax accounts not found in Chart of Accounts.', variant: 'destructive'});
+            return;
+        }
+
+        try {
+            const batch = writeBatch(db);
+            const journalRef = `TAX-${format(dateRange?.to || new Date(), 'yyyy-MM-dd')}`;
+
+            // Debit Income Tax Expense
+            const debitRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+            batch.set(debitRef, {
+                clientId: client.id,
+                date: (dateRange?.to || new Date()).toISOString(),
+                reference: journalRef,
+                description: 'Income Tax Expense Provision',
+                amount: taxAmount,
+                bankAccountId: 'JOURNAL',
+                allocatedTo: { value: taxExpenseAccount.id, type: 'account' },
+                vatType: 'no_vat',
+                status: 'allocated',
+                allocatedAt: new Date(),
+            });
+            
+            // Credit Income Tax Payable
+            const creditRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+            batch.set(creditRef, {
+                clientId: client.id,
+                date: (dateRange?.to || new Date()).toISOString(),
+                reference: journalRef,
+                description: 'Income Tax Expense Provision',
+                amount: -taxAmount,
+                bankAccountId: 'JOURNAL',
+                allocatedTo: { value: taxPayableAccount.id, type: 'account' },
+                vatType: 'no_vat',
+                status: 'allocated',
+                allocatedAt: new Date(),
+            });
+
+            await batch.commit();
+            toast({ title: 'Success!', description: 'Income tax journal has been posted.'});
+
+        } catch (error) {
+            console.error('Error posting tax journal:', error);
+            toast({ title: 'Error', description: 'Failed to post tax journal.', variant: 'destructive'});
+        }
+    };
+
 
     const getReportDateString = () => {
         if (!dateRange || (!dateRange.from && !dateRange.to)) {
@@ -306,6 +405,7 @@ export default function ProfitAndLossPage() {
                                             client={client} 
                                             transactions={transactions} 
                                             dateRange={dateRange} 
+                                            onPostJournal={handlePostTaxJournal}
                                         />
                                     </DialogContent>
                                 </Dialog>
