@@ -2084,7 +2084,7 @@ export default function BankTransactionsPage() {
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
-    const reviewedTabRef = useRef<{ refetch: () void }>(null);
+    const reviewedTabRef = useRef<{ refetch: () => void }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     
@@ -2354,5 +2354,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
 
