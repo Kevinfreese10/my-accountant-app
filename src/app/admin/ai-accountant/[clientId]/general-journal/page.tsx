@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon } from 'lucide-react';
+import { Loader2, Plus, Trash2, CalendarIcon, Eye } from 'lucide-react';
 import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -21,9 +21,11 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterComponent } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -62,6 +64,7 @@ export default function GeneralJournalsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [postedJournals, setPostedJournals] = useState<AllocatedTransaction[]>([]);
     const [taxJournals, setTaxJournals] = useState<AllocatedTransaction[]>([]);
+    const [viewingJournal, setViewingJournal] = useState<AllocatedTransaction[] | null>(null);
     const { toast } = useToast();
 
     const form = useForm<JournalFormValues>({
@@ -99,6 +102,7 @@ export default function GeneralJournalsPage() {
             }
         }
     }, [searchParams, form]);
+
 
     const { fields, append, remove } = useFieldArray({
         control: form.control,
@@ -140,8 +144,8 @@ export default function GeneralJournalsPage() {
             const supplierControlAccount = clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
 
             const generalOnlyJournals = allJournals.filter(tx => 
-                tx.allocatedTo.value !== customerControlAccount &&
-                tx.allocatedTo.value !== supplierControlAccount &&
+                tx.allocatedTo?.value !== customerControlAccount &&
+                tx.allocatedTo?.value !== supplierControlAccount &&
                 !tx.reference.startsWith('TAX-')
             );
             
@@ -228,7 +232,7 @@ export default function GeneralJournalsPage() {
         });
         await batch.commit();
         toast({ title: 'Journal Deleted', description: `Journal ${journalReference} has been deleted.`, variant: 'destructive'});
-        fetchClientAndJournals(); // Re-fetch journals after deleting
+        fetchClientAndJournals();
       } catch (error) {
         console.error("Error deleting journal:", error);
         toast({ title: 'Error', description: 'Failed to delete journal.', variant: 'destructive'});
@@ -245,12 +249,24 @@ export default function GeneralJournalsPage() {
         });
         return grouped;
     }, [postedJournals]);
+    
+     const groupedTaxJournals = useMemo(() => {
+        const grouped = new Map<string, AllocatedTransaction[]>();
+        taxJournals.forEach(tx => {
+            if (!grouped.has(tx.reference)) {
+                grouped.set(tx.reference, []);
+            }
+            grouped.get(tx.reference)?.push(tx);
+        });
+        return grouped;
+    }, [taxJournals]);
 
     if (isLoading && !client) {
         return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
 
     return (
+      <Dialog onOpenChange={(open) => !open && setViewingJournal(null)}>
       <div className="space-y-8">
         <Card>
             <CardHeader>
@@ -275,8 +291,8 @@ export default function GeneralJournalsPage() {
                                <tr>
                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">Account</th>
                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">Description</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">Debit</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">Credit</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[180px]">Debit</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[180px]">Credit</th>
                                  <th className="px-3 py-2 w-[5%]"></th>
                                </tr>
                              </thead>
@@ -331,32 +347,25 @@ export default function GeneralJournalsPage() {
                         <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Reference</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Account</TableHead>
-                            <TableHead className="text-right">Debit</TableHead>
-                            <TableHead className="text-right">Credit</TableHead>
-                             <TableHead className="text-right">Actions</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {taxJournals.length === 0 ? (
+                        {Array.from(groupedTaxJournals.entries()).length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                                <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
                                     No tax journals have been posted yet.
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            taxJournals.map(journal => {
-                                const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
-                                return (
-                                <TableRow key={journal.id}>
-                                    <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
-                                    <TableCell>{journal.reference}</TableCell>
-                                    <TableCell>{journal.description}</TableCell>
-                                    <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
-                                    <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
-                                    <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
-                                     <TableCell className="text-right">
+                            Array.from(groupedTaxJournals.entries()).map(([ref, entries]) => (
+                                <TableRow key={ref}>
+                                    <TableCell>{format(new Date(entries[0].date), 'dd/MM/yyyy')}</TableCell>
+                                    <TableCell>{ref}</TableCell>
+                                    <TableCell className="text-right">
+                                         <DialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
+                                        </DialogTrigger>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -364,17 +373,17 @@ export default function GeneralJournalsPage() {
                                             <AlertDialogContent>
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                    <AlertDialogDescription>This action will delete the entire journal entry ({journal.reference}). This cannot be undone.</AlertDialogDescription>
+                                                    <AlertDialogDescription>This action will delete the entire journal entry ({ref}). This cannot be undone.</AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteJournal(journal.reference)}>Delete</AlertDialogAction>
+                                                    <AlertDialogAction onClick={() => handleDeleteJournal(ref)}>Delete</AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
                                         </AlertDialog>
                                     </TableCell>
                                 </TableRow>
-                            )})
+                            ))
                         )}
                     </TableBody>
                 </Table>
@@ -391,62 +400,83 @@ export default function GeneralJournalsPage() {
                         <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Reference</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Account</TableHead>
-                            <TableHead className="text-right">Debit</TableHead>
-                            <TableHead className="text-right">Credit</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {Array.from(groupedGeneralJournals.entries()).length === 0 ? (
-                            <TableRow><TableCell colSpan={7} className="text-center h-24 text-muted-foreground">No general journals have been posted yet.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={3} className="text-center h-24 text-muted-foreground">No general journals have been posted yet.</TableCell></TableRow>
                         ) : (
                             Array.from(groupedGeneralJournals.entries()).map(([ref, entries]) => (
-                                <React.Fragment key={ref}>
-                                    {entries.map((journal, index) => {
-                                        const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
-                                        return (
-                                            <TableRow key={journal.id}>
-                                                {index === 0 && (
-                                                    <>
-                                                        <TableCell rowSpan={entries.length} className="align-top border-t">{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
-                                                        <TableCell rowSpan={entries.length} className="align-top border-t">{journal.reference}</TableCell>
-                                                    </>
-                                                )}
-                                                <TableCell>{journal.description}</TableCell>
-                                                <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
-                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
-                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
-                                                {index === 0 && (
-                                                    <TableCell rowSpan={entries.length} className="text-right align-top border-t">
-                                                        <AlertDialog>
-                                                            <AlertDialogTrigger asChild>
-                                                                <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                                                            </AlertDialogTrigger>
-                                                            <AlertDialogContent>
-                                                                <AlertDialogHeader>
-                                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                                    <AlertDialogDescription>This action will delete the entire journal entry ({journal.reference}). This cannot be undone.</AlertDialogDescription>
-                                                                </AlertDialogHeader>
-                                                                <AlertDialogFooter>
-                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                    <AlertDialogAction onClick={() => handleDeleteJournal(journal.reference)}>Delete</AlertDialogAction>
-                                                                </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
-                                                    </TableCell>
-                                                )}
-                                            </TableRow>
-                                        )
-                                    })}
-                                </React.Fragment>
+                                <TableRow key={ref}>
+                                    <TableCell>{format(new Date(entries[0].date), 'dd/MM/yyyy')}</TableCell>
+                                    <TableCell>{ref}</TableCell>
+                                    <TableCell className="text-right">
+                                        <DialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
+                                        </DialogTrigger>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription>This action will delete the entire journal entry ({ref}). This cannot be undone.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteJournal(ref)}>Delete</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </TableCell>
+                                </TableRow>
                             ))
                         )}
                     </TableBody>
                 </Table>
             </CardContent>
         </Card>
+        <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>Journal Details: {viewingJournal?.[0]?.reference}</DialogTitle>
+                <DialogDescription>
+                    Date: {viewingJournal ? format(new Date(viewingJournal[0].date), 'dd MMMM yyyy') : ''}
+                </DialogDescription>
+            </DialogHeader>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Account</TableHead>
+                        <TableHead className="text-right">Debit</TableHead>
+                        <TableHead className="text-right">Credit</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {viewingJournal?.map(journal => {
+                        const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
+                        return (
+                            <TableRow key={journal.id}>
+                                <TableCell>{journal.description}</TableCell>
+                                <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
+                                <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : undefined)}</TableCell>
+                                <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : undefined)}</TableCell>
+                            </TableRow>
+                        );
+                    })}
+                </TableBody>
+                <TableFooterComponent>
+                    <TableRow>
+                        <TableCell colSpan={2} className="font-bold">Totals</TableCell>
+                        <TableCell className="text-right font-bold font-mono">{formatPrice(viewingJournal?.reduce((sum, j) => sum + (j.amount > 0 ? j.amount : 0), 0))}</TableCell>
+                        <TableCell className="text-right font-bold font-mono">{formatPrice(viewingJournal?.reduce((sum, j) => sum + (j.amount < 0 ? -j.amount : 0), 0))}</TableCell>
+                    </TableRow>
+                </TableFooterComponent>
+            </Table>
+        </DialogContent>
     </div>
+    </Dialog>
     );
 }
