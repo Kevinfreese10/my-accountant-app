@@ -114,10 +114,10 @@ export default function GeneralJournalsPage() {
             
             const generalOnlyJournals = allJournals.filter(tx => 
                 !controlAccountIds.includes(tx.allocatedTo.value) && 
-                !tx.reference.startsWith('TAX-')
+                (!tx.reference || !tx.reference.startsWith('TAX-'))
             );
             
-            const taxOnlyJournals = allJournals.filter(tx => tx.reference.startsWith('TAX-'));
+            const taxOnlyJournals = allJournals.filter(tx => tx.reference && tx.reference.startsWith('TAX-'));
 
             setPostedJournals(generalOnlyJournals);
             setTaxJournals(taxOnlyJournals);
@@ -184,20 +184,18 @@ export default function GeneralJournalsPage() {
     const handleDeleteJournal = async (journalReference: string) => {
       if (!client) return;
       
-      const journalsToDelete = [...postedJournals, ...taxJournals].filter(
-        (j) => j.reference === journalReference
-      );
+      const q = query(collection(db, "aiAccountantClients", client.id, "transactions"), where("reference", "==", journalReference));
+      const journalsToDeleteSnapshot = await getDocs(q);
 
-      if (journalsToDelete.length === 0) {
+      if (journalsToDeleteSnapshot.empty) {
         toast({ title: 'Error', description: 'Could not find journal entries to delete.', variant: 'destructive'});
         return;
       }
       
       try {
         const batch = writeBatch(db);
-        journalsToDelete.forEach(journal => {
-          const docRef = doc(db, 'aiAccountantClients', client.id, 'transactions', journal.id);
-          batch.delete(docRef);
+        journalsToDeleteSnapshot.forEach(journalDoc => {
+          batch.delete(journalDoc.ref);
         });
         await batch.commit();
         toast({ title: 'Journal Deleted', description: `Journal ${journalReference} has been deleted.`, variant: 'destructive'});
