@@ -194,13 +194,25 @@ export default function SuppliersPage() {
             const journalQuery = query(
                 collection(db, `aiAccountantClients/${clientId}/transactions`), 
                 where("bankAccountId", "==", "JOURNAL"),
-                where("allocatedTo.value", "==", supplierControlAccount),
                 orderBy("date", "desc")
             );
             
             const journalSnapshot = await getDocs(journalQuery);
-            const fetchedJournals = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
-            setJournals(fetchedJournals);
+            const allJournalTransactions = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
+
+            const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
+            allJournalTransactions.forEach(tx => {
+                if (!journalGroups[tx.reference]) {
+                    journalGroups[tx.reference] = [];
+                }
+                journalGroups[tx.reference].push(tx);
+            });
+
+            const supplierJournals = Object.values(journalGroups).filter(group => 
+                group.some(tx => tx.allocatedTo?.value === supplierControlAccount)
+            ).flat();
+
+            setJournals(supplierJournals);
 
         } catch (error) {
             toast({ title: 'Error', description: 'Could not fetch suppliers.', variant: 'destructive' });

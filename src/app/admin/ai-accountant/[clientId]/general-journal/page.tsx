@@ -10,16 +10,18 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon } from 'lucide-react';
-import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { User, ChartOfAccount } from '@/lib/types';
+import { User, ChartOfAccount, AllocatedTransaction } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
@@ -55,6 +57,7 @@ export default function GeneralJournalsPage() {
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [postedJournals, setPostedJournals] = useState<AllocatedTransaction[]>([]);
     const { toast } = useToast();
 
     const form = useForm<JournalFormValues>({
@@ -83,7 +86,7 @@ export default function GeneralJournalsPage() {
     }, [watchedLines]);
 
     useEffect(() => {
-        const fetchClientData = async () => {
+        const fetchClientAndJournals = async () => {
             if (!clientId) return;
             setIsLoading(true);
             try {
@@ -92,13 +95,28 @@ export default function GeneralJournalsPage() {
                 if (clientSnap.exists()) {
                     setClient(clientSnap.data() as User);
                 }
+
+                const journalsQuery = query(
+                    collection(db, 'aiAccountantClients', clientId, 'transactions'),
+                    where('bankAccountId', '==', 'JOURNAL'),
+                    orderBy('date', 'desc')
+                );
+                const journalsSnapshot = await getDocs(journalsQuery);
+                const allJournals = journalsSnapshot.docs.map(d => d.data() as AllocatedTransaction);
+                
+                const controlAccounts = ['7000-000', '8000-001'];
+                const generalJournals = allJournals.filter(tx => 
+                    !controlAccounts.includes(tx.allocatedTo?.value || '')
+                );
+                setPostedJournals(generalJournals);
+
             } catch (e) {
-                toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
+                toast({ title: 'Error', description: 'Failed to fetch client data or journals.', variant: 'destructive' });
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchClientData();
+        fetchClientAndJournals();
     }, [clientId, toast]);
     
     const onSubmit = async (data: JournalFormValues) => {
@@ -139,6 +157,14 @@ export default function GeneralJournalsPage() {
                     { accountId: '', description: '', debit: 0, credit: 0 },
                 ],
             });
+            // Re-fetch journals
+            const journalsQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('bankAccountId', '==', 'JOURNAL'), orderBy('date', 'desc'));
+            const journalsSnapshot = await getDocs(journalsQuery);
+            const allJournals = journalsSnapshot.docs.map(d => d.data() as AllocatedTransaction);
+            const controlAccounts = ['7000-000', '8000-001'];
+            const generalJournals = allJournals.filter(tx => !controlAccounts.includes(tx.allocatedTo?.value || ''));
+            setPostedJournals(generalJournals);
+
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to post journal entry.', variant: 'destructive' });
             console.error(error);
@@ -157,6 +183,7 @@ export default function GeneralJournalsPage() {
     }
 
     return (
+      <div className="space-y-8">
         <Card>
             <CardHeader>
                 <div className="flex justify-between items-center">
@@ -225,6 +252,49 @@ export default function GeneralJournalsPage() {
                 </Form>
             </CardContent>
         </Card>
+        <Separator />
+         <Card>
+            <CardHeader>
+                <CardTitle>Posted General Journals</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Account</TableHead>
+                            <TableHead className="text-right">Debit</TableHead>
+                            <TableHead className="text-right">Credit</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {postedJournals.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                                    No general journals have been posted yet.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            postedJournals.map(journal => {
+                                const account = generalAccounts.find(a => a.id === journal.allocatedTo.value);
+                                return (
+                                <TableRow key={journal.id}>
+                                    <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
+                                    <TableCell>{journal.reference}</TableCell>
+                                    <TableCell>{journal.description}</TableCell>
+                                    <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
+                                    <TableCell className="text-right font-mono">{journal.amount > 0 ? formatPrice(journal.amount) : ''}</TableCell>
+                                    <TableCell className="text-right font-mono">{journal.amount < 0 ? formatPrice(-journal.amount) : ''}</TableCell>
+                                </TableRow>
+                            )})
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    </div>
     );
 }
 

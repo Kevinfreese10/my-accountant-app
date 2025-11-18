@@ -220,13 +220,26 @@ export default function ClientCustomersPage() {
             const journalQuery = query(
                 collection(db, `aiAccountantClients/${clientId}/transactions`), 
                 where("bankAccountId", "==", "JOURNAL"),
-                where("allocatedTo.value", "==", customerControlAccount),
                 orderBy("date", "desc")
             );
             
             const journalSnapshot = await getDocs(journalQuery);
-            const fetchedJournals = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
-            setJournals(fetchedJournals);
+            const allJournalTransactions = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
+            
+            // Filter in code to get both sides of a customer journal entry
+            const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
+            allJournalTransactions.forEach(tx => {
+                if (!journalGroups[tx.reference]) {
+                    journalGroups[tx.reference] = [];
+                }
+                journalGroups[tx.reference].push(tx);
+            });
+
+            const customerJournals = Object.values(journalGroups).filter(group => 
+                group.some(tx => tx.allocatedTo?.value === customerControlAccount)
+            ).flat();
+
+            setJournals(customerJournals);
 
         } catch (error) {
             console.error("Error fetching data:", error);
