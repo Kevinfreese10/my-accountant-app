@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice } from '@/lib/types';
@@ -66,9 +66,11 @@ type PeriodAnalysisResult = {
     fileName: string;
     startDate: string;
     endDate: string;
+    openingBalance: number;
+    closingBalance: number;
 };
 
-function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
+function UploadStatementDialog({ client, bankAccountId, existingTransactions, onImportComplete }: { client: User | null, bankAccountId: string, existingTransactions: ImportedTransaction[], onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -77,13 +79,22 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
     const [periodAnalysis, setPeriodAnalysis] = useState<PeriodAnalysisResult[]>([]);
     const [missingPeriods, setMissingPeriods] = useState<string[]>([]);
     const [extractedTransactions, setExtractedTransactions] = useState<ExtractedTransaction[]>([]);
+    const [finalTransactions, setFinalTransactions] = useState<ExtractedTransaction[]>([]);
+    const [reconciliation, setReconciliation] = useState<any>(null);
     const { toast } = useToast();
+    
+    const bankAccountBalance = useMemo(() => {
+        if (!existingTransactions || existingTransactions.length === 0) return 0;
+        return existingTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+    }, [existingTransactions]);
 
     const resetState = () => {
         setFiles([]);
         setPeriodAnalysis([]);
         setMissingPeriods([]);
         setExtractedTransactions([]);
+        setFinalTransactions([]);
+        setReconciliation(null);
         setIsAnalyzing(false);
         setIsExtracting(false);
         setIsUploading(false);
@@ -99,6 +110,8 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             setPeriodAnalysis([]);
             setMissingPeriods([]);
             setExtractedTransactions([]);
+            setFinalTransactions([]);
+            setReconciliation(null);
         }
     };
     
@@ -141,26 +154,27 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
         }));
         
         const validResults = analysisResults.filter((r): r is PeriodAnalysisResult => r !== null);
-        setPeriodAnalysis(validResults);
         
-        if (validResults.length > 1) {
+        if (validResults.length > 0) {
             const sortedResults = [...validResults].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+            setPeriodAnalysis(sortedResults);
             
-            const gaps: string[] = [];
-            for (let i = 0; i < sortedResults.length - 1; i++) {
-                const end = new Date(sortedResults[i].endDate);
-                const nextStart = new Date(sortedResults[i + 1].startDate);
-                
-                // Check if there is more than a 1-day gap
-                if (differenceInDays(nextStart, end) > 1) {
-                    const gapStart = addDays(end, 1);
-                    const gapEnd = addDays(nextStart, -1);
-                    gaps.push(`${format(gapStart, 'dd MMM yyyy')} to ${format(gapEnd, 'dd MMM yyyy')}`);
+            if (sortedResults.length > 1) {
+                const gaps: string[] = [];
+                for (let i = 0; i < sortedResults.length - 1; i++) {
+                    const end = new Date(sortedResults[i].endDate);
+                    const nextStart = new Date(sortedResults[i + 1].startDate);
+                    
+                    if (differenceInDays(nextStart, end) > 1) {
+                        const gapStart = addDays(end, 1);
+                        const gapEnd = addDays(nextStart, -1);
+                        gaps.push(`${format(gapStart, 'dd MMM yyyy')} to ${format(gapEnd, 'dd MMM yyyy')}`);
+                    }
                 }
+                setMissingPeriods(gaps);
+            } else {
+                setMissingPeriods([]);
             }
-             setMissingPeriods(gaps);
-        } else {
-            setMissingPeriods([]);
         }
         
         setIsAnalyzing(false);
@@ -194,8 +208,31 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
         })));
         
         if (allTransactions.length > 0) {
-            allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-            setExtractedTransactions(allTransactions);
+            const sortedTransactions = allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            
+            // Duplicate check
+            const existingTransactionSignatures = new Set(existingTransactions.map(tx => `${format(new Date(tx.date), 'yyyy-MM-dd')}_${tx.description}_${tx.amount.toFixed(2)}`));
+            const uniqueNewTransactions = sortedTransactions.filter(tx => !existingTransactionSignatures.has(`${format(new Date(tx.date), 'yyyy-MM-dd')}_${tx.description}_${tx.amount.toFixed(2)}`));
+            
+            setExtractedTransactions(sortedTransactions); // Keep all for reconciliation view
+            setFinalTransactions(uniqueNewTransactions); // Only unique ones for import
+
+            // Reconciliation
+            const openingBalance = periodAnalysis.length > 0 ? periodAnalysis[0].openingBalance : bankAccountBalance;
+            const closingBalance = periodAnalysis.length > 0 ? periodAnalysis[periodAnalysis.length - 1].closingBalance : 0;
+            const totalDebits = uniqueNewTransactions.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0);
+            const totalCredits = uniqueNewTransactions.filter(tx => tx.amount > 0).reduce((sum, tx) => sum + tx.amount, 0);
+            const calculatedClosingBalance = openingBalance + totalDebits + totalCredits;
+            
+            setReconciliation({
+                openingBalance,
+                totalCredits,
+                totalDebits,
+                calculatedClosingBalance,
+                closingBalance,
+                difference: calculatedClosingBalance - closingBalance,
+            });
+
         } else {
              toast({ title: 'Extraction Failed', description: 'No transactions could be found in any of the provided files.', variant: 'destructive' });
         }
@@ -204,7 +241,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
     };
     
     const handleImport = async () => {
-        if (!client || !client.uid || !bankAccountId || extractedTransactions.length === 0) return;
+        if (!client || !client.uid || !bankAccountId || finalTransactions.length === 0) return;
         setIsUploading(true);
         toast({ title: "Importing...", description: "Saving extracted transactions."});
 
@@ -212,7 +249,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             const batch = writeBatch(db);
             const dailyCounters: { [key: string]: number } = {};
 
-            extractedTransactions.forEach((row) => {
+            finalTransactions.forEach((row) => {
                  const parsedDate = new Date(row.date);
                  if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row with invalid date:`, row);
@@ -241,7 +278,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             
             await batch.commit();
 
-            toast({ title: "Import Successful", description: `${extractedTransactions.length} transactions have been imported.`});
+            toast({ title: "Import Successful", description: `${finalTransactions.length} new transactions have been imported.`});
             onImportComplete();
             setIsOpen(false);
             resetState();
@@ -281,7 +318,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                 <DialogHeader>
                     <DialogTitle>Upload Bank Statement (AI Extraction)</DialogTitle>
                     <DialogDescription>
-                       Select one or more PDF or image files of a bank statement. The AI will extract the transactions for you to review and import.
+                       Select one or more PDF or image files of a bank statement. The AI will extract, reconcile and check for duplicates.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -322,6 +359,8 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                                 <TableHead>File Name</TableHead>
                                                 <TableHead>Start Date</TableHead>
                                                 <TableHead>End Date</TableHead>
+                                                <TableHead className="text-right">Opening Balance</TableHead>
+                                                <TableHead className="text-right">Closing Balance</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -330,6 +369,8 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                                     <TableCell>{p.fileName}</TableCell>
                                                     <TableCell>{format(parseISO(p.startDate), 'dd MMMM yyyy')}</TableCell>
                                                     <TableCell>{format(parseISO(p.endDate), 'dd MMMM yyyy')}</TableCell>
+                                                    <TableCell className="text-right font-mono">{formatPrice(p.openingBalance)}</TableCell>
+                                                    <TableCell className="text-right font-mono">{formatPrice(p.closingBalance)}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -339,10 +380,48 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                         </div>
                      )}
 
-                     {extractedTransactions.length > 0 && 
+                     {reconciliation && 
                         <div className="pt-4 space-y-4">
-                            <p className="text-sm font-semibold text-green-600">Extracted {extractedTransactions.length} transactions:</p>
-                             <ScrollArea className="h-64 border rounded-md">
+                             <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center"><Scale className="mr-2 h-5 w-5"/> Reconciliation Summary</CardTitle>
+                                    <CardDescription>This is a summary of the transactions to be imported.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                        <div className="space-y-1 p-3 rounded-lg bg-muted">
+                                            <p className="text-xs text-muted-foreground">Opening Balance</p>
+                                            <p className="font-semibold">{formatPrice(reconciliation.openingBalance)}</p>
+                                        </div>
+                                         <div className="space-y-1 p-3 rounded-lg bg-muted">
+                                            <p className="text-xs text-muted-foreground">Total Income</p>
+                                            <p className="font-semibold text-green-600">{formatPrice(reconciliation.totalCredits)}</p>
+                                        </div>
+                                         <div className="space-y-1 p-3 rounded-lg bg-muted">
+                                            <p className="text-xs text-muted-foreground">Total Payments</p>
+                                            <p className="font-semibold text-red-600">{formatPrice(reconciliation.totalDebits)}</p>
+                                        </div>
+                                         <div className="space-y-1 p-3 rounded-lg bg-muted">
+                                            <p className="text-xs text-muted-foreground">Calculated Balance</p>
+                                            <p className="font-semibold">{formatPrice(reconciliation.calculatedClosingBalance)}</p>
+                                        </div>
+                                     </div>
+                                      <div className="mt-4 grid grid-cols-2 gap-4">
+                                        <Alert>
+                                            <AlertTitle>Actual Closing Balance</AlertTitle>
+                                            <AlertDescription className="text-lg font-bold">{formatPrice(reconciliation.closingBalance)}</AlertDescription>
+                                        </Alert>
+                                        <Alert variant={Math.abs(reconciliation.difference) < 0.01 ? 'default' : 'destructive'}>
+                                            <AlertTitle>Difference</AlertTitle>
+                                            <AlertDescription className="text-lg font-bold">{formatPrice(reconciliation.difference)}</AlertDescription>
+                                        </Alert>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            <p className="text-sm font-semibold text-green-600">
+                                {finalTransactions.length} new transactions found to import. ({extractedTransactions.length - finalTransactions.length} duplicates were excluded).
+                            </p>
+                             <ScrollArea className="h-48 border rounded-md">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -352,7 +431,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {extractedTransactions.map((tx, i) => (
+                                        {finalTransactions.map((tx, i) => (
                                             <TableRow key={i}>
                                                 <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
                                                 <TableCell>{tx.description}</TableCell>
@@ -367,16 +446,16 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
-                     {periodAnalysis.length > 0 && extractedTransactions.length === 0 && (
+                     {periodAnalysis.length > 0 && !reconciliation && (
                         <Button type="button" onClick={handleExtractTransactions} disabled={isExtracting || isAnalyzing}>
                             {isExtracting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                             Extract {files.length} Statement(s)
+                             Extract Transactions
                         </Button>
                     )}
-                    {extractedTransactions.length > 0 && (
-                        <Button type="button" onClick={handleImport} disabled={isUploading}>
+                    {reconciliation && (
+                        <Button type="button" onClick={handleImport} disabled={isUploading || Math.abs(reconciliation.difference) > 0.01}>
                             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save {extractedTransactions.length} Transactions
+                            Save {finalTransactions.length} Transactions
                         </Button>
                     )}
                 </DialogFooter>
@@ -2192,6 +2271,10 @@ export default function BankTransactionsPage() {
         if (reviewedTabRef.current) reviewedTabRef.current.refetch();
     }
     
+    const currentAccountTransactions = useMemo(() => {
+        return allTransactions.filter(tx => tx.bankAccountId === selectedAccountId) as ImportedTransaction[];
+    }, [allTransactions, selectedAccountId]);
+    
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
@@ -2273,7 +2356,7 @@ export default function BankTransactionsPage() {
                 </div>
 
                 <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto justify-end">
-                    {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
+                    {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} existingTransactions={currentAccountTransactions} onImportComplete={handleImportComplete} />}
                     {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} globalRules={globalRules} />}
                 </div>
             </div>
@@ -2318,5 +2401,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-    

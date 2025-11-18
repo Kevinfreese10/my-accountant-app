@@ -6,5 +6,3 @@ export default function NumeraBankTransactionsRedirectPage({ params }: { params:
   redirect(`/admin/ai-accountant/${params.clientId}/bank/transactions`);
   return null;
 }
-
-    

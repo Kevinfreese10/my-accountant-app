@@ -1,9 +1,9 @@
 
 'use server';
 /**
- * @fileOverview An AI agent for extracting the date range from bank statements.
+ * @fileOverview An AI agent for extracting the date range and balances from bank statements.
  *
- * - extractStatementPeriod - A function that takes a bank statement and returns its start and end date.
+ * - extractStatementPeriod - A function that takes a bank statement and returns its start date, end date, and balances.
  * - ExtractStatementPeriodInput - The input type for the extractStatementPeriod function.
  * - ExtractStatementPeriodOutput - The return type for the extractStatementPeriod function.
  */
@@ -22,6 +22,8 @@ export type ExtractStatementPeriodInput = z.infer<typeof ExtractStatementPeriodI
 const ExtractStatementPeriodOutputSchema = z.object({
   startDate: z.string().describe("The start date of the statement period in 'YYYY-MM-DD' format."),
   endDate: z.string().describe("The end date of the statement period in 'YYYY-MM-DD' format."),
+  openingBalance: z.number().describe("The opening balance from the statement."),
+  closingBalance: z.number().describe("The closing balance from the statement."),
 });
 export type ExtractStatementPeriodOutput = z.infer<typeof ExtractStatementPeriodOutputSchema>;
 
@@ -35,12 +37,15 @@ const prompt = ai.definePrompt({
   name: 'extractStatementPeriodPrompt',
   input: { schema: ExtractStatementPeriodInputSchema },
   output: { schema: ExtractStatementPeriodOutputSchema },
-  prompt: `You are an OCR agent. Your only task is to find the start date and end date of the provided bank statement document.
+  prompt: `You are an OCR agent. Your only task is to find the start date, end date, opening balance, and closing balance of the provided bank statement document.
   
   The start date is usually the first transaction date.
   The end date is usually the last transaction date.
+  The opening balance is the balance at the beginning of the statement period.
+  The closing balance is the balance at the end of the statement period.
   
   Format the dates as YYYY-MM-DD.
+  Return balances as numbers, without currency symbols or commas.
 
   Analyze the following document:
   {{media url=statementPdf}}
