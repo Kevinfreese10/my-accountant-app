@@ -40,7 +40,7 @@ import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths, isSameMonth, addDays, differenceInDays, isAfter } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths, isSameMonth, addDays, differenceInDays, isAfter, subDays, startOfDay, endOfDay } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { requestMissingStatements } from '@/app/actions';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -82,11 +82,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
     const [finalTransactions, setFinalTransactions] = useState<ExtractedTransaction[]>([]);
     const [reconciliation, setReconciliation] = useState<any>(null);
     const { toast } = useToast();
-    
-    const bankAccountBalance = useMemo(() => {
-        if (!existingTransactions || existingTransactions.length === 0) return 0;
-        return existingTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-    }, [existingTransactions]);
+    const [importStartDate, setImportStartDate] = useState<string>('');
 
     const resetState = () => {
         setFiles([]);
@@ -95,6 +91,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         setExtractedTransactions([]);
         setFinalTransactions([]);
         setReconciliation(null);
+        setImportStartDate('');
         setIsAnalyzing(false);
         setIsExtracting(false);
         setIsUploading(false);
@@ -112,6 +109,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             setExtractedTransactions([]);
             setFinalTransactions([]);
             setReconciliation(null);
+            setImportStartDate('');
         }
     };
     
@@ -160,15 +158,15 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             setPeriodAnalysis(sortedResults);
             
             if (sortedResults.length > 1) {
-                const gaps: string[] = [];
+                 const gaps: string[] = [];
                 for (let i = 0; i < sortedResults.length - 1; i++) {
-                    const end = new Date(sortedResults[i].endDate);
-                    const nextStart = new Date(sortedResults[i + 1].startDate);
+                    const end = endOfDay(parseISO(sortedResults[i].endDate));
+                    const nextStart = startOfDay(parseISO(sortedResults[i + 1].startDate));
                     
                     if (differenceInDays(nextStart, end) > 1) {
                         const gapStart = addDays(end, 1);
                         const gapEnd = addDays(nextStart, -1);
-                        gaps.push(`${format(gapStart, 'dd MMM yyyy')} to ${format(gapEnd, 'dd MMM yyyy')}`);
+                        gaps.push(`${format(gapStart, 'dd MMMM yyyy')} to ${format(gapEnd, 'dd MMMM yyyy')}`);
                     }
                 }
                 setMissingPeriods(gaps);
@@ -210,15 +208,29 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         if (allTransactions.length > 0) {
             const sortedTransactions = allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
+            setExtractedTransactions(sortedTransactions);
+            
+            if(sortedTransactions.length > 0) {
+                setImportStartDate(sortedTransactions[0].date);
+            }
+
+        } else {
+             toast({ title: 'Extraction Failed', description: 'No transactions could be found in any of the provided files.', variant: 'destructive' });
+        }
+        
+        setIsExtracting(false);
+    };
+
+    useEffect(() => {
+        if(extractedTransactions.length > 0) {
             // Duplicate check
             const existingTransactionSignatures = new Set(existingTransactions.map(tx => `${format(new Date(tx.date), 'yyyy-MM-dd')}_${tx.description}_${tx.amount.toFixed(2)}`));
-            const uniqueNewTransactions = sortedTransactions.filter(tx => !existingTransactionSignatures.has(`${format(new Date(tx.date), 'yyyy-MM-dd')}_${tx.description}_${tx.amount.toFixed(2)}`));
+            const uniqueNewTransactions = extractedTransactions.filter(tx => !existingTransactionSignatures.has(`${format(new Date(tx.date), 'yyyy-MM-dd')}_${tx.description}_${tx.amount.toFixed(2)}`));
             
-            setExtractedTransactions(sortedTransactions); // Keep all for reconciliation view
             setFinalTransactions(uniqueNewTransactions); // Only unique ones for import
 
             // Reconciliation
-            const openingBalance = periodAnalysis.length > 0 ? periodAnalysis[0].openingBalance : bankAccountBalance;
+            const openingBalance = periodAnalysis.length > 0 ? periodAnalysis[0].openingBalance : 0;
             const closingBalance = periodAnalysis.length > 0 ? periodAnalysis[periodAnalysis.length - 1].closingBalance : 0;
             const totalDebits = uniqueNewTransactions.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0);
             const totalCredits = uniqueNewTransactions.filter(tx => tx.amount > 0).reduce((sum, tx) => sum + tx.amount, 0);
@@ -232,16 +244,16 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 closingBalance,
                 difference: calculatedClosingBalance - closingBalance,
             });
-
-        } else {
-             toast({ title: 'Extraction Failed', description: 'No transactions could be found in any of the provided files.', variant: 'destructive' });
         }
-        
-        setIsExtracting(false);
-    };
+    }, [extractedTransactions, existingTransactions, periodAnalysis]);
     
+    const transactionsToImport = useMemo(() => {
+        if (!importStartDate) return finalTransactions;
+        return finalTransactions.filter(tx => !isAfter(startOfDay(parseISO(importStartDate)), startOfDay(new Date(tx.date))));
+    }, [finalTransactions, importStartDate]);
+
     const handleImport = async () => {
-        if (!client || !client.uid || !bankAccountId || finalTransactions.length === 0) return;
+        if (!client || !client.uid || !bankAccountId || transactionsToImport.length === 0) return;
         setIsUploading(true);
         toast({ title: "Importing...", description: "Saving extracted transactions."});
 
@@ -249,7 +261,36 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             const batch = writeBatch(db);
             const dailyCounters: { [key: string]: number } = {};
 
-            finalTransactions.forEach((row) => {
+            // Add Opening Balance if needed
+            if (importStartDate && new Date(importStartDate) > new Date(finalTransactions[0]?.date)) {
+                const startDate = startOfDay(parseISO(importStartDate));
+                const openingBalanceDate = subDays(startDate, 1);
+                
+                const transactionsBeforeStart = finalTransactions.filter(tx => isAfter(startDate, startOfDay(new Date(tx.date))));
+                const openingBalanceValue = (reconciliation?.openingBalance || 0) + transactionsBeforeStart.reduce((sum, tx) => sum + tx.amount, 0);
+                
+                if (openingBalanceValue !== 0) {
+                     const dateString = openingBalanceDate.toISOString().split('T')[0].replace(/-/g, '');
+                     const reference = `${dateString}00`; // Use '00' for OB
+                     
+                     const openingBalanceTransaction: Omit<ImportedTransaction, 'id'> = {
+                         clientId: client.uid,
+                         date: openingBalanceDate.toISOString(),
+                         reference: reference,
+                         description: 'Opening Balance',
+                         amount: openingBalanceValue,
+                         bankAccountId: bankAccountId,
+                         status: 'allocated',
+                         allocatedTo: { value: '9500-002', type: 'account' },
+                         vatType: 'no_vat',
+                     };
+                     const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid, 'transactions'));
+                     batch.set(newTransactionRef, openingBalanceTransaction);
+                }
+            }
+
+
+            transactionsToImport.forEach((row) => {
                  const parsedDate = new Date(row.date);
                  if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row with invalid date:`, row);
@@ -261,10 +302,10 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
                 
-                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid, 'transactions'));
+                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
                 
                 const transaction: Omit<ImportedTransaction, 'id'> = {
-                    clientId: client.uid,
+                    clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: reference,
                     description: row.description,
@@ -278,7 +319,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             
             await batch.commit();
 
-            toast({ title: "Import Successful", description: `${finalTransactions.length} new transactions have been imported.`});
+            toast({ title: "Import Successful", description: `${transactionsToImport.length} new transactions have been imported.`});
             onImportComplete();
             setIsOpen(false);
             resetState();
@@ -418,9 +459,22 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                                     </div>
                                 </CardContent>
                             </Card>
-                            <p className="text-sm font-semibold text-green-600">
-                                {finalTransactions.length} new transactions found to import. ({extractedTransactions.length - finalTransactions.length} duplicates were excluded).
-                            </p>
+                            
+                             <div className="flex flex-col sm:flex-row items-end gap-4 justify-between pt-4">
+                                 <div>
+                                     <Label htmlFor="start-date-import">Start Import From</Label>
+                                     <Input 
+                                        id="start-date-import"
+                                        type="date" 
+                                        value={importStartDate ? format(parseISO(importStartDate), 'yyyy-MM-dd') : ''}
+                                        onChange={(e) => setImportStartDate(e.target.value)}
+                                        className="w-full sm:w-auto"
+                                     />
+                                 </div>
+                                 <p className="text-sm font-semibold text-green-600">
+                                    {transactionsToImport.length} new transactions found to import. ({extractedTransactions.length - finalTransactions.length} duplicates were excluded).
+                                </p>
+                            </div>
                              <ScrollArea className="h-48 border rounded-md">
                                 <Table>
                                     <TableHeader>
@@ -431,7 +485,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {finalTransactions.map((tx, i) => (
+                                        {transactionsToImport.map((tx, i) => (
                                             <TableRow key={i}>
                                                 <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
                                                 <TableCell>{tx.description}</TableCell>
@@ -455,7 +509,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                     {reconciliation && (
                         <Button type="button" onClick={handleImport} disabled={isUploading || Math.abs(reconciliation.difference) > 0.01}>
                             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save {finalTransactions.length} Transactions
+                            Save {transactionsToImport.length} Transactions
                         </Button>
                     )}
                 </DialogFooter>
@@ -1978,7 +2032,12 @@ const ReviewedTab = React.forwardRef<
 >(({ client, bankAccountId, customers }, ref) => {
     
     const [searchTerm, setSearchTerm] = useState('');
-    type SortField = 'date' | 'description' | 'amount';
+    const [searchAmount, setSearchAmount] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const { toast } = useToast();
+    const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
+
+    type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
     type SortDirection = 'asc' | 'desc';
     const [sortField, setSortField] = useState<SortField>('date');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -1998,8 +2057,12 @@ const ReviewedTab = React.forwardRef<
         let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'allocated'),
-            orderBy(sortField, sortDirection),
         ];
+
+        const sortableFields: SortField[] = ['date', 'description', 'amount'];
+        if (sortableFields.includes(sortField)) {
+            constraints.push(orderBy(sortField, sortDirection));
+        }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
     }, [client?.uid, bankAccountId, sortField, sortDirection]);
@@ -2016,37 +2079,129 @@ const ReviewedTab = React.forwardRef<
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
 
      const transactions = useMemo(() => {
-      if (!searchTerm) return documents;
-      return documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [documents, searchTerm]);
+        let filteredDocs = documents;
+
+        if (searchTerm) {
+            filteredDocs = filteredDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        }
+
+        if (searchAmount) {
+            const amount = parseFloat(searchAmount);
+            if (!isNaN(amount)) {
+                filteredDocs = filteredDocs.filter(tx => Math.abs(tx.amount - amount) < 0.01);
+            }
+        }
+        
+        const nonSortableFields: SortField[] = ['allocatedTo', 'vatType'];
+        if (nonSortableFields.includes(sortField)) {
+            return [...filteredDocs].sort((a, b) => {
+                const aVal = sortField === 'allocatedTo' ? getAllocationDescription(a) : a.vatType || '';
+                const bVal = sortField === 'allocatedTo' ? getAllocationDescription(b) : b.vatType || '';
+                return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            });
+        }
+        
+        return filteredDocs;
+    }, [documents, searchTerm, searchAmount, sortField, sortDirection]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
     }));
     
     const getAllocationDescription = (tx: ImportedTransaction) => {
-        if (!tx.allocatedTo) return 'N/A';
-        if (tx.allocatedTo.type === 'customer') {
-            return customers.find(c => c.id === tx.allocatedTo?.value)?.name || 'Unknown Customer';
+        const changedTx = changes[tx.id];
+        const allocatedTo = changedTx?.allocatedTo || tx.allocatedTo;
+
+        if (!allocatedTo) return 'N/A';
+        if (allocatedTo.type === 'customer') {
+            return customers.find(c => c.id === allocatedTo.value)?.name || 'Unknown Customer';
         }
-        return client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo?.value)?.description || 'Unknown Account';
+        return client?.chartOfAccounts?.find(acc => acc.id === allocatedTo.value)?.description || 'Unknown Account';
+    }
+
+    const handleAllocationChange = (txId: string, value: string) => {
+        const [type, val] = value.split(':');
+        setChanges(prev => ({
+            ...prev,
+            [txId]: {
+                ...prev[txId],
+                allocatedTo: { value: val, type: type as 'account' | 'customer' }
+            }
+        }));
+    }
+
+    const handleVatChange = (txId: string, value: VatType) => {
+        setChanges(prev => ({
+            ...prev,
+            [txId]: {
+                ...prev[txId],
+                vatType: value
+            }
+        }));
+    }
+
+    const handleSaveChanges = async () => {
+        if (!client || Object.keys(changes).length === 0) return;
+        setIsSaving(true);
+        toast({ title: 'Saving changes...', description: 'Please wait.' });
+
+        const batch = writeBatch(db);
+        Object.entries(changes).forEach(([txId, changeData]) => {
+            const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+            const updateData: { [key: string]: any } = {};
+            if (changeData.allocatedTo) {
+                updateData.allocatedTo = changeData.allocatedTo;
+            }
+            if (changeData.vatType) {
+                updateData.vatType = changeData.vatType;
+            }
+            batch.update(txRef, updateData);
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Success!', description: 'Your changes have been saved.' });
+            setChanges({});
+            refetch();
+        } catch (error) {
+            console.error('Error saving changes:', error);
+            toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
     }
 
 
     return (
         <Card>
             <CardHeader className="p-4 border-b">
-                 <div className="flex items-center justify-end">
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            type="search"
-                            placeholder="Search descriptions..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-8 w-64"
-                        />
+                 <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="search"
+                                placeholder="Search descriptions..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-8 w-64"
+                            />
+                        </div>
+                         <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="number"
+                                placeholder="Search by amount..."
+                                value={searchAmount}
+                                onChange={(e) => setSearchAmount(e.target.value)}
+                                className="pl-8 w-48"
+                            />
+                        </div>
                     </div>
+                     <Button onClick={handleSaveChanges} disabled={isSaving || Object.keys(changes).length === 0}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Save Changes
+                    </Button>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -2056,8 +2211,8 @@ const ReviewedTab = React.forwardRef<
                             <TableRow>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                <TableHead>Allocated To</TableHead>
-                                <TableHead>VAT Type</TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('allocatedTo')}>Allocated To <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('vatType')}>VAT Type <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -2071,8 +2226,42 @@ const ReviewedTab = React.forwardRef<
                                     <TableRow key={tx.id}>
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
-                                        <TableCell>{getAllocationDescription(tx)}</TableCell>
-                                        <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
+                                        <TableCell className="w-[250px]">
+                                            <Select
+                                                value={`${changes[tx.id]?.allocatedTo?.type || tx.allocatedTo?.type}:${changes[tx.id]?.allocatedTo?.value || tx.allocatedTo?.value}`}
+                                                onValueChange={(value) => handleAllocationChange(tx.id, value)}
+                                            >
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectGroup>
+                                                        <Label>Accounts</Label>
+                                                        {client?.chartOfAccounts?.map(acc => (
+                                                            <SelectItem key={acc.id} value={`account:${acc.id}`}>{acc.description}</SelectItem>
+                                                        ))}
+                                                    </SelectGroup>
+                                                     <SelectGroup>
+                                                        <Label>Customers</Label>
+                                                        {customers.map(c => (
+                                                            <SelectItem key={c.id} value={`customer:${c.id}`}>{c.name}</SelectItem>
+                                                        ))}
+                                                    </SelectGroup>
+                                                </SelectContent>
+                                            </Select>
+                                        </TableCell>
+                                        <TableCell className="w-[200px]">
+                                            <Select
+                                                value={changes[tx.id]?.vatType || tx.vatType}
+                                                onValueChange={(value) => handleVatChange(tx.id, value as VatType)}
+                                                disabled={tx.allocatedTo?.type === 'customer'}
+                                            >
+                                                <SelectTrigger><SelectValue/></SelectTrigger>
+                                                <SelectContent>
+                                                    {allVatTypes.map(vt => (
+                                                        <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </TableCell>
                                         <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                     </TableRow>
                                 ))
@@ -2401,3 +2590,5 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
+    
