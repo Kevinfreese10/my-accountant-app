@@ -135,17 +135,34 @@ export default function GeneralJournalsPage() {
             
             const controlAccountIds = ['7000-000', '8000-001'];
             
-            const generalOnlyJournals = allJournals.filter(tx => 
-                !controlAccountIds.includes(tx.allocatedTo.value) && 
-                (!tx.reference || !tx.reference.startsWith('TAX-'))
-            );
-            
-            const taxOnlyJournals = allJournals.filter(tx => tx.reference && tx.reference.startsWith('TAX-'));
+            const taxOnlyJournals: AllocatedTransaction[] = [];
+            const generalOnlyJournals: AllocatedTransaction[] = [];
 
+            const groupedByRef: { [key: string]: AllocatedTransaction[] } = {};
+            allJournals.forEach(tx => {
+                if (!groupedByRef[tx.reference]) {
+                    groupedByRef[tx.reference] = [];
+                }
+                groupedByRef[tx.reference].push(tx);
+            });
+            
+            for (const ref in groupedByRef) {
+                const group = groupedByRef[ref];
+                const isTaxJournal = ref.startsWith('TAX-');
+                const isControlJournal = group.some(tx => controlAccountIds.includes(tx.allocatedTo.value));
+
+                if (isTaxJournal) {
+                    taxOnlyJournals.push(...group);
+                } else if (!isControlJournal) {
+                    generalOnlyJournals.push(...group);
+                }
+            }
+            
             setPostedJournals(generalOnlyJournals);
             setTaxJournals(taxOnlyJournals);
 
         } catch (e) {
+            console.error("Failed to fetch data:", e);
             toast({ title: 'Error', description: 'Failed to fetch client data or journals.', variant: 'destructive' });
         } finally {
             setIsLoading(false);
@@ -330,7 +347,7 @@ export default function GeneralJournalsPage() {
                             </TableRow>
                         ) : (
                             taxJournals.map(journal => {
-                                const account = generalAccounts.find(a => a.id === journal.allocatedTo.value);
+                                const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
                                 return (
                                 <TableRow key={journal.id}>
                                     <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
@@ -389,7 +406,7 @@ export default function GeneralJournalsPage() {
                             </TableRow>
                         ) : (
                             postedJournals.map(journal => {
-                                const account = generalAccounts.find(a => a.id === journal.allocatedTo.value);
+                                const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
                                 return (
                                 <TableRow key={journal.id}>
                                     <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
