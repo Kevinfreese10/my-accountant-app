@@ -70,7 +70,7 @@ type PeriodAnalysisResult = {
     closingBalance: number;
 };
 
-function UploadStatementDialog({ client, bankAccountId, existingTransactions, onImportComplete }: { client: User | null, bankAccountId: string, existingTransactions: ImportedTransaction[], onImportComplete: () => void }) {
+function UploadStatementDialog({ client, bankAccountId, existingTransactions, onImportComplete, globalRules }: { client: User | null, bankAccountId: string, existingTransactions: ImportedTransaction[], onImportComplete: () => void, globalRules: AllocationRule[] }) {
     const [isOpen, setIsOpen] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -83,6 +83,8 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
     const [reconciliation, setReconciliation] = useState<any>(null);
     const { toast } = useToast();
     const [importStartDate, setImportStartDate] = useState<string>('');
+    const [potentialAllocations, setPotentialAllocations] = useState(0);
+
 
     const resetState = () => {
         setFiles([]);
@@ -92,6 +94,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         setFinalTransactions([]);
         setReconciliation(null);
         setImportStartDate('');
+        setPotentialAllocations(0);
         setIsAnalyzing(false);
         setIsExtracting(false);
         setIsUploading(false);
@@ -110,6 +113,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             setFinalTransactions([]);
             setReconciliation(null);
             setImportStartDate('');
+            setPotentialAllocations(0);
         }
     };
     
@@ -244,8 +248,25 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 closingBalance,
                 difference: calculatedClosingBalance - closingBalance,
             });
+
+             // Rule allocation check
+            let ruleAllocationCount = 0;
+            const allRules = [...(client?.allocationRules || []), ...globalRules];
+            if (allRules.length > 0) {
+                for (const tx of uniqueNewTransactions) {
+                    const txDescriptionLower = tx.description.toLowerCase();
+                    const matchedRule = allRules.find(rule => 
+                        rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
+                    );
+                    if (matchedRule) {
+                        ruleAllocationCount++;
+                    }
+                }
+            }
+            setPotentialAllocations(ruleAllocationCount);
+
         }
-    }, [extractedTransactions, existingTransactions, periodAnalysis]);
+    }, [extractedTransactions, existingTransactions, periodAnalysis, client, globalRules]);
     
     const transactionsToImport = useMemo(() => {
         if (!importStartDate) return finalTransactions;
@@ -260,6 +281,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         try {
             const batch = writeBatch(db);
             const dailyCounters: { [key: string]: number } = {};
+            const allRules = [...(client.allocationRules || []), ...globalRules];
 
             // Add Opening Balance if needed
             if (importStartDate && new Date(importStartDate) > new Date(finalTransactions[0]?.date)) {
@@ -304,7 +326,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 
                 const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
                 
-                const transaction: Omit<ImportedTransaction, 'id'> = {
+                let transaction: Omit<ImportedTransaction, 'id'> = {
                     clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: reference,
@@ -313,6 +335,17 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                     bankAccountId: bankAccountId,
                     status: 'new'
                 };
+                
+                 const txDescriptionLower = row.description.toLowerCase();
+                 const matchedRule = allRules.find(rule => 
+                    rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
+                );
+
+                if (matchedRule) {
+                    transaction.status = 'review';
+                    transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
+                    transaction.vatType = matchedRule.vatType;
+                }
                 
                 batch.set(newTransactionRef, transaction);
             });
@@ -471,9 +504,10 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                                         className="w-full sm:w-auto"
                                      />
                                  </div>
-                                 <p className="text-sm font-semibold text-green-600">
-                                    {transactionsToImport.length} new transactions found to import. ({extractedTransactions.length - finalTransactions.length} duplicates were excluded).
-                                </p>
+                                 <div className="text-sm font-semibold space-y-1 text-right">
+                                    <p className="text-green-600">{transactionsToImport.length} new transactions found to import. ({extractedTransactions.length - finalTransactions.length} duplicates were excluded).</p>
+                                     {potentialAllocations > 0 && <p className="text-blue-600">{potentialAllocations} transaction(s) will be automatically allocated by rules.</p>}
+                                 </div>
                             </div>
                              <ScrollArea className="h-48 border rounded-md">
                                 <Table>
@@ -2545,7 +2579,7 @@ export default function BankTransactionsPage() {
                 </div>
 
                 <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto justify-end">
-                    {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} existingTransactions={currentAccountTransactions} onImportComplete={handleImportComplete} />}
+                    {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} existingTransactions={currentAccountTransactions} onImportComplete={handleImportComplete} globalRules={globalRules} />}
                     {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} globalRules={globalRules} />}
                 </div>
             </div>
