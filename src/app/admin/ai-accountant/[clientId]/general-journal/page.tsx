@@ -110,19 +110,7 @@ export default function GeneralJournalsPage() {
             
             const controlAccountIds = ['7000-000', '8000-001'];
             
-            // Group by reference to evaluate the whole journal entry
-            const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
-            allJournals.forEach(tx => {
-                if (!journalGroups[tx.reference]) journalGroups[tx.reference] = [];
-                journalGroups[tx.reference].push(tx);
-            });
-
-            // A journal is "general" if NONE of its lines touch a control account
-            const generalJournalGroups = Object.values(journalGroups)
-                .filter(group => !group.some(tx => controlAccountIds.includes(tx.allocatedTo.value)));
-
-            // Flatten the groups back into a single list of transactions
-            const generalJournals = generalJournalGroups.flat();
+            const generalJournals = allJournals.filter(tx => !controlAccountIds.includes(tx.allocatedTo.value));
 
             setPostedJournals(generalJournals);
 
@@ -305,3 +293,4 @@ export default function GeneralJournalsPage() {
     );
 
     
+}
