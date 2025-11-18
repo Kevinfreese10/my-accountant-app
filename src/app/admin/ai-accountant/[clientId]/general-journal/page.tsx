@@ -10,7 +10,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon } from 'lucide-react';
-import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const db = getFirestore(firebaseApp);
 
@@ -58,6 +59,7 @@ export default function GeneralJournalsPage() {
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [postedJournals, setPostedJournals] = useState<AllocatedTransaction[]>([]);
+    const [taxJournals, setTaxJournals] = useState<AllocatedTransaction[]>([]);
     const { toast } = useToast();
 
     const form = useForm<JournalFormValues>({
@@ -110,9 +112,15 @@ export default function GeneralJournalsPage() {
             
             const controlAccountIds = ['7000-000', '8000-001'];
             
-            const generalJournals = allJournals.filter(tx => !controlAccountIds.includes(tx.allocatedTo.value));
+            const generalOnlyJournals = allJournals.filter(tx => 
+                !controlAccountIds.includes(tx.allocatedTo.value) && 
+                !tx.reference.startsWith('TAX-')
+            );
+            
+            const taxOnlyJournals = allJournals.filter(tx => tx.reference.startsWith('TAX-'));
 
-            setPostedJournals(generalJournals);
+            setPostedJournals(generalOnlyJournals);
+            setTaxJournals(taxOnlyJournals);
 
         } catch (e) {
             toast({ title: 'Error', description: 'Failed to fetch client data or journals.', variant: 'destructive' });
@@ -173,6 +181,33 @@ export default function GeneralJournalsPage() {
         }
     };
     
+    const handleDeleteJournal = async (journalReference: string) => {
+      if (!client) return;
+      
+      const journalsToDelete = [...postedJournals, ...taxJournals].filter(
+        (j) => j.reference === journalReference
+      );
+
+      if (journalsToDelete.length === 0) {
+        toast({ title: 'Error', description: 'Could not find journal entries to delete.', variant: 'destructive'});
+        return;
+      }
+      
+      try {
+        const batch = writeBatch(db);
+        journalsToDelete.forEach(journal => {
+          const docRef = doc(db, 'aiAccountantClients', client.id, 'transactions', journal.id);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+        toast({ title: 'Journal Deleted', description: `Journal ${journalReference} has been deleted.`, variant: 'destructive'});
+        fetchClientAndJournals();
+      } catch (error) {
+        console.error("Error deleting journal:", error);
+        toast({ title: 'Error', description: 'Failed to delete journal.', variant: 'destructive'});
+      }
+    };
+
     if (isLoading && !client) {
         return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
@@ -250,6 +285,66 @@ export default function GeneralJournalsPage() {
         <Separator />
          <Card>
             <CardHeader>
+                <CardTitle>Posted Tax Journals</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Account</TableHead>
+                            <TableHead className="text-right">Debit</TableHead>
+                            <TableHead className="text-right">Credit</TableHead>
+                             <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {taxJournals.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                                    No tax journals have been posted yet.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            taxJournals.map(journal => {
+                                const account = generalAccounts.find(a => a.id === journal.allocatedTo.value);
+                                return (
+                                <TableRow key={journal.id}>
+                                    <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
+                                    <TableCell>{journal.reference}</TableCell>
+                                    <TableCell>{journal.description}</TableCell>
+                                    <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
+                                     <TableCell className="text-right">
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription>This action will delete the entire journal entry ({journal.reference}). This cannot be undone.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteJournal(journal.reference)}>Delete</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </TableCell>
+                                </TableRow>
+                            )})
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+        <Separator />
+         <Card>
+            <CardHeader>
                 <CardTitle>Posted General Journals</CardTitle>
             </CardHeader>
             <CardContent>
@@ -291,6 +386,4 @@ export default function GeneralJournalsPage() {
         </Card>
     </div>
     );
-
-    
 }
