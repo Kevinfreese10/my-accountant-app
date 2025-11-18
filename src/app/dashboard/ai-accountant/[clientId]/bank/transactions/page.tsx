@@ -41,7 +41,7 @@ import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths, isSameMonth } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { requestMissingStatements } from '@/app/actions';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -109,35 +109,35 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
         }
     }, [files]);
 
-    const groupConsecutiveMonths = (monthDates: Date[]): string[] => {
-        if (monthDates.length === 0) return [];
-    
-        monthDates.sort((a,b) => a.getTime() - b.getTime());
-    
-        const ranges: string[] = [];
-        let startRange: Date = monthDates[0];
-    
-        for (let i = 0; i < monthDates.length; i++) {
-            const currentMonth = monthDates[i];
-            const nextMonth = monthDates[i + 1];
-    
-            if (!nextMonth || nextMonth.getTime() !== addMonths(currentMonth, 1).getTime()) {
-                if (startRange.getTime() === currentMonth.getTime()) {
-                    ranges.push(format(startRange, 'dd MMMM yyyy'));
-                } else {
-                    const rangeEnd = endOfMonth(currentMonth);
-                    ranges.push(`${format(startRange, 'dd MMMM yyyy')} to ${format(rangeEnd, 'dd MMMM yyyy')}`);
-                }
-                if(nextMonth) {
-                    startRange = nextMonth;
-                }
-            }
+    const groupConsecutiveMonths = (dates: Date[]): string[] => {
+      if (dates.length === 0) return [];
+
+      dates.sort((a, b) => a.getTime() - b.getTime());
+
+      const ranges = [];
+      let rangeStart = dates[0];
+
+      for (let i = 0; i < dates.length; i++) {
+        const currentMonth = dates[i];
+        const nextMonthInArray = dates[i + 1];
+        const expectedNextMonth = addMonths(currentMonth, 1);
+        
+        if (!nextMonthInArray || !isSameMonth(nextMonthInArray, expectedNextMonth)) {
+          if (isSameMonth(rangeStart, currentMonth)) {
+            ranges.push(format(rangeStart, 'MMMM yyyy'));
+          } else {
+            ranges.push(`${format(rangeStart, 'MMMM')} to ${format(currentMonth, 'MMMM yyyy')}`);
+          }
+          if (nextMonthInArray) {
+            rangeStart = nextMonthInArray;
+          }
         }
-        return ranges;
+      }
+      return ranges;
     };
     
-    
     const handlePeriodAnalysis = async () => {
+        if (files.length === 0) return;
         setIsAnalyzing(true);
         toast({ title: `Analyzing ${files.length} file(s)...`, description: "The AI is checking the statement periods." });
 
@@ -169,35 +169,35 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
         }));
         
         const validResults = analysisResults.filter((r): r is PeriodAnalysisResult => r !== null);
+        setPeriodAnalysis(validResults);
         
-        if (validResults.length > 0) {
+        if (validResults.length > 1) {
             validResults.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-            setPeriodAnalysis(validResults);
+            
+            const minDate = parseISO(validResults[0].startDate);
+            const maxDate = parseISO(validResults[validResults.length - 1].endDate);
+            
+            const interval = { start: startOfMonth(minDate), end: endOfMonth(maxDate) };
+            const allMonthsInInterval = eachMonthOfInterval(interval);
 
-            const allDates = validResults.flatMap(r => [parseISO(r.startDate), parseISO(r.endDate)]);
-            if (allDates.length > 1) {
-                const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
-                const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
-                
-                const interval = { start: startOfMonth(minDate), end: endOfMonth(maxDate) };
-                const allMonthsInInterval = eachMonthOfInterval(interval);
-                
-                const presentMonths = new Set<string>();
-                validResults.forEach(r => {
-                    const start = parseISO(r.startDate);
-                    const end = parseISO(r.endDate);
-                    const monthsInFile = eachMonthOfInterval({ start, end });
-                    monthsInFile.forEach(monthStart => {
-                        presentMonths.add(`${getYear(monthStart)}-${getMonth(monthStart)}`);
-                    });
+            const presentMonths = new Set<string>();
+            validResults.forEach(r => {
+                const start = parseISO(r.startDate);
+                const end = parseISO(r.endDate);
+                const monthsInFile = eachMonthOfInterval({ start: startOfMonth(start), end: endOfMonth(end) });
+                monthsInFile.forEach(monthStart => {
+                    presentMonths.add(format(monthStart, 'yyyy-MM'));
                 });
-                
-                const foundMissingMonthDates = allMonthsInInterval
-                    .filter(monthStart => !presentMonths.has(`${getYear(monthStart)}-${getMonth(monthStart)}`));
-                
-                setMissingMonths(groupConsecutiveMonths(foundMissingMonthDates));
-            }
+            });
+
+            const foundMissingMonthDates = allMonthsInInterval
+                .filter(monthStart => !presentMonths.has(format(monthStart, 'yyyy-MM')));
+            
+            setMissingMonths(groupConsecutiveMonths(foundMissingMonthDates));
+        } else {
+            setMissingMonths([]);
         }
+        
         setIsAnalyzing(false);
     };
 
@@ -329,7 +329,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                         </div>
                      }
                      
-                     {periodAnalysis.length > 0 && extractedTransactions.length === 0 && !isExtracting && (
+                    {periodAnalysis.length > 0 && extractedTransactions.length === 0 && !isExtracting && (
                         <div className="pt-4 space-y-4">
                             <Card>
                                 <CardHeader>
@@ -337,7 +337,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                     <CardDescription>Review the detected statement periods before proceeding.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    {missingMonths.length > 0 && (
+                                    {missingMonths.length > 0 ? (
                                         <Alert variant="destructive" className="mb-4">
                                             <AlertTriangle className="h-4 w-4" />
                                             <div className="flex justify-between items-center">
@@ -350,25 +350,26 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                                  <Button variant="outline" size="sm" onClick={handleRequestStatements}><Mail className="mr-2 h-4 w-4"/> Request from Client</Button>
                                             </div>
                                         </Alert>
-                                    )}
-                                     <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>File Name</TableHead>
-                                                <TableHead>Start Date</TableHead>
-                                                <TableHead>End Date</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {periodAnalysis.map((p, i) => (
-                                                <TableRow key={i}>
-                                                    <TableCell>{p.fileName}</TableCell>
-                                                    <TableCell>{format(parseISO(p.startDate), 'dd MMMM yyyy')}</TableCell>
-                                                    <TableCell>{format(parseISO(p.endDate), 'dd MMMM yyyy')}</TableCell>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>File Name</TableHead>
+                                                    <TableHead>Start Date</TableHead>
+                                                    <TableHead>End Date</TableHead>
                                                 </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {periodAnalysis.map((p, i) => (
+                                                    <TableRow key={i}>
+                                                        <TableCell>{p.fileName}</TableCell>
+                                                        <TableCell>{format(parseISO(p.startDate), 'dd MMMM yyyy')}</TableCell>
+                                                        <TableCell>{format(parseISO(p.endDate), 'dd MMMM yyyy')}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    )}
                                 </CardContent>
                             </Card>
                         </div>
