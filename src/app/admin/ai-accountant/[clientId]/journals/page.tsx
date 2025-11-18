@@ -5,7 +5,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
@@ -17,7 +16,6 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { User, ChartOfAccount, ClientCustomer, Supplier } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -29,8 +27,7 @@ const db = getFirestore(firebaseApp);
 const journalLineSchema = z.object({
     date: z.date(),
     effect: z.enum(['Increase', 'Decrease']),
-    customerId: z.string().optional(),
-    supplierId: z.string().optional(),
+    actorId: z.string().min(1, "Please select a customer or supplier."),
     reference: z.string().optional(),
     description: z.string().min(1, "Description is required."),
     vatType: z.string(),
@@ -50,8 +47,8 @@ export default function JournalsPage() {
     const params = useParams();
     const searchParams = useSearchParams();
     const clientId = params.clientId as string;
-    const customerId = searchParams.get('customer');
-    const supplierId = searchParams.get('supplier');
+    const journalType = searchParams.get('type') || 'customer';
+    
     const [client, setClient] = useState<User | null>(null);
     const [customers, setCustomers] = useState<ClientCustomer[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -64,14 +61,13 @@ export default function JournalsPage() {
             lines: [{
                 date: new Date(),
                 effect: 'Increase',
+                actorId: '',
                 description: '',
                 vatType: 'no_vat',
                 exclusiveAmount: 0,
                 vatAmount: 0,
                 inclusiveAmount: 0,
                 affectingAccountId: '',
-                ...(customerId && { customerId: customerId }),
-                ...(supplierId && { supplierId: supplierId }),
             }],
         },
     });
@@ -80,8 +76,6 @@ export default function JournalsPage() {
         control: form.control,
         name: "lines",
     });
-
-    const watchedLines = form.watch("lines");
 
     useEffect(() => {
         const fetchRelatedData = async () => {
@@ -143,8 +137,9 @@ export default function JournalsPage() {
                     primaryAmount = -primaryAmount;
                 }
 
-                const primaryAccountId = line.customerId ? customerControlAccount : supplierControlAccount;
-                const primaryActorName = line.customerId ? customers.find(c => c.id === line.customerId)?.name : suppliers.find(s => s.id === line.supplierId)?.name;
+                const primaryAccountId = journalType === 'customer' ? customerControlAccount : supplierControlAccount;
+                const actorList = journalType === 'customer' ? customers : suppliers;
+                const primaryActorName = actorList.find(a => a.id === line.actorId)?.name;
 
                 // Entry for the Customer/Supplier control account
                 const primaryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
@@ -184,14 +179,13 @@ export default function JournalsPage() {
                 lines: [{
                     date: new Date(),
                     effect: 'Increase',
+                    actorId: '',
                     description: '',
                     vatType: 'no_vat',
                     exclusiveAmount: 0,
                     vatAmount: 0,
                     inclusiveAmount: 0,
                     affectingAccountId: '',
-                    ...(customerId && { customerId: customerId }),
-                    ...(supplierId && { supplierId: supplierId }),
                 }],
             });
         } catch (error) {
@@ -207,10 +201,9 @@ export default function JournalsPage() {
             <CardHeader>
                 <div className="flex justify-between items-center">
                     <div>
-                        <CardTitle>Post Journals</CardTitle>
+                        <CardTitle>Post {journalType === 'customer' ? 'Customer' : 'Supplier'} Journals</CardTitle>
                         <CardDescription>Create manual journal entries. Each line represents a distinct entry.</CardDescription>
                     </div>
-                    <Button>Import</Button>
                 </div>
             </CardHeader>
             <CardContent>
@@ -222,7 +215,7 @@ export default function JournalsPage() {
                                <tr>
                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Effect</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{supplierId ? 'Supplier' : 'Customer'}</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{journalType === 'customer' ? 'Customer' : 'Supplier'}</th>
                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT %</th>
@@ -243,7 +236,7 @@ export default function JournalsPage() {
                                             <FormField control={form.control} name={`lines.${index}.effect`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Increase">Increase</SelectItem><SelectItem value="Decrease">Decrease</SelectItem></SelectContent></Select></FormItem> )}/>
                                         </td>
                                          <td className="px-2 py-1 whitespace-nowrap">
-                                             <FormField control={form.control} name={supplierId ? `lines.${index}.supplierId` : `lines.${index}.customerId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{(supplierId ? suppliers : customers).map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></FormItem> )}/>
+                                             <FormField control={form.control} name={`lines.${index}.actorId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{(journalType === 'customer' ? customers : suppliers).map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></FormItem> )}/>
                                         </td>
                                         <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
                                         <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
@@ -257,7 +250,6 @@ export default function JournalsPage() {
                                             <FormField control={form.control} name={`lines.${index}.affectingAccountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.filter(a => a.section === 'Income Statement').map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
                                         </td>
                                         <td className="px-2 py-1 whitespace-nowrap">
-                                            <Button type="button" size="icon" variant="ghost" onClick={() => append({ date: new Date(), effect: 'Increase', description: '', vatType: 'no_vat', exclusiveAmount: 0, vatAmount: 0, inclusiveAmount: 0, affectingAccountId: '', ...(customerId && { customerId: customerId }), ...(supplierId && { supplierId: supplierId })})}><Plus className="h-4 w-4 text-green-600" /></Button>
                                             <Button type="button" size="icon" variant="ghost" onClick={() => remove(index)} disabled={fields.length <= 1}><Trash2 className="h-4 w-4 text-red-600" /></Button>
                                         </td>
                                   </tr>
@@ -265,6 +257,7 @@ export default function JournalsPage() {
                              </tbody>
                            </table>
                          </div>
+                           <Button type="button" variant="outline" size="sm" onClick={() => append({ date: new Date(), effect: 'Increase', actorId: '', description: '', vatType: 'no_vat', exclusiveAmount: 0, vatAmount: 0, inclusiveAmount: 0, affectingAccountId: ''})}><Plus className="mr-2 h-4 w-4" /> Add Line</Button>
                          <CardFooter className="p-4 bg-muted rounded-b-lg mt-4 flex justify-end">
                              <Button type="submit" disabled={isLoading}>
                                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

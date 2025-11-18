@@ -84,7 +84,6 @@ export default function AIAccountantClientLayout({ children }: { children: React
                     <MenubarContent>
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/customers`}>Customer List</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/invoices`}>Invoices</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/journals`}>Customer Journals</Link></MenubarItem>
                          <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/quotes`}>Quotes</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/credit-notes`}>Credit Notes</Link></MenubarItem>
                     </MenubarContent>
@@ -93,7 +92,14 @@ export default function AIAccountantClientLayout({ children }: { children: React
                     <MenubarTrigger>Suppliers <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
                      <MenubarContent>
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/suppliers`}>Supplier List</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/journals`}>Supplier Journals</Link></MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
+                <MenubarMenu>
+                    <MenubarTrigger>Journals <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                     <MenubarContent>
+                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/journals?type=customer`}>Customer Journals</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/journals?type=supplier`}>Supplier Journals</Link></MenubarItem>
+                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/general-journal`}>General Journal</Link></MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu><MenubarTrigger>Items</MenubarTrigger></MenubarMenu>

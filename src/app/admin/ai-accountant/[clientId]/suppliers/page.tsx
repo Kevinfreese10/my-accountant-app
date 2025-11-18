@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -314,7 +315,7 @@ export default function SuppliersPage() {
                                                             <DropdownMenuContent align="end">
                                                                 <DropdownMenuItem onSelect={() => handleEdit(supplier)}><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
                                                                 <DropdownMenuItem asChild>
-                                                                    <Link href={`/admin/ai-accountant/${clientId}/journals?supplier=${supplier.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
+                                                                    <Link href={`/admin/ai-accountant/${clientId}/journals?type=supplier&actorId=${supplier.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
                                                                 </DropdownMenuItem>
                                                                 <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger>
                                                             </DropdownMenuContent>
@@ -344,7 +345,7 @@ export default function SuppliersPage() {
                                 <div className="flex items-center gap-2">
                                      <ImportJournalsDialog />
                                     <Button asChild>
-                                        <Link href={`/admin/ai-accountant/${clientId}/journals`}><PlusCircle className="mr-2 h-4 w-4"/>Post Journal</Link>
+                                        <Link href={`/admin/ai-accountant/${clientId}/journals?type=supplier`}><PlusCircle className="mr-2 h-4 w-4"/>Post Journal</Link>
                                     </Button>
                                 </div>
                             </div>

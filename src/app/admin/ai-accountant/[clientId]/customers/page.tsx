@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -387,7 +388,7 @@ export default function ClientCustomersPage() {
                                                                     <Edit className="mr-2 h-4 w-4" /> Edit
                                                                 </DropdownMenuItem>
                                                                  <DropdownMenuItem asChild>
-                                                                    <Link href={`/admin/ai-accountant/${clientId}/journals?customer=${customer.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
+                                                                    <Link href={`/admin/ai-accountant/${clientId}/journals?type=customer&actorId=${customer.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
                                                                 </DropdownMenuItem>
                                                                 <AlertDialogTrigger asChild>
                                                                     <DropdownMenuItem className="text-destructive">
@@ -431,7 +432,7 @@ export default function ClientCustomersPage() {
                                 <div className="flex items-center gap-2">
                                      <ImportJournalsDialog />
                                     <Button asChild>
-                                        <Link href={`/admin/ai-accountant/${clientId}/journals`}><PlusCircle className="mr-2 h-4 w-4"/>Post Journal</Link>
+                                        <Link href={`/admin/ai-accountant/${clientId}/journals?type=customer`}><PlusCircle className="mr-2 h-4 w-4"/>Post Journal</Link>
                                     </Button>
                                 </div>
                             </div>
