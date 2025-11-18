@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
-import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction } from "@/lib/types";
-import { getFirestore, doc, getDoc, collection, query, onSnapshot } from 'firebase/firestore';
+import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download } from "lucide-react";
+import { Loader2, Download, Eye, Edit } from "lucide-react";
 import { useParams, useSearchParams } from 'next/navigation';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
@@ -16,8 +16,19 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { useToast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { allVatTypes } from "@/lib/vat-types";
 
 const db = getFirestore(firebaseApp);
+
+const reallocateSchema = z.object({
+  accountId: z.string().min(1, "Please select an account."),
+  vatType: z.string().min(1, "Please select a VAT type."),
+});
 
 const formatPrice = (price: number) => {
     if (price === 0) return '';
@@ -27,7 +38,87 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange, fromAccount?: string, toAccount?: string }) {
+function ReallocateDialog({ transaction, client, onSave, onOpenChange, open }: { transaction: any; client: User; onSave: (txId: string, values: z.infer<typeof reallocateSchema>) => void; onOpenChange: (open: boolean) => void; open: boolean }) {
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    
+    const form = useForm<z.infer<typeof reallocateSchema>>({
+        resolver: zodResolver(reallocateSchema),
+        defaultValues: {
+            accountId: transaction?.allocatedTo?.value || '',
+            vatType: transaction?.vatType || 'no_vat',
+        },
+    });
+
+    const handleSave = async (values: z.infer<typeof reallocateSchema>) => {
+        setIsSaving(true);
+        await onSave(transaction.id, values);
+        setIsSaving(false);
+        onOpenChange(false);
+    };
+    
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Reallocate Transaction</DialogTitle>
+                    <DialogDescription>
+                        Change the allocation for: "{transaction?.description}"
+                    </DialogDescription>
+                </DialogHeader>
+                 <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="accountId"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>New Account</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            {client.chartOfAccounts?.map(acc => (
+                                                <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="vatType"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>New VAT Type</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            {allVatTypes.map(vt => (
+                                                <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                            <Button type="submit" disabled={isSaving}>
+                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Save Reallocation
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                 </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, onReallocate }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange, fromAccount?: string, toAccount?: string, onReallocate: (tx: any) => void }) {
     
     const filteredTransactions = useMemo(() => {
         if (!dateRange) return transactions;
@@ -75,6 +166,8 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                  const entry = grouped.get(tx.allocatedTo!.value);
                  if (entry) {
                      entry.transactions.push({
+                        id: tx.id,
+                        isJournal,
                         date: txDate,
                         description: tx.description,
                         ref: tx.reference,
@@ -91,6 +184,8 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                         : 'Suspense Account';
                     
                     bankEntry.transactions.push({
+                        id: tx.id,
+                        isJournal,
                         date: txDate,
                         description: `${tx.description} (Contra: ${contraAccount})`,
                         ref: tx.reference,
@@ -105,6 +200,8 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                 if(contraEntry) {
                     const bankAccountName = accountsToDisplay.find(a => a.id === tx.bankAccountId)?.description || 'Bank';
                     contraEntry.transactions.push({
+                         id: tx.id,
+                         isJournal,
                          date: txDate,
                          description: `${tx.description} (Bank: ${bankAccountName})`,
                          ref: tx.reference,
@@ -209,8 +306,16 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                     <TableRow key={index}>
                                         <TableCell>{format(tx.date, 'dd/MM/yyyy')}</TableCell>
                                         <TableCell>{tx.description}</TableCell>
-                                        <TableCell className="text-right font-mono">{formatPrice(tx.debit)}</TableCell>
-                                        <TableCell className="text-right font-mono">{formatPrice(tx.credit)}</TableCell>
+                                        <TableCell className="text-right font-mono">
+                                            <Button variant="link" className="p-0 h-auto" onClick={() => onReallocate(tx)} disabled={tx.isJournal}>
+                                                {formatPrice(tx.debit)}
+                                            </Button>
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono">
+                                            <Button variant="link" className="p-0 h-auto" onClick={() => onReallocate(tx)} disabled={tx.isJournal}>
+                                                {formatPrice(tx.credit)}
+                                            </Button>
+                                        </TableCell>
                                         <TableCell className="text-right font-mono">{formatPrice(tx.balance)}</TableCell>
                                     </TableRow>
                                 ))}
@@ -250,12 +355,15 @@ export default function GeneralLedgerPage() {
     const [fromAccount, setFromAccount] = useState<string | undefined>();
     const [toAccount, setToAccount] = useState<string | undefined>();
     const [isReportOpen, setIsReportOpen] = useState(false);
+    const [isReallocateOpen, setIsReallocateOpen] = useState(false);
+    const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+    const { toast } = useToast();
 
     useEffect(() => {
         if (accountIdFromQuery) {
             setFromAccount(accountIdFromQuery);
             setToAccount(accountIdFromQuery);
-            setIsReportOpen(true);
+            // This will not auto-open the dialog anymore, user clicks "View Report"
         }
     }, [accountIdFromQuery]);
 
@@ -289,6 +397,30 @@ export default function GeneralLedgerPage() {
     
     const accounts = useMemo(() => client?.chartOfAccounts?.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)) || [], [client]);
     
+    const handleReallocateClick = (tx: any) => {
+        const originalTx = transactions.find(t => t.id === tx.id);
+        if (originalTx) {
+            setSelectedTransaction(originalTx);
+            setIsReallocateOpen(true);
+        }
+    };
+    
+    const handleSaveReallocation = async (txId: string, values: z.infer<typeof reallocateSchema>) => {
+        if(!client) return;
+        try {
+            const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+            await updateDoc(txRef, {
+                'allocatedTo.value': values.accountId,
+                vatType: values.vatType,
+            });
+            toast({ title: "Success", description: "Transaction reallocated successfully." });
+            // The onSnapshot listener will update the local state automatically.
+        } catch (error) {
+            console.error("Error reallocating transaction:", error);
+            toast({ title: "Error", description: "Could not save the changes.", variant: "destructive" });
+        }
+    };
+
     const getReportDateString = () => {
         if (!dateRange || (!dateRange.from && !dateRange.to)) {
             return `as at ${format(new Date(), "dd MMMM yyyy")}`;
@@ -352,7 +484,14 @@ export default function GeneralLedgerPage() {
                                                 General Ledger {getReportDateString()}
                                             </DialogDescription>
                                         </DialogHeader>
-                                        <GeneralLedgerReport client={client} transactions={transactions} dateRange={dateRange} fromAccount={fromAccount} toAccount={toAccount} />
+                                        <GeneralLedgerReport 
+                                            client={client} 
+                                            transactions={transactions} 
+                                            dateRange={dateRange} 
+                                            fromAccount={fromAccount} 
+                                            toAccount={toAccount}
+                                            onReallocate={handleReallocateClick}
+                                        />
                                     </DialogContent>
                                 </Dialog>
                             ) : (
@@ -362,6 +501,15 @@ export default function GeneralLedgerPage() {
                     </div>
                 </CardContent>
             </Card>
+             {selectedTransaction && client && (
+                <ReallocateDialog
+                    transaction={selectedTransaction}
+                    client={client}
+                    onSave={handleSaveReallocation}
+                    open={isReallocateOpen}
+                    onOpenChange={setIsReallocateOpen}
+                />
+            )}
         </div>
     );
 }
