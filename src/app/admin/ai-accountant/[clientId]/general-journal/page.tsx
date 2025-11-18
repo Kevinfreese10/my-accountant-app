@@ -77,24 +77,26 @@ export default function GeneralJournalsPage() {
     });
     
     useEffect(() => {
-        const date = searchParams.get('date');
         const reference = searchParams.get('reference');
-        const line1_debit = searchParams.get('line1_debit');
-        const line1_desc = searchParams.get('line1_desc');
-        const line1_acc = searchParams.get('line1_acc');
-        const line2_credit = searchParams.get('line2_credit');
-        const line2_desc = searchParams.get('line2_desc');
-        const line2_acc = searchParams.get('line2_acc');
+        if (reference && reference.startsWith('TAX-')) { // Only prefill for tax journals
+            const date = searchParams.get('date');
+            const line1_debit = searchParams.get('line1_debit');
+            const line1_desc = searchParams.get('line1_desc');
+            const line1_acc = searchParams.get('line1_acc');
+            const line2_credit = searchParams.get('line2_credit');
+            const line2_desc = searchParams.get('line2_desc');
+            const line2_acc = searchParams.get('line2_acc');
 
-        if (reference && line1_debit && line2_credit) {
-            form.reset({
-                date: date ? new Date(date) : new Date(),
-                reference: reference,
-                lines: [
-                    { accountId: line1_acc || '', description: line1_desc || '', debit: parseFloat(line1_debit), credit: 0 },
-                    { accountId: line2_acc || '', description: line2_desc || '', credit: parseFloat(line2_credit), debit: 0 },
-                ],
-            });
+            if (line1_debit && line2_credit) {
+                form.reset({
+                    date: date ? new Date(date) : new Date(),
+                    reference: reference,
+                    lines: [
+                        { accountId: line1_acc || '', description: line1_desc || '', debit: parseFloat(line1_debit), credit: 0 },
+                        { accountId: line2_acc || '', description: line2_desc || '', credit: parseFloat(line2_credit), debit: 0 },
+                    ],
+                });
+            }
         }
     }, [searchParams, form]);
 
@@ -159,7 +161,7 @@ export default function GeneralJournalsPage() {
 
     useEffect(() => {
         fetchClientAndJournals();
-    }, [clientId, toast]);
+    }, [clientId]);
     
     const onSubmit = async (data: JournalFormValues) => {
         if (!client) return;
