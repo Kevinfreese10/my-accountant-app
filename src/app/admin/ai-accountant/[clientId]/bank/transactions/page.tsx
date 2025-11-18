@@ -1935,6 +1935,7 @@ const ReviewedTab = React.forwardRef<
 >(({ client, bankAccountId, customers }, ref) => {
     const { toast } = useToast();
     const [searchTerm, setSearchTerm] = useState('');
+    const [amountSearchTerm, setAmountSearchTerm] = useState('');
     const [edits, setEdits] = useState<{ [txId: string]: { allocatedTo?: { value: string; type: 'account' | 'customer' }; vatType?: VatType } }>({});
     const [isSaving, setIsSaving] = useState(false);
     
@@ -1976,9 +1977,20 @@ const ReviewedTab = React.forwardRef<
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
 
      const transactions = useMemo(() => {
-      if (!searchTerm) return documents;
-      return documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [documents, searchTerm]);
+        let filteredDocs = documents;
+        if (searchTerm) {
+            filteredDocs = filteredDocs.filter(tx => 
+                tx.description.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+        if (amountSearchTerm) {
+            const searchAmount = parseFloat(amountSearchTerm);
+            if (!isNaN(searchAmount)) {
+                filteredDocs = filteredDocs.filter(tx => tx.amount === searchAmount);
+            }
+        }
+        return filteredDocs;
+    }, [documents, searchTerm, amountSearchTerm]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -2038,15 +2050,27 @@ const ReviewedTab = React.forwardRef<
                             Save Changes
                         </Button>
                      </div>
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            type="search"
-                            placeholder="Search descriptions..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-8 w-64"
-                        />
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="search"
+                                placeholder="Search descriptions..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-8 w-64"
+                            />
+                        </div>
+                         <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="number"
+                                placeholder="Search amount..."
+                                value={amountSearchTerm}
+                                onChange={(e) => setAmountSearchTerm(e.target.value)}
+                                className="pl-8 w-40"
+                            />
+                        </div>
                     </div>
                 </div>
             </CardHeader>
