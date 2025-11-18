@@ -21,11 +21,9 @@ import { useState } from 'react';
 
 const navLinks = [
   { href: '/products', label: 'Products' },
-  { href: '/ai-accountant', label: 'AI Accountant' },
   { href: '/about', label: 'About' },
   { href: '/blog', label: 'Blog' },
   { href: '/compliance', label: 'Compliance' },
-  { href: '/become-a-partner', label: 'Become a Partner' },
   { href: '/contact', label: 'Contact' },
 ];
 
