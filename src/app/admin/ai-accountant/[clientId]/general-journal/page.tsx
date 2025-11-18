@@ -90,44 +90,51 @@ export default function GeneralJournalsPage() {
         return client?.chartOfAccounts?.filter(acc => !excludedAccountNumbers.includes(acc.accountNumber)) || [];
     }, [client]);
 
-    useEffect(() => {
-        const fetchClientAndJournals = async () => {
-            if (!clientId) return;
-            setIsLoading(true);
-            try {
-                const clientRef = doc(db, 'aiAccountantClients', clientId);
-                const clientSnap = await getDoc(clientRef);
-                if (clientSnap.exists()) {
-                    setClient(clientSnap.data() as User);
-                }
-
-                const journalsQuery = query(
-                    collection(db, 'aiAccountantClients', clientId, 'transactions'),
-                    where('bankAccountId', '==', 'JOURNAL'),
-                    orderBy('date', 'desc')
-                );
-                const journalsSnapshot = await getDocs(journalsQuery);
-                const allJournals = journalsSnapshot.docs.map(d => d.data() as AllocatedTransaction);
-                
-                const controlAccountIds = ['7000-000', '8000-001'];
-                const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
-                allJournals.forEach(tx => {
-                    if (!journalGroups[tx.reference]) journalGroups[tx.reference] = [];
-                    journalGroups[tx.reference].push(tx);
-                });
-
-                const generalJournals = Object.values(journalGroups)
-                    .filter(group => !group.some(tx => controlAccountIds.includes(tx.allocatedTo.value)))
-                    .flat();
-
-                setPostedJournals(generalJournals);
-
-            } catch (e) {
-                toast({ title: 'Error', description: 'Failed to fetch client data or journals.', variant: 'destructive' });
-            } finally {
-                setIsLoading(false);
+    const fetchClientAndJournals = async () => {
+        if (!clientId) return;
+        setIsLoading(true);
+        try {
+            const clientRef = doc(db, 'aiAccountantClients', clientId);
+            const clientSnap = await getDoc(clientRef);
+            if (clientSnap.exists()) {
+                setClient(clientSnap.data() as User);
             }
-        };
+
+            const journalsQuery = query(
+                collection(db, 'aiAccountantClients', clientId, 'transactions'),
+                where('bankAccountId', '==', 'JOURNAL'),
+                orderBy('date', 'desc')
+            );
+            const journalsSnapshot = await getDocs(journalsQuery);
+            const allJournals = journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction);
+            
+            const controlAccountIds = ['7000-000', '8000-001'];
+            
+            // Group by reference to evaluate the whole journal entry
+            const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
+            allJournals.forEach(tx => {
+                if (!journalGroups[tx.reference]) journalGroups[tx.reference] = [];
+                journalGroups[tx.reference].push(tx);
+            });
+
+            // A journal is "general" if NONE of its lines touch a control account
+            const generalJournalGroups = Object.values(journalGroups)
+                .filter(group => !group.some(tx => controlAccountIds.includes(tx.allocatedTo.value)));
+
+            // Flatten the groups back into a single list of transactions
+            const generalJournals = generalJournalGroups.flat();
+
+            setPostedJournals(generalJournals);
+
+        } catch (e) {
+            toast({ title: 'Error', description: 'Failed to fetch client data or journals.', variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+
+    useEffect(() => {
         fetchClientAndJournals();
     }, [clientId, toast]);
     
@@ -169,22 +176,7 @@ export default function GeneralJournalsPage() {
                     { accountId: '', description: '', debit: 0, credit: 0 },
                 ],
             });
-            // Re-fetch journals
-            const journalsQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('bankAccountId', '==', 'JOURNAL'), orderBy('date', 'desc'));
-            const journalsSnapshot = await getDocs(journalsQuery);
-            const allJournals = journalsSnapshot.docs.map(d => d.data() as AllocatedTransaction);
-            const controlAccountIds = ['7000-000', '8000-001'];
-             const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
-            allJournals.forEach(tx => {
-                if (!journalGroups[tx.reference]) journalGroups[tx.reference] = [];
-                journalGroups[tx.reference].push(tx);
-            });
-
-            const generalJournals = Object.values(journalGroups)
-                .filter(group => !group.some(tx => controlAccountIds.includes(tx.allocatedTo.value)))
-                .flat();
-            setPostedJournals(generalJournals);
-
+            fetchClientAndJournals();
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to post journal entry.', variant: 'destructive' });
             console.error(error);
@@ -311,5 +303,5 @@ export default function GeneralJournalsPage() {
         </Card>
     </div>
     );
-}
 
+    
