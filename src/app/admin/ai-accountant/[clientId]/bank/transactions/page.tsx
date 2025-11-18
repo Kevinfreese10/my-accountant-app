@@ -1933,9 +1933,12 @@ const ReviewedTab = React.forwardRef<
     { refetch: () => void },
     { client: User | null; bankAccountId: string | null; customers: ClientCustomer[] }
 >(({ client, bankAccountId, customers }, ref) => {
-    
+    const { toast } = useToast();
     const [searchTerm, setSearchTerm] = useState('');
-    type SortField = 'date' | 'description' | 'amount';
+    const [edits, setEdits] = useState<{ [txId: string]: { allocatedTo?: { value: string; type: 'account' | 'customer' }; vatType?: VatType } }>({});
+    const [isSaving, setIsSaving] = useState(false);
+    
+    type SortField = 'date' | 'description' | 'amount' | 'allocatedTo.value' | 'vatType';
     type SortDirection = 'asc' | 'desc';
     const [sortField, setSortField] = useState<SortField>('date');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -1981,19 +1984,60 @@ const ReviewedTab = React.forwardRef<
         refetch,
     }));
     
-    const getAllocationDescription = (tx: ImportedTransaction) => {
-        if (!tx.allocatedTo) return 'N/A';
-        if (tx.allocatedTo.type === 'customer') {
-            return customers.find(c => c.id === tx.allocatedTo?.value)?.name || 'Unknown Customer';
+    const handleEdit = (txId: string, field: 'allocatedTo' | 'vatType', value: any) => {
+        setEdits(prev => ({
+            ...prev,
+            [txId]: {
+                ...prev[txId],
+                [field]: value
+            }
+        }));
+    };
+    
+    const handleSaveChanges = async () => {
+        if (!client || !client.uid || Object.keys(edits).length === 0) return;
+        setIsSaving(true);
+        
+        const batch = writeBatch(db);
+        Object.entries(edits).forEach(([txId, changes]) => {
+            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+            batch.update(txRef, changes);
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Changes Saved', description: 'Your updates have been saved successfully.'});
+            setEdits({});
+            refetch();
+        } catch (error) {
+            console.error('Error saving changes:', error);
+            toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive'});
+        } finally {
+            setIsSaving(false);
         }
-        return client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo?.value)?.description || 'Unknown Account';
-    }
+    };
+    
+    const getAllocationDescription = (tx: ImportedTransaction, isEdit: boolean = false) => {
+        const allocation = isEdit && edits[tx.id]?.allocatedTo ? edits[tx.id].allocatedTo : tx.allocatedTo;
+        if (!allocation) return 'N/A';
+        
+        if (allocation.type === 'customer') {
+            return customers.find(c => c.id === allocation.value)?.name || 'Unknown Customer';
+        }
+        return client?.chartOfAccounts?.find(acc => acc.id === allocation.value)?.description || 'Unknown Account';
+    };
 
 
     return (
         <Card>
             <CardHeader className="p-4 border-b">
-                 <div className="flex items-center justify-end">
+                 <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                         <Button onClick={handleSaveChanges} disabled={isSaving || Object.keys(edits).length === 0}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save Changes
+                        </Button>
+                     </div>
                     <div className="relative">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
@@ -2013,8 +2057,8 @@ const ReviewedTab = React.forwardRef<
                             <TableRow>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                <TableHead>Allocated To</TableHead>
-                                <TableHead>VAT Type</TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('allocatedTo.value')}>Allocated To <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('vatType')}>VAT Type <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -2024,15 +2068,63 @@ const ReviewedTab = React.forwardRef<
                             ) : transactions.length === 0 ? (
                                 <TableRow><TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
                             ) : (
-                                transactions.map(tx => (
-                                    <TableRow key={tx.id}>
+                                transactions.map(tx => {
+                                    const currentAllocation = edits[tx.id]?.allocatedTo || tx.allocatedTo;
+                                    const currentVatType = edits[tx.id]?.vatType || tx.vatType;
+                                    return (
+                                    <TableRow key={tx.id} className={edits[tx.id] ? 'bg-yellow-100/50' : ''}>
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
-                                        <TableCell>{getAllocationDescription(tx)}</TableCell>
-                                        <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
+                                        <TableCell className="min-w-[250px]">
+                                             <Select 
+                                                value={currentAllocation?.value} 
+                                                onValueChange={(value) => {
+                                                    const account = client?.chartOfAccounts?.find(a => a.id === value);
+                                                    const customer = customers.find(c => c.id === value);
+                                                    const type = account ? 'account' : 'customer';
+                                                    handleEdit(tx.id, 'allocatedTo', { value, type });
+                                                }}
+                                             >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select...">
+                                                        {getAllocationDescription(tx, !!edits[tx.id])}
+                                                    </SelectValue>
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectGroup>
+                                                        <Label>Accounts</Label>
+                                                        {client?.chartOfAccounts?.map(acc => (
+                                                            <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                                        ))}
+                                                    </SelectGroup>
+                                                     <SelectGroup>
+                                                        <Label>Customers</Label>
+                                                        {customers.map(cust => (
+                                                            <SelectItem key={cust.id} value={cust.id}>{cust.name}</SelectItem>
+                                                        ))}
+                                                    </SelectGroup>
+                                                </SelectContent>
+                                             </Select>
+                                        </TableCell>
+                                        <TableCell className="min-w-[180px]">
+                                             <Select 
+                                                value={currentVatType} 
+                                                onValueChange={(value) => handleEdit(tx.id, 'vatType', value as VatType)}
+                                                disabled={currentAllocation?.type === 'customer'}
+                                             >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select..."/>
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                     {allVatTypes.map(vt => (
+                                                        <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                             </Select>
+                                        </TableCell>
                                         <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                     </TableRow>
-                                ))
+                                )})
                             )}
                         </TableBody>
                     </Table>
@@ -2355,3 +2447,6 @@ export default function BankTransactionsPage() {
     );
 }
 
+
+
+    
