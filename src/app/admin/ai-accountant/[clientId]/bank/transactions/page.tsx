@@ -1589,10 +1589,6 @@ const NewTransactionsTab = React.forwardRef<
 
                         {activeSubTab === 'expenses' ? (
                             <>
-                            <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating || isLoading || transactions.length === 0}>
-                                {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4"/>}
-                                Run Rules on All
-                            </Button>
                              <Button variant="outline" onClick={handleAiAllocateAllExpenses} disabled={isAiAllocating || isLoading || transactions.length === 0}>
                                 {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
                                 AI Allocate All
@@ -2625,4 +2621,6 @@ export default function BankTransactionsPage() {
     );
 }
     
+    
+
     
