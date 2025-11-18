@@ -12,7 +12,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon } from 'lucide-react';
 import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { User, ChartOfAccount, AllocatedTransaction } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -55,6 +55,7 @@ const formatPrice = (price: number | undefined) => {
 
 export default function GeneralJournalsPage() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -73,6 +74,28 @@ export default function GeneralJournalsPage() {
             ],
         },
     });
+    
+    useEffect(() => {
+        const date = searchParams.get('date');
+        const reference = searchParams.get('reference');
+        const line1_debit = searchParams.get('line1_debit');
+        const line1_desc = searchParams.get('line1_desc');
+        const line1_acc = searchParams.get('line1_acc');
+        const line2_credit = searchParams.get('line2_credit');
+        const line2_desc = searchParams.get('line2_desc');
+        const line2_acc = searchParams.get('line2_acc');
+
+        if (reference && line1_debit && line2_credit) {
+            form.reset({
+                date: date ? new Date(date) : new Date(),
+                reference: reference,
+                lines: [
+                    { accountId: line1_acc || '', description: line1_desc || '', debit: parseFloat(line1_debit), credit: 0 },
+                    { accountId: line2_acc || '', description: line2_desc || '', credit: parseFloat(line2_credit), debit: 0 },
+                ],
+            });
+        }
+    }, [searchParams, form]);
 
     const { fields, append, remove } = useFieldArray({
         control: form.control,

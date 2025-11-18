@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download, Eye, Calculator } from "lucide-react";
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { getFirestore, doc, getDoc, collection, onSnapshot, query, writeBatch, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from '@/lib/types';
@@ -264,6 +264,7 @@ function ProfitAndLossReport({ client, transactions, dateRange, onPostJournal }:
 
 export default function ProfitAndLossPage() {
     const params = useParams();
+    const router = useRouter();
     const clientId = params.clientId as string;
 
     const [client, setClient] = useState<User | null>(null);
@@ -298,10 +299,8 @@ export default function ProfitAndLossPage() {
         return () => transUnsubscribe();
     }, [clientId]);
     
-    const handlePostTaxJournal = async (taxAmount: number) => {
+    const handleGoToJournal = (taxAmount: number) => {
         if (!client || taxAmount <= 0) return;
-
-        toast({ title: 'Posting Journal...', description: 'Please wait.'});
 
         const taxExpenseAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '3000-056');
         const taxPayableAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-015');
@@ -311,57 +310,21 @@ export default function ProfitAndLossPage() {
             return;
         }
 
-        try {
-            const batch = writeBatch(db);
-            const journalRef = `TAX-${format(dateRange?.to || new Date(), 'yyyy-MM-dd')}`;
+        const journalDate = (dateRange?.to || new Date()).toISOString();
+        const journalRef = `TAX-${format(dateRange?.to || new Date(), 'yyyy-MM-dd')}`;
+        
+        const params = new URLSearchParams({
+            date: journalDate,
+            reference: journalRef,
+            line1_debit: taxAmount.toFixed(2),
+            line1_desc: 'Income Tax Expense Provision',
+            line1_acc: taxExpenseAccount.id,
+            line2_credit: taxAmount.toFixed(2),
+            line2_desc: 'Income Tax Provision',
+            line2_acc: taxPayableAccount.id,
+        });
 
-            // Debit Income Tax Expense
-            const debitRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-            batch.set(debitRef, {
-                clientId: client.id,
-                date: (dateRange?.to || new Date()).toISOString(),
-                reference: journalRef,
-                description: 'Income Tax Expense Provision',
-                amount: taxAmount,
-                bankAccountId: 'JOURNAL',
-                allocatedTo: { value: taxExpenseAccount.id, type: 'account' },
-                vatType: 'no_vat',
-                status: 'allocated',
-                allocatedAt: new Date(),
-            });
-            
-            // Credit Income Tax Payable
-            const creditRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-            batch.set(creditRef, {
-                clientId: client.id,
-                date: (dateRange?.to || new Date()).toISOString(),
-                reference: journalRef,
-                description: 'Income Tax Expense Provision',
-                amount: -taxAmount,
-                bankAccountId: 'JOURNAL',
-                allocatedTo: { value: taxPayableAccount.id, type: 'account' },
-                vatType: 'no_vat',
-                status: 'allocated',
-                allocatedAt: new Date(),
-            });
-
-            await batch.commit();
-            toast({
-                title: 'Success!',
-                description: (
-                    <div className="flex flex-col gap-2">
-                        <p>Income tax journal has been posted.</p>
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href={`/admin/ai-accountant/${clientId}/general-journal`}>View Journal</Link>
-                        </Button>
-                    </div>
-                ),
-            });
-
-        } catch (error) {
-            console.error('Error posting tax journal:', error);
-            toast({ title: 'Error', description: 'Failed to post tax journal.', variant: 'destructive'});
-        }
+        router.push(`/admin/ai-accountant/${clientId}/general-journal?${params.toString()}`);
     };
 
 
@@ -415,7 +378,7 @@ export default function ProfitAndLossPage() {
                                             client={client} 
                                             transactions={transactions} 
                                             dateRange={dateRange} 
-                                            onPostJournal={handlePostTaxJournal}
+                                            onPostJournal={handleGoToJournal}
                                         />
                                     </DialogContent>
                                 </Dialog>
