@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from "react";
@@ -10,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon, Eye } from 'lucide-react';
+import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit } from 'lucide-react';
 import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -62,9 +63,9 @@ export default function GeneralJournalsPage() {
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [postedJournals, setPostedJournals] = useState<AllocatedTransaction[]>([]);
-    const [taxJournals, setTaxJournals] = useState<AllocatedTransaction[]>([]);
+    const [allJournals, setAllJournals] = useState<AllocatedTransaction[]>([]);
     const [viewingJournal, setViewingJournal] = useState<AllocatedTransaction[] | null>(null);
+    const [editingJournalRef, setEditingJournalRef] = useState<string | null>(null);
     const { toast } = useToast();
 
     const form = useForm<JournalFormValues>({
@@ -104,7 +105,7 @@ export default function GeneralJournalsPage() {
     }, [searchParams, form]);
 
 
-    const { fields, append, remove } = useFieldArray({
+    const { fields, append, remove, replace } = useFieldArray({
         control: form.control,
         name: "lines",
     });
@@ -138,22 +139,8 @@ export default function GeneralJournalsPage() {
                 orderBy('date', 'desc')
             );
             const journalsSnapshot = await getDocs(journalsQuery);
-            const allJournals = journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction);
-            
-            const customerControlAccount = clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
-            const supplierControlAccount = clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
-
-            const generalOnlyJournals = allJournals.filter(tx => 
-                tx.allocatedTo?.value !== customerControlAccount &&
-                tx.allocatedTo?.value !== supplierControlAccount &&
-                !tx.reference.startsWith('TAX-')
-            );
-            
-            const taxOnlyJournals = allJournals.filter(tx => tx.reference.startsWith('TAX-'));
-            
-            setPostedJournals(generalOnlyJournals);
-            setTaxJournals(taxOnlyJournals);
-
+            const journals = journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction);
+            setAllJournals(journals);
         } catch (e) {
             console.error("Failed to fetch data:", e);
             toast({ title: 'Error', description: 'Failed to fetch client data or journals.', variant: 'destructive' });
@@ -173,6 +160,14 @@ export default function GeneralJournalsPage() {
         
         try {
             const batch = writeBatch(db);
+
+            // If we are editing, delete the old journal entries first
+            if(editingJournalRef) {
+                 const journalsToDeleteSnapshot = await getDocs(query(collection(db, "aiAccountantClients", client.id, "transactions"), where("reference", "==", editingJournalRef)));
+                 journalsToDeleteSnapshot.forEach(journalDoc => {
+                    batch.delete(journalDoc.ref);
+                });
+            }
 
             data.lines.forEach((line) => {
                 if ((line.debit || 0) > 0 || (line.credit || 0) > 0) {
@@ -196,7 +191,7 @@ export default function GeneralJournalsPage() {
 
             await batch.commit();
 
-            toast({ title: 'Journal Posted', description: 'The journal entry has been successfully recorded.' });
+            toast({ title: `Journal ${editingJournalRef ? 'Updated' : 'Posted'}`, description: `The journal entry has been successfully ${editingJournalRef ? 'updated' : 'recorded'}.` });
             form.reset({
                  date: new Date(),
                  reference: '',
@@ -205,6 +200,7 @@ export default function GeneralJournalsPage() {
                     { accountId: '', description: '', debit: 0, credit: 0 },
                 ],
             });
+            setEditingJournalRef(null);
             fetchClientAndJournals(); // Re-fetch journals after posting
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to post journal entry.', variant: 'destructive' });
@@ -212,6 +208,26 @@ export default function GeneralJournalsPage() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleEditJournal = (entries: AllocatedTransaction[]) => {
+        if (entries.length === 0) return;
+
+        const reference = entries[0].reference;
+        const date = new Date(entries[0].date);
+
+        const formLines = entries.map(entry => ({
+            accountId: entry.allocatedTo.value,
+            description: entry.description,
+            debit: entry.amount > 0 ? entry.amount : 0,
+            credit: entry.amount < 0 ? -entry.amount : 0,
+        }));
+        
+        replace(formLines); // use 'replace' from useFieldArray
+        form.setValue('date', date);
+        form.setValue('reference', reference);
+        setEditingJournalRef(reference);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     
     const handleDeleteJournal = async (journalReference: string) => {
@@ -241,25 +257,34 @@ export default function GeneralJournalsPage() {
     
     const groupedGeneralJournals = useMemo(() => {
         const grouped = new Map<string, AllocatedTransaction[]>();
-        postedJournals.forEach(tx => {
-            if (!grouped.has(tx.reference)) {
-                grouped.set(tx.reference, []);
+        const customerControlAccount = client?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
+        const supplierControlAccount = client?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
+
+        allJournals.forEach(tx => {
+            if (tx.allocatedTo?.value !== customerControlAccount &&
+                tx.allocatedTo?.value !== supplierControlAccount &&
+                !tx.reference.startsWith('TAX-')) {
+                if (!grouped.has(tx.reference)) {
+                    grouped.set(tx.reference, []);
+                }
+                grouped.get(tx.reference)?.push(tx);
             }
-            grouped.get(tx.reference)?.push(tx);
         });
         return grouped;
-    }, [postedJournals]);
+    }, [allJournals, client]);
     
      const groupedTaxJournals = useMemo(() => {
         const grouped = new Map<string, AllocatedTransaction[]>();
-        taxJournals.forEach(tx => {
-            if (!grouped.has(tx.reference)) {
-                grouped.set(tx.reference, []);
+        allJournals.forEach(tx => {
+            if (tx.reference.startsWith('TAX-')) {
+                if (!grouped.has(tx.reference)) {
+                    grouped.set(tx.reference, []);
+                }
+                grouped.get(tx.reference)?.push(tx);
             }
-            grouped.get(tx.reference)?.push(tx);
         });
         return grouped;
-    }, [taxJournals]);
+    }, [allJournals]);
 
     if (isLoading && !client) {
         return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -272,9 +297,10 @@ export default function GeneralJournalsPage() {
             <CardHeader>
                 <div className="flex justify-between items-center">
                     <div>
-                        <CardTitle>Post General Journal</CardTitle>
+                        <CardTitle>{editingJournalRef ? `Editing Journal: ${editingJournalRef}` : 'Post General Journal'}</CardTitle>
                         <CardDescription>Create manual journal entries between general ledger accounts.</CardDescription>
                     </div>
+                     {editingJournalRef && <Button variant="outline" onClick={() => { setEditingJournalRef(null); form.reset({ date: new Date(), reference: '', lines: [{ accountId: '', description: '', debit: 0, credit: 0 }, { accountId: '', description: '', debit: 0, credit: 0 }] }); }}>Cancel Edit</Button>}
                 </div>
             </CardHeader>
             <CardContent>
@@ -282,7 +308,7 @@ export default function GeneralJournalsPage() {
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                            <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "dd/MM/yyyy") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
-                           <FormField control={form.control} name="reference" render={({ field }) => ( <FormItem><FormLabel>Reference</FormLabel><FormControl><Input placeholder="e.g., JNL001" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                           <FormField control={form.control} name="reference" render={({ field }) => ( <FormItem><FormLabel>Reference</FormLabel><FormControl><Input placeholder="e.g., JNL001" {...field} disabled={!!editingJournalRef} /></FormControl><FormMessage /></FormItem> )}/>
                         </div>
 
                          <div className="border rounded-lg overflow-x-auto">
@@ -291,8 +317,8 @@ export default function GeneralJournalsPage() {
                                <tr>
                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">Account</th>
                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">Description</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[180px]">Debit</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[180px]">Credit</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[200px]">Debit</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[200px]">Credit</th>
                                  <th className="px-3 py-2 w-[5%]"></th>
                                </tr>
                              </thead>
@@ -329,7 +355,7 @@ export default function GeneralJournalsPage() {
                          <CardFooter className="p-4 bg-muted rounded-b-lg mt-4 flex justify-end">
                              <Button type="submit" disabled={isLoading}>
                                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Post Journal
+                                {editingJournalRef ? 'Update Journal' : 'Post Journal'}
                             </Button>
                         </CardFooter>
                     </form>
@@ -415,6 +441,7 @@ export default function GeneralJournalsPage() {
                                         <DialogTrigger asChild>
                                             <Button variant="ghost" size="icon" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
                                         </DialogTrigger>
+                                        <Button variant="ghost" size="icon" onClick={() => handleEditJournal(entries)}><Edit className="h-4 w-4" /></Button>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
