@@ -195,7 +195,7 @@ export default function GeneralJournalsPage() {
                     { accountId: '', description: '', debit: 0, credit: 0 },
                 ],
             });
-            fetchClientAndJournals();
+            fetchClientAndJournals(); // Re-fetch journals after posting
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to post journal entry.', variant: 'destructive' });
             console.error(error);
@@ -222,7 +222,7 @@ export default function GeneralJournalsPage() {
         });
         await batch.commit();
         toast({ title: 'Journal Deleted', description: `Journal ${journalReference} has been deleted.`, variant: 'destructive'});
-        fetchClientAndJournals();
+        fetchClientAndJournals(); // Re-fetch journals after deleting
       } catch (error) {
         console.error("Error deleting journal:", error);
         toast({ title: 'Error', description: 'Failed to delete journal.', variant: 'destructive'});
