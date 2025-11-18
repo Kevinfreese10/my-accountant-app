@@ -161,28 +161,26 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
 
     const handleDownloadExcel = () => {
         const dataToExport = trialBalanceData?.map(item => ({
-            Account: `${item.accountNumber} - ${item.description}`,
-            Debit: item.balance > 0 ? item.balance : 0,
-            Credit: item.balance < 0 ? -item.balance : 0
+            'Account Number': item.accountNumber,
+            'Account Description': item.description,
+            'Debit': item.balance > 0 ? item.balance : 0,
+            'Credit': item.balance < 0 ? -item.balance : 0
         }));
 
         if (!dataToExport) return;
         
-        // Add totals row
         dataToExport.push({
-            Account: 'Totals',
-            Debit: totals.debit,
-            Credit: totals.credit
+            'Account Number': 'Totals',
+            'Account Description': '',
+            'Debit': totals.debit,
+            'Credit': totals.credit
         });
 
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Trial Balance");
-
-        // Format columns as currency
-        worksheet['!cols'] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }];
+        worksheet['!cols'] = [{ wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }];
+        
         Object.keys(worksheet).forEach(key => {
-            if (key.startsWith('B') && key !== 'B1' || key.startsWith('C') && key !== 'C1') {
+             if (/[C-D]\d+/.test(key)) {
                 const cell = worksheet[key];
                 if (cell.v !== null && typeof cell.v === 'number') {
                     cell.t = 'n';
@@ -190,6 +188,9 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
                 }
             }
         });
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Trial Balance");
 
         const today = new Date().toISOString().split('T')[0];
         const fileName = `${client.companyName || client.name}-Trial-Balance-${today}.xlsx`;
@@ -340,3 +341,5 @@ export default function TrialBalancePage() {
         </div>
     );
 }
+
+    
