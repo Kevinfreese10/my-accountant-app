@@ -38,6 +38,15 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "description", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "bankAccountId", "order": "ASCENDING" },
+        { "fieldPath": "allocatedTo.value", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
     }
   ]
 }
