@@ -61,6 +61,7 @@ const importSchema = z.object({
 });
 
 const formatPrice = (price: number) => {
+    if (price === 0) return '';
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
@@ -208,14 +209,20 @@ export default function ClientCustomersPage() {
         setIsLoading(true);
         try {
             const clientDoc = await getDoc(doc(db, 'aiAccountantClients', clientId));
-            if(clientDoc.exists()) setClient(clientDoc.data() as User);
+            if(!clientDoc.exists()) {
+                toast({title: "Error", description: "Client not found.", variant: 'destructive'});
+                setIsLoading(false);
+                return;
+            }
+            const clientData = clientDoc.data() as User;
+            setClient(clientData);
 
             const custQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`), orderBy("name"));
             const custSnapshot = await getDocs(custQuery);
             const fetchedCustomers = custSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ClientCustomer));
             setCustomers(fetchedCustomers);
             
-            const customerControlAccount = clientDoc.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
+            const customerControlAccount = clientData.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
             
             const journalQuery = query(
                 collection(db, `aiAccountantClients/${clientId}/transactions`), 
@@ -226,7 +233,6 @@ export default function ClientCustomersPage() {
             const journalSnapshot = await getDocs(journalQuery);
             const allJournalTransactions = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
             
-            // Filter in code to get both sides of a customer journal entry
             const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
             allJournalTransactions.forEach(tx => {
                 if (!journalGroups[tx.reference]) {
@@ -457,25 +463,31 @@ export default function ClientCustomersPage() {
                                         <TableHead>Date</TableHead>
                                         <TableHead>Reference</TableHead>
                                         <TableHead>Description</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
+                                        <TableHead>Account</TableHead>
+                                        <TableHead className="text-right">Debit</TableHead>
+                                        <TableHead className="text-right">Credit</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {journals.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                                            <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
                                                 No customer journals have been posted yet.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        journals.map(journal => (
+                                        journals.map(journal => {
+                                            const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
+                                            return (
                                             <TableRow key={journal.id}>
                                                 <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
                                                 <TableCell>{journal.reference}</TableCell>
                                                 <TableCell>{journal.description}</TableCell>
-                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount)}</TableCell>
+                                                <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
                                             </TableRow>
-                                        ))
+                                        )})
                                     )}
                                 </TableBody>
                             </Table>
@@ -486,3 +498,4 @@ export default function ClientCustomersPage() {
         </div>
     );
 }
+

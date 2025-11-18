@@ -34,6 +34,7 @@ const importSchema = z.object({
 });
 
 const formatPrice = (price: number) => {
+    if (price === 0) return '';
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
@@ -173,6 +174,7 @@ export default function SuppliersPage() {
     const { toast } = useToast();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+    const [client, setClient] = useState<User | null>(null);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -183,13 +185,19 @@ export default function SuppliersPage() {
         setIsLoading(true);
         try {
             const clientDoc = await getDoc(doc(db, 'aiAccountantClients', clientId));
-            if(!clientDoc.exists()) throw new Error("Client not found");
+            if(!clientDoc.exists()) {
+                 toast({title: "Error", description: "Client not found.", variant: 'destructive'});
+                 setIsLoading(false);
+                 return;
+            }
+            const clientData = clientDoc.data() as User;
+            setClient(clientData);
 
             const supQuery = query(collection(db, `aiAccountantClients/${clientId}/suppliers`), orderBy("name"));
             const supSnapshot = await getDocs(supQuery);
             setSuppliers(supSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier)));
             
-            const supplierControlAccount = clientDoc.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
+            const supplierControlAccount = clientData.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
             
             const journalQuery = query(
                 collection(db, `aiAccountantClients/${clientId}/transactions`), 
@@ -215,7 +223,7 @@ export default function SuppliersPage() {
             setJournals(supplierJournals);
 
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not fetch suppliers.', variant: 'destructive' });
+            toast({ title: 'Error', description: 'Could not fetch suppliers or journals.', variant: 'destructive' });
         } finally {
             setIsLoading(false);
         }
@@ -369,25 +377,31 @@ export default function SuppliersPage() {
                                         <TableHead>Date</TableHead>
                                         <TableHead>Reference</TableHead>
                                         <TableHead>Description</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
+                                        <TableHead>Account</TableHead>
+                                        <TableHead className="text-right">Debit</TableHead>
+                                        <TableHead className="text-right">Credit</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {journals.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                                            <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
                                                 No supplier journals have been posted yet.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        journals.map(journal => (
+                                        journals.map(journal => {
+                                            const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
+                                            return (
                                             <TableRow key={journal.id}>
                                                 <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
                                                 <TableCell>{journal.reference}</TableCell>
                                                 <TableCell>{journal.description}</TableCell>
-                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount)}</TableCell>
+                                                <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
                                             </TableRow>
-                                        ))
+                                        )})
                                     )}
                                 </TableBody>
                             </Table>
@@ -398,3 +412,4 @@ export default function SuppliersPage() {
         </div>
     );
 }
+

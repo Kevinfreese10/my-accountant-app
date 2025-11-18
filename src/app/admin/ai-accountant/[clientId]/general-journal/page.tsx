@@ -48,7 +48,7 @@ const formSchema = z.object({
 type JournalFormValues = z.infer<typeof formSchema>;
 
 const formatPrice = (price: number | undefined) => {
-    if (price === undefined || price === null || isNaN(price)) return '';
+    if (price === undefined || price === null || isNaN(price) || price === 0) return '';
     return new Intl.NumberFormat('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
 };
 
@@ -84,6 +84,11 @@ export default function GeneralJournalsPage() {
         const totalCredits = watchedLines.reduce((acc, line) => acc + (line.credit || 0), 0);
         return { totalDebits, totalCredits };
     }, [watchedLines]);
+    
+    const generalAccounts = useMemo(() => {
+        const excludedAccountNumbers = ['8000-001', '7000-000'];
+        return client?.chartOfAccounts?.filter(acc => !excludedAccountNumbers.includes(acc.accountNumber)) || [];
+    }, [client]);
 
     useEffect(() => {
         const fetchClientAndJournals = async () => {
@@ -104,10 +109,17 @@ export default function GeneralJournalsPage() {
                 const journalsSnapshot = await getDocs(journalsQuery);
                 const allJournals = journalsSnapshot.docs.map(d => d.data() as AllocatedTransaction);
                 
-                const controlAccounts = ['7000-000', '8000-001'];
-                const generalJournals = allJournals.filter(tx => 
-                    !controlAccounts.includes(tx.allocatedTo?.value || '')
-                );
+                const controlAccountIds = ['7000-000', '8000-001'];
+                const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
+                allJournals.forEach(tx => {
+                    if (!journalGroups[tx.reference]) journalGroups[tx.reference] = [];
+                    journalGroups[tx.reference].push(tx);
+                });
+
+                const generalJournals = Object.values(journalGroups)
+                    .filter(group => !group.some(tx => controlAccountIds.includes(tx.allocatedTo.value)))
+                    .flat();
+
                 setPostedJournals(generalJournals);
 
             } catch (e) {
@@ -161,8 +173,16 @@ export default function GeneralJournalsPage() {
             const journalsQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('bankAccountId', '==', 'JOURNAL'), orderBy('date', 'desc'));
             const journalsSnapshot = await getDocs(journalsQuery);
             const allJournals = journalsSnapshot.docs.map(d => d.data() as AllocatedTransaction);
-            const controlAccounts = ['7000-000', '8000-001'];
-            const generalJournals = allJournals.filter(tx => !controlAccounts.includes(tx.allocatedTo?.value || ''));
+            const controlAccountIds = ['7000-000', '8000-001'];
+             const journalGroups: { [key: string]: AllocatedTransaction[] } = {};
+            allJournals.forEach(tx => {
+                if (!journalGroups[tx.reference]) journalGroups[tx.reference] = [];
+                journalGroups[tx.reference].push(tx);
+            });
+
+            const generalJournals = Object.values(journalGroups)
+                .filter(group => !group.some(tx => controlAccountIds.includes(tx.allocatedTo.value)))
+                .flat();
             setPostedJournals(generalJournals);
 
         } catch (error) {
@@ -172,11 +192,6 @@ export default function GeneralJournalsPage() {
             setIsLoading(false);
         }
     };
-    
-    const generalAccounts = useMemo(() => {
-        const excludedAccountNumbers = ['8000-001', '7000-000'];
-        return client?.chartOfAccounts?.filter(acc => !excludedAccountNumbers.includes(acc.accountNumber)) || [];
-    }, [client]);
     
     if (isLoading && !client) {
         return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -285,8 +300,8 @@ export default function GeneralJournalsPage() {
                                     <TableCell>{journal.reference}</TableCell>
                                     <TableCell>{journal.description}</TableCell>
                                     <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
-                                    <TableCell className="text-right font-mono">{journal.amount > 0 ? formatPrice(journal.amount) : ''}</TableCell>
-                                    <TableCell className="text-right font-mono">{journal.amount < 0 ? formatPrice(-journal.amount) : ''}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
                                 </TableRow>
                             )})
                         )}
