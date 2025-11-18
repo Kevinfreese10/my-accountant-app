@@ -6,9 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
-import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Edit } from "lucide-react";
+import { Loader2, Download, Eye, Edit, Trash2 } from "lucide-react";
 import { useParams, useSearchParams } from 'next/navigation';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
@@ -22,6 +22,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { allVatTypes } from "@/lib/vat-types";
+import Link from "next/link";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+
 
 const db = getFirestore(firebaseApp);
 
@@ -118,7 +121,7 @@ function ReallocateDialog({ transaction, client, onSave, onOpenChange, open }: {
     );
 }
 
-function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, onReallocate }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange, fromAccount?: string, toAccount?: string, onReallocate: (tx: any) => void }) {
+function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, onReallocate, onDelete }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange, fromAccount?: string, toAccount?: string, onReallocate: (tx: any) => void, onDelete: (journalRef: string) => void }) {
     
     const filteredTransactions = useMemo(() => {
         if (!dateRange) return transactions;
@@ -299,6 +302,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                     <TableHead className="text-right">Debit</TableHead>
                                     <TableHead className="text-right">Credit</TableHead>
                                     <TableHead className="text-right">Balance</TableHead>
+                                    <TableHead className="w-[100px] text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -317,6 +321,25 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                             </Button>
                                         </TableCell>
                                         <TableCell className="text-right font-mono">{formatPrice(tx.balance)}</TableCell>
+                                        <TableCell className="text-right">
+                                            {tx.isJournal && tx.ref?.startsWith('TAX-') && (
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>This will delete the entire tax journal entry ({tx.ref}). This action cannot be undone.</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => onDelete(tx.ref)}>Delete Journal</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            )}
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -325,7 +348,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                     <TableCell colSpan={2} className="font-bold">Totals</TableCell>
                                     <TableCell className="text-right font-bold font-mono">{formatPrice(group.totalDebit)}</TableCell>
                                     <TableCell className="text-right font-bold font-mono">{formatPrice(group.totalCredit)}</TableCell>
-                                    <TableCell></TableCell>
+                                    <TableCell colSpan={2}></TableCell>
                                 </TableRow>
                             </TableFooter>
                         </Table>
@@ -367,31 +390,30 @@ export default function GeneralLedgerPage() {
     }, [accountIdFromQuery]);
 
 
-    useEffect(() => {
-        const fetchClientData = async () => {
-            if (!clientId) return;
-            setIsLoading(true);
-            try {
-                const clientRef = doc(db, 'aiAccountantClients', clientId);
-                const clientSnap = await getDoc(clientRef);
-                if (clientSnap.exists()) {
-                    const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
-                    setClient(clientData);
-                }
-            } catch (error) {
-                console.error("Error fetching client data:", error);
-            } finally {
-                setIsLoading(false);
+    const fetchAllData = async () => {
+        if (!clientId) return;
+        setIsLoading(true);
+        try {
+            const clientRef = doc(db, 'aiAccountantClients', clientId);
+            const clientSnap = await getDoc(clientRef);
+            if (clientSnap.exists()) {
+                const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
+                setClient(clientData);
             }
-        };
-        fetchClientData();
-        
-        const transUnsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), snapshot => {
-            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
-            setTransactions(fetched);
-        });
-        
-        return () => transUnsubscribe();
+             const transUnsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), snapshot => {
+                const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
+                setTransactions(fetched);
+            });
+
+        } catch (error) {
+            console.error("Error fetching client data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        fetchAllData();
     }, [clientId]);
     
     const accounts = useMemo(() => client?.chartOfAccounts?.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)) || [], [client]);
@@ -417,6 +439,31 @@ export default function GeneralLedgerPage() {
             console.error("Error reallocating transaction:", error);
             toast({ title: "Error", description: "Could not save the changes.", variant: "destructive" });
         }
+    };
+    
+     const handleDeleteJournal = async (journalReference: string) => {
+      if (!client) return;
+      
+      const q = query(collection(db, "aiAccountantClients", client.id, "transactions"), where("reference", "==", journalReference));
+      const journalsToDeleteSnapshot = await getDocs(q);
+
+      if (journalsToDeleteSnapshot.empty) {
+        toast({ title: 'Error', description: 'Could not find journal entries to delete.', variant: 'destructive'});
+        return;
+      }
+      
+      try {
+        const batch = writeBatch(db);
+        journalsToDeleteSnapshot.forEach(journalDoc => {
+          batch.delete(journalDoc.ref);
+        });
+        await batch.commit();
+        toast({ title: 'Journal Deleted', description: `Journal ${journalReference} has been deleted.`, variant: 'destructive'});
+        // Data will refetch automatically due to onSnapshot listener
+      } catch (error) {
+        console.error("Error deleting journal:", error);
+        toast({ title: 'Error', description: 'Failed to delete journal.', variant: 'destructive'});
+      }
     };
 
     const getReportDateString = () => {
@@ -489,6 +536,7 @@ export default function GeneralLedgerPage() {
                                             fromAccount={fromAccount} 
                                             toAccount={toAccount}
                                             onReallocate={handleReallocateClick}
+                                            onDelete={handleDeleteJournal}
                                         />
                                     </DialogContent>
                                 </Dialog>
