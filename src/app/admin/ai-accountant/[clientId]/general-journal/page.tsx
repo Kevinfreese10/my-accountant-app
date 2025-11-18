@@ -1,6 +1,7 @@
 
 'use client';
 
+import * as React from "react";
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -133,13 +134,14 @@ export default function GeneralJournalsPage() {
             const journalsSnapshot = await getDocs(journalsQuery);
             const allJournals = journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction);
             
-            const controlAccountIds = ['7000-000', '8000-001'];
-            
-            const generalOnlyJournals = allJournals.filter(tx => {
-                const isControlJournal = controlAccountIds.includes(tx.allocatedTo.value);
-                const isTaxJournal = tx.reference.startsWith('TAX-');
-                return !isControlJournal && !isTaxJournal;
-            });
+            const customerControlAccount = clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
+            const supplierControlAccount = clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
+
+            const generalOnlyJournals = allJournals.filter(tx => 
+                tx.allocatedTo.value !== customerControlAccount &&
+                tx.allocatedTo.value !== supplierControlAccount &&
+                !tx.reference.startsWith('TAX-')
+            );
             
             const taxOnlyJournals = allJournals.filter(tx => tx.reference.startsWith('TAX-'));
             
@@ -406,8 +408,8 @@ export default function GeneralJournalsPage() {
                                             <TableRow key={journal.id}>
                                                 {index === 0 && (
                                                     <>
-                                                        <TableCell rowSpan={entries.length} className="align-top">{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
-                                                        <TableCell rowSpan={entries.length} className="align-top">{journal.reference}</TableCell>
+                                                        <TableCell rowSpan={entries.length} className="align-top border-t">{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
+                                                        <TableCell rowSpan={entries.length} className="align-top border-t">{journal.reference}</TableCell>
                                                     </>
                                                 )}
                                                 <TableCell>{journal.description}</TableCell>
@@ -415,7 +417,7 @@ export default function GeneralJournalsPage() {
                                                 <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
                                                 <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
                                                 {index === 0 && (
-                                                    <TableCell rowSpan={entries.length} className="text-right align-top">
+                                                    <TableCell rowSpan={entries.length} className="text-right align-top border-t">
                                                         <AlertDialog>
                                                             <AlertDialogTrigger asChild>
                                                                 <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
