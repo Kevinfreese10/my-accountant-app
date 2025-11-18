@@ -40,7 +40,7 @@ import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths, isSameMonth, addDays, differenceInDays } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths, isSameMonth, addDays, differenceInDays, isAfter } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { requestMissingStatements } from '@/app/actions';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -75,14 +75,14 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
     const [isExtracting, setIsExtracting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [periodAnalysis, setPeriodAnalysis] = useState<PeriodAnalysisResult[]>([]);
-    const [missingMonths, setMissingMonths] = useState<string[]>([]);
+    const [missingPeriods, setMissingPeriods] = useState<string[]>([]);
     const [extractedTransactions, setExtractedTransactions] = useState<ExtractedTransaction[]>([]);
     const { toast } = useToast();
 
     const resetState = () => {
         setFiles([]);
         setPeriodAnalysis([]);
-        setMissingMonths([]);
+        setMissingPeriods([]);
         setExtractedTransactions([]);
         setIsAnalyzing(false);
         setIsExtracting(false);
@@ -97,7 +97,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             setFiles(Array.from(selectedFiles));
             // Reset states for a new upload batch
             setPeriodAnalysis([]);
-            setMissingMonths([]);
+            setMissingPeriods([]);
             setExtractedTransactions([]);
         }
     };
@@ -107,33 +107,6 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             handlePeriodAnalysis();
         }
     }, [files]);
-    
-    const groupConsecutiveMonths = (dates: Date[]): string[] => {
-      if (dates.length === 0) return [];
-
-      dates.sort((a, b) => a.getTime() - b.getTime());
-
-      const ranges = [];
-      let rangeStart = dates[0];
-
-      for (let i = 0; i < dates.length; i++) {
-        const currentMonth = dates[i];
-        const nextMonthInArray = dates[i + 1];
-        const expectedNextMonth = addMonths(currentMonth, 1);
-        
-        if (!nextMonthInArray || !isSameMonth(nextMonthInArray, expectedNextMonth)) {
-          if (isSameMonth(rangeStart, currentMonth)) {
-            ranges.push(format(rangeStart, 'MMMM yyyy'));
-          } else {
-            ranges.push(`${format(rangeStart, 'MMMM')} to ${format(currentMonth, 'MMMM yyyy')}`);
-          }
-          if (nextMonthInArray) {
-            rangeStart = nextMonthInArray;
-          }
-        }
-      }
-      return ranges;
-    };
     
     const handlePeriodAnalysis = async () => {
         if (files.length === 0) return;
@@ -173,23 +146,21 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
         if (validResults.length > 1) {
             const sortedResults = [...validResults].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
             
-            const gaps: Date[] = [];
+            const gaps: string[] = [];
             for (let i = 0; i < sortedResults.length - 1; i++) {
                 const end = new Date(sortedResults[i].endDate);
                 const nextStart = new Date(sortedResults[i + 1].startDate);
-
+                
+                // Check if there is more than a 1-day gap
                 if (differenceInDays(nextStart, end) > 1) {
-                    let gapStart = addDays(end, 1);
-                    while (gapStart < nextStart) {
-                        gaps.push(startOfMonth(gapStart));
-                        gapStart = addMonths(gapStart, 1);
-                    }
+                    const gapStart = addDays(end, 1);
+                    const gapEnd = addDays(nextStart, -1);
+                    gaps.push(`${format(gapStart, 'dd MMM yyyy')} to ${format(gapEnd, 'dd MMM yyyy')}`);
                 }
             }
-             const uniqueMissingMonths = [...new Set(gaps.map(d => format(d, 'yyyy-MM')))].map(s => new Date(s));
-             setMissingMonths(groupConsecutiveMonths(uniqueMissingMonths));
+             setMissingPeriods(gaps);
         } else {
-            setMissingMonths([]);
+            setMissingPeriods([]);
         }
         
         setIsAnalyzing(false);
@@ -283,8 +254,8 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
     };
     
     const handleRequestStatements = async () => {
-        if (!client || !client.email || missingMonths.length === 0) {
-            toast({ title: "Cannot Send Request", description: "Client email or missing months are not defined.", variant: "destructive"});
+        if (!client || !client.email || missingPeriods.length === 0) {
+            toast({ title: "Cannot Send Request", description: "Client email or missing periods are not defined.", variant: "destructive"});
             return;
         }
         toast({ title: "Sending Request...", description: `Emailing ${client.name} for missing statements.` });
@@ -292,7 +263,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             await requestMissingStatements({
                 clientName: client.name,
                 clientEmail: client.email,
-                missingPeriods: missingMonths,
+                missingPeriods: missingPeriods,
             });
             toast({ title: "Request Sent!", description: "An email has been sent to the client."});
         } catch (error) {
@@ -331,14 +302,14 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                     <CardDescription>Review the detected statement periods before proceeding.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    {missingMonths.length > 0 && (
+                                    {missingPeriods.length > 0 && (
                                         <Alert variant="destructive" className="mb-4">
                                             <AlertTriangle className="h-4 w-4" />
                                             <div className="flex justify-between items-center">
                                                 <div>
                                                     <AlertTitle>Missing Statement Periods Detected</AlertTitle>
                                                     <AlertDescription>
-                                                        The following months appear to be missing between your uploaded files: {missingMonths.join(', ')}
+                                                        The following periods appear to be missing: {missingPeriods.join(', ')}
                                                     </AlertDescription>
                                                 </div>
                                                  <Button variant="outline" size="sm" onClick={handleRequestStatements}><Mail className="mr-2 h-4 w-4"/> Request from Client</Button>
