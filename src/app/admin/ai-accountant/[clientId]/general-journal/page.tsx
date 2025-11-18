@@ -135,28 +135,13 @@ export default function GeneralJournalsPage() {
             
             const controlAccountIds = ['7000-000', '8000-001'];
             
-            const taxOnlyJournals: AllocatedTransaction[] = [];
-            const generalOnlyJournals: AllocatedTransaction[] = [];
-
-            const groupedByRef: { [key: string]: AllocatedTransaction[] } = {};
-            allJournals.forEach(tx => {
-                if (!groupedByRef[tx.reference]) {
-                    groupedByRef[tx.reference] = [];
-                }
-                groupedByRef[tx.reference].push(tx);
+            const generalOnlyJournals = allJournals.filter(tx => {
+                const isControlJournal = controlAccountIds.includes(tx.allocatedTo.value);
+                const isTaxJournal = tx.reference.startsWith('TAX-');
+                return !isControlJournal && !isTaxJournal;
             });
             
-            for (const ref in groupedByRef) {
-                const group = groupedByRef[ref];
-                const isTaxJournal = ref.startsWith('TAX-');
-                const isControlJournal = group.some(tx => controlAccountIds.includes(tx.allocatedTo.value));
-
-                if (isTaxJournal) {
-                    taxOnlyJournals.push(...group);
-                } else if (!isControlJournal) {
-                    generalOnlyJournals.push(...group);
-                }
-            }
+            const taxOnlyJournals = allJournals.filter(tx => tx.reference.startsWith('TAX-'));
             
             setPostedJournals(generalOnlyJournals);
             setTaxJournals(taxOnlyJournals);
@@ -245,6 +230,17 @@ export default function GeneralJournalsPage() {
         toast({ title: 'Error', description: 'Failed to delete journal.', variant: 'destructive'});
       }
     };
+    
+    const groupedGeneralJournals = useMemo(() => {
+        const grouped = new Map<string, AllocatedTransaction[]>();
+        postedJournals.forEach(tx => {
+            if (!grouped.has(tx.reference)) {
+                grouped.set(tx.reference, []);
+            }
+            grouped.get(tx.reference)?.push(tx);
+        });
+        return grouped;
+    }, [postedJournals]);
 
     if (isLoading && !client) {
         return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -386,7 +382,7 @@ export default function GeneralJournalsPage() {
                 <CardTitle>Posted General Journals</CardTitle>
             </CardHeader>
             <CardContent>
-                <Table>
+                 <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>Date</TableHead>
@@ -395,28 +391,53 @@ export default function GeneralJournalsPage() {
                             <TableHead>Account</TableHead>
                             <TableHead className="text-right">Debit</TableHead>
                             <TableHead className="text-right">Credit</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {postedJournals.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
-                                    No general journals have been posted yet.
-                                </TableCell>
-                            </TableRow>
+                        {Array.from(groupedGeneralJournals.entries()).length === 0 ? (
+                            <TableRow><TableCell colSpan={7} className="text-center h-24 text-muted-foreground">No general journals have been posted yet.</TableCell></TableRow>
                         ) : (
-                            postedJournals.map(journal => {
-                                const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
-                                return (
-                                <TableRow key={journal.id}>
-                                    <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
-                                    <TableCell>{journal.reference}</TableCell>
-                                    <TableCell>{journal.description}</TableCell>
-                                    <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
-                                    <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
-                                    <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
-                                </TableRow>
-                            )})
+                            Array.from(groupedGeneralJournals.entries()).map(([ref, entries]) => (
+                                <React.Fragment key={ref}>
+                                    {entries.map((journal, index) => {
+                                        const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
+                                        return (
+                                            <TableRow key={journal.id}>
+                                                {index === 0 && (
+                                                    <>
+                                                        <TableCell rowSpan={entries.length} className="align-top">{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
+                                                        <TableCell rowSpan={entries.length} className="align-top">{journal.reference}</TableCell>
+                                                    </>
+                                                )}
+                                                <TableCell>{journal.description}</TableCell>
+                                                <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
+                                                {index === 0 && (
+                                                    <TableCell rowSpan={entries.length} className="text-right align-top">
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>This action will delete the entire journal entry ({journal.reference}). This cannot be undone.</AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleDeleteJournal(journal.reference)}>Delete</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </TableCell>
+                                                )}
+                                            </TableRow>
+                                        )
+                                    })}
+                                </React.Fragment>
+                            ))
                         )}
                     </TableBody>
                 </Table>
