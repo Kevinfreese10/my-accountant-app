@@ -99,7 +99,7 @@ export default function RootLayout({
         <AuthProvider>
             <ClientProviders>
                 <FirebaseErrorListener />
-                <AppShell key={Math.random()}>
+                <AppShell>
                   {children}
                 </AppShell>
                 <WebsiteAIWidget />
