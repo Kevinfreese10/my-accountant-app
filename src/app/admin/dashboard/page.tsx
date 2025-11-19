@@ -713,26 +713,6 @@ export default function AdminDashboardPage() {
 
     }, [tasks, upcomingAutomatedTaskFilter]);
 
-    const delegatedTasks = useMemo(() => {
-        if (!user) return [];
-        return tasks.filter(task => 
-            (task.createdBy === user.id) &&
-            !task.assignedTo.includes(user.id) &&
-             task.status !== 'Done' &&
-            (!task.recurrence || task.recurrence === 'None')
-        ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
-    }, [tasks, user]);
-
-    const taggedTasks = useMemo(() => {
-        if (!user) return [];
-        return tasks.filter(task => 
-            Array.isArray(task.tags) && 
-            task.tags.includes(user.id) &&
-            task.status !== 'Done' &&
-            (!task.recurrence || task.recurrence === 'None')
-        ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
-    }, [tasks, user]);
-    
     const departmentTasks = useMemo(() => {
         if (user?.role !== 'admin') return [];
         
@@ -1044,30 +1024,6 @@ export default function AdminDashboardPage() {
                         />
 
                         <TaskTable 
-                            tasks={delegatedTasks} 
-                            title="Delegated Tasks" 
-                            description="Tasks you have created and assigned to other team members."
-                            onEdit={handleEdit}
-                            onView={handleView}
-                            onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
-                            onDelete={handleDelete}
-                            allStaff={allStaff}
-                            currentUser={user}
-                        />
-
-                        <TaskTable 
-                            tasks={taggedTasks} 
-                            title="My Tagged Tasks" 
-                            description="Tasks where you have been tagged for visibility, but not directly assigned."
-                            onEdit={handleEdit}
-                            onView={handleView}
-                            onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
-                            onDelete={handleDelete}
-                            allStaff={allStaff}
-                            currentUser={user}
-                        />
-                        
-                        <TaskTable 
                             tasks={completedTasks} 
                             title="Completed Tasks" 
                             description="Tasks assigned to or created by you that have been marked as 'Done'."
@@ -1125,4 +1081,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-
