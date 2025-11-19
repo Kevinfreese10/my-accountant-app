@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -24,53 +23,29 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
   let fromAddress: string;
   let transportConfig: any;
 
-  if (resellerId) {
-    const resellerRef = doc(db, 'users', resellerId);
-    const resellerSnap = await getDoc(resellerRef);
-    if (resellerSnap.exists()) {
-      const resellerData = resellerSnap.data() as User;
-      if (resellerData.smtpDetails) {
-        transportConfig = {
-          host: resellerData.smtpDetails.host,
-          port: parseInt(resellerData.smtpDetails.port, 10),
-          secure: parseInt(resellerData.smtpDetails.port, 10) === 465,
-          auth: {
-            user: resellerData.smtpDetails.user,
-            pass: resellerData.smtpDetails.pass,
-          },
-          tls: { rejectUnauthorized: false },
-        };
-        fromAddress = `"${resellerData.companyName || resellerData.name}" <${resellerData.smtpDetails.user}>`;
-      }
-    }
+  // Use hardcoded system default
+  const systemSmtpConfig = {
+    host: 'mail.myacc.co.za',
+    port: '465',
+    user: 'info@myacc.co.za',
+    pass: 'KhaiFreese10$',
+  };
+  
+  if (!systemSmtpConfig.host || !systemSmtpConfig.port || !systemSmtpConfig.user || !systemSmtpConfig.pass) {
+      console.error('Default SMTP configuration is missing.');
+      throw new Error('Email server is not configured.');
   }
 
-  // Fallback to system default if reseller config is not found or not provided
-  if (!transportConfig) {
-    const systemSmtpConfig = {
-      host: 'mail.myacc.co.za',
-      port: '465',
-      user: 'info@myacc.co.za',
-      pass: 'Thinkestry10$',
-    };
-    
-    if (!systemSmtpConfig.host || !systemSmtpConfig.port || !systemSmtpConfig.user || !systemSmtpConfig.pass) {
-        console.error('Default SMTP configuration is missing from environment variables.');
-        throw new Error('Email server is not configured.');
-    }
-
-    transportConfig = {
-      host: systemSmtpConfig.host,
-      port: parseInt(systemSmtpConfig.port, 10),
-      secure: parseInt(systemSmtpConfig.port, 10) === 465,
-      auth: {
-        user: systemSmtpConfig.user,
-        pass: systemSmtpConfig.pass,
-      },
-      tls: { rejectUnauthorized: false },
-    };
-    fromAddress = `"My Accountant" <${systemSmtpConfig.user}>`;
-  }
+  transportConfig = {
+    host: systemSmtpConfig.host,
+    port: parseInt(systemSmtpConfig.port, 10),
+    secure: true, // Use SSL
+    auth: {
+      user: systemSmtpConfig.user,
+      pass: systemSmtpConfig.pass,
+    },
+  };
+  fromAddress = `"My Accountant" <${systemSmtpConfig.user}>`;
   
   if (from) {
       fromAddress = from;
