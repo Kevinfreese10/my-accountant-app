@@ -3,12 +3,13 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { usePathname } from 'next/navigation';
-import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode } from 'react';
+import dynamic from 'next/dynamic';
+
+const Header = dynamic(() => import('@/components/layout/Header'), { ssr: false });
 
 export default function AppShell({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
   const pathname = usePathname();
 
   const isDashboardPage =
@@ -20,11 +21,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {shouldShowHeaderFooter && (
-        <>
-          <Header />
-        </>
-      )}
+      {shouldShowHeaderFooter && <Header />}
       <main className="flex-grow bg-background">{children}</main>
       {shouldShowHeaderFooter && <Footer />}
     </div>
