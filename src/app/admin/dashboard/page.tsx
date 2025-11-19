@@ -34,6 +34,8 @@ import { render } from '@react-email/components';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -1022,18 +1024,27 @@ export default function AdminDashboardPage() {
                             onFilter={setUpcomingAutomatedTaskFilter}
                             taskTypes={taskTypes}
                         />
-
-                        <TaskTable 
-                            tasks={completedTasks} 
-                            title="Completed Tasks" 
-                            description="Tasks assigned to or created by you that have been marked as 'Done'."
-                            onEdit={handleEdit}
-                            onView={handleView}
-                            onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
-                            onDelete={handleDelete}
-                            allStaff={allStaff}
-                            currentUser={user}
-                        />
+                        
+                        <Accordion type="single" collapsible>
+                            <AccordionItem value="completed-tasks">
+                                <AccordionTrigger>
+                                    <h2 className="text-2xl font-bold tracking-tight">Completed Tasks</h2>
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-4">
+                                     <TaskTable 
+                                        tasks={completedTasks} 
+                                        title="" 
+                                        description="Tasks assigned to or created by you that have been marked as 'Done'."
+                                        onEdit={handleEdit}
+                                        onView={handleView}
+                                        onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
+                                        onDelete={handleDelete}
+                                        allStaff={allStaff}
+                                        currentUser={user}
+                                    />
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
 
 
                         {user?.role === 'admin' && departmentTasks.length > 0 && (
