@@ -74,7 +74,7 @@ const generateEmailReplyFlow = ai.defineFlow(
         - Address the sender by their name if it's available.
         - Directly address the main point of their email.
         
-        CRITICAL INSTRUCTION: If the user is asking about a specific service (like 'VAT Registration' or 'Company Registration'), you MUST find that service in the CONTEXT provided below. Your reply MUST state the exact price, turnaround time, and any prerequisites for that service. Do NOT ask for more information if the details are in the context. Be direct and provide the answer.
+        CRITICAL INSTRUCTION: If the user is asking about a specific service (like 'VAT Registration' or 'Company Registration'), you MUST find that service in the CONTEXT provided below. Your reply MUST state the exact price, turnaround time, and ALL prerequisites for that service. Do NOT ask for more information if the details are in the context. Be direct and provide the answer.
 
         - If they are asking a general question, try to find an answer in the CONTEXT.
         - If they are sending documents, acknowledge receipt.
