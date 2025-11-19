@@ -240,7 +240,6 @@ export default function ResellerDashboardPage() {
         fetchOrdersAndStaff();
     };
 
-    const latestNews = blogPosts.slice(0, 3);
     const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
     const activeOutsourcedOrders = outsourcedOrders.filter(o => o.status !== 'Pending Payment');
 
@@ -265,7 +264,7 @@ export default function ResellerDashboardPage() {
                         ) : (
                             <Carousel opts={{ align: "start", loop: true }} className="w-full">
                                 <CarouselContent>
-                                    {latestNews.map(post => (
+                                    {blogPosts.map(post => (
                                         <CarouselItem key={post.id} className="md:basis-1/2 lg:basis-1/3">
                                             <div className="p-1">
                                                 <div className="group">
