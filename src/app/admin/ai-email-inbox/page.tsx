@@ -58,6 +58,7 @@ type Email = {
       title?: string;
       description?: string;
     };
+    draftReply?: string;
   };
   draft?: string;
 };
@@ -94,8 +95,17 @@ export default function AIEmailInboxPage() {
                 clientName: email.from,
               });
               return { ...email, analysis };
-          } catch(e) {
+          } catch(e: any) {
               console.error(`Failed to analyze email ${email.uid}`, e);
+              // If the model is overloaded, show a specific error to the user
+              if (e.message && e.message.includes('503 Service Unavailable')) {
+                  toast({
+                      title: `AI Analysis Skipped for "${email.subject}"`,
+                      description: "The AI model is currently overloaded. Please try analyzing this email again later.",
+                      variant: "destructive",
+                      duration: 10000,
+                  });
+              }
               return email; // return email without analysis on error
           }
       }));
@@ -121,7 +131,8 @@ export default function AIEmailInboxPage() {
 
   useEffect(() => {
     fetchEmails(false);
-  }, []);
+  }, [fetchEmails]);
+
 
   const handleRefresh = () => {
     setSelectedEmail(null);
@@ -180,12 +191,15 @@ export default function AIEmailInboxPage() {
         sender: email.from,
       });
 
+      // Update analysis object with the draft
+      const updatedAnalysis = email.analysis ? { ...email.analysis, draftReply: result.draft } : { draftReply: result.draft };
+
       const updatedEmails = emails.map((e) =>
-        e.uid === email.uid ? { ...e, draft: result.draft } : e
+        e.uid === email.uid ? { ...e, analysis: updatedAnalysis as any } : e
       );
       setEmails(updatedEmails);
       setSelectedEmail((prev) =>
-        prev && prev.uid === email.uid ? { ...prev, draft: result.draft } : prev
+        prev && prev.uid === email.uid ? { ...prev, analysis: updatedAnalysis as any } : prev
       );
 
       toast({ title: 'Draft Created!' });
@@ -322,12 +336,12 @@ export default function AIEmailInboxPage() {
                           </div>
                       </>
                   )}
-                   {selectedEmail.draft && (
+                  {selectedEmail.analysis?.draftReply && (
                       <>
                           <Separator />
                           <div className="space-y-4">
                               <h4 className="font-semibold">Draft Reply</h4>
-                              <div className="text-sm border p-3 rounded-md bg-blue-50 border-blue-200 whitespace-pre-wrap">{selectedEmail.draft}</div>
+                              <div className="text-sm border p-3 rounded-md bg-blue-50 border-blue-200 whitespace-pre-wrap">{selectedEmail.analysis.draftReply}</div>
                                <Button size="sm">
                                   <Send className="mr-2 h-4 w-4"/> Send Reply
                               </Button>
@@ -346,7 +360,7 @@ export default function AIEmailInboxPage() {
                         </Button>
                     )}
                      {selectedEmail.analysis?.suggestedAction === 'draft_reply' && (
-                        <Button size="sm" onClick={() => handleDraftReply(selectedEmail)} disabled={isDrafting === selectedEmail.uid}>
+                        <Button size="sm" onClick={() => handleDraftReply(selectedEmail)} disabled={isDrafting === selectedEmail.uid || !!selectedEmail.analysis.draftReply}>
                             {isDrafting === selectedEmail.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit className="mr-2 h-4 w-4"/>} Draft Reply
                         </Button>
                     )}
