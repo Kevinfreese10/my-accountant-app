@@ -11,7 +11,7 @@ const config = {
         password: 'KhaiFreese10$',
         host: 'mail.myacc.co.za',
         port: 993,
-        tls: true,
+        secure: true, // Use 'secure' instead of 'tls'
         authTimeout: 10000,
     },
 };
