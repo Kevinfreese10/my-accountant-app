@@ -106,16 +106,14 @@ const categorizeSupportRequestFlow = ai.defineFlow(
 
     const {output} = await prompt(input);
 
-    if(output && output.suggestedAction === 'draft_reply') {
+    if (output?.suggestedAction === 'draft_reply') {
         const qaResponse = await websiteQAndA({
             question: input.request,
             history: [],
         });
         
-        // Sanitize client name and get first name
         const firstName = input.clientName.replace(/"/g, '').split(' ')[0] || 'there';
 
-        // Format the Q&A answer into a more email-friendly format.
         let finalDraft = `Hi ${firstName},\n\nThank you for your email.\n\n${qaResponse.answer}`;
 
         if (qaResponse.serviceUrl) {
@@ -127,6 +125,7 @@ const categorizeSupportRequestFlow = ai.defineFlow(
         
         output.draftReply = finalDraft;
     }
+    
     return output!;
   }
 );
