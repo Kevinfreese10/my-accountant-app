@@ -112,7 +112,22 @@ export default function ResellerOrdersPage() {
             date: data.date.toDate(),
           } as Order;
         });
-        setOrders(clientOrders.filter(order => order.status !== 'Cancelled'));
+        
+        // Fetch original order details if necessary
+        const ordersWithClientDetails = await Promise.all(clientOrders.map(async (order) => {
+            if (order.resellerId && !order.endCustomerEmail) { // Assuming if email is missing, so is name
+                const originalOrderRef = doc(db, 'orders', order.id); // The created order is the "original" in this context
+                const originalOrderSnap = await getDoc(originalOrderRef);
+                if (originalOrderSnap.exists()) {
+                    const originalOrderData = originalOrderSnap.data();
+                    order.endCustomerName = originalOrderData.customerName;
+                    order.endCustomerEmail = originalOrderData.customerEmail;
+                }
+            }
+            return order;
+        }));
+        
+        setOrders(ordersWithClientDetails.filter(order => order.status !== 'Cancelled'));
 
       } catch (error) {
         console.error("Error fetching orders: ", error);
@@ -306,8 +321,8 @@ export default function ResellerOrdersPage() {
                             <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
                             <TableCell>
                                 <div>
-                                    <p className="font-medium">{order.customerName}</p>
-                                    <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
+                                    <p className="font-medium">{order.endCustomerName || order.customerName}</p>
+                                    <p className="text-xs text-muted-foreground">{order.endCustomerEmail || order.customerEmail}</p>
                                 </div>
                             </TableCell>
                             <TableCell>
@@ -337,6 +352,26 @@ export default function ResellerOrdersPage() {
                                 <DropdownMenuItem asChild>
                                     <Link href={`/reseller/orders/${order.id}`}>View/Add Notes</Link>
                                 </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger disabled={order.isOutsourced}>Change Status</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        {orderStatuses.map(status => (
+                                            <DropdownMenuItem 
+                                                key={status} 
+                                                onClick={() => handleUpdateStatus(order.id, status)} 
+                                                disabled={order.status === status}
+                                            >
+                                                Mark as {status}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem disabled={order.isOutsourced}>
+                                    Outsource to My Accountant
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                             <AlertDialogContent>
