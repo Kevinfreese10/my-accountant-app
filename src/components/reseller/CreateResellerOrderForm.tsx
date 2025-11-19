@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -235,13 +234,18 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                     defaultValue={field.value}
                     className="flex flex-col space-y-2"
                     >
-                    <FormItem className="flex items-center space-x-3 space-y-0 rounded-md border p-4">
+                    <FormItem className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
                         <FormControl>
                         <RadioGroupItem value="reseller" />
                         </FormControl>
-                        <FormLabel className="font-normal">
-                        Contact me (the reseller)
-                        </FormLabel>
+                        <div className="leading-none">
+                            <FormLabel className="font-normal">
+                            Contact me (the reseller)
+                            </FormLabel>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {reseller?.name} - {reseller?.email}
+                            </p>
+                        </div>
                     </FormItem>
                     <FormItem className="space-y-2 rounded-md border p-4">
                         <div className="flex items-center space-x-3">
