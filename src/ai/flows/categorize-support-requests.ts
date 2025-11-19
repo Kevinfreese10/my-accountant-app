@@ -76,7 +76,7 @@ const categorizeSupportRequestFlow = ai.defineFlow(
       1. Create a one-sentence summary of the email's content, including a brief mention of any relevant information found in the attachments.
       2. Triage the email by determining the category, priority, and an appropriate SLA.
       3. Determine if an actionable task can be created from the email and suggest the best next action.
-      4. If the best action is to 'draft_reply', you MUST generate a professional, helpful, and concise email draft.
+      4. DO NOT generate a draft reply. If the suggested action should be 'draft_reply', simply set that field and do not populate the 'draftReply' field. Another process will handle the draft generation later.
 
       **Triage Guidelines:**
       - Categories: 'Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'.
@@ -85,7 +85,7 @@ const categorizeSupportRequestFlow = ai.defineFlow(
 
       **Task, Action, & Reply Guidelines:**
       - If the email contains a clear instruction for work (e.g., "Please file my VAT"), set 'suggestedAction' to 'create_task' and 'task.shouldCreate' to true. The task title must be specific and include the client's name. Do NOT generate a draft reply.
-      - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'. Do NOT create a task.
+      - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'. Do NOT create a task or a draft reply.
       - If the email is marketing, a newsletter, or spam, categorize it as 'Spam/Promo', set priority to 'Low', and set 'suggestedAction' to 'archive'.
       - If no clear action is needed, set 'suggestedAction' to 'none'.
       
@@ -105,18 +105,10 @@ const categorizeSupportRequestFlow = ai.defineFlow(
     });
 
     const {output} = await prompt(input);
+    
+    // The logic to automatically draft a reply has been removed from this flow.
+    // The 'draft_reply' suggestion will now be handled by a separate user action in the UI.
 
-    if(output && output.suggestedAction === 'draft_reply' && !output.draftReply) {
-        const qaResponse = await websiteQAndA({
-            question: input.request,
-            history: [],
-        });
-        
-        // Format the Q&A answer into a more email-friendly format.
-        const finalDraft = `Hi ${input.clientName.split(' ')[0] || 'there'},\n\nThank you for your email.\n\n${qaResponse.answer}\n\nKind regards,\nWinifred Beukes\nExecutive Assistant to Kevin Freese`;
-        
-        output.draftReply = finalDraft;
-    }
     return output!;
   }
 );
