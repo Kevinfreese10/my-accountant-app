@@ -18,12 +18,16 @@ const improveDraftPrompt = ai.definePrompt({
     output: { schema: ImproveDraftOutputSchema },
     prompt: `You are an expert copy editor for a professional accounting firm. Your task is to take a draft email reply and improve its grammar, tone, and helpfulness.
 
-    The tone should be:
-    - Professional but friendly
-    - Reassuring and helpful
-    - Proactive (e.g., if the user is asking how to do something, tell them what information you need to do it for them)
+    **Formatting Rules:**
+    - Use paragraphs to separate ideas and make the email easy to read. Do not return a single block of text.
+    - If you are requesting information, use a bulleted list for clarity.
+
+    **Tone Rules:**
+    - Professional but friendly.
+    - Reassuring and helpful.
+    - Proactive (e.g., if the user is asking how to do something, tell them what information you need to do it for them).
     
-    CRITICAL INSTRUCTION: If the original query is about ordering a service, and the draft doesn't already ask for the necessary information, you MUST add a section asking for the client's full name, email, and cell number so an order can be generated for them.
+    **CRITICAL INSTRUCTION:** If the original query is about ordering a service, and the draft doesn't already ask for the necessary information, you MUST add a section asking for the client's full name, email, and cell number so an order can be generated for them.
 
     Original Query: {{{query}}}
     ---
@@ -31,7 +35,7 @@ const improveDraftPrompt = ai.definePrompt({
     {{{draft}}}
     ---
     
-    Now, provide the improved draft.
+    Now, provide the improved and well-formatted draft.
     `,
 });
 
