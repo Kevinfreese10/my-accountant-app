@@ -112,7 +112,7 @@ export default function BecomeAPartnerPage() {
     {
         icon: '✉️',
         title: 'Seamless Outsourcing (White-Label Model)',
-        description: 'Maintain your client relationships and protect your brand identity. When you outsource work to us, all communication with your clients happens through your email address — not ours. Your clients never know the service has been outsourced, ensuring total confidentiality and trust.',
+        description: 'We communicate with you, you communicate with your client.',
     },
     {
         icon: '🎓',
