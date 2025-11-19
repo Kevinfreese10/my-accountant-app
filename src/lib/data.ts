@@ -16,7 +16,7 @@ export const users: Omit<User, 'uid'>[] = [
     smtpDetails: {
         host: 'mail.myacc.co.za',
         port: '465',
-        user: 'no_reply@myacc.co.za',
+        user: 'info@myacc.co.za',
         pass: 'Thinkestry10$',
     }
   },

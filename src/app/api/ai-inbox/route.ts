@@ -1,3 +1,4 @@
+
 // /src/app/api/ai-inbox/route.ts
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
@@ -12,7 +13,7 @@ const db = getFirestore(firebaseApp);
 async function connectToImap() {
     const config = {
       imap: {
-        user: 'kev@myacc.co.za',
+        user: 'info@myacc.co.za',
         password: 'Thinkestry10$',
         host: 'mail.myacc.co.za',
         port: 993,

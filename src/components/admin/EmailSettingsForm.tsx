@@ -29,8 +29,13 @@ export default function EmailSettingsForm() {
   const { toast } = useToast();
   const [isTesting, setIsTesting] = useState(false);
 
-  // Get the specific SMTP settings for no_reply@myacc.co.za
-  const systemSmtpConfig = users.find(u => u.email === 'kev@thinkestry.co.za')?.smtpDetails;
+  // Get the specific SMTP settings for info@myacc.co.za
+  const systemSmtpConfig = {
+      host: 'mail.myacc.co.za',
+      port: '465',
+      user: 'info@myacc.co.za',
+      pass: 'Thinkestry10$',
+  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),

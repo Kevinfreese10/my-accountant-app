@@ -50,7 +50,7 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
     const systemSmtpConfig = {
       host: 'mail.myacc.co.za',
       port: '465',
-      user: 'no_reply@myacc.co.za',
+      user: 'info@myacc.co.za',
       pass: 'Thinkestry10$',
     };
     
