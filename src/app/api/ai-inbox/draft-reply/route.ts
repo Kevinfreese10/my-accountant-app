@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { generateEmailReply } from '@/ai/flows/generate-email-reply';
+import { websiteQAndA } from '@/ai/flows/website-q-and-a';
 
 export async function POST(req: Request) {
     const { email } = await req.json();
@@ -10,13 +10,17 @@ export async function POST(req: Request) {
     }
 
     try {
-        const result = await generateEmailReply({
-            subject: email.subject,
-            body: email.body,
-            sender: email.from,
+        const qaResponse = await websiteQAndA({
+            question: `Subject: ${email.subject}\nBody: ${email.body}`,
+            history: [],
         });
+        
+        const clientName = email.from.split('<')[0].trim().split(' ')[0] || 'there';
 
-        return NextResponse.json({ draft: result.draft });
+        // Format the Q&A answer into a more email-friendly format.
+        const finalDraft = `Hi ${clientName},\n\nThank you for your email.\n\n${qaResponse.answer}\n\nKind regards,\nWinifred Beukes\nExecutive Assistant to Kevin Freese`;
+
+        return NextResponse.json({ draft: finalDraft });
 
     } catch (error: any) {
         console.error('Error drafting email reply:', error);

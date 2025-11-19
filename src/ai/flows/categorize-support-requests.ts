@@ -11,7 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { generateEmailReply } from './generate-email-reply';
+import { websiteQAndA } from './website-q-and-a';
 
 const AttachmentSchema = z.object({
   filename: z.string().nullable(),
@@ -85,7 +85,7 @@ const categorizeSupportRequestFlow = ai.defineFlow(
 
       **Task, Action, & Reply Guidelines:**
       - If the email contains a clear instruction for work (e.g., "Please file my VAT"), set 'suggestedAction' to 'create_task' and 'task.shouldCreate' to true. The task title must be specific and include the client's name. Do NOT generate a draft reply.
-      - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'. Do NOT create a task. You MUST generate a draft reply. Address the client by name, be helpful and professional, and sign off as 'Winifred Beukes, Executive Assistant to Kevin Freese'.
+      - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'. Do NOT create a task.
       - If the email is marketing, a newsletter, or spam, categorize it as 'Spam/Promo', set priority to 'Low', and set 'suggestedAction' to 'archive'.
       - If no clear action is needed, set 'suggestedAction' to 'none'.
       
@@ -107,12 +107,15 @@ const categorizeSupportRequestFlow = ai.defineFlow(
     const {output} = await prompt(input);
 
     if(output && output.suggestedAction === 'draft_reply' && !output.draftReply) {
-        const draftResult = await generateEmailReply({
-            subject: 'Re: Support Request',
-            body: input.request,
-            sender: input.clientName,
+        const qaResponse = await websiteQAndA({
+            question: input.request,
+            history: [],
         });
-        output.draftReply = draftResult.draft;
+        
+        // Format the Q&A answer into a more email-friendly format.
+        const finalDraft = `Hi ${input.clientName.split(' ')[0] || 'there'},\n\nThank you for your email.\n\n${qaResponse.answer}\n\nKind regards,\nWinifred Beukes\nExecutive Assistant to Kevin Freese`;
+        
+        output.draftReply = finalDraft;
     }
     return output!;
   }

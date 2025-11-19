@@ -12,7 +12,6 @@ export * from '@/ai/flows/suggest-transaction-allocation';
 export * from '@/ai/flows/suggest-income-allocation';
 export * from '@/ai/flows/extract-statement-data';
 export * from '@/ai/flows/extract-statement-period';
-export * from '@/ai/flows/generate-email-reply';
 export * from '@/ai/flows/find-story-name';
 
 
