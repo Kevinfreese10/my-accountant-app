@@ -46,7 +46,7 @@ const Header = () => {
           <Link href="/" className="text-2xl font-bold text-gradient">
             My Accountant
           </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium md:flex" key={Math.random()}>
+          <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
             {navLinks.map(link => (
               <Link key={link.href} href={link.href} className="text-foreground/80 transition-colors hover:text-foreground">
                 {link.label}
