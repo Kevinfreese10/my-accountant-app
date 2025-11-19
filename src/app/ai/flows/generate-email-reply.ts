@@ -73,7 +73,9 @@ const generateEmailReplyFlow = ai.defineFlow(
         - Your tone should be friendly, professional, and reassuring.
         - Address the sender by their name if it's available.
         - Directly address the main point of their email.
-        - If they are asking about a specific service, use the CONTEXT provided below to find the service and include its price, turnaround time, and any prerequisites/requirements in your answer.
+        
+        CRITICAL INSTRUCTION: If the user is asking about a specific service (like 'VAT Registration' or 'Company Registration'), you MUST find that service in the CONTEXT provided below. Your reply MUST state the exact price, turnaround time, and any prerequisites for that service. Do NOT ask for more information if the details are in the context. Be direct and provide the answer.
+
         - If they are asking a general question, try to find an answer in the CONTEXT.
         - If they are sending documents, acknowledge receipt.
         - Keep the reply concise.
