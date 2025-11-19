@@ -3,9 +3,8 @@
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
-import { getFirestore, collection, getDocs, doc, setDoc, serverTimestamp, query, where, writeBatch, deleteDoc, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, serverTimestamp, query, where, writeBatch, deleteDoc, orderBy, addDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
 
 const db = getFirestore(firebaseApp);
@@ -73,7 +72,7 @@ export async function GET(req: Request) {
                       };
                     }));
 
-                    const emailData = {
+                    const emailData: any = {
                       uid: item.attributes.uid,
                       from: mail.from?.text || 'No Sender',
                       subject: mail.subject || 'No Subject',
@@ -84,6 +83,50 @@ export async function GET(req: Request) {
                       processedAction: null,
                     };
                     
+                    // --- AUTOMATIC ANALYSIS ON SYNC ---
+                    const requestText = `Subject: ${emailData.subject}\n\nBody: ${emailData.body.replace(/<[^>]*>?/gm, ' ')}`;
+                    const clientName = emailData.from.split('<')[0].trim();
+
+                    try {
+                        const analysis = await categorizeSupportRequest({
+                            request: requestText,
+                            clientName,
+                            attachments: emailData.attachments,
+                        });
+                        
+                        // Merge analysis results into emailData
+                        emailData.summary = analysis.summary || null;
+                        emailData.category = analysis.category || null;
+                        emailData.priority = analysis.priority || null;
+                        emailData.sla = analysis.sla || null;
+                        emailData.suggestedAction = analysis.suggestedAction || 'none';
+                        emailData.draftReply = analysis.draftReply || null;
+
+                        if (analysis.task?.shouldCreate && analysis.task.title) {
+                            const dueDate = new Date();
+                            dueDate.setHours(dueDate.getHours() + (analysis.sla || 48));
+                            
+                            // Do not use batch for this, add directly to avoid transaction size limits
+                            await addDoc(collection(db, 'tasks'), {
+                                title: analysis.task.title,
+                                description: analysis.task.description || 'Generated from email.',
+                                status: 'To-Do',
+                                priority: analysis.priority,
+                                dueDate: Timestamp.fromDate(dueDate),
+                                createdAt: serverTimestamp(),
+                                createdBy: 'ai_system',
+                                assignedTo: [],
+                            });
+                            emailData.isProcessed = true;
+                            emailData.processedAction = 'processed';
+                        }
+                    } catch (aiError) {
+                        console.error(`AI analysis failed for email UID ${emailData.uid}:`, aiError);
+                        // Still save the email, but without AI data
+                        emailData.suggestedAction = 'none'; 
+                    }
+                    // --- END AUTOMATIC ANALYSIS ---
+
                     const docRef = doc(db, 'inboxEmails', String(emailData.uid));
                     batch.set(docRef, emailData);
                 }
@@ -127,7 +170,7 @@ export async function POST(req: Request) {
         } else { // process or archive
              uids.forEach((uid: number) => {
                 const docRef = doc(db, 'inboxEmails', String(uid));
-                batch.update(docRef, { processedAction: action });
+                batch.update(docRef, { isProcessed: true, processedAction: action });
             });
         }
         

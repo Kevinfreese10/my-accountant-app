@@ -56,6 +56,9 @@ export async function POST(req: Request) {
                         });
                         updateData.isProcessed = true;
                         updateData.processedAction = 'processed';
+                    } else if (analysis.suggestedAction === 'archive') {
+                         updateData.isProcessed = true;
+                         updateData.processedAction = 'archived';
                     }
 
                     await updateDoc(docRef, updateData);

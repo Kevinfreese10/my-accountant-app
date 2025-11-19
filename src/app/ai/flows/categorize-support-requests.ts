@@ -106,7 +106,7 @@ const categorizeSupportRequestFlow = ai.defineFlow(
 
     const {output} = await prompt(input);
 
-    if(output && output.suggestedAction === 'draft_reply' && !output.draftReply) {
+    if(output && output.suggestedAction === 'draft_reply') {
         const qaResponse = await websiteQAndA({
             question: input.request,
             history: [],
