@@ -25,7 +25,7 @@ const FaqSection = () => {
     },
     {
         question: "How does outsourcing work?",
-        answer: "You can seamlessly outsource orders directly to My Accountant through your partner dashboard.\nOur qualified team handles the work while all client communication goes through your email, ensuring your brand remains front and center."
+        answer: "We communicate with you — you communicate with your client. All updates, queries, and deliverables are sent directly to you, ensuring that you remain the sole point of contact with your client. Your clients never know the service has been outsourced, ensuring total confidentiality and trust."
     },
     {
         question: "How It Works",
