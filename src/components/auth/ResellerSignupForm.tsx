@@ -29,7 +29,8 @@ const storage = getStorage(firebaseApp);
 
 const formSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
-  contactPerson: z.string().min(2, 'Contact person is required.'),
+  name: z.string().min(2, 'First name is required.'),
+  surname: z.string().min(2, 'Surname is required.'),
   email: z.string().email('Please enter a valid email.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
   contactNumber: z.string().min(10, 'A valid contact number is required.'),
@@ -72,7 +73,8 @@ export default function ResellerSignupForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       companyName: '',
-      contactPerson: '',
+      name: '',
+      surname: '',
       email: '',
       password: '',
       contactNumber: '',
@@ -147,11 +149,14 @@ export default function ResellerSignupForm() {
             cvUrl = await uploadFile(values.cv[0], `reseller-applications/${authUid}/cv-${values.cv[0].name}`);
             certificateUrl = await uploadFile(values.certificate[0], `reseller-applications/${authUid}/certificate-${values.certificate[0].name}`);
         }
+        
+        const contactPersonFullName = `${values.name} ${values.surname}`;
 
         const newUserDocRef = doc(db, "users", authUid);
         await setDoc(newUserDocRef, {
             ...resellerData,
-            name: values.contactPerson,
+            contactPerson: contactPersonFullName,
+            name: contactPersonFullName,
             id: authUid,
             uid: authUid,
             role: 'reseller',
@@ -164,7 +169,7 @@ export default function ResellerSignupForm() {
 
         toast({
             title: 'Application Received!',
-            description: `Thank you, ${values.contactPerson}. Your reseller account has been created. Redirecting to your dashboard...`,
+            description: `Thank you, ${values.name}. Your reseller account has been created. Redirecting to your dashboard...`,
         });
         
         router.push('/reseller/dashboard');
@@ -193,7 +198,8 @@ export default function ResellerSignupForm() {
              <h3 className="text-lg font-medium">Company Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Contact Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="surname" render={({ field }) => ( <FormItem><FormLabel>Contact Surname</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="contactNumber" render={({ field }) => ( <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
