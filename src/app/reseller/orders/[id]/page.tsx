@@ -196,9 +196,9 @@ export default function ResellerOrderDetailsPage() {
     let customerNameToUse: string;
 
     if (isOutsourced) {
-        const contactIsClient = order.documentContact === 'client';
-        emailTo = contactIsClient ? order.endCustomerEmail : resellerDetails?.email;
-        customerNameToUse = contactIsClient ? (order.endCustomerName || 'Valued Customer') : (resellerDetails?.companyName || resellerDetails?.name || 'Valued Partner');
+        // For a reseller order, we always contact the reseller, not the end client
+        emailTo = resellerDetails?.email;
+        customerNameToUse = resellerDetails?.companyName || resellerDetails?.name || 'Valued Partner';
     } else {
         emailTo = order.customerEmail;
         customerNameToUse = order.customerName;
@@ -256,11 +256,6 @@ export default function ResellerOrderDetailsPage() {
   if (!order) {
     return notFound();
   }
-  
-  const isOutsourced = !!order.resellerId;
-  const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
-  const contactIsClient = order.documentContact === 'client';
-  const docContactEmail = contactIsClient ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
 
   return (
     <div className="space-y-8">
@@ -373,24 +368,8 @@ export default function ResellerOrderDetailsPage() {
                     </CardContent>
                 </Card>
             </div>
-            <div className="lg:col-span-1 space-y-6 sticky top-24">
-                {isOutsourced && (
-                    <div className="mt-4 pt-4 border-t">
-                        <h3 className="font-semibold text-muted-foreground mb-2">Contact for Documents</h3>
-                        <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium capitalize">{order.documentContact}</span>
-                        </div>
-                        {docContactEmail && (
-                        <div className="flex items-center gap-2 text-sm mt-1">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
-                            <a href={`mailto:${docContactEmail}`} className="text-primary hover:underline">{docContactEmail}</a>
-                        </div>
-                        )}
-                    </div>
-                )}
-            </div>
         </div>
     </div>
   );
 }
+

@@ -36,19 +36,10 @@ const lineItemSchema = z.object({
 
 
 const formSchema = z.object({
-  customerName: z.string().optional(),
-  customerEmail: z.string().optional(),
-  customerPhone: z.string().optional(),
-  documentContact: z.enum(['reseller', 'client'], { required_error: 'You must select who to contact for documents.' }),
+  customerName: z.string().min(2, 'Client name is required.'),
+  customerEmail: z.string().email('A valid client email is required.'),
+  customerPhone: z.string().min(10, 'A valid client phone number is required.'),
   items: z.array(lineItemSchema).min(1, 'At least one line item is required.'),
-}).refine(data => {
-    if (data.documentContact === 'client') {
-        return !!data.customerName && !!data.customerEmail && !!data.customerPhone;
-    }
-    return true;
-}, {
-    message: 'Client details are required when client is the contact.',
-    path: ['customerName'], // Show error on first client field
 });
 
 type CreateOrderFormValues = z.infer<typeof formSchema>;
@@ -91,7 +82,6 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       customerName: '',
       customerEmail: '',
       customerPhone: '',
-      documentContact: 'reseller',
       items: [{ serviceId: '', description: '', quantity: 1, resellerPrice: 0 }],
     },
     mode: 'onChange',
@@ -103,7 +93,6 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
   });
 
   const watchedItems = form.watch('items');
-  const documentContact = form.watch('documentContact');
 
   const calculateTotal = (items: any[]) => {
     return (items || []).reduce((acc, item) => {
@@ -155,15 +144,15 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       const orderId = await getNextOrderId();
       const resellerTotalCost = values.items.reduce((acc, item) => acc + (item.resellerPrice * item.quantity), 0);
       
-      const isClientContact = values.documentContact === 'client';
-
       const orderData: Order = {
         id: orderId,
         resellerId: reseller.id,
-        customerName: isClientContact ? values.customerName! : (reseller.contactPerson || reseller.name),
-        customerEmail: isClientContact ? values.customerEmail! : reseller.email,
-        customerPhone: isClientContact ? values.customerPhone! : reseller.contactNumber,
-        documentContact: values.documentContact,
+        customerName: reseller.companyName || reseller.name, // Main contact is reseller
+        customerEmail: reseller.email,
+        customerPhone: reseller.contactNumber,
+        documentContact: 'reseller', // Always reseller
+        endCustomerName: values.customerName,
+        endCustomerEmail: values.customerEmail,
         items: values.items.map(item => ({ 
             id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
             title: item.description, 
@@ -185,7 +174,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
         const confirmationEmailSubject = `Your Order Confirmation: #${orderId}`;
         const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={reseller} />);
         await sendEmail({
-          to: reseller.email, // Always send confirmation to the reseller
+          to: reseller.email,
           bcc: 'kev@thinkestry.co.za',
           subject: confirmationEmailSubject,
           html: emailHtml,
@@ -222,88 +211,42 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
-        <FormField
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FormField
             control={form.control}
-            name="documentContact"
+            name="customerName"
             render={({ field }) => (
-                <FormItem className="space-y-3">
-                <FormLabel>Who should we contact for required documents?</FormLabel>
-                <FormControl>
-                    <RadioGroup
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    className="flex flex-col space-y-2"
-                    >
-                    <FormItem className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
-                        <FormControl>
-                        <RadioGroupItem value="reseller" />
-                        </FormControl>
-                        <div className="leading-none">
-                            <FormLabel className="font-normal">
-                            Contact me (the reseller)
-                            </FormLabel>
-                            <p className="text-xs text-muted-foreground mt-1">
-                                {reseller?.name} - {reseller?.email}
-                            </p>
-                        </div>
-                    </FormItem>
-                    <FormItem className="space-y-2 rounded-md border p-4">
-                        <div className="flex items-center space-x-3">
-                            <FormControl>
-                            <RadioGroupItem value="client" />
-                            </FormControl>
-                            <FormLabel className="font-normal">
-                            Contact my client directly
-                            </FormLabel>
-                        </div>
-                        <FormDescription className="pl-8 text-xs">
-                          Emails will come from "{reseller?.companyName || 'My Accountant'}" &lt;no_reply@myacc.co.za&gt; and will not contain links to our website to protect your brand.
-                        </FormDescription>
-                    </FormItem>
-                    </RadioGroup>
-                </FormControl>
+                <FormItem>
+                <FormLabel>Your Client's Full Name</FormLabel>
+                <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
                 <FormMessage />
                 </FormItem>
             )}
             />
-
-        {documentContact === 'client' && (
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
-                <FormField
-                control={form.control}
-                name="customerName"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Your Client's Full Name</FormLabel>
-                    <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="customerEmail"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Your Client's Email</FormLabel>
-                    <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="customerPhone"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Your Client's Phone</FormLabel>
-                    <FormControl><Input placeholder="0821234567" {...field} /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-            </div>
-        )}
+            <FormField
+            control={form.control}
+            name="customerEmail"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Your Client's Email</FormLabel>
+                <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+            <FormField
+            control={form.control}
+            name="customerPhone"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Your Client's Phone</FormLabel>
+                <FormControl><Input placeholder="0821234567" {...field} /></FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+        </div>
         
         <Separator />
 
@@ -355,7 +298,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                                 )}
                             </div>
                          </div>
-                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 items-end">
                             <FormField
                                 control={form.control}
                                 name={`items.${index}.quantity`}
@@ -373,7 +316,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                                     <span>{formatPrice(resellerPrice)}</span>
                                 </div>
                              </FormItem>
-                             <div className="md:col-span-2 flex items-end">
+                             <div className="md:col-span-1 flex items-end">
                                 <Button
                                     type="button"
                                     variant="destructive"

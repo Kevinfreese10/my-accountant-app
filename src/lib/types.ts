@@ -140,7 +140,7 @@ export type Order = {
   itnHistory?: ItnLog[];
   source?: 'Client' | 'Staff' | 'Reseller' | 'AI Accountant Signup';
   renewalForClientId?: string;
-  documentContact?: 'reseller' | 'client';
+  documentContact: 'reseller' | 'client';
 };
 
 export type Invoice = {
