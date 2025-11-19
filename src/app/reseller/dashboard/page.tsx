@@ -21,7 +21,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderForm';
+import CommunityQnA from '@/components/reseller/CommunityQnA';
 import { useRouter } from 'next/navigation';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 
 const db = getFirestore(firebaseApp);
 
@@ -30,9 +32,12 @@ export default function ResellerDashboardPage() {
     const router = useRouter();
     const { blogPosts, isLoading: isBlogLoading } = useBlog();
     const [orders, setOrders] = useState<Order[]>([]);
+    const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const [isOutsourceModalOpen, setIsOutsourceModalOpen] = useState(false);
     const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
+    const [outsourcedOrderDetails, setOutsourcedOrderDetails] = useState<Order | null>(null);
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const staffCounters = useRef<{ [key: string]: number }>({});
     
@@ -75,6 +80,18 @@ export default function ResellerDashboardPage() {
           } as Order;
         });
         setOrders(clientOrders.filter(order => order.status !== 'Cancelled'));
+
+        const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
+        const outsourcedOrdersSnapshot = await getDocs(outsourcedOrdersQuery);
+        let fetchedOutsourcedOrders = outsourcedOrdersSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                id: doc.id,
+                date: data.date.toDate(),
+            } as Order;
+        });
+        setOutsourcedOrders(fetchedOutsourcedOrders);
 
       } catch (error) {
         console.error("Error fetching orders: ", error);
@@ -146,6 +163,7 @@ export default function ResellerDashboardPage() {
     
             fetchOrdersAndStaff();
             
+            setOutsourcedOrderDetails(newOrderData as Order);
             router.push(`/order-confirmation/${newOrderId}`);
     
         } catch (error) {
@@ -223,6 +241,8 @@ export default function ResellerDashboardPage() {
     };
 
     const latestNews = blogPosts.slice(0, 3);
+    const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
+    const activeOutsourcedOrders = outsourcedOrders.filter(o => o.status !== 'Pending Payment');
 
     return (
         <div className="space-y-8">
@@ -243,161 +263,39 @@ export default function ResellerDashboardPage() {
                                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {latestNews.map(post => (
-                                    <div key={post.id} className="group">
-                                        <Link href={`/blog/${post.slug}`} className="block">
-                                            <div className="relative h-40 w-full overflow-hidden rounded-lg">
-                                                <Image
-                                                    src={post.imageUrl}
-                                                    alt={post.title}
-                                                    fill
-                                                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                                                    data-ai-hint={post.imageHint}
-                                                />
+                            <Carousel opts={{ align: "start", loop: true }} className="w-full">
+                                <CarouselContent>
+                                    {latestNews.map(post => (
+                                        <CarouselItem key={post.id} className="md:basis-1/2 lg:basis-1/3">
+                                            <div className="p-1">
+                                                <div className="group">
+                                                    <Link href={`/blog/${post.slug}`} className="block">
+                                                        <div className="relative h-40 w-full overflow-hidden rounded-lg">
+                                                            <Image
+                                                                src={post.imageUrl}
+                                                                alt={post.title}
+                                                                fill
+                                                                className="object-cover transition-transform duration-300 group-hover:scale-105"
+                                                                data-ai-hint={post.imageHint}
+                                                            />
+                                                        </div>
+                                                        <div className="mt-3">
+                                                            <p className="text-sm font-semibold group-hover:text-primary">{post.title}</p>
+                                                            <p className="text-xs text-muted-foreground">{format(new Date(post.date), 'dd/MM/yyyy')}</p>
+                                                        </div>
+                                                    </Link>
+                                                </div>
                                             </div>
-                                            <div className="mt-3">
-                                                <p className="text-sm font-semibold group-hover:text-primary">{post.title}</p>
-                                                <p className="text-xs text-muted-foreground">{format(new Date(post.date), 'dd/MM/yyyy')}</p>
-                                            </div>
-                                        </Link>
-                                    </div>
-                                ))}
-                            </div>
+                                        </CarouselItem>
+                                    ))}
+                                </CarouselContent>
+                                <CarouselPrevious />
+                                <CarouselNext />
+                            </Carousel>
                         )}
                     </CardContent>
                 </Card>
             </section>
-
-             <Card>
-                <CardHeader>
-                <div className="flex items-center justify-between">
-                    <div>
-                    <CardTitle>Your Client Orders</CardTitle>
-                    <CardDescription>
-                        View and manage all orders you've created for your clients.
-                    </CardDescription>
-                    </div>
-                     <Dialog open={isCreateOrderOpen} onOpenChange={setIsCreateOrderOpen}>
-                        <DialogTrigger asChild>
-                             <Button>
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                Create New Order
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-4xl">
-                             <DialogHeader>
-                                <DialogTitle>New Order Details</DialogTitle>
-                                <DialogDescription>Fill out the form below to create a new order for a client.</DialogDescription>
-                            </DialogHeader>
-                            <CreateResellerOrderForm onOrderCreated={handleOrderCreated} />
-                        </DialogContent>
-                    </Dialog>
-                </div>
-                </CardHeader>
-                <CardContent>
-                {isLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                ) : orders.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No client orders to display.</p>
-                ) : (
-                    <Table>
-                    <TableHeader>
-                        <TableRow>
-                        <TableHead>Order ID</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Fulfillment</TableHead>
-                        <TableHead>Selling Price</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {orders.map((order) => (
-                        <TableRow key={order.id}>
-                            <TableCell className="font-medium">{order.id}</TableCell>
-                            <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell>
-                                <div>
-                                    <p className="font-medium">{order.endCustomerName || order.customerName}</p>
-                                    <p className="text-xs text-muted-foreground">{order.endCustomerEmail || order.customerEmail}</p>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                            <Badge variant={getStatusVariant(order.status)}>
-                                {order.status}
-                            </Badge>
-                            </TableCell>
-                            <TableCell>
-                                {order.isOutsourced ? (
-                                    <Badge variant="info">Outsourced</Badge>
-                                ) : (
-                                    <Badge variant="secondary">Internal</Badge>
-                                )}
-                            </TableCell>
-                            <TableCell className="font-semibold">{formatPrice(order.clientTotal || 0)}</TableCell>
-                            <TableCell className="text-right">
-                            <AlertDialog>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <span className="sr-only">Open menu</span>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem asChild>
-                                    <Link href={`/reseller/orders/${order.id}`}>View/Add Notes</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger disabled={order.isOutsourced}>Change Status</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        {orderStatuses.map(status => (
-                                            <DropdownMenuItem 
-                                                key={status} 
-                                                onClick={() => handleUpdateStatus(order.id, status)} 
-                                                disabled={order.status === status}
-                                            >
-                                                Mark as {status}
-                                            </DropdownMenuItem>
-                                        ))}
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
-                                <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem disabled={order.isOutsourced}>
-                                    Outsource to My Accountant
-                                    </DropdownMenuItem>
-                                </AlertDialogTrigger>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                    This will create a new internal order for My Accountant to fulfill. The cost to you will be {formatPrice(order.total)}. You will be shown payment details after confirming. Are you sure you want to proceed?
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleOutsource(order)}>
-                                    Yes, Outsource this Order
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                            </TableCell>
-                        </TableRow>
-                        ))}
-                    </TableBody>
-                    </Table>
-                )}
-                </CardContent>
-            </Card>
       
         </div>
     );
