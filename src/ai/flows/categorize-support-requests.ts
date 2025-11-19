@@ -113,7 +113,7 @@ const categorizeSupportRequestFlow = ai.defineFlow(
       // If it's a 503 error, retry with the Pro model
       if (error.message && error.message.includes('503 Service Unavailable')) {
         console.warn('Gemini Flash overloaded, retrying with Gemini Pro...');
-        const { output } = await prompt(input, { model: googleAI.model('gemini-2.5-pro') });
+        const { output } = await prompt(input, { model: googleAI.model('gemini-1.5-pro-preview') });
         categorizationOutput = output!;
       } else {
         // If it's another error, rethrow it
