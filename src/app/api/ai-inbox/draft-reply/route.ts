@@ -15,10 +15,16 @@ export async function POST(req: Request) {
             history: [],
         });
         
-        const clientName = email.from.split('<')[0].trim().split(' ')[0] || 'there';
+        const clientName = email.from.replace(/"/g, '').split('<')[0].trim().split(' ')[0] || 'there';
 
-        // Format the Q&A answer into a more email-friendly format.
-        const finalDraft = `Hi ${clientName},\n\nThank you for your email.\n\n${qaResponse.answer}\n\nKind regards,\nWinifred Beukes\nExecutive Assistant to Kevin Freese`;
+        let finalDraft = `Hi ${clientName},\n\nThank you for your email.\n\n${qaResponse.answer}`;
+
+        if (qaResponse.serviceUrl) {
+            const fullUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za'}${qaResponse.serviceUrl}`;
+            finalDraft += `\n\nYou can view and purchase this service directly from our website here: ${fullUrl}`;
+        }
+        
+        finalDraft += `\n\nKind regards,\nWinifred Beukes\nExecutive Assistant to Kevin Freese`;
 
         return NextResponse.json({ draft: finalDraft });
 

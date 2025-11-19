@@ -76,16 +76,16 @@ const categorizeSupportRequestFlow = ai.defineFlow(
       1. Create a one-sentence summary of the email's content, including a brief mention of any relevant information found in the attachments.
       2. Triage the email by determining the category, priority, and an appropriate SLA.
       3. Determine if an actionable task can be created from the email and suggest the best next action.
-      4. If the best action is to 'draft_reply', you MUST generate a professional, helpful, and concise email draft.
+      4. Do NOT generate a draft reply yourself. If the best action is 'draft_reply', the system will handle it in a subsequent step. Just set the suggestedAction correctly.
 
       **Triage Guidelines:**
       - Categories: 'Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'.
       - Priorities: Use 'High' for "urgent", "final demand", "deadline", "legal notice". Use 'Low' for newsletters or spam.
       - SLA: High priority = 24 hours, Medium = 48 hours, Low = 72 hours.
 
-      **Task, Action, & Reply Guidelines:**
-      - If the email contains a clear instruction for work (e.g., "Please file my VAT"), set 'suggestedAction' to 'create_task' and 'task.shouldCreate' to true. The task title must be specific and include the client's name. Do NOT generate a draft reply.
-      - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'. Do NOT create a task.
+      **Task & Action Guidelines:**
+      - If the email contains a clear instruction for work (e.g., "Please file my VAT"), set 'suggestedAction' to 'create_task' and 'task.shouldCreate' to true. The task title must be specific and include the client's name.
+      - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'.
       - If the email is marketing, a newsletter, or spam, categorize it as 'Spam/Promo', set priority to 'Low', and set 'suggestedAction' to 'archive'.
       - If no clear action is needed, set 'suggestedAction' to 'none'.
       
