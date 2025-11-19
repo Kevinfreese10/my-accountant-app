@@ -295,7 +295,6 @@ export default function ResellerOrdersPage() {
                         <TableHead>Customer</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Fulfillment</TableHead>
-                        <TableHead>Doc Contact</TableHead>
                         <TableHead>Selling Price</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -305,7 +304,12 @@ export default function ResellerOrdersPage() {
                         <TableRow key={order.id}>
                             <TableCell className="font-medium">{order.id}</TableCell>
                             <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell>{order.customerName}</TableCell>
+                            <TableCell>
+                                <div>
+                                    <p className="font-medium">{order.customerName}</p>
+                                    <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
+                                </div>
+                            </TableCell>
                             <TableCell>
                             <Badge variant={getStatusVariant(order.status)}>
                                 {order.status}
@@ -316,19 +320,6 @@ export default function ResellerOrdersPage() {
                                     <Badge variant="info">Outsourced</Badge>
                                 ) : (
                                     <Badge variant="secondary">Internal</Badge>
-                                )}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                                {order.documentContact === 'client' ? (
-                                    <div>
-                                        <p className="font-medium">{order.customerName}</p>
-                                        <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <p className="font-medium">{user?.companyName || user?.name}</p>
-                                        <p className="text-xs text-muted-foreground">{user?.email}</p>
-                                    </div>
                                 )}
                             </TableCell>
                             <TableCell className="font-semibold">{formatPrice(order.clientTotal || 0)}</TableCell>
