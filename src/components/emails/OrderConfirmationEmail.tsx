@@ -20,6 +20,8 @@ import { Order, User } from '@/lib/types';
 interface OrderConfirmationEmailProps {
   order: Order;
   reseller?: User;
+  isNewUser?: boolean;
+  generatedPassword?: string | null;
 }
 
 const formatPrice = (price: number) => {
@@ -68,7 +70,7 @@ const button = {
   borderRadius: '5px',
   color: '#fff',
   fontSize: '16px',
-  fontWeight: 'bold' as const,
+  fontWeight: 'bold',
   textDecoration: 'none',
   textAlign: 'center' as const,
   display: 'block',
@@ -124,19 +126,23 @@ const referenceValue = {
     borderRadius: '4px',
 }
 
-export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEmailProps) => {
+export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPassword }: OrderConfirmationEmailProps) => {
     const previewText = `Order Confirmation #${order.id}`;
+    
+    // For reseller orders, greet them by their contact person name. Otherwise, use the customer name.
+    const customerDisplayName = reseller ? reseller.contactPerson : order.customerName;
 
-    const bankingDetails = reseller?.bankingDetails || {
+    // Use My Accountant's banking details by default, unless it's a reseller and they have their own details.
+    const bankingDetails = {
         bankName: 'FNB',
         accountHolder: 'My Accountant (Pty) Ltd',
         accountNumber: '63084378223',
         branchCode: '250655',
     };
 
-    const companyName = reseller?.companyName || 'My Accountant';
-    const companyEmail = reseller?.email || 'info@myacc.co.za';
-    const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : '369 Oak Avenue, Ferndale, Randburg';
+    const companyName = 'My Accountant';
+    const companyEmail = 'info@myacc.co.za';
+    const companyAddress = '369 Oak Avenue, Ferndale, Randburg';
     
     const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za';
 
@@ -149,8 +155,13 @@ export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEma
             <Section style={box}>
                 <Heading style={heading}>Thank You For Your Order!</Heading>
                 <Text style={paragraph}>
-                    Hi {order.customerName},
+                    Hi {customerDisplayName},
                 </Text>
+                 {isNewUser && generatedPassword && (
+                    <Text style={paragraph}>
+                        Welcome to My Accountant! An account has been created for you. You can log in using your email and this temporary password: <strong>{generatedPassword}</strong>.
+                    </Text>
+                 )}
                 <Text style={paragraph}>
                     Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed and is now pending payment.
                 </Text>

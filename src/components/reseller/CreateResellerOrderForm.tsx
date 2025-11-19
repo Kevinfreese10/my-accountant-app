@@ -179,7 +179,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
           bcc: 'kev@thinkestry.co.za',
           subject: confirmationEmailSubject,
           html: emailHtml,
-          resellerId: reseller.id,
+          // resellerId is removed to ensure it sends from the default My Accountant address
         });
       } catch (emailError) {
         console.error("Failed to send reseller email:", emailError);
