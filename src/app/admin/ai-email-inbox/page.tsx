@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
+import { generateEmailReply } from '@/ai/flows/generate-email-reply';
 
 interface Attachment {
     filename: string | null;
@@ -158,16 +159,16 @@ export default function AiEmailInboxPage() {
      const handleRedraft = async (email: Email) => {
         setIsDrafting(true);
         try {
-            const response = await fetch('/api/ai-inbox/draft-reply', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
+            const result = await generateEmailReply({
+                subject: email.subject,
+                body: email.body,
+                sender: email.from,
             });
-            if (!response.ok) throw new Error('Failed to redraft reply.');
-            const { draft } = await response.json();
             
-            setEmails(prevEmails => prevEmails.map(e => e.uid === email.uid ? { ...e, draftReply: draft } : e));
-            setSelectedEmail(prev => prev && prev.uid === email.uid ? { ...prev, draftReply: draft } : prev);
+            const updatedDraft = result.draft;
+            
+            setEmails(prevEmails => prevEmails.map(e => e.uid === email.uid ? { ...e, draftReply: updatedDraft } : e));
+            setSelectedEmail(prev => prev && prev.uid === email.uid ? { ...prev, draftReply: updatedDraft } : prev);
             
             toast({ title: 'Reply Redrafted', description: 'A new draft has been generated.' });
         } catch (err: any) {
@@ -345,9 +346,9 @@ export default function AiEmailInboxPage() {
                                                                         <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); handleCreateTaskFromEmail(email); }}><FilePlus className="mr-2 h-4 w-4"/>Create Task</Button>
                                                                     )}
                                                                     {email.suggestedAction === 'draft_reply' && (
-                                                                        <Button size="sm" variant="secondary" onClick={() => setSelectedEmail(email.uid === selectedEmail?.uid ? null : email)}>
+                                                                        <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); handleRedraft(email); }}>
                                                                             <Reply className="mr-2 h-4 w-4"/>
-                                                                            {selectedEmail?.uid === email.uid ? 'Hide' : 'View'} Draft
+                                                                            Draft Reply
                                                                         </Button>
                                                                     )}
                                                                     {email.suggestedAction === 'archive' && (
@@ -360,7 +361,7 @@ export default function AiEmailInboxPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                         {selectedEmail?.uid === email.uid && selectedEmail.suggestedAction === 'draft_reply' && selectedEmail.draftReply && (
+                                         {selectedEmail?.uid === email.uid && selectedEmail.draftReply && (
                                             <div className="p-4 bg-muted/80 border-t border-b">
                                                 <div className="space-y-2">
                                                     <h4 className="font-semibold">AI Drafted Reply</h4>

@@ -76,16 +76,16 @@ const categorizeSupportRequestFlow = ai.defineFlow(
       1. Create a one-sentence summary of the email's content, including a brief mention of any relevant information found in the attachments.
       2. Triage the email by determining the category, priority, and an appropriate SLA.
       3. Determine if an actionable task can be created from the email and suggest the best next action.
-      4. Do NOT generate a draft reply yourself. If the best action is 'draft_reply', the system will handle it in a subsequent step. Just set the suggestedAction correctly.
+      4. DO NOT generate a draft reply. If the suggested action should be 'draft_reply', simply set that field and do not populate the 'draftReply' field. Another process will handle the draft generation later.
 
       **Triage Guidelines:**
       - Categories: 'Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'.
       - Priorities: Use 'High' for "urgent", "final demand", "deadline", "legal notice". Use 'Low' for newsletters or spam.
       - SLA: High priority = 24 hours, Medium = 48 hours, Low = 72 hours.
 
-      **Task & Action Guidelines:**
-      - If the email contains a clear instruction for work (e.g., "Please file my VAT"), set 'suggestedAction' to 'create_task' and 'task.shouldCreate' to true. The task title must be specific and include the client's name.
-      - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'.
+      **Task, Action, & Reply Guidelines:**
+      - If the email contains a clear instruction for work (e.g., "Please file my VAT"), set 'suggestedAction' to 'create_task' and 'task.shouldCreate' to true. The task title must be specific and include the client's name. Do NOT generate a draft reply.
+      - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'. Do NOT create a task or a draft reply.
       - If the email is marketing, a newsletter, or spam, categorize it as 'Spam/Promo', set priority to 'Low', and set 'suggestedAction' to 'archive'.
       - If no clear action is needed, set 'suggestedAction' to 'none'.
       
@@ -105,27 +105,10 @@ const categorizeSupportRequestFlow = ai.defineFlow(
     });
 
     const {output} = await prompt(input);
-
-    if (output?.suggestedAction === 'draft_reply') {
-        const qaResponse = await websiteQAndA({
-            question: input.request,
-            history: [],
-        });
-        
-        const firstName = input.clientName.replace(/"/g, '').split(' ')[0] || 'there';
-
-        let finalDraft = `Hi ${firstName},\n\nThank you for your email.\n\n${qaResponse.answer}`;
-
-        if (qaResponse.serviceUrl) {
-            const fullUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za'}${qaResponse.serviceUrl}`;
-            finalDraft += `\n\nYou can view and purchase this service directly from our website here: ${fullUrl}`;
-        }
-        
-        finalDraft += `\n\nKind regards,\nWinifred Beukes\nExecutive Assistant to Kevin Freese`;
-        
-        output.draftReply = finalDraft;
-    }
     
+    // The logic to automatically draft a reply has been removed from this flow.
+    // The 'draft_reply' suggestion will now be handled by a separate user action in the UI.
+
     return output!;
   }
 );
