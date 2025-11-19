@@ -112,7 +112,7 @@ export default function BecomeAPartnerPage() {
     {
         icon: '✉️',
         title: 'Seamless Outsourcing (White-Label Model)',
-        description: 'We communicate with you, you communicate with your client.',
+        description: 'We communicate with you — you communicate with your client. All updates, queries, and deliverables are sent directly to you, ensuring that you remain the sole point of contact with your client. Your clients never know the service has been outsourced, ensuring total confidentiality and trust.',
     },
     {
         icon: '🎓',
