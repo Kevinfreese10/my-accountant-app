@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -195,6 +196,39 @@ export default function ResellerOrdersPage() {
         }
       };
 
+    const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        status: newStatus,
+      });
+
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
+
+      toast({
+        title: 'Status Updated',
+        description: `Order ${orderId} has been marked as ${newStatus}.`,
+      });
+
+      if (newStatus === 'Cancelled') {
+        setTimeout(() => {
+          setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Error updating order status: ', error);
+      toast({
+        title: 'Update Failed',
+        description: 'There was a problem updating the order status.',
+        variant: 'destructive',
+      });
+    }
+  };
+
     const getStatusVariant = (status: Order['status']) => {
         switch (status) {
         case 'Completed':
@@ -284,8 +318,18 @@ export default function ResellerOrdersPage() {
                                     <Badge variant="secondary">Internal</Badge>
                                 )}
                             </TableCell>
-                            <TableCell>
-                                <Badge variant="outline" className="capitalize">{order.documentContact}</Badge>
+                            <TableCell className="text-sm">
+                                {order.documentContact === 'client' ? (
+                                    <div>
+                                        <p className="font-medium">{order.customerName}</p>
+                                        <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <p className="font-medium">{user?.companyName || user?.name}</p>
+                                        <p className="text-xs text-muted-foreground">{user?.email}</p>
+                                    </div>
+                                )}
                             </TableCell>
                             <TableCell className="font-semibold">{formatPrice(order.clientTotal || 0)}</TableCell>
                             <TableCell className="text-right">
