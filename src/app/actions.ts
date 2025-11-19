@@ -61,3 +61,11 @@ export async function sendDocumentReviewFeedback({ orderId, clientName, clientEm
         resellerId: resellerId,
     });
 }
+
+export async function sendDraftReply({ to, subject, htmlBody }: { to: string, subject: string, htmlBody: string }) {
+    await sendEmail({
+        to: to,
+        subject: subject,
+        html: htmlBody,
+    });
+}

@@ -41,6 +41,7 @@ import { addDoc, collection, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Task } from '@/lib/types';
 import Link from 'next/link';
+import { sendDraftReply } from '@/app/actions';
 
 type Email = {
   uid: number;
@@ -70,6 +71,7 @@ export default function AIEmailInboxPage() {
   const [isAnalyzing, setIsAnalyzing] = useState<number | null>(null);
   const [isDrafting, setIsDrafting] = useState<number | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState<number | null>(null);
+  const [isSending, setIsSending] = useState<number | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
 
   const { toast } = useToast();
@@ -210,6 +212,30 @@ export default function AIEmailInboxPage() {
     }
   };
 
+  const handleSendReply = async (email: Email) => {
+    if (!email?.analysis?.draftReply) return;
+
+    setIsSending(email.uid);
+    toast({ title: "Sending Reply...", description: "Please wait." });
+    
+    try {
+      const originalSenderEmail = email.from.match(/<(.+)>/)?.[1] || email.from;
+      
+      await sendDraftReply({
+        to: originalSenderEmail,
+        subject: `Re: ${email.subject}`,
+        htmlBody: email.analysis.draftReply.replace(/\n/g, '<br/>'),
+      });
+      
+      toast({ title: "Reply Sent!", description: `Your reply has been sent to ${originalSenderEmail}` });
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Send Failed", description: "Could not send the email.", variant: "destructive" });
+    } finally {
+      setIsSending(null);
+    }
+  }
+
   const handleCreateTask = async (email: Email) => {
     if (!email?.analysis?.task?.shouldCreate || !user) return;
     setIsCreatingTask(email.uid);
@@ -342,8 +368,9 @@ export default function AIEmailInboxPage() {
                           <div className="space-y-4">
                               <h4 className="font-semibold">Draft Reply</h4>
                               <div className="text-sm border p-3 rounded-md bg-blue-50 border-blue-200 whitespace-pre-wrap">{selectedEmail.analysis.draftReply}</div>
-                               <Button size="sm">
-                                  <Send className="mr-2 h-4 w-4"/> Send Reply
+                               <Button size="sm" onClick={() => handleSendReply(selectedEmail)} disabled={isSending === selectedEmail.uid}>
+                                  {isSending === selectedEmail.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>}
+                                  Send Reply
                               </Button>
                           </div>
                       </>
