@@ -85,7 +85,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const adminNavItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
-    { href: '/admin/ai-email-inbox', label: 'AI Email Inbox', icon: Inbox, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
     { href: '/admin/resellers', label: 'Manage Resellers', icon: Users, roles: ['admin'] },
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
