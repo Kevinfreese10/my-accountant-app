@@ -22,7 +22,6 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { getNextOrderId } from '@/lib/sequence';
-import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
 
 const db = getFirestore(firebaseApp);
@@ -152,21 +151,21 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
         customerName: reseller.companyName || reseller.name, // Main contact is reseller
         customerEmail: reseller.email,
         customerPhone: reseller.contactNumber,
-        documentContact: 'reseller', // Always reseller
+        documentContact: 'reseller',
         endCustomerName: `${values.customerFirstName} ${values.customerLastName}`,
         endCustomerEmail: values.customerEmail,
         items: values.items.map(item => ({ 
             id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
             title: item.description, 
             price: item.resellerPrice,
-            clientPrice: item.resellerPrice, // Set client price to reseller price for consistency
+            clientPrice: item.resellerPrice,
             quantity: item.quantity
         })),
         total: resellerTotalCost,
         clientTotal: resellerTotalCost,
         status: 'Pending Payment',
         date: Timestamp.now(),
-        isOutsourced: false,
+        isOutsourced: true, // All reseller-created orders are now considered outsourced
         originalOrderId: null,
       };
 
@@ -196,8 +195,8 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
         description: `Order ${orderId} has been created.`,
       });
       
-      setIsLoading(false);
       onOrderCreated();
+      router.push(`/order-confirmation/${orderId}`);
 
     } catch (error) {
         console.error("Error creating order: ", error);
@@ -206,6 +205,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
             description: 'There was a problem saving the order. Please try again.',
             variant: 'destructive',
         });
+    } finally {
         setIsLoading(false);
     }
   }
@@ -378,7 +378,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
 
         <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid || total === 0}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? 'Creating Order...' : 'Create Order'}
+            {isLoading ? 'Creating Order...' : 'Create Order & Proceed to Payment'}
         </Button>
       </form>
     </Form>
