@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Bot, Send, Trash2, XCircle, FilePlus, Archive, Sparkles, Reply, ArchiveRestore, Eye, FileCheck2, Redo } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Bot, Send, Trash2, XCircle, FilePlus, Archive, Sparkles, Reply, ArchiveRestore, Eye, FileCheck2, Redo, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -57,6 +57,7 @@ export default function AiEmailInboxPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isDrafting, setIsDrafting] = useState(false);
+    const [isFixingTone, setIsFixingTone] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
     const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
@@ -173,6 +174,31 @@ export default function AiEmailInboxPage() {
             toast({ title: 'Redraft Failed', description: err.message, variant: 'destructive' });
         } finally {
             setIsDrafting(false);
+        }
+    };
+    
+    const handleFixTone = async (email: Email) => {
+        if (!email.draftReply) return;
+        setIsFixingTone(true);
+        toast({ title: "Improving Draft...", description: "The AI is refining the tone and content." });
+
+        try {
+            const response = await fetch('/api/ai-inbox/improve-draft', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ draft: email.draftReply, query: email.subject }),
+            });
+            if (!response.ok) throw new Error('Failed to improve draft.');
+            const { improvedDraft } = await response.json();
+
+            setEmails(prevEmails => prevEmails.map(e => e.uid === email.uid ? { ...e, draftReply: improvedDraft } : e));
+            setSelectedEmail(prev => prev && prev.uid === email.uid ? { ...prev, draftReply: improvedDraft } : prev);
+
+            toast({ title: 'Draft Improved!', description: 'The email draft has been refined.' });
+        } catch (err: any) {
+            toast({ title: 'Improvement Failed', description: err.message, variant: 'destructive' });
+        } finally {
+            setIsFixingTone(false);
         }
     };
     
@@ -349,6 +375,9 @@ export default function AiEmailInboxPage() {
                                                         </Button>
                                                         <Button size="sm" variant="outline" onClick={() => handleRedraft(selectedEmail)} disabled={isDrafting}>
                                                              {isDrafting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Redo className="mr-2 h-4 w-4"/>} Redraft
+                                                        </Button>
+                                                         <Button size="sm" variant="outline" onClick={() => handleFixTone(selectedEmail)} disabled={isFixingTone}>
+                                                            {isFixingTone ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Wand2 className="mr-2 h-4 w-4"/>} Fix Grammar &amp; Tone
                                                         </Button>
                                                     </div>
                                                 </div>
