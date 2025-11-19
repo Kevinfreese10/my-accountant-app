@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderForm';
@@ -30,12 +30,9 @@ export default function ResellerDashboardPage() {
     const router = useRouter();
     const { blogPosts, isLoading: isBlogLoading } = useBlog();
     const [orders, setOrders] = useState<Order[]>([]);
-    const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
-    const [isOutsourceModalOpen, setIsOutsourceModalOpen] = useState(false);
     const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
-    const [outsourcedOrderDetails, setOutsourcedOrderDetails] = useState<Order | null>(null);
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const staffCounters = useRef<{ [key: string]: number }>({});
     
@@ -78,18 +75,6 @@ export default function ResellerDashboardPage() {
           } as Order;
         });
         setOrders(clientOrders.filter(order => order.status !== 'Cancelled'));
-
-        const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
-        const outsourcedOrdersSnapshot = await getDocs(outsourcedOrdersQuery);
-        let fetchedOutsourcedOrders = outsourcedOrdersSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                ...data,
-                id: doc.id,
-                date: data.date.toDate(),
-            } as Order;
-        });
-        setOutsourcedOrders(fetchedOutsourcedOrders);
 
       } catch (error) {
         console.error("Error fetching orders: ", error);
@@ -161,7 +146,6 @@ export default function ResellerDashboardPage() {
     
             fetchOrdersAndStaff();
             
-            setOutsourcedOrderDetails(newOrderData as Order);
             router.push(`/order-confirmation/${newOrderId}`);
     
         } catch (error) {
@@ -239,8 +223,6 @@ export default function ResellerDashboardPage() {
     };
 
     const latestNews = blogPosts.slice(0, 3);
-    const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
-    const activeOutsourcedOrders = outsourcedOrders.filter(o => o.status !== 'Pending Payment');
 
     return (
         <div className="space-y-8">
@@ -417,125 +399,6 @@ export default function ResellerDashboardPage() {
                 </CardContent>
             </Card>
       
-       <Card>
-        <CardHeader>
-          <CardTitle>Pending Approval</CardTitle>
-          <CardDescription>
-            These outsourced orders are awaiting your payment to be processed by My Accountant.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             </div>
-          ) : pendingApprovalOrders.length === 0 ? (
-             <p className="text-center text-muted-foreground py-4">No orders are pending approval.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Original Order</TableHead>
-                  <TableHead>Outsourced Date</TableHead>
-                  <TableHead className="text-right">Amount Due</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pendingApprovalOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>
-                      <Button variant="link" asChild className="p-0 h-auto">
-                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
-                      </Button>
-                    </TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
-                    <TableCell className="text-right">
-                       <Button asChild>
-                           <Link href={`/order-confirmation/${order.id}`}>Pay Now</Link>
-                        </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-       <Card>
-        <CardHeader>
-          <CardTitle>My Outsourced Orders</CardTitle>
-          <CardDescription>
-            These are the orders you have sent to My Accountant for fulfillment.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             </div>
-          ) : activeOutsourcedOrders.length === 0 ? (
-             <p className="text-center text-muted-foreground py-4">You have no active outsourced orders.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Original Order</TableHead>
-                  <TableHead>Outsourced Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount Paid</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeOutsourcedOrders.map((order) => {
-                  return (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>
-                      <Button variant="link" asChild className="p-0 h-auto">
-                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
-                      </Button>
-                    </TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusVariant(order.status)}>
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/reseller/outsourced-orders/${order.id}`}>
-                                <ArrowRight className="mr-2 h-4 w-4" />
-                                View Details & History
-                            </Link>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )})}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
+        </div>
+    );
 }
-
-    
