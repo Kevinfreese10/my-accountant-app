@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const navLinks = [
   { href: '/products', label: 'Products' },
@@ -33,6 +33,11 @@ const Header = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   const handleLogout = () => {
     logout();
@@ -47,7 +52,7 @@ const Header = () => {
             My Accountant
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-            {navLinks.map(link => (
+            {isClient && navLinks.map(link => (
               <Link key={link.href} href={link.href} className="text-foreground/80 transition-colors hover:text-foreground">
                 {link.label}
               </Link>
@@ -93,7 +98,7 @@ const Header = () => {
                   <Link href="/" className="text-2xl font-bold text-primary" onClick={() => setMobileMenuOpen(false)}>
                     My Accountant
                   </Link>
-                   {navLinks.map(link => (
+                   {isClient && navLinks.map(link => (
                     <Link key={link.href} href={link.href} className="text-lg font-medium text-foreground/80 transition-colors hover:text-foreground" onClick={() => setMobileMenuOpen(false)}>
                       {link.label}
                     </Link>
