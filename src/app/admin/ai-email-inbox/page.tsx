@@ -86,9 +86,24 @@ export default function AIEmailInboxPage() {
       const response = await fetch('/api/ai-inbox/fetch-emails');
       if (!response.ok) throw new Error('Failed to fetch emails');
       const data = await response.json();
-      setEmails(data.emails);
+      
+      const emailsWithAnalysis = await Promise.all(data.emails.map(async (email: Email) => {
+          try {
+              const analysis = await categorizeSupportRequest({
+                request: `Subject: ${email.subject}\n\n${email.body}`,
+                clientName: email.from,
+              });
+              return { ...email, analysis };
+          } catch(e) {
+              console.error(`Failed to analyze email ${email.uid}`, e);
+              return email; // return email without analysis on error
+          }
+      }));
+
+      setEmails(emailsWithAnalysis);
+
       if (showToast) {
-        toast({ title: 'Success!', description: `Found ${data.emails.length} new emails.` });
+        toast({ title: 'Success!', description: `Found and analyzed ${data.emails.length} new emails.` });
       }
     } catch (error) {
       console.error('Error fetching emails:', error);
@@ -228,59 +243,64 @@ export default function AIEmailInboxPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between p-4">
-            <CardTitle className="flex items-center gap-2">
-              <Inbox />
-              Inbox
-            </CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleRefresh}
-              disabled={isLoading}
-            >
-              <RefreshCw className={cn(isLoading && 'animate-spin')} />
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="flex justify-center items-center h-full p-8">
-                <Loader2 className="animate-spin" />
-              </div>
-            ) : emails.length === 0 ? (
-              <div className="text-center text-muted-foreground p-8">
-                <p>No unread emails found.</p>
-              </div>
-            ) : (
-              <ul className="divide-y">
-                {emails.map((email) => (
-                  <li key={email.uid}>
-                    <div className="w-full text-left p-4 hover:bg-muted/50 flex justify-between items-center">
-                        <div>
-                            <div className="flex justify-between items-center text-xs">
-                                <p className="font-semibold truncate">{email.from}</p>
-                                <p className="text-muted-foreground">{new Date(email.date).toLocaleDateString()}</p>
-                            </div>
-                            <p className="font-medium truncate text-sm">{email.subject}</p>
-                            {email.analysis && (
-                                <div className="flex items-center gap-2 mt-1">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
+      </div>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between p-4">
+          <div className="flex items-center gap-2">
+            <Inbox />
+            <CardTitle>Inbox</CardTitle>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={cn(isLoading && 'animate-spin')} />
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex justify-center items-center h-full p-8">
+              <Loader2 className="animate-spin h-8 w-8 text-primary" />
+            </div>
+          ) : emails.length === 0 ? (
+            <div className="text-center text-muted-foreground p-8">
+              <p>No unread emails found.</p>
+            </div>
+          ) : (
+            <ul className="divide-y">
+              {emails.map((email) => (
+                <li key={email.uid}>
+                  <div className="w-full text-left p-4 hover:bg-muted/50 flex justify-between items-center">
+                      <div className="flex-grow">
+                          <div className="flex justify-between items-start text-xs">
+                              <p className="font-semibold truncate">{email.from}</p>
+                              <p className="text-muted-foreground flex-shrink-0 ml-4">{new Date(email.date).toLocaleDateString()}</p>
+                          </div>
+                          <p className="font-medium truncate text-sm">{email.subject}</p>
+                          {email.analysis && (
+                            <>
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{email.analysis.summary}</p>
+                                <div className="flex items-center gap-2 mt-2">
                                     <Badge variant="secondary">{email.analysis.category}</Badge>
                                     <Badge variant={getPriorityBadgeVariant(email.analysis.priority)}>{email.analysis.priority}</Badge>
                                 </div>
-                            )}
-                        </div>
-                        <Button variant="outline" size="sm" onClick={() => handleViewEmail(email)}>
-                            <Eye className="mr-2 h-4 w-4" /> View
-                        </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+                            </>
+                          )}
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => handleViewEmail(email)} className="ml-4 flex-shrink-0">
+                          <Eye className="mr-2 h-4 w-4" /> View
+                      </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
         <DialogContent className="sm:max-w-2xl">
@@ -309,7 +329,7 @@ export default function AIEmailInboxPage() {
                               <h4 className="font-semibold">Draft Reply</h4>
                               <div className="text-sm border p-3 rounded-md bg-blue-50 border-blue-200 whitespace-pre-wrap">{selectedEmail.draft}</div>
                                <Button size="sm">
-                                  <Send className="mr-2"/> Send Reply
+                                  <Send className="mr-2 h-4 w-4"/> Send Reply
                               </Button>
                           </div>
                       </>
@@ -318,21 +338,21 @@ export default function AIEmailInboxPage() {
               <DialogFooter className="border-t pt-4">
                  <div className="flex items-center gap-2 pt-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => handleAnalyze(selectedEmail)} disabled={isAnalyzing === selectedEmail.uid}>
-                        {isAnalyzing === selectedEmail.uid ? <Loader2 className="mr-2 animate-spin"/> : <Bot className="mr-2"/>} Analyze
+                        {isAnalyzing === selectedEmail.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4"/>} Analyze
                     </Button>
                     {selectedEmail.analysis?.suggestedAction === 'create_task' && (
                         <Button size="sm" onClick={() => handleCreateTask(selectedEmail)} disabled={isCreatingTask === selectedEmail.uid}>
-                            {isCreatingTask === selectedEmail.uid ? <Loader2 className="animate-spin" /> : <BookUser className="mr-2"/>} Create Task
+                            {isCreatingTask === selectedEmail.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookUser className="mr-2 h-4 w-4"/>} Create Task
                         </Button>
                     )}
                      {selectedEmail.analysis?.suggestedAction === 'draft_reply' && (
                         <Button size="sm" onClick={() => handleDraftReply(selectedEmail)} disabled={isDrafting === selectedEmail.uid}>
-                            {isDrafting === selectedEmail.uid ? <Loader2 className="animate-spin" /> : <Edit className="mr-2"/>} Draft Reply
+                            {isDrafting === selectedEmail.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit className="mr-2 h-4 w-4"/>} Draft Reply
                         </Button>
                     )}
                      {selectedEmail.analysis?.suggestedAction === 'archive' && (
                         <Button size="sm" variant="destructive" onClick={() => {}}>
-                            <Archive className="mr-2"/> Archive
+                            <Archive className="mr-2 h-4 w-4"/> Archive
                         </Button>
                     )}
                 </div>
