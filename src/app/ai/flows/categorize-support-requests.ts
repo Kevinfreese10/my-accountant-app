@@ -112,11 +112,14 @@ const categorizeSupportRequestFlow = ai.defineFlow(
             history: [],
         });
         
+        // Sanitize client name and get first name
+        const firstName = input.clientName.replace(/"/g, '').split(' ')[0] || 'there';
+
         // Format the Q&A answer into a more email-friendly format.
-        let finalDraft = `Hi ${input.clientName.split(' ')[0] || 'there'},\n\nThank you for your email.\n\n${qaResponse.answer}`;
+        let finalDraft = `Hi ${firstName},\n\nThank you for your email.\n\n${qaResponse.answer}`;
 
         if (qaResponse.serviceUrl) {
-            const fullUrl = `${process.env.NEXT_PUBLIC_APP_URL}${qaResponse.serviceUrl}`;
+            const fullUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za'}${qaResponse.serviceUrl}`;
             finalDraft += `\n\nYou can view and purchase this service directly from our website here: ${fullUrl}`;
         }
         
