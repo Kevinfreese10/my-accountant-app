@@ -119,7 +119,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/reseller/services', label: 'View Products', icon: Briefcase, roles: ['reseller'] },
     { href: '/reseller/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['reseller'] },
     { href: '/reseller/profile', label: 'My Profile', icon: User, roles: ['reseller'] },
-    { href: '/reseller/settings', label: 'API & Branding', icon: Settings, roles: ['reseller'] },
   ];
 
   const hasAIAccountantProfile = user.hasAIAccountantProfile || user.source === 'AI Accountant';
