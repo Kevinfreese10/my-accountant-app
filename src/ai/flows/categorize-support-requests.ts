@@ -12,7 +12,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { generateEmailReply } from './generate-email-reply';
 
 const AttachmentSchema = z.object({
   filename: z.string().nullable(),
@@ -127,16 +126,17 @@ const categorizeSupportRequestFlow = ai.defineFlow(
         const [subjectLine, ...bodyParts] = input.request.split('\n\n');
         const subject = subjectLine.replace('Subject: ', '');
         const body = bodyParts.join('\n\n');
-
-        const replyResult = await generateEmailReply({
-            subject: subject,
-            body: body,
-            sender: input.clientName,
-        });
         
-        if (replyResult.draft) {
-          categorizationOutput.draftReply = replyResult.draft;
-        }
+        // Temporarily disable the generateEmailReply call
+        // const replyResult = await generateEmailReply({
+        //     subject: subject,
+        //     body: body,
+        //     sender: input.clientName,
+        // });
+        
+        // if (replyResult.draft) {
+        //   categorizationOutput.draftReply = replyResult.draft;
+        // }
 
       } catch (replyError) {
           console.error("Failed to generate draft reply:", replyError);

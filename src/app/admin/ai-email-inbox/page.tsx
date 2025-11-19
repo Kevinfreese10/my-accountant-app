@@ -89,33 +89,10 @@ export default function AIEmailInboxPage() {
       const response = await fetch('/api/ai-inbox/fetch-emails');
       if (!response.ok) throw new Error('Failed to fetch emails');
       const data = await response.json();
-      
-      const emailsWithAnalysis = await Promise.all(data.emails.map(async (email: Email) => {
-          try {
-              const analysis = await categorizeSupportRequest({
-                request: `Subject: ${email.subject}\n\n${email.body}`,
-                clientName: email.from,
-              });
-              return { ...email, analysis };
-          } catch(e: any) {
-              console.error(`Failed to analyze email ${email.uid}`, e);
-              // If the model is overloaded, show a specific error to the user
-              if (e.message && e.message.includes('503 Service Unavailable')) {
-                  toast({
-                      title: `AI Analysis Skipped for "${email.subject}"`,
-                      description: "The AI model is currently overloaded. Please try analyzing this email again later.",
-                      variant: "destructive",
-                      duration: 10000,
-                  });
-              }
-              return email; // return email without analysis on error
-          }
-      }));
-
-      setEmails(emailsWithAnalysis);
+      setEmails(data.emails);
 
       if (showToast) {
-        toast({ title: 'Success!', description: `Found and analyzed ${data.emails.length} new emails.` });
+        toast({ title: 'Success!', description: `Found ${data.emails.length} new emails.` });
       }
     } catch (error) {
       console.error('Error fetching emails:', error);
@@ -171,8 +148,17 @@ export default function AIEmailInboxPage() {
         title: 'Analysis Complete!',
         description: `Category: ${result.category}, Priority: ${result.priority}`,
       });
-    } catch (error) {
-      toast({ title: 'Analysis Failed', variant: 'destructive' });
+    } catch (error: any) {
+        if (error.message && error.message.includes('503 Service Unavailable')) {
+          toast({
+              title: `AI Analysis Failed`,
+              description: "The AI model is currently overloaded. Please try again later.",
+              variant: "destructive",
+              duration: 10000,
+          });
+      } else {
+        toast({ title: 'Analysis Failed', variant: 'destructive' });
+      }
     } finally {
       setIsAnalyzing(null);
     }
@@ -331,9 +317,14 @@ export default function AIEmailInboxPage() {
                             </>
                           )}
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => handleViewEmail(email)} className="ml-4 flex-shrink-0">
-                          <Eye className="mr-2 h-4 w-4" /> View
-                      </Button>
+                      <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                         <Button variant="outline" size="sm" onClick={() => handleAnalyze(email)} disabled={isAnalyzing === email.uid || !!email.analysis}>
+                            {isAnalyzing === email.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4"/>} Analyze
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleViewEmail(email)}>
+                              <Eye className="mr-2 h-4 w-4" /> View
+                          </Button>
+                      </div>
                   </div>
                 </li>
               ))}
@@ -359,6 +350,10 @@ export default function AIEmailInboxPage() {
                           <div className="space-y-4">
                               <h4 className="font-semibold">AI Analysis</h4>
                               <p className="text-sm border p-3 rounded-md bg-muted/50"><strong>Summary:</strong> {selectedEmail.analysis.summary}</p>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary">{selectedEmail.analysis.category}</Badge>
+                                <Badge variant={getPriorityBadgeVariant(selectedEmail.analysis.priority)}>{selectedEmail.analysis.priority}</Badge>
+                              </div>
                           </div>
                       </>
                   )}
@@ -378,9 +373,6 @@ export default function AIEmailInboxPage() {
               </div>
               <DialogFooter className="border-t pt-4">
                  <div className="flex items-center gap-2 pt-2 flex-wrap">
-                    <Button size="sm" variant="outline" onClick={() => handleAnalyze(selectedEmail)} disabled={isAnalyzing === selectedEmail.uid}>
-                        {isAnalyzing === selectedEmail.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4"/>} Analyze
-                    </Button>
                     {selectedEmail.analysis?.suggestedAction === 'create_task' && (
                         <Button size="sm" onClick={() => handleCreateTask(selectedEmail)} disabled={isCreatingTask === selectedEmail.uid}>
                             {isCreatingTask === selectedEmail.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookUser className="mr-2 h-4 w-4"/>} Create Task
