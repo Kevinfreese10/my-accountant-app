@@ -10,6 +10,12 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import { fetchKnowledgeBase } from '@/lib/knowledge-base';
+import { getFirestore, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { Service, BlogPost } from '@/lib/types';
+
+const db = getFirestore(firebaseApp);
 
 const GenerateEmailReplyInputSchema = z.object({
   subject: z.string().describe('The subject of the original email.'),
@@ -29,31 +35,6 @@ export async function generateEmailReply(
   return generateEmailReplyFlow(input);
 }
 
-const prompt = ai.definePrompt({
-  name: 'generateEmailReplyPrompt',
-  input: { schema: GenerateEmailReplyInputSchema },
-  output: { schema: GenerateEmailReplyOutputSchema },
-  prompt: `You are an expert administrative assistant for an accounting firm called "My Accountant". Your name is Khai.
-
-Your task is to draft a professional and helpful reply to the following email.
-
-- Your tone should be friendly, professional, and reassuring.
-- Address the sender by their name if it's available.
-- Directly address the main point of their email.
-- If they are asking a question, try to answer it. If they are sending documents, acknowledge receipt.
-- Keep the reply concise.
-- End with a friendly closing (e.g., "Regards," or "Kind regards,") followed by your name, "Khai", and the company name, "My Accountant".
-
-**Original Email:**
-**From:** {{{sender}}}
-**Subject:** {{{subject}}}
-
-**Body:**
-{{{body}}}
----
-`,
-});
-
 const generateEmailReplyFlow = ai.defineFlow(
   {
     name: 'generateEmailReplyFlow',
@@ -61,6 +42,58 @@ const generateEmailReplyFlow = ai.defineFlow(
     outputSchema: GenerateEmailReplyOutputSchema,
   },
   async (input) => {
+    
+    // Fetch live data from Firestore
+    const servicesSnapshot = await getDocs(query(collection(db, 'services'), orderBy('title')));
+    const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+
+    const blogPostsSnapshot = await getDocs(query(collection(db, 'blogPosts'), orderBy('date', 'desc')));
+    const blogPosts = blogPostsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BlogPost));
+    
+    const knowledgeBaseItems = await fetchKnowledgeBase();
+
+    const websiteContent = `
+        SERVICES:
+        ${services.map(s => `Title: ${s.title}, URL: /services/${s.slug}, Description: ${s.longDescription}, Price: R${s.price}, Turnaround Time: ${s.turnaroundTime}`).join('\n\n')}
+
+        BLOG POSTS:
+        ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
+
+        KNOWLEDGE BASE:
+        ${knowledgeBaseItems.map(item => `Question: ${item.question}, Answer: ${item.answer}`).join('\n\n')}
+    `;
+
+    const prompt = ai.definePrompt({
+        name: 'generateEmailReplyPrompt',
+        input: { schema: GenerateEmailReplyInputSchema },
+        output: { schema: GenerateEmailReplyOutputSchema },
+        prompt: `You are an expert administrative assistant for an accounting firm called "My Accountant". Your name is Winifred Beukes.
+
+        Your task is to draft a professional and helpful reply to the following email.
+        - Your tone should be friendly, professional, and reassuring.
+        - Address the sender by their name if it's available.
+        - Directly address the main point of their email.
+        - If they are asking about a specific service, use the CONTEXT provided below to find the service and include its price and turnaround time in your answer.
+        - If they are asking a general question, try to find an answer in the CONTEXT.
+        - If they are sending documents, acknowledge receipt.
+        - Keep the reply concise.
+        - End with a friendly closing (e.g., "Kind regards,") followed by your name "Winifred Beukes" and your title "Executive Assistant to Kevin Freese".
+
+        CONTEXT:
+        ---
+        ${websiteContent}
+        ---
+
+        **Original Email:**
+        **From:** {{{sender}}}
+        **Subject:** {{{subject}}}
+
+        **Body:**
+        {{{body}}}
+        ---
+        `,
+    });
+
     const { output } = await prompt(input);
     return output!;
   }

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Bot, Send, Trash2, XCircle, FilePlus, Archive, Sparkles, Reply, ArchiveRestore, Eye, FileCheck2 } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Bot, Send, Trash2, XCircle, FilePlus, Archive, Sparkles, Reply, ArchiveRestore, Eye, FileCheck2, Redo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -153,6 +153,28 @@ export default function AiEmailInboxPage() {
             setIsAnalyzing(false);
         }
     }
+
+     const handleRedraft = async (email: Email) => {
+        setIsDrafting(true);
+        try {
+            const response = await fetch('/api/ai-inbox/draft-reply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+            if (!response.ok) throw new Error('Failed to redraft reply.');
+            const { draft } = await response.json();
+            
+            setEmails(prevEmails => prevEmails.map(e => e.uid === email.uid ? { ...e, draftReply: draft } : e));
+            setSelectedEmail(prev => prev && prev.uid === email.uid ? { ...prev, draftReply: draft } : prev);
+            
+            toast({ title: 'Reply Redrafted', description: 'A new draft has been generated.' });
+        } catch (err: any) {
+            toast({ title: 'Redraft Failed', description: err.message, variant: 'destructive' });
+        } finally {
+            setIsDrafting(false);
+        }
+    };
     
     const handleCreateTaskFromEmail = async (email: Email) => {
         toast({ title: 'Creating Task...', description: `Creating a new task from email: ${email.subject}`});
@@ -319,10 +341,16 @@ export default function AiEmailInboxPage() {
                                                     <Textarea
                                                         defaultValue={selectedEmail.draftReply}
                                                         rows={6}
+                                                        key={selectedEmail.draftReply} // Re-render when draft changes
                                                     />
-                                                    <Button size="sm" disabled={!selectedEmail.draftReply} onClick={() => handleSendEmail(selectedEmail, selectedEmail.draftReply || '')}>
-                                                        <Send className="mr-2 h-4 w-4" /> Send Reply
-                                                    </Button>
+                                                     <div className="flex gap-2">
+                                                        <Button size="sm" disabled={!selectedEmail.draftReply} onClick={() => handleSendEmail(selectedEmail, selectedEmail.draftReply || '')}>
+                                                            <Send className="mr-2 h-4 w-4" /> Send Reply
+                                                        </Button>
+                                                        <Button size="sm" variant="outline" onClick={() => handleRedraft(selectedEmail)} disabled={isDrafting}>
+                                                             {isDrafting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Redo className="mr-2 h-4 w-4"/>} Redraft
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
