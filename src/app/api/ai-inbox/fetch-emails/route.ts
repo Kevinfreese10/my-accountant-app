@@ -12,10 +12,10 @@ const config = {
         host: 'mail.myacc.co.za',
         port: 993,
         tls: true,
-        authTimeout: 10000,
         tlsOptions: {
             rejectUnauthorized: false
-        }
+        },
+        authTimeout: 10000,
     },
 };
 
