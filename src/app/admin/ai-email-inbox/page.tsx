@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Inbox, RefreshCw, Bot, Send, ArrowRight, BookUser, Archive, Edit } from "lucide-react";
-import { useToast } from "@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
@@ -156,6 +157,7 @@ export default function AIEmailInboxPage() {
             case 'High': return 'destructive';
             case 'Medium': return 'warning';
             case 'Low': return 'secondary';
+            default: return 'secondary';
         }
     };
 
@@ -216,6 +218,21 @@ export default function AIEmailInboxPage() {
                                     <Button size="sm" variant="outline" onClick={() => handleAnalyze(selectedEmail)} disabled={isAnalyzing === selectedEmail.uid}>
                                         {isAnalyzing === selectedEmail.uid ? <Loader2 className="mr-2 animate-spin"/> : <Bot className="mr-2"/>} Analyze
                                     </Button>
+                                    {selectedEmail.analysis?.suggestedAction === 'create_task' && (
+                                        <Button size="sm" onClick={() => handleCreateTask(selectedEmail)} disabled={isCreatingTask === selectedEmail.uid}>
+                                            {isCreatingTask === selectedEmail.uid ? <Loader2 className="animate-spin" /> : <BookUser className="mr-2"/>} Create Task
+                                        </Button>
+                                    )}
+                                     {selectedEmail.analysis?.suggestedAction === 'draft_reply' && (
+                                        <Button size="sm" onClick={() => handleDraftReply(selectedEmail)} disabled={isDrafting === selectedEmail.uid}>
+                                            {isDrafting === selectedEmail.uid ? <Loader2 className="animate-spin" /> : <Edit className="mr-2"/>} Draft Reply
+                                        </Button>
+                                    )}
+                                     {selectedEmail.analysis?.suggestedAction === 'archive' && (
+                                        <Button size="sm" variant="destructive" onClick={() => {}}>
+                                            <Archive className="mr-2"/> Archive
+                                        </Button>
+                                    )}
                                 </div>
                             </CardHeader>
                             <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -226,36 +243,18 @@ export default function AIEmailInboxPage() {
                                         <div className="space-y-4">
                                             <h4 className="font-semibold">AI Analysis</h4>
                                             <p className="text-sm border p-3 rounded-md bg-muted/50"><strong>Summary:</strong> {selectedEmail.analysis.summary}</p>
-                                            
-                                            {selectedEmail.analysis.task?.shouldCreate && (
-                                                <div className="p-4 border rounded-md bg-green-50 border-green-200">
-                                                    <div className="flex justify-between items-center">
-                                                        <div>
-                                                            <h5 className="font-bold text-green-800">Suggested Task</h5>
-                                                            <p className="text-sm text-green-700">{selectedEmail.analysis.task.title}</p>
-                                                        </div>
-                                                        <Button size="sm" onClick={() => handleCreateTask(selectedEmail)} disabled={isCreatingTask === selectedEmail.uid}>
-                                                            {isCreatingTask === selectedEmail.uid ? <Loader2 className="animate-spin" /> : <BookUser className="mr-2"/>} Create Task
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {selectedEmail.analysis.suggestedAction === 'draft_reply' && (
-                                                 <div className="p-4 border rounded-md bg-blue-50 border-blue-200 space-y-2">
-                                                    <div className="flex justify-between items-center">
-                                                        <h5 className="font-bold text-blue-800">Suggested Action: Draft Reply</h5>
-                                                        <Button size="sm" onClick={() => handleDraftReply(selectedEmail)} disabled={isDrafting === selectedEmail.uid}>
-                                                            {isDrafting === selectedEmail.uid ? <Loader2 className="animate-spin" /> : <Edit className="mr-2"/>} Draft
-                                                        </Button>
-                                                    </div>
-                                                     {selectedEmail.draft && (
-                                                        <div className="pt-2">
-                                                            <p className="text-sm bg-white p-3 border rounded-md whitespace-pre-wrap">{selectedEmail.draft}</p>
-                                                        </div>
-                                                     )}
-                                                </div>
-                                            )}
+                                        </div>
+                                    </>
+                                )}
+                                 {selectedEmail.draft && (
+                                    <>
+                                        <Separator />
+                                        <div className="space-y-4">
+                                            <h4 className="font-semibold">Draft Reply</h4>
+                                            <div className="text-sm border p-3 rounded-md bg-blue-50 border-blue-200 whitespace-pre-wrap">{selectedEmail.draft}</div>
+                                             <Button size="sm">
+                                                <Send className="mr-2"/> Send Reply
+                                            </Button>
                                         </div>
                                     </>
                                 )}
