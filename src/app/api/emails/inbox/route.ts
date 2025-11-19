@@ -7,7 +7,7 @@ import { simpleParser } from 'mailparser';
 export async function GET() {
   const config = {
     imap: {
-      user: 'invoices2@myacc.co.za',
+      user: 'info@myacc.co.za',
       password: 'Thinkestry10$',
       host: 'mail.myacc.co.za',
       port: 993,
