@@ -107,7 +107,7 @@ export default function InvoicesPage() {
         element.style.position = 'absolute';
         element.style.left = '-9999px';
         element.style.top = '0';
-        element.style.width = '800px'; // A standard width for invoices
+        element.style.width = '800px'; 
         document.body.appendChild(element);
 
         const root = createRoot(element);
@@ -115,7 +115,7 @@ export default function InvoicesPage() {
             root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
         });
         
-        await new Promise(resolve => setTimeout(resolve, 100)); // Allow content to render
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         const invoiceElement = element.children[0] as HTMLElement;
 
@@ -123,9 +123,9 @@ export default function InvoicesPage() {
             scale: 2,
             useCORS: true,
             width: invoiceElement.scrollWidth,
-            height: invoiceElement.scrollHeight,
+            height: invoiceElement.scrollHeight + 20, // Add a small buffer to height
             windowWidth: invoiceElement.scrollWidth,
-            windowHeight: invoiceElement.scrollHeight,
+            windowHeight: invoiceElement.scrollHeight + 20,
         });
 
         const imgData = canvas.toDataURL('image/png');
