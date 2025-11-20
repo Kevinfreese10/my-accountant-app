@@ -10,7 +10,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import ClientForm from '@/components/admin/ClientForm';
+import AICustomerForm from '@/components/admin/AICustomerForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -270,14 +270,13 @@ export default function ClientCustomersPage() {
                                 <DialogHeader>
                                     <DialogTitle>{selectedCustomer ? 'Edit' : 'Create New'} Customer</DialogTitle>
                                     <DialogDescription>
-                                        Add a new customer for this client.
+                                        Add or edit a customer for this client. This information will be used for invoicing.
                                     </DialogDescription>
                                 </DialogHeader>
-                                    <ClientForm 
-                                    client={selectedCustomer} 
-                                    onSubmit={handleFormSubmit}
-                                    onCancel={() => setIsFormOpen(false)}
-                                    isAIClient={true}
+                                    <AICustomerForm 
+                                        customer={selectedCustomer} 
+                                        onSubmit={handleFormSubmit}
+                                        onCancel={() => setIsFormOpen(false)}
                                 />
                             </DialogContent>
                         </Dialog>
@@ -323,9 +322,6 @@ export default function ClientCustomersPage() {
                                                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                         <DropdownMenuItem onSelect={() => handleEdit(customer)}>
                                                             <Edit className="mr-2 h-4 w-4" /> Edit
-                                                        </DropdownMenuItem>
-                                                            <DropdownMenuItem asChild>
-                                                            <Link href={`/admin/ai-accountant/${clientId}/journals?type=customer&actorId=${customer.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
                                                         </DropdownMenuItem>
                                                         <AlertDialogTrigger asChild>
                                                             <DropdownMenuItem className="text-destructive">
