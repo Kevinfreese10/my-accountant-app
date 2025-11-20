@@ -101,31 +101,54 @@ export default function InvoicesPage() {
             toast({ title: "Error", description: "Cannot generate PDF without client or customer data.", variant: "destructive" });
             return;
         }
-
+    
         const element = document.createElement("div");
+        // Use a fixed width and let height be auto.
+        // Position it off-screen but in the DOM so it has dimensions.
         element.style.position = 'absolute';
-        element.style.left = '-9999px'; // Position off-screen
-        element.style.width = '800px'; // A reasonable width for rendering
+        element.style.left = '-9999px';
+        element.style.width = '210mm'; // Standard A4 width
         document.body.appendChild(element);
         
         const root = createRoot(element);
-
-        // Use flushSync to ensure the component is fully rendered before we proceed
+    
         flushSync(() => {
             root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
         });
-        
-        // No need for a timeout anymore, flushSync handles it.
-        const canvas = await html2canvas(element, { scale: 2 });
-        const data = canvas.toDataURL('image/png');
-        
-        const report = new jsPDF('portrait','pt','a4');
-        const pdfWidth = report.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        
-        report.addImage(data, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        report.save(`Invoice-${invoiceToDownload.id}.pdf`);
-        
+    
+        const canvas = await html2canvas(element, { 
+            scale: 2, // Higher scale for better quality
+            useCORS: true 
+        });
+        const imgData = canvas.toDataURL('image/png');
+    
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+    
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+    
+        const ratio = imgWidth / pdfWidth;
+        const canvasHeightInPdf = imgHeight / ratio;
+    
+        let heightLeft = canvasHeightInPdf;
+        let position = 0;
+    
+        // Add the first page
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightInPdf);
+        heightLeft -= pdfHeight;
+    
+        // Add new pages if content is taller than one page
+        while (heightLeft > 0) {
+            position = heightLeft - canvasHeightInPdf;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightInPdf);
+            heightLeft -= pdfHeight;
+        }
+    
+        pdf.save(`Invoice-${invoiceToDownload.id}.pdf`);
+    
         // Cleanup
         root.unmount();
         document.body.removeChild(element);
