@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, PlusCircle, FileUp, Download } from 'lucide-react';
-import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp, orderBy, where, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp, orderBy, where, onSnapshot, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, AllocatedTransaction } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -147,7 +147,7 @@ function ImportCustomersDialog({ clientId, onImportComplete }: { clientId: strin
                     <div className="flex items-center justify-between">
                          <Label htmlFor="customer-file">Customer File</Label>
                          <Button variant="outline" size="sm" onClick={handleDownloadExample}><Download className="mr-2 h-4 w-4"/> Download Example</Button>
-                    </div>
+                     </div>
                     <Input id="customer-file" type="file" accept=".xlsx, .csv" onChange={handleFileChange} disabled={isUploading} />
                     {isUploading && <div className="flex items-center mt-2 text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Processing...</div>}
                 </div>
