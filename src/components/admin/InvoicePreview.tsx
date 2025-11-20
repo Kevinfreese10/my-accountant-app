@@ -50,39 +50,42 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
     return (
         <div ref={ref} className="p-8 bg-white text-gray-800 max-h-[80vh] overflow-y-auto">
             <header className="flex justify-between items-start mb-10">
-                <div className="space-y-1">
-                    {client.logoUrl && (
-                        <div className="relative h-20 w-48 mb-4">
-                            <Image src={client.logoUrl} alt={`${client.companyName || client.name} Logo`} fill className="object-contain object-left"/>
+                {/* Left Column */}
+                <div className="space-y-6 w-1/2">
+                    <div className="space-y-1">
+                        {client.logoUrl && (
+                            <div className="relative h-20 w-48 mb-4">
+                                <Image src={client.logoUrl} alt={`${client.companyName || client.name} Logo`} fill className="object-contain object-left"/>
+                            </div>
+                        )}
+                        <h1 className="text-3xl font-bold text-gray-900">{client.companyName || client.name}</h1>
+                        <div className="text-sm text-gray-600">
+                            {renderAddress(client.address)}
                         </div>
-                    )}
-                    <h1 className="text-3xl font-bold text-gray-900">{client.companyName || client.name}</h1>
-                    <div className="text-sm text-gray-600 max-w-xs">
-                        {renderAddress(client.address)}
+                        {client.isVatRegistered && client.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {client.vatNumber}</p>}
                     </div>
-                    {client.isVatRegistered && client.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {client.vatNumber}</p>}
+
+                    <div className="space-y-1">
+                        <p className="text-sm font-semibold text-gray-600">Bill To:</p>
+                        <p className="text-lg font-bold text-gray-800">{customer.name}</p>
+                        {renderAddress(customer.address)}
+                        {customer.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {customer.vatNumber}</p>}
+                    </div>
                 </div>
+
+                {/* Right Column */}
                 <div className="text-right space-y-2">
                     <h2 className="text-4xl font-extrabold uppercase text-gray-400">Tax Invoice</h2>
-                    <div className="grid grid-cols-2 gap-x-4 text-sm">
+                    <div className="grid grid-cols-[auto_1fr] gap-x-4 text-sm text-right">
                         <span className="font-semibold text-gray-600">Invoice Number:</span>
-                        <span>{invoice.id}</span>
+                        <span className="text-left">{invoice.id}</span>
                         <span className="font-semibold text-gray-600">Date:</span>
-                        <span>{format(invoice.invoiceDate, 'dd/MM/yyyy')}</span>
+                        <span className="text-left">{format(invoice.invoiceDate, 'dd/MM/yyyy')}</span>
                         <span className="font-semibold text-gray-600">Due Date:</span>
-                        <span>{format(invoice.dueDate, 'dd/MM/yyyy')}</span>
+                        <span className="text-left">{format(invoice.dueDate, 'dd/MM/yyyy')}</span>
                     </div>
                 </div>
             </header>
-
-            <section className="mb-10">
-                <div className="space-y-1">
-                    <p className="text-sm font-semibold text-gray-600">Bill To:</p>
-                    <p className="text-lg font-bold text-gray-800">{customer.name}</p>
-                    {renderAddress(customer.address)}
-                    {customer.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {customer.vatNumber}</p>}
-                </div>
-            </section>
 
             <section className="mb-10">
                 <table className="w-full text-left">
