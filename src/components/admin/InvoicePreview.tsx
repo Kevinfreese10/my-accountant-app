@@ -74,7 +74,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 </div>
 
                 {/* Right Column */}
-                <div className="text-right space-y-2">
+                <div className="text-right space-y-4">
                     <h2 className="text-4xl font-extrabold uppercase text-gray-400">Tax Invoice</h2>
                     <div className="grid grid-cols-[auto_1fr] gap-x-4 text-sm text-right">
                         <span className="font-semibold text-gray-600">Invoice Number:</span>
@@ -84,6 +84,22 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                         <span className="font-semibold text-gray-600">Due Date:</span>
                         <span className="text-left">{format(invoice.dueDate, 'dd/MM/yyyy')}</span>
                     </div>
+
+                    {hasBankingDetails && (
+                        <div className="text-left border-t pt-4 mt-4 space-y-1">
+                            <p className="text-sm font-semibold text-gray-600">Banking Details:</p>
+                             <div className="grid grid-cols-[110px_1fr] text-sm">
+                                <span className="font-medium text-gray-600">Account Holder:</span>
+                                <span>{client.bankingDetails?.accountHolder}</span>
+                                <span className="font-medium text-gray-600">Bank:</span>
+                                <span>{client.bankingDetails?.bankName}</span>
+                                <span className="font-medium text-gray-600">Account:</span>
+                                <span>{client.bankingDetails?.accountNumber}</span>
+                                <span className="font-medium text-gray-600">Branch Code:</span>
+                                <span>{client.bankingDetails?.branchCode}</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </header>
 
@@ -140,13 +156,9 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 </section>
             )}
 
-            {hasBankingDetails && (
-                <footer className="text-center text-sm text-gray-500 border-t pt-6">
-                    <p className="font-semibold">Banking Details</p>
-                    <p>{client.bankingDetails?.bankName} | Account: {client.bankingDetails?.accountNumber} | Branch: {client.bankingDetails?.branchCode}</p>
-                    <p>Thank you for your business!</p>
-                </footer>
-            )}
+            <footer className="text-center text-sm text-gray-500 border-t pt-6">
+                <p>Thank you for your business!</p>
+            </footer>
         </div>
     );
 });
