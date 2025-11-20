@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Invoice, ClientCustomer, User } from "@/lib/types";
@@ -48,7 +49,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
     };
 
     return (
-        <div ref={ref} className="p-8 bg-white text-gray-800 max-h-[80vh] overflow-y-auto">
+        <div ref={ref} className="p-8 bg-white text-gray-800">
             <header className="flex justify-between items-start mb-10">
                 {/* Left Column */}
                 <div className="w-1/2 space-y-6">

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -103,12 +104,18 @@ export default function InvoicesPage() {
         }
 
         const element = document.createElement("div");
+        element.style.position = 'absolute';
+        element.style.left = '-9999px';
+        element.style.top = '0';
+        element.style.width = '800px'; // A standard width for invoices
         document.body.appendChild(element);
 
         const root = createRoot(element);
         flushSync(() => {
             root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
         });
+        
+        await new Promise(resolve => setTimeout(resolve, 100)); // Allow content to render
         
         const invoiceElement = element.children[0] as HTMLElement;
 
@@ -117,6 +124,8 @@ export default function InvoicesPage() {
             useCORS: true,
             width: invoiceElement.scrollWidth,
             height: invoiceElement.scrollHeight,
+            windowWidth: invoiceElement.scrollWidth,
+            windowHeight: invoiceElement.scrollHeight,
         });
 
         const imgData = canvas.toDataURL('image/png');
@@ -129,13 +138,13 @@ export default function InvoicesPage() {
         let heightLeft = imgHeight;
         let position = 0;
 
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pdfHeight;
 
         while (heightLeft > 0) {
             position = position - pdfHeight;
             pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
             heightLeft -= pdfHeight;
         }
 
