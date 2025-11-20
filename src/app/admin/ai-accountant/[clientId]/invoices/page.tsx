@@ -30,6 +30,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import InvoicePreview from '@/components/admin/InvoicePreview';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 
 const lineItemSchema = z.object({
@@ -92,7 +93,6 @@ export default function InvoicesPage() {
     const { toast } = useToast();
     const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
     const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
-    const invoicePreviewRef = useRef<HTMLDivElement>(null);
 
 
     const handleDownloadPdf = async (invoiceToDownload: Invoice) => {
@@ -104,15 +104,19 @@ export default function InvoicesPage() {
 
         const element = document.createElement("div");
         element.style.position = 'absolute';
-        element.style.left = '-9999px';
+        element.style.left = '-9999px'; // Position off-screen
+        element.style.width = '800px'; // A reasonable width for rendering
         document.body.appendChild(element);
         
         const root = createRoot(element);
-        root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
 
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Increased timeout to ensure full render
-
-        const canvas = await html2canvas(element.children[0] as HTMLElement, { scale: 2 });
+        // Use flushSync to ensure the component is fully rendered before we proceed
+        flushSync(() => {
+            root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
+        });
+        
+        // No need for a timeout anymore, flushSync handles it.
+        const canvas = await html2canvas(element, { scale: 2 });
         const data = canvas.toDataURL('image/png');
         
         const report = new jsPDF('portrait','pt','a4');
@@ -122,6 +126,7 @@ export default function InvoicesPage() {
         report.addImage(data, 'PNG', 0, 0, pdfWidth, pdfHeight);
         report.save(`Invoice-${invoiceToDownload.id}.pdf`);
         
+        // Cleanup
         root.unmount();
         document.body.removeChild(element);
     };
@@ -354,21 +359,40 @@ export default function InvoicesPage() {
                                                 <TableCell>{format(invoice.dueDate, "dd/MM/yyyy")}</TableCell>
                                                 <TableCell className="text-right">{formatPrice(invoice.total)}</TableCell>
                                                 <TableCell className="text-right">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent>
-                                                            <DialogTrigger asChild>
-                                                                <DropdownMenuItem onSelect={() => setViewingInvoice(invoice)}>
-                                                                    <Eye className="mr-2 h-4 w-4" />View
-                                                                </DropdownMenuItem>
-                                                            </DialogTrigger>
-                                                            <DropdownMenuItem><Copy className="mr-2 h-4 w-4" />Duplicate</DropdownMenuItem>
-                                                            <DropdownMenuItem><FileText className="mr-2 h-4 w-4" />Issue Credit Note</DropdownMenuItem>
-                                                            <DropdownMenuItem><Mail className="mr-2 h-4 w-4" />Email to Client</DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
+                                                    <Dialog>
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent>
+                                                                <DialogTrigger asChild>
+                                                                    <DropdownMenuItem onSelect={() => setViewingInvoice(invoice)}>
+                                                                        <Eye className="mr-2 h-4 w-4" />View
+                                                                    </DropdownMenuItem>
+                                                                </DialogTrigger>
+                                                                <DropdownMenuItem><Copy className="mr-2 h-4 w-4" />Duplicate</DropdownMenuItem>
+                                                                <DropdownMenuItem><FileText className="mr-2 h-4 w-4" />Issue Credit Note</DropdownMenuItem>
+                                                                <DropdownMenuItem><Mail className="mr-2 h-4 w-4" />Email to Client</DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                        <DialogContent className="sm:max-w-4xl">
+                                                            <DialogHeader>
+                                                                <DialogTitle>Tax Invoice Preview</DialogTitle>
+                                                            </DialogHeader>
+                                                            {viewingInvoice && (
+                                                                <>
+                                                                <InvoicePreview
+                                                                    invoice={viewingInvoice}
+                                                                    client={client}
+                                                                    customer={customers.find(c => c.id === viewingInvoice.customerId)}
+                                                                />
+                                                                <DialogFooter>
+                                                                    <Button onClick={() => handleDownloadPdf(viewingInvoice)}><Download className="mr-2 h-4 w-4"/>Download PDF</Button>
+                                                                </DialogFooter>
+                                                                </>
+                                                            )}
+                                                        </DialogContent>
+                                                    </Dialog>
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -488,24 +512,7 @@ export default function InvoicesPage() {
                     </CardContent>
                 </Card>
             </div>
-            <DialogContent className="sm:max-w-4xl">
-                <DialogHeader>
-                    <DialogTitle>Tax Invoice Preview</DialogTitle>
-                </DialogHeader>
-                {viewingInvoice && (
-                    <>
-                    <InvoicePreview 
-                        ref={invoicePreviewRef}
-                        invoice={viewingInvoice} 
-                        client={client}
-                        customer={customers.find(c => c.id === viewingInvoice.customerId)}
-                    />
-                    <DialogFooter>
-                        <Button onClick={() => handleDownloadPdf(viewingInvoice)}><Download className="mr-2 h-4 w-4"/>Download PDF</Button>
-                    </DialogFooter>
-                    </>
-                )}
-            </DialogContent>
+            
         </Dialog>
     );
 }

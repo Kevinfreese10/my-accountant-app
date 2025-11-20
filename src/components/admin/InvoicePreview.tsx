@@ -17,8 +17,8 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
         }
         return 0;
     };
-
-    const hasBankingDetails = client.bankingDetails && client.bankingDetails.bankName && client.bankingDetails.accountNumber && client.bankingDetails.branchCode;
+    
+    const hasBankingDetails = !!(client.bankingDetails && client.bankingDetails.bankName && client.bankingDetails.accountHolder && client.bankingDetails.accountNumber);
 
     return (
         <div ref={ref} className="p-8 bg-white text-gray-800 max-h-[80vh] overflow-y-auto">
