@@ -126,7 +126,7 @@ export default function InvoicesPage() {
         });
         const total = subtotal + vat;
         return { subtotal, vat, total };
-    }, [watchedLines, client]);
+    }, [watchedLines, client?.isVatRegistered]);
     
     const handleAccountChange = (value: string, index: number) => {
         const selectedAccount = accounts.find(acc => acc.id === value);
@@ -475,6 +475,4 @@ export default function InvoicesPage() {
         </Dialog>
     );
 }
-    
-
     
