@@ -15,7 +15,7 @@ import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs,
 import { db } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { User, Invoice, ClientCustomer, ChartOfAccount, AllocatedTransaction } from '@/lib/types';
+import { User, Invoice, ClientCustomer, ChartOfAccount } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { allVatTypes } from '@/lib/vat-types';
 import { Calendar } from "@/components/ui/calendar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import InvoicePreview from '@/components/admin/InvoicePreview';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -62,7 +62,7 @@ function InvoiceTotals({ control, isVatRegistered }: { control: any, isVatRegist
   const totals = useMemo(() => {
     let subtotal = 0;
     let vat = 0;
-    watchedLines.forEach(line => {
+    watchedLines.forEach((line: any) => {
       const lineSubtotal = (line.quantity || 0) * (line.rate || 0);
       subtotal += lineSubtotal;
       if (isVatRegistered && line.vatType === 'standard_rated_sales') {
@@ -367,7 +367,6 @@ export default function InvoicesPage() {
                                                             <DropdownMenuItem><Copy className="mr-2 h-4 w-4" />Duplicate</DropdownMenuItem>
                                                             <DropdownMenuItem><FileText className="mr-2 h-4 w-4" />Issue Credit Note</DropdownMenuItem>
                                                             <DropdownMenuItem><Mail className="mr-2 h-4 w-4" />Email to Client</DropdownMenuItem>
-                                                            <DropdownMenuItem onSelect={() => handleDownloadPdf(invoice)}><Download className="mr-2 h-4 w-4" />Download as PDF</DropdownMenuItem>
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
                                                 </TableCell>
@@ -437,10 +436,11 @@ export default function InvoicesPage() {
                                         <span className="text-center">Qty</span>
                                         <span className="text-center">Unit Price</span>
                                         {client?.isVatRegistered && <span className="text-center">Tax Code</span>}
-                                        <span className="text-center">Total</span>
+                                        <span className="text-right">Total</span>
                                         <span></span>
                                     </div>
                                     {fields.map((field, index) => {
+                                        const watchedLine = form.watch(`lineItems.${index}`);
                                         return (
                                             <div key={field.id} className={`grid grid-cols-1 md:gap-x-3 gap-y-2 items-start p-2 border rounded-md ${client?.isVatRegistered ? 'md:grid-cols-[2fr_3fr_1fr_1fr_1.5fr_1fr_0.5fr]' : 'md:grid-cols-[2fr_4fr_1fr_2fr_1fr_0.5fr]'}`}>
                                                 <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Account</FormLabel><Select onValueChange={(value) => handleAccountChange(value, index)} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Account..." /></SelectTrigger></FormControl><SelectContent>{accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/>
@@ -463,7 +463,7 @@ export default function InvoicesPage() {
                                                         )}
                                                     />
                                                 }
-                                                <FormItem><FormLabel className="md:hidden">Total</FormLabel><Input value={formatPrice((form.getValues(`lineItems.${index}.quantity`) || 0) * (form.getValues(`lineItems.${index}.rate`) || 0))} readOnly className="h-9 text-xs text-right bg-muted" /></FormItem>
+                                                <FormItem><FormLabel className="md:hidden">Total</FormLabel><div className="h-9 text-xs text-right bg-muted flex items-center justify-end px-3 rounded-md font-mono">{formatPrice((watchedLine.quantity || 0) * (watchedLine.rate || 0))}</div></FormItem>
                                                 <div className="flex justify-end items-end h-9">
                                                     <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                                 </div>
@@ -493,12 +493,17 @@ export default function InvoicesPage() {
                     <DialogTitle>Tax Invoice Preview</DialogTitle>
                 </DialogHeader>
                 {viewingInvoice && (
+                    <>
                     <InvoicePreview 
                         ref={invoicePreviewRef}
                         invoice={viewingInvoice} 
                         client={client}
                         customer={customers.find(c => c.id === viewingInvoice.customerId)}
                     />
+                    <DialogFooter>
+                        <Button onClick={() => handleDownloadPdf(viewingInvoice)}><Download className="mr-2 h-4 w-4"/>Download PDF</Button>
+                    </DialogFooter>
+                    </>
                 )}
             </DialogContent>
         </Dialog>
