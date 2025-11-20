@@ -101,58 +101,51 @@ export default function InvoicesPage() {
             toast({ title: "Error", description: "Cannot generate PDF without client or customer data.", variant: "destructive" });
             return;
         }
-    
+
         const element = document.createElement("div");
-        // Use a fixed width and let height be auto.
-        // Position it off-screen but in the DOM so it has dimensions.
         element.style.position = 'absolute';
         element.style.left = '-9999px';
-        element.style.width = '210mm'; // Standard A4 width
+        element.style.width = '210mm'; // A4 width
         document.body.appendChild(element);
-        
+
         const root = createRoot(element);
-    
         flushSync(() => {
             root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
         });
-    
-        const canvas = await html2canvas(element, { 
-            scale: 2, // Higher scale for better quality
-            useCORS: true 
+
+        const canvas = await html2canvas(element, {
+            scale: 2,
+            useCORS: true,
+            width: element.scrollWidth,
+            height: element.scrollHeight,
         });
+
         const imgData = canvas.toDataURL('image/png');
-    
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
-    
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
-    
-        const ratio = imgWidth / pdfWidth;
-        const canvasHeightInPdf = imgHeight / ratio;
-    
-        let heightLeft = canvasHeightInPdf;
+        const imgProps = pdf.getImageProperties(imgData);
+        const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+        let heightLeft = imgHeight;
         let position = 0;
-    
-        // Add the first page
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightInPdf);
+
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
         heightLeft -= pdfHeight;
-    
-        // Add new pages if content is taller than one page
+
         while (heightLeft > 0) {
-            position = heightLeft - canvasHeightInPdf;
+            position = position - pdfHeight;
             pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightInPdf);
+            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
             heightLeft -= pdfHeight;
         }
-    
+
         pdf.save(`Invoice-${invoiceToDownload.id}.pdf`);
-    
-        // Cleanup
+
         root.unmount();
         document.body.removeChild(element);
     };
+
 
     const form = useForm<InvoiceFormValues>({
         resolver: zodResolver(invoiceFormSchema),
@@ -539,4 +532,6 @@ export default function InvoicesPage() {
         </Dialog>
     );
 }
+    
+
     
