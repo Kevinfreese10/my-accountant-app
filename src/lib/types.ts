@@ -194,11 +194,11 @@ export type User = {
   contactEmail?: string;
   contactNumber?: string;
   address?: {
-    street?: string;
-    suburb?: string;
-    city?: string;
-    country?: string;
-    zip?: string;
+      street?: string;
+      suburb?: string;
+      city?: string;
+      country?: string;
+      zip?: string;
   },
   bankingDetails?: {
     bankName?: string;
@@ -246,6 +246,11 @@ export type ClientCustomer = {
     email?: string;
     cellNumber?: string;
     address?: string;
+    street?: string;
+    suburb?: string;
+    city?: string;
+    country?: string;
+    zip?: string;
     vatNumber?: string;
 }
 

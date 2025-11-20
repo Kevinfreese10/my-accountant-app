@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, PlusCircle, FileUp, Download } from 'lucide-react';
 import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp, orderBy, where, onSnapshot, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { User } from '@/lib/types';
+import { ClientCustomer, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import AICustomerForm from '@/components/admin/AICustomerForm';
@@ -45,16 +45,6 @@ import { format } from 'date-fns';
 
 
 const db = getFirestore(firebaseApp);
-
-type ClientCustomer = {
-    id: string;
-    name: string;
-    contactPerson?: string;
-    email?: string;
-    cellNumber?: string;
-    address?: string;
-    vatNumber?: string;
-}
 
 const importSchema = z.object({
   file: z.any().refine((files) => files && files.length > 0, "An Excel file is required."),
@@ -209,6 +199,11 @@ export default function ClientCustomersPage() {
             email: data.email,
             cellNumber: data.cellNumber,
             address: data.address,
+            street: data.street,
+            suburb: data.suburb,
+            city: data.city,
+            country: data.country,
+            zip: data.zip,
             vatNumber: data.vatNumber,
         };
 

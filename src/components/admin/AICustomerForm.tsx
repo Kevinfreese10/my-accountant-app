@@ -14,6 +14,11 @@ const formSchema = z.object({
   email: z.string().email('A valid email address is required.').optional().or(z.literal('')),
   cellNumber: z.string().optional(),
   address: z.string().optional(),
+  street: z.string().optional(),
+  suburb: z.string().optional(),
+  city: z.string().optional(),
+  country: z.string().optional(),
+  zip: z.string().optional(),
   vatNumber: z.string().optional(),
 });
 
@@ -22,7 +27,7 @@ export default function AICustomerForm({
     onSubmit, 
     onCancel, 
 }: { 
-    customer: Partial<{ id: string; name: string; contactPerson?: string; email?: string; cellNumber?: string; address?: string; vatNumber?: string; }> | null, 
+    customer: Partial<{ id: string; name: string; contactPerson?: string; email?: string; cellNumber?: string; address?: string; street?: string; suburb?: string; city?: string; country?: string; zip?: string; vatNumber?: string; }> | null, 
     onSubmit: (data: any) => void, 
     onCancel: () => void, 
 }) {
@@ -34,13 +39,27 @@ export default function AICustomerForm({
             contactPerson: customer?.contactPerson || '',
             email: customer?.email || '',
             cellNumber: customer?.cellNumber || '',
-            address: customer?.address || '',
+            street: customer?.street || '',
+            suburb: customer?.suburb || '',
+            city: customer?.city || '',
+            country: customer?.country || '',
+            zip: customer?.zip || '',
             vatNumber: customer?.vatNumber || '',
         },
     });
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        onSubmit(values);
+        const { street, suburb, city, country, zip, ...rest } = values;
+        const addressString = [street, suburb, city, country, zip].filter(Boolean).join(', ');
+        onSubmit({
+            ...rest,
+            address: addressString,
+            street,
+            suburb,
+            city,
+            country,
+            zip,
+        });
     };
     
     return (
@@ -50,7 +69,16 @@ export default function AICustomerForm({
                 <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="address" render={({ field }) => ( <FormItem><FormLabel>Address</FormLabel><FormControl><Textarea rows={3} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                
+                <div className="space-y-4 pt-4 border-t">
+                    <h4 className="text-sm font-medium">Address</h4>
+                    <FormField control={form.control} name="street" render={({ field }) => ( <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="suburb" render={({ field }) => ( <FormItem><FormLabel>Suburb</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="city" render={({ field }) => ( <FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="country" render={({ field }) => ( <FormItem><FormLabel>Country</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="zip" render={({ field }) => ( <FormItem><FormLabel>Postal Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                </div>
+                
                 <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 
                 <div className="flex justify-end gap-2 pt-4">
