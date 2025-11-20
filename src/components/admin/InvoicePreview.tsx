@@ -64,8 +64,9 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 </div>
                 <div className="text-right space-y-2">
                     <h2 className="text-4xl font-extrabold uppercase text-gray-400">Tax Invoice</h2>
-                    <p className="text-sm text-gray-600 mt-1">Invoice Number: <span className="font-semibold">{invoice.id}</span></p>
                     <div className="grid grid-cols-2 gap-x-4 text-sm">
+                        <span className="font-semibold text-gray-600">Invoice Number:</span>
+                        <span>{invoice.id}</span>
                         <span className="font-semibold text-gray-600">Date:</span>
                         <span>{format(invoice.invoiceDate, 'dd/MM/yyyy')}</span>
                         <span className="font-semibold text-gray-600">Due Date:</span>
@@ -74,7 +75,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 </div>
             </header>
 
-            <section className="flex justify-between items-start mb-10">
+            <section className="mb-10">
                 <div className="space-y-1">
                     <p className="text-sm font-semibold text-gray-600">Bill To:</p>
                     <p className="text-lg font-bold text-gray-800">{customer.name}</p>
