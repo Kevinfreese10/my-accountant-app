@@ -194,10 +194,11 @@ export type User = {
   contactEmail?: string;
   contactNumber?: string;
   address?: {
-    street: string;
-    city: string;
-    province: string;
-    zip: string;
+    street?: string;
+    suburb?: string;
+    city?: string;
+    country?: string;
+    zip?: string;
   },
   bankingDetails?: {
     bankName?: string;
@@ -224,8 +225,6 @@ export type User = {
   isVatRegistered?: boolean;
   vatNumber?: string;
   vatCategory?: 'A' | 'B' | 'C';
-  submitsProvisionalTaxes?: boolean;
-  submitsIncomeTaxReturn?: boolean;
   preparesPayroll?: boolean;
   payrollDueDate?: any;
   submitsEmp201?: boolean;

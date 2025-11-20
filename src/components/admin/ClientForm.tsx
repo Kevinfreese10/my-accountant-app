@@ -48,7 +48,13 @@ const formSchema = z.object({
   
   // Invoicing fields
   enableInvoicing: z.boolean().default(false),
-  address: z.string().optional(),
+  address: z.object({
+      street: z.string().optional(),
+      suburb: z.string().optional(),
+      city: z.string().optional(),
+      country: z.string().optional(),
+      zip: z.string().optional(),
+  }).optional(),
   logoUrl: z.string().url().optional().or(z.literal('')),
   nextInvoiceNumber: z.preprocess(val => Number(val) || 1, z.number().min(1)),
   bankingDetails: z.object({
@@ -92,7 +98,13 @@ export default function ClientForm({
             
             // Invoicing fields
             enableInvoicing: client?.enableInvoicing || false,
-            address: typeof client?.address === 'string' ? client.address : (client?.address ? `${client.address.street}, ${client.address.city}` : ''),
+            address: {
+                street: client?.address?.street || '',
+                suburb: client?.address?.suburb || '',
+                city: client?.address?.city || '',
+                country: client?.address?.country || '',
+                zip: client?.address?.zip || '',
+            },
             logoUrl: client?.logoUrl || '',
             nextInvoiceNumber: client?.nextInvoiceNumber || 9000,
             bankingDetails: {
@@ -205,7 +217,12 @@ export default function ClientForm({
                                         </div>
                                         <FormMessage />
                                      </FormItem>
-                                     <FormField control={form.control} name="address" render={({ field }) => ( <FormItem><FormLabel>Company Address</FormLabel><FormControl><Textarea placeholder="123 Main Street..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input placeholder="e.g., 123 Main Street" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel>Suburb</FormLabel><FormControl><Input placeholder="e.g., Sandton" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel>City</FormLabel><FormControl><Input placeholder="e.g., Johannesburg" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="address.country" render={({ field }) => ( <FormItem><FormLabel>Country</FormLabel><FormControl><Input placeholder="e.g., South Africa" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel>Postal Code</FormLabel><FormControl><Input placeholder="e.g., 2196" {...field} /></FormControl><FormMessage /></FormItem>)} />
+
                                      <FormField control={form.control} name="nextInvoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Next Invoice Number</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                      
                                      <h4 className="font-medium text-base pt-2">Banking Details for Invoices</h4>
