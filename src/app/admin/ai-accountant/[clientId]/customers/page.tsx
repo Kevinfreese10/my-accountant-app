@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, PlusCircle, FileUp, Download } from 'lucide-react';
 import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp, orderBy, where, onSnapshot, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { User, AllocatedTransaction } from '@/lib/types';
+import { User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import ClientForm from '@/components/admin/ClientForm';
@@ -156,43 +156,6 @@ function ImportCustomersDialog({ clientId, onImportComplete }: { clientId: strin
     );
 }
 
-function ImportJournalsDialog() {
-    const handleDownloadExample = () => {
-        const csvContent = "Date,Description,Account,Debit,Credit\nDD/MM/YYYY,Example Entry,1000/000,100.00,\nDD/MM/YYYY,Example Entry,8000/001,,100.00";
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.setAttribute('download', 'example-journal.csv');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    return (
-        <Dialog>
-            <DialogTrigger asChild>
-                <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import Journal</Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Import Customer Journal</DialogTitle>
-                    <DialogDescription>Upload a CSV file with journal entries.</DialogDescription>
-                </DialogHeader>
-                 <div className="py-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                         <Label htmlFor="journal-file">Journal File</Label>
-                         <Button variant="outline" size="sm" onClick={handleDownloadExample}><Download className="mr-2 h-4 w-4"/> Download Example</Button>
-                    </div>
-                    <Input id="journal-file" type="file" accept=".csv" />
-                </div>
-                <DialogFooter>
-                    <Button>Import</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
 export default function ClientCustomersPage() {
     const params = useParams();
     const clientId = params.clientId as string;
@@ -201,47 +164,21 @@ export default function ClientCustomersPage() {
     const { toast } = useToast();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<ClientCustomer | null>(null);
-    const [journals, setJournals] = useState<AllocatedTransaction[]>([]);
-    const [client, setClient] = useState<User | null>(null);
 
-    const fetchCustomersAndJournals = useCallback(async () => {
+    const fetchCustomers = useCallback(async () => {
         if (!clientId) return;
         setIsLoading(true);
         try {
-            const clientDoc = await getDoc(doc(db, 'aiAccountantClients', clientId));
-            if(!clientDoc.exists()) {
-                toast({title: "Error", description: "Client not found.", variant: 'destructive'});
-                setIsLoading(false);
-                return;
-            }
-            const clientData = clientDoc.data() as User;
-            setClient(clientData);
-
             const custQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`), orderBy("name"));
             const custSnapshot = await getDocs(custQuery);
             const fetchedCustomers = custSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ClientCustomer));
             setCustomers(fetchedCustomers);
-            
-            const customerControlAccount = clientData.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
-            
-            if (customerControlAccount) {
-              const journalQuery = query(
-                  collection(db, `aiAccountantClients/${clientId}/transactions`), 
-                  where("bankAccountId", "==", "JOURNAL"),
-                  where("allocatedTo.value", "==", customerControlAccount),
-                  orderBy("date", "desc")
-              );
-              
-              const journalSnapshot = await getDocs(journalQuery);
-              const customerJournals = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
-              setJournals(customerJournals);
-            }
 
         } catch (error) {
             console.error("Error fetching data:", error);
             toast({
                 title: 'Error',
-                description: 'Could not fetch customers or journals.',
+                description: 'Could not fetch customers.',
                 variant: 'destructive',
             });
         } finally {
@@ -250,8 +187,8 @@ export default function ClientCustomersPage() {
     }, [clientId, toast]);
 
     useEffect(() => {
-        fetchCustomersAndJournals();
-    }, [fetchCustomersAndJournals]);
+        fetchCustomers();
+    }, [fetchCustomers]);
     
     const handleAdd = () => {
         setSelectedCustomer(null);
@@ -284,7 +221,7 @@ export default function ClientCustomersPage() {
                 toast({ title: 'Customer Created' });
             }
 
-            fetchCustomersAndJournals();
+            fetchCustomers();
             setIsFormOpen(false);
             setSelectedCustomer(null);
         } catch (error) {
@@ -302,7 +239,7 @@ export default function ClientCustomersPage() {
                 description: `The customer has been removed.`,
                 variant: 'destructive',
             });
-            fetchCustomersAndJournals();
+            fetchCustomers();
         } catch (error) {
             console.error("Error deleting customer:", error);
             toast({ title: 'Error', description: 'Could not delete customer.', variant: 'destructive' });
@@ -318,174 +255,108 @@ export default function ClientCustomersPage() {
                     <p className="text-muted-foreground">Manage your client's customers.</p>
                 </div>
             </div>
-            <Tabs defaultValue="list">
-                <div className="flex justify-between items-center">
-                    <TabsList>
-                        <TabsTrigger value="list">Customer List</TabsTrigger>
-                        <TabsTrigger value="journals">Journals</TabsTrigger>
-                    </TabsList>
-                </div>
-
-                <TabsContent value="list">
-                    <Card>
-                        <CardHeader>
-                             <div className="flex items-center gap-2">
-                                <ImportCustomersDialog clientId={clientId} onImportComplete={fetchCustomersAndJournals} />
-                                <Dialog open={isFormOpen} onOpenChange={(isOpen) => { setIsFormOpen(isOpen); if (!isOpen) setSelectedCustomer(null); }}>
-                                   <DialogTrigger asChild>
-                                        <Button onClick={handleAdd}>
-                                            <PlusCircle className="mr-2 h-4 w-4" />
-                                            Create Customer
-                                        </Button>
-                                   </DialogTrigger>
-                                   <DialogContent className="sm:max-w-xl">
-                                        <DialogHeader>
-                                            <DialogTitle>{selectedCustomer ? 'Edit' : 'Create New'} Customer</DialogTitle>
-                                            <DialogDescription>
-                                                Add a new customer for this client.
-                                            </DialogDescription>
-                                        </DialogHeader>
-                                         <ClientForm 
-                                            client={selectedCustomer} 
-                                            onSubmit={handleFormSubmit}
-                                            onCancel={() => setIsFormOpen(false)}
-                                            isAIClient={true}
-                                        />
-                                   </DialogContent>
-                                </Dialog>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {isLoading ? (
-                                <div className="flex justify-center items-center h-40">
-                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                </div>
-                            ) : customers.length === 0 ? (
-                                <div className="text-center text-muted-foreground py-10">
-                                    <p>No customers created for this client yet.</p>
-                                </div>
-                            ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Customer Name</TableHead>
-                                            <TableHead>Contact Person</TableHead>
-                                            <TableHead>Email</TableHead>
-                                            <TableHead>VAT Number</TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {customers.map(customer => (
-                                            <TableRow key={customer.id}>
-                                                <TableCell className="font-medium">{customer.name}</TableCell>
-                                                <TableCell>{customer.contactPerson || 'N/A'}</TableCell>
-                                                <TableCell>{customer.email || 'N/A'}</TableCell>
-                                                <TableCell>{customer.vatNumber || 'N/A'}</TableCell>
-                                                <TableCell className="text-right">
-                                                     <AlertDialog>
-                                                        <DropdownMenu>
-                                                            <DropdownMenuTrigger asChild>
-                                                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                                                    <span className="sr-only">Open menu</span>
-                                                                    <MoreHorizontal className="h-4 w-4" />
-                                                                </Button>
-                                                            </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end">
-                                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                                <DropdownMenuItem onSelect={() => handleEdit(customer)}>
-                                                                    <Edit className="mr-2 h-4 w-4" /> Edit
-                                                                </DropdownMenuItem>
-                                                                 <DropdownMenuItem asChild>
-                                                                    <Link href={`/admin/ai-accountant/${clientId}/journals?type=customer&actorId=${customer.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
-                                                                </DropdownMenuItem>
-                                                                <AlertDialogTrigger asChild>
-                                                                    <DropdownMenuItem className="text-destructive">
-                                                                        <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                                                    </DropdownMenuItem>
-                                                                </AlertDialogTrigger>
-                                                            </DropdownMenuContent>
-                                                        </DropdownMenu>
-                                                        <AlertDialogContent>
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                                <AlertDialogDescription>
-                                                                    This will permanently delete the customer "{customer.name}".
-                                                                </AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                <AlertDialogAction onClick={() => handleDelete(customer.id)}>
-                                                                    Yes, Delete
-                                                                </AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            )}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="journals">
-                     <Card>
-                        <CardHeader>
-                             <div className="flex justify-between items-center">
-                                <div>
-                                    <CardTitle>Customer Journals</CardTitle>
-                                    <CardDescription>Post and import journals for customers.</CardDescription>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                     <ImportJournalsDialog />
-                                    <Button asChild>
-                                        <Link href={`/admin/ai-accountant/${clientId}/journals?type=customer`}><PlusCircle className="mr-2 h-4 w-4"/>Post Journal</Link>
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Reference</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead>Account</TableHead>
-                                        <TableHead className="text-right">Debit</TableHead>
-                                        <TableHead className="text-right">Credit</TableHead>
+            <Card>
+                <CardHeader>
+                        <div className="flex items-center gap-2">
+                        <ImportCustomersDialog clientId={clientId} onImportComplete={fetchCustomers} />
+                        <Dialog open={isFormOpen} onOpenChange={(isOpen) => { setIsFormOpen(isOpen); if (!isOpen) setSelectedCustomer(null); }}>
+                            <DialogTrigger asChild>
+                                <Button onClick={handleAdd}>
+                                    <PlusCircle className="mr-2 h-4 w-4" />
+                                    Create Customer
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-xl">
+                                <DialogHeader>
+                                    <DialogTitle>{selectedCustomer ? 'Edit' : 'Create New'} Customer</DialogTitle>
+                                    <DialogDescription>
+                                        Add a new customer for this client.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                    <ClientForm 
+                                    client={selectedCustomer} 
+                                    onSubmit={handleFormSubmit}
+                                    onCancel={() => setIsFormOpen(false)}
+                                    isAIClient={true}
+                                />
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <div className="flex justify-center items-center h-40">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : customers.length === 0 ? (
+                        <div className="text-center text-muted-foreground py-10">
+                            <p>No customers created for this client yet.</p>
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Customer Name</TableHead>
+                                    <TableHead>Contact Person</TableHead>
+                                    <TableHead>Email</TableHead>
+                                    <TableHead>VAT Number</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {customers.map(customer => (
+                                    <TableRow key={customer.id}>
+                                        <TableCell className="font-medium">{customer.name}</TableCell>
+                                        <TableCell>{customer.contactPerson || 'N/A'}</TableCell>
+                                        <TableCell>{customer.email || 'N/A'}</TableCell>
+                                        <TableCell>{customer.vatNumber || 'N/A'}</TableCell>
+                                        <TableCell className="text-right">
+                                                <AlertDialog>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                                            <span className="sr-only">Open menu</span>
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                        <DropdownMenuItem onSelect={() => handleEdit(customer)}>
+                                                            <Edit className="mr-2 h-4 w-4" /> Edit
+                                                        </DropdownMenuItem>
+                                                            <DropdownMenuItem asChild>
+                                                            <Link href={`/admin/ai-accountant/${clientId}/journals?type=customer&actorId=${customer.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
+                                                        </DropdownMenuItem>
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem className="text-destructive">
+                                                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                            </DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This will permanently delete the customer "{customer.name}".
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDelete(customer.id)}>
+                                                            Yes, Delete
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {journals.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
-                                                No customer journals have been posted yet.
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        journals.map(journal => {
-                                            const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
-                                            return (
-                                            <TableRow key={journal.id}>
-                                                <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
-                                                <TableCell>{journal.reference}</TableCell>
-                                                <TableCell>{journal.description}</TableCell>
-                                                <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
-                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
-                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
-                                            </TableRow>
-                                        )})
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }
-

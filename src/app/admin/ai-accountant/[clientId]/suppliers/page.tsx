@@ -128,100 +128,37 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
     );
 }
 
-function ImportJournalsDialog() {
-    const handleDownloadExample = () => {
-        const csvContent = "Date,Description,Account,Debit,Credit\nDD/MM/YYYY,Example Entry,2000/000,100.00,\nDD/MM/YYYY,Example Entry,8000/004,,100.00";
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.setAttribute('download', 'example-journal.csv');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    return (
-        <Dialog>
-            <DialogTrigger asChild>
-                <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import Journal</Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Import Supplier Journal</DialogTitle>
-                    <DialogDescription>Upload a CSV file with journal entries.</DialogDescription>
-                </DialogHeader>
-                 <div className="py-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                         <Label htmlFor="journal-file">Journal File</Label>
-                         <Button variant="outline" size="sm" onClick={handleDownloadExample}><Download className="mr-2 h-4 w-4"/> Download Example</Button>
-                    </div>
-                    <Input id="journal-file" type="file" accept=".csv" />
-                </div>
-                <DialogFooter>
-                    <Button>Import</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
 export default function SuppliersPage() {
     const params = useParams();
     const clientId = params.clientId as string;
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-    const [journals, setJournals] = useState<AllocatedTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-    const [client, setClient] = useState<User | null>(null);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
     });
 
-    const fetchSuppliersAndJournals = useCallback(async () => {
+    const fetchSuppliers = useCallback(async () => {
         if (!clientId) return;
         setIsLoading(true);
         try {
-            const clientDoc = await getDoc(doc(db, 'aiAccountantClients', clientId));
-            if(!clientDoc.exists()) {
-                 toast({title: "Error", description: "Client not found.", variant: 'destructive'});
-                 setIsLoading(false);
-                 return;
-            }
-            const clientData = clientDoc.data() as User;
-            setClient(clientData);
-
             const supQuery = query(collection(db, `aiAccountantClients/${clientId}/suppliers`), orderBy("name"));
             const supSnapshot = await getDocs(supQuery);
             setSuppliers(supSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier)));
-            
-            const supplierControlAccount = clientData.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
-            
-            if (supplierControlAccount) {
-              const journalQuery = query(
-                  collection(db, `aiAccountantClients/${clientId}/transactions`), 
-                  where("bankAccountId", "==", "JOURNAL"),
-                  where("allocatedTo.value", "==", supplierControlAccount),
-                  orderBy("date", "desc")
-              );
-              
-              const journalSnapshot = await getDocs(journalQuery);
-              const supplierJournals = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
-              setJournals(supplierJournals);
-            }
 
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not fetch suppliers or journals.', variant: 'destructive' });
+            toast({ title: 'Error', description: 'Could not fetch suppliers.', variant: 'destructive' });
         } finally {
             setIsLoading(false);
         }
     }, [clientId, toast]);
 
     useEffect(() => {
-        fetchSuppliersAndJournals();
-    }, [fetchSuppliersAndJournals]);
+        fetchSuppliers();
+    }, [fetchSuppliers]);
 
     const handleAdd = () => {
         setSelectedSupplier(null);
@@ -244,7 +181,7 @@ export default function SuppliersPage() {
                 await addDoc(collection(db, `aiAccountantClients/${clientId}/suppliers`), data);
                 toast({ title: 'Supplier Created' });
             }
-            fetchSuppliersAndJournals();
+            fetchSuppliers();
             setIsFormOpen(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not save the supplier.', variant: 'destructive'});
@@ -255,7 +192,7 @@ export default function SuppliersPage() {
         try {
             await deleteDoc(doc(db, `aiAccountantClients/${clientId}/suppliers`, supplierId));
             toast({ title: 'Supplier Deleted', variant: 'destructive' });
-            fetchSuppliersAndJournals();
+            fetchSuppliers();
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete supplier.', variant: 'destructive' });
         }
@@ -286,120 +223,55 @@ export default function SuppliersPage() {
                 </DialogContent>
             </Dialog>
 
-            <Tabs defaultValue="list">
-                 <div className="flex justify-between items-center">
-                    <TabsList>
-                        <TabsTrigger value="list">Supplier List</TabsTrigger>
-                        <TabsTrigger value="journals">Journals</TabsTrigger>
-                    </TabsList>
-                </div>
-                 <TabsContent value="list">
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center gap-2">
-                                <ImportSuppliersDialog clientId={clientId} onImportComplete={fetchSuppliersAndJournals} />
-                                <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" /> Create Supplier</Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {isLoading ? (
-                                <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                            ) : suppliers.length === 0 ? (
-                                <div className="text-center text-muted-foreground py-10"><p>No suppliers created for this client yet.</p></div>
-                            ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Supplier Name</TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {suppliers.map(supplier => (
-                                            <TableRow key={supplier.id}>
-                                                <TableCell className="font-medium">{supplier.name}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <AlertDialog>
-                                                        <DropdownMenu>
-                                                            <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end">
-                                                                <DropdownMenuItem onSelect={() => handleEdit(supplier)}><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
-                                                                <DropdownMenuItem asChild>
-                                                                    <Link href={`/admin/ai-accountant/${clientId}/journals?type=supplier&actorId=${supplier.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
-                                                                </DropdownMenuItem>
-                                                                <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger>
-                                                            </DropdownMenuContent>
-                                                        </DropdownMenu>
-                                                        <AlertDialogContent>
-                                                            <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the supplier "{supplier.name}".</AlertDialogDescription></AlertDialogHeader>
-                                                            <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(supplier.id)}>Yes, Delete</AlertDialogAction></AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            )}
-                        </CardContent>
-                    </Card>
-                 </TabsContent>
-                 <TabsContent value="journals">
-                     <Card>
-                        <CardHeader>
-                             <div className="flex justify-between items-center">
-                                <div>
-                                    <CardTitle>Supplier Journals</CardTitle>
-                                    <CardDescription>Post and import journals for suppliers.</CardDescription>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                     <ImportJournalsDialog />
-                                    <Button asChild>
-                                        <Link href={`/admin/ai-accountant/${clientId}/journals?type=supplier`}><PlusCircle className="mr-2 h-4 w-4"/>Post Journal</Link>
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                              <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Reference</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead>Account</TableHead>
-                                        <TableHead className="text-right">Debit</TableHead>
-                                        <TableHead className="text-right">Credit</TableHead>
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <ImportSuppliersDialog clientId={clientId} onImportComplete={fetchSuppliers} />
+                        <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" /> Create Supplier</Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                    ) : suppliers.length === 0 ? (
+                        <div className="text-center text-muted-foreground py-10"><p>No suppliers created for this client yet.</p></div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Supplier Name</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {suppliers.map(supplier => (
+                                    <TableRow key={supplier.id}>
+                                        <TableCell className="font-medium">{supplier.name}</TableCell>
+                                        <TableCell className="text-right">
+                                            <AlertDialog>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onSelect={() => handleEdit(supplier)}><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
+                                                        <DropdownMenuItem asChild>
+                                                            <Link href={`/admin/ai-accountant/${clientId}/journals?type=supplier&actorId=${supplier.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
+                                                        </DropdownMenuItem>
+                                                        <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the supplier "{supplier.name}".</AlertDialogDescription></AlertDialogHeader>
+                                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(supplier.id)}>Yes, Delete</AlertDialogAction></AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {journals.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
-                                                No supplier journals have been posted yet.
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        journals.map(journal => {
-                                            const account = client?.chartOfAccounts?.find(a => a.id === journal.allocatedTo.value);
-                                            return (
-                                            <TableRow key={journal.id}>
-                                                <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
-                                                <TableCell>{journal.reference}</TableCell>
-                                                <TableCell>{journal.description}</TableCell>
-                                                <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
-                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : 0)}</TableCell>
-                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : 0)}</TableCell>
-                                            </TableRow>
-                                        )})
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }
-

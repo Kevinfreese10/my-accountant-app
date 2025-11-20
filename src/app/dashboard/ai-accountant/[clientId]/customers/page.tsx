@@ -2,7 +2,9 @@
 'use client';
 import { redirect } from 'next/navigation';
 
-export default function NumeraCustomersRedirectPage({ params }: { params: { clientId: string }}) {
+// This is a temporary redirect. The actual page for client customers in the dashboard
+// will need to be implemented separately if the functionality differs from the admin view.
+export default function ClientCustomersRedirectPage({ params }: { params: { clientId: string }}) {
   redirect(`/admin/ai-accountant/${params.clientId}/customers`);
   return null;
 }
