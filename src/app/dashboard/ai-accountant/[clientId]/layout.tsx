@@ -88,6 +88,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/credit-notes`}>Credit Notes</Link></MenubarItem>
                         <MenubarSeparator />
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/journals?type=customer`}>Customer Journals</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/customer-ledger`}>Customer Ledger</Link></MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
@@ -117,7 +118,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/profit-and-loss`}>Profit & Loss</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/trial-balance`}>Trial Balance</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/general-ledger`}>General Ledger</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/customer-ledger`}>Customer Ledger</Link></MenubarItem>
+                        
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/age-analysis`}>Age Analysis</Link></MenubarItem>
                         <MenubarSeparator />
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/account-transactions`}>Account Transactions</Link></MenubarItem>
