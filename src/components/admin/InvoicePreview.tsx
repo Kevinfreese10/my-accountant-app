@@ -22,8 +22,20 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
     
     const renderAddress = (address: any) => {
         if (!address) return null;
-        if (typeof address === 'string') return <p className="text-sm text-gray-600">{address}</p>;
-        
+
+        // Handle string address (legacy)
+        if (typeof address === 'string') {
+            const parts = address.split(',').map(part => part.trim());
+            return (
+                <div className="text-sm text-gray-600">
+                    {parts.map((part, index) => (
+                        <p key={index}>{part}</p>
+                    ))}
+                </div>
+            );
+        }
+
+        // Handle object address
         return (
              <div className="text-sm text-gray-600">
                 {address.street && <p>{address.street}</p>}
@@ -60,9 +72,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 <div className="space-y-1">
                     <p className="text-sm font-semibold text-gray-600">Bill To:</p>
                     <p className="text-lg font-bold text-gray-800">{customer.name}</p>
-                    <div className="text-sm text-gray-600">
-                        {renderAddress(customer.address)}
-                    </div>
+                    {renderAddress(customer)}
                     {customer.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {customer.vatNumber}</p>}
                 </div>
                 <div className="text-right space-y-1">
