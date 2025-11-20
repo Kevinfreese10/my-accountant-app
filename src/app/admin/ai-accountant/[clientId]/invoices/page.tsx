@@ -110,7 +110,7 @@ export default function InvoicesPage() {
         const root = createRoot(element);
         root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
 
-        await new Promise(resolve => setTimeout(resolve, 500)); 
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Increased timeout to ensure full render
 
         const canvas = await html2canvas(element.children[0] as HTMLElement, { scale: 2 });
         const data = canvas.toDataURL('image/png');

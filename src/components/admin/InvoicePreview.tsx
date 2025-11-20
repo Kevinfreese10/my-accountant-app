@@ -18,6 +18,8 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
         return 0;
     };
 
+    const hasBankingDetails = client.bankingDetails && client.bankingDetails.bankName && client.bankingDetails.accountNumber && client.bankingDetails.branchCode;
+
     return (
         <div ref={ref} className="p-8 bg-white text-gray-800 max-h-[80vh] overflow-y-auto">
             <header className="flex justify-between items-start mb-10">
@@ -107,11 +109,13 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 </section>
             )}
 
-            <footer className="text-center text-sm text-gray-500 border-t pt-6">
-                <p className="font-semibold">Banking Details</p>
-                <p>{client.bankingDetails?.bankName} | Account: {client.bankingDetails?.accountNumber} | Branch: {client.bankingDetails?.branchCode}</p>
-                <p>Thank you for your business!</p>
-            </footer>
+            {hasBankingDetails && (
+                <footer className="text-center text-sm text-gray-500 border-t pt-6">
+                    <p className="font-semibold">Banking Details</p>
+                    <p>{client.bankingDetails?.bankName} | Account: {client.bankingDetails?.accountNumber} | Branch: {client.bankingDetails?.branchCode}</p>
+                    <p>Thank you for your business!</p>
+                </footer>
+            )}
         </div>
     );
 });
