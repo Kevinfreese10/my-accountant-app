@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Invoice, ClientCustomer, User } from "@/lib/types";
@@ -13,7 +12,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
     
     const getVatAmount = (lineItem: { rate: number, quantity: number, vatType: string }) => {
         if (lineItem.vatType === 'standard_rated_sales') {
-            return (lineItem.rate * lineItem.quantity) * 0.15;
+            return (lineItem.rate * item.quantity) * 0.15;
         }
         return 0;
     };
@@ -42,7 +41,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 </div>
                 <div className="text-right">
                     <h2 className="text-4xl font-extrabold uppercase text-gray-400">Tax Invoice</h2>
-                    <p className="text-sm text-gray-600 mt-1"><span className="font-semibold">#</span> {invoice.id}</p>
+                    <p className="text-sm text-gray-600 mt-1">Invoice Number: <span className="font-semibold">{invoice.id}</span></p>
                 </div>
             </header>
 
