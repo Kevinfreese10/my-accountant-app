@@ -114,18 +114,19 @@ export default function InvoicesPage() {
     const watchedLines = form.watch("lineItems");
     
     const totals = useMemo(() => {
+        const isVatPayer = client?.isVatRegistered;
         let subtotal = 0;
         let vat = 0;
         watchedLines.forEach(line => {
             const lineSubtotal = (line.quantity || 0) * (line.rate || 0);
             subtotal += lineSubtotal;
-            if (line.vatType === 'standard_rated_sales') {
+            if (isVatPayer && line.vatType === 'standard_rated_sales') {
                 vat += lineSubtotal * 0.15;
             }
         });
         const total = subtotal + vat;
         return { subtotal, vat, total };
-    }, [watchedLines]);
+    }, [watchedLines, client]);
     
     const handleAccountChange = (value: string, index: number) => {
         const selectedAccount = accounts.find(acc => acc.id === value);
@@ -136,7 +137,7 @@ export default function InvoicesPage() {
                 ...currentLine,
                 accountId: value,
                 description: currentLine.description || selectedAccount.description,
-                vatType: newVatType
+                vatType: client?.isVatRegistered ? newVatType : 'no_vat'
             });
         }
     };
@@ -151,6 +152,12 @@ export default function InvoicesPage() {
                 const clientData = clientSnap.data() as User;
                 setClient(clientData);
                 setAccounts(clientData.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('1000-')).sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)) || []);
+                // If client is not VAT registered, default all lines to 'no_vat'
+                if (!clientData.isVatRegistered) {
+                    form.getValues('lineItems').forEach((_, index) => {
+                        form.setValue(`lineItems.${index}.vatType`, 'no_vat');
+                    });
+                }
             }
             
             const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`), orderBy("name"));
@@ -269,7 +276,7 @@ export default function InvoicesPage() {
             form.reset({
                  invoiceDate: new Date(),
                  dueDate: new Date(new Date().setDate(new Date().getDate() + 30)),
-                 lineItems: [{ accountId: '', description: '', quantity: 1, rate: 0, vatType: 'standard_rated_sales' }],
+                 lineItems: [{ accountId: '', description: '', quantity: 1, rate: 0, vatType: client?.isVatRegistered ? 'standard_rated_sales' : 'no_vat' }],
                  notes: '',
             });
             fetchData();
@@ -280,8 +287,7 @@ export default function InvoicesPage() {
     };
     
     const vatTypes = allVatTypes.filter(vt => vt.category === 'Output Tax');
-    const getVatLabel = (vatName: string) => vatTypes.find(v => v.name === vatName)?.label;
-    const getVatPercentage = (vatName: string) => (getVatLabel(vatName) || '').includes('15%');
+    const getVatPercentage = (vatName: string) => client?.isVatRegistered && vatName === 'standard_rated_sales' ? 0.15 : 0;
 
 
     return (
@@ -402,43 +408,43 @@ export default function InvoicesPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <div className="hidden md:grid md:grid-cols-[2fr_3fr_1fr_1fr_1fr_1fr_1fr_0.5fr] gap-x-3 text-xs font-semibold px-2">
+                                     <div className={`hidden md:grid gap-x-3 text-xs font-semibold px-2 ${client?.isVatRegistered ? 'grid-cols-[2fr_3fr_1fr_1fr_1fr_1.5fr_1fr_0.5fr]' : 'grid-cols-[2fr_4fr_1fr_2fr_1fr_0.5fr]'}`}>
                                         <span className="text-left">Account</span>
                                         <span className="text-left">Description</span>
                                         <span className="text-center">Qty</span>
                                         <span className="text-center">Unit Price</span>
                                         <span className="text-center">Total</span>
-                                        <span className="text-center">Tax Code</span>
-                                        <span className="text-center">Tax</span>
+                                        {client?.isVatRegistered && <span className="text-center">Tax Code</span>}
+                                        {client?.isVatRegistered && <span className="text-center">Tax</span>}
                                         <span></span>
                                     </div>
                                     {fields.map((field, index) => {
                                         const line = watchedLines[index];
                                         const lineSubtotal = (line.quantity || 0) * (line.rate || 0);
-                                        const taxAmount = getVatPercentage(line.vatType) ? lineSubtotal * 0.15 : 0;
+                                        const taxAmount = client?.isVatRegistered ? lineSubtotal * getVatPercentage(line.vatType) : 0;
                                         return (
-                                            <div key={field.id} className="grid grid-cols-1 md:grid-cols-[2fr_3fr_1fr_1fr_1fr_1fr_1fr_0.5fr] gap-x-3 gap-y-2 items-start p-2 border rounded-md">
+                                            <div key={field.id} className={`grid grid-cols-1 md:gap-x-3 gap-y-2 items-start p-2 border rounded-md ${client?.isVatRegistered ? 'md:grid-cols-[2fr_3fr_1fr_1fr_1fr_1.5fr_1fr_0.5fr]' : 'md:grid-cols-[2fr_4fr_1fr_2fr_1fr_0.5fr]'}`}>
                                                 <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Account</FormLabel><Select onValueChange={(value) => handleAccountChange(value, index)} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Account..." /></SelectTrigger></FormControl><SelectContent>{accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/>
                                                 <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Description</FormLabel><FormControl><Input {...field} className="h-9 text-xs" /></FormControl><FormMessage /></FormItem> )}/>
                                                 <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Qty</FormLabel><FormControl><Input type="number" {...field} className="h-9 text-xs text-center" /></FormControl><FormMessage /></FormItem> )}/>
                                                 <FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Unit Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} className="h-9 text-xs text-right" /></FormControl><FormMessage /></FormItem> )}/>
                                                 <FormItem><FormLabel className="md:hidden">Total</FormLabel><Input value={formatPrice(lineSubtotal)} readOnly className="h-9 text-xs text-right bg-muted" /></FormItem>
-                                                <FormItem><FormLabel className="md:hidden">Tax Code</FormLabel><Input value={getVatLabel(line.vatType)} readOnly className="h-9 text-xs bg-muted text-center" /></FormItem>
-                                                <FormItem><FormLabel className="md:hidden">Tax</FormLabel><Input value={formatPrice(taxAmount)} readOnly className="h-9 text-xs text-right bg-muted" /></FormItem>
+                                                {client?.isVatRegistered && <FormField control={form.control} name={`lineItems.${index}.vatType`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Tax Code</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger></FormControl><SelectContent>{vatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/>}
+                                                {client?.isVatRegistered && <FormItem><FormLabel className="md:hidden">Tax</FormLabel><Input value={formatPrice(taxAmount)} readOnly className="h-9 text-xs text-right bg-muted" /></FormItem>}
                                                 <div className="flex justify-end items-end h-9">
                                                     <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                                 </div>
                                             </div>
                                         )
                                     })}
-                                    <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', quantity: 1, rate: 0, vatType: 'standard_rated_sales' })}>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', quantity: 1, rate: 0, vatType: client?.isVatRegistered ? 'standard_rated_sales' : 'no_vat' })}>
                                         <Plus className="mr-2 h-4 w-4" /> Add Line
                                     </Button>
                                 </div>
                                 
                                 <CardFooter className="p-4 bg-muted rounded-lg mt-4 flex flex-col items-end gap-2 max-w-sm ml-auto">
                                     <div className="flex justify-between w-full text-sm"><span className="text-muted-foreground">Subtotal:</span><span>{formatPrice(totals.subtotal)}</span></div>
-                                    <div className="flex justify-between w-full text-sm"><span className="text-muted-foreground">VAT (15%):</span><span>{formatPrice(totals.vat)}</span></div>
+                                    {client?.isVatRegistered && <div className="flex justify-between w-full text-sm"><span className="text-muted-foreground">VAT (15%):</span><span>{formatPrice(totals.vat)}</span></div>}
                                     <div className="flex justify-between w-full font-bold text-lg"><span >Total:</span><span>{formatPrice(totals.total)}</span></div>
                                 </CardFooter>
 
@@ -469,4 +475,6 @@ export default function InvoicesPage() {
         </Dialog>
     );
 }
+    
+
     
