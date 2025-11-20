@@ -24,11 +24,12 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
         if (!address) return null;
         if (typeof address === 'string') return <p className="text-sm text-gray-600">{address}</p>;
         
-        const addressLine1 = [address.street, address.suburb, address.city, address.country].filter(Boolean).join(', ');
-        
         return (
              <div className="text-sm text-gray-600">
-                {addressLine1 && <p>{addressLine1}</p>}
+                {address.street && <p>{address.street}</p>}
+                {address.suburb && <p>{address.suburb}</p>}
+                {address.city && <p>{address.city}</p>}
+                {address.country && <p>{address.country}</p>}
                 {address.zip && <p>{address.zip}</p>}
             </div>
         )
