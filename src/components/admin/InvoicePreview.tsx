@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Invoice, ClientCustomer, User } from "@/lib/types";
@@ -12,7 +13,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
     
     const getVatAmount = (lineItem: { rate: number, quantity: number, vatType: string }) => {
         if (lineItem.vatType === 'standard_rated_sales') {
-            return (lineItem.rate * item.quantity) * 0.15;
+            return (lineItem.rate * lineItem.quantity) * 0.15;
         }
         return 0;
     };
