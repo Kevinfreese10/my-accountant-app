@@ -19,6 +19,13 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
     };
     
     const hasBankingDetails = !!(client.bankingDetails && client.bankingDetails.bankName && client.bankingDetails.accountHolder && client.bankingDetails.accountNumber);
+    
+    const formatAddress = (address: any) => {
+        if (!address) return '';
+        if (typeof address === 'string') return address;
+        // Handles the object case
+        return [address.street, address.suburb, address.city, address.country, address.zip].filter(Boolean).join(', ');
+    };
 
     return (
         <div ref={ref} className="p-8 bg-white text-gray-800 max-h-[80vh] overflow-y-auto">
@@ -30,7 +37,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                         </div>
                     )}
                     <h1 className="text-3xl font-bold text-gray-900">{client.companyName || client.name}</h1>
-                    <p className="text-sm text-gray-600 max-w-xs">{client.address}</p>
+                    <p className="text-sm text-gray-600 max-w-xs">{formatAddress(client.address)}</p>
                     {client.isVatRegistered && client.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {client.vatNumber}</p>}
                 </div>
                 <div className="text-right">
@@ -43,7 +50,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 <div className="space-y-1">
                     <p className="text-sm font-semibold text-gray-600">Bill To:</p>
                     <p className="text-lg font-bold text-gray-800">{customer.name}</p>
-                    <p className="text-sm text-gray-600">{customer.address}</p>
+                    <p className="text-sm text-gray-600">{formatAddress(customer.address)}</p>
                     {customer.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {customer.vatNumber}</p>}
                 </div>
                 <div className="text-right space-y-1">
