@@ -103,21 +103,20 @@ export default function InvoicesPage() {
         }
 
         const element = document.createElement("div");
-        element.style.position = 'absolute';
-        element.style.left = '-9999px';
-        element.style.width = '210mm'; // A4 width
         document.body.appendChild(element);
 
         const root = createRoot(element);
         flushSync(() => {
             root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
         });
+        
+        const invoiceElement = element.children[0] as HTMLElement;
 
-        const canvas = await html2canvas(element, {
+        const canvas = await html2canvas(invoiceElement, {
             scale: 2,
             useCORS: true,
-            width: element.scrollWidth,
-            height: element.scrollHeight,
+            width: invoiceElement.scrollWidth,
+            height: invoiceElement.scrollHeight,
         });
 
         const imgData = canvas.toDataURL('image/png');
