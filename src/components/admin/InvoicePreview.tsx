@@ -62,9 +62,15 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                     </div>
                     {client.isVatRegistered && client.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {client.vatNumber}</p>}
                 </div>
-                <div className="text-right">
+                <div className="text-right space-y-2">
                     <h2 className="text-4xl font-extrabold uppercase text-gray-400">Tax Invoice</h2>
                     <p className="text-sm text-gray-600 mt-1">Invoice Number: <span className="font-semibold">{invoice.id}</span></p>
+                    <div className="grid grid-cols-2 gap-x-4 text-sm">
+                        <span className="font-semibold text-gray-600">Date:</span>
+                        <span>{format(invoice.invoiceDate, 'dd/MM/yyyy')}</span>
+                        <span className="font-semibold text-gray-600">Due Date:</span>
+                        <span>{format(invoice.dueDate, 'dd/MM/yyyy')}</span>
+                    </div>
                 </div>
             </header>
 
@@ -72,16 +78,8 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 <div className="space-y-1">
                     <p className="text-sm font-semibold text-gray-600">Bill To:</p>
                     <p className="text-lg font-bold text-gray-800">{customer.name}</p>
-                    {renderAddress(customer)}
+                    {renderAddress(customer.address)}
                     {customer.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {customer.vatNumber}</p>}
-                </div>
-                <div className="text-right space-y-1">
-                    <div className="grid grid-cols-2 gap-x-4">
-                        <span className="font-semibold text-gray-600">Date:</span>
-                        <span>{format(invoice.invoiceDate, 'dd/MM/yyyy')}</span>
-                        <span className="font-semibold text-gray-600">Due Date:</span>
-                        <span>{format(invoice.dueDate, 'dd/MM/yyyy')}</span>
-                    </div>
                 </div>
             </section>
 
