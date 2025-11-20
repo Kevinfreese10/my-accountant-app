@@ -51,7 +51,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
         <div ref={ref} className="p-8 bg-white text-gray-800 max-h-[80vh] overflow-y-auto">
             <header className="flex justify-between items-start mb-10">
                 {/* Left Column */}
-                <div className="space-y-6 w-1/2">
+                <div className="w-1/2 space-y-6">
                     <div className="space-y-1">
                         {client.logoUrl && (
                             <div className="relative h-20 w-48 mb-4">
@@ -59,9 +59,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                             </div>
                         )}
                         <h1 className="text-3xl font-bold text-gray-900">{client.companyName || client.name}</h1>
-                        <div className="text-sm text-gray-600">
-                            {renderAddress(client.address)}
-                        </div>
+                        {renderAddress(client.address)}
                         {client.isVatRegistered && client.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {client.vatNumber}</p>}
                     </div>
 
@@ -74,9 +72,9 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 </div>
 
                 {/* Right Column */}
-                <div className="text-right space-y-4">
+                <div className="w-1/2 text-right space-y-4">
                     <h2 className="text-4xl font-extrabold uppercase text-gray-400">Tax Invoice</h2>
-                    <div className="grid grid-cols-[auto_1fr] gap-x-4 text-sm text-right">
+                     <div className="grid grid-cols-[auto_1fr] gap-x-4 text-sm text-right">
                         <span className="font-semibold text-gray-600">Invoice Number:</span>
                         <span className="text-left">{invoice.id}</span>
                         <span className="font-semibold text-gray-600">Date:</span>
