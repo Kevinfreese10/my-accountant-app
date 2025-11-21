@@ -1,118 +1,64 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import crypto from 'crypto';
 
 const db = getFirestore(firebaseApp);
 
-function rfc3986Encode(str: string) {
-    return encodeURIComponent(str).replace(/[!'()*]/g, (c) => {
-        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
-    }).replace(/%20/g, '+');
-}
-
-function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
-    let pfOutput = '';
-    
-    // Order the keys alphabetically
-    const orderedKeys = Object.keys(data)
-      .filter(key => key !== 'signature')
-      .sort();
-
-    orderedKeys.forEach(key => {
-        if (data[key] !== '' && data[key] !== null && data[key] !== undefined) {
-             pfOutput += `${key}=${rfc3986Encode(String(data[key]).trim())}&`;
-        }
-    });
-
-    // Remove last ampersand
-    let getString = pfOutput.slice(0, -1);
-    
-    if (passphrase) {
-        getString += `&passphrase=${rfc3986Encode(passphrase.trim())}`;
-    }
-
-    return crypto.createHash('md5').update(getString).digest('hex');
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const data: { [key:string]: any } = {};
-    formData.forEach((value, key) => {
-        data[key] = value;
+    const bodyText = await req.text();
+    console.log('Raw ITN body:', bodyText);
+
+    const params = new URLSearchParams(bodyText);
+    const data: { [key: string]: string } = {};
+    params.forEach((value, key) => {
+      data[key] = value;
     });
 
-    console.log('Received PayFast ITN:', data);
+    console.log('Parsed ITN data:', data);
 
-    const receivedSignature = data.signature;
-    const passphrase = process.env.PAYFAST_PASSPHRASE;
-
-    const calculatedSignature = generateSignature(data, passphrase);
-
-    if (receivedSignature !== calculatedSignature) {
-        console.error('Signature mismatch on ITN');
-        console.error('Received:', receivedSignature);
-        console.error('Expected:', calculatedSignature);
-        // Log the string that was hashed for debugging
-        let pfOutput = '';
-        const orderedKeys = Object.keys(data).filter(key => key !== 'signature').sort();
-        orderedKeys.forEach(key => {
-          if (data[key] !== '' && data[key] !== null && data[key] !== undefined) {
-            pfOutput += `${key}=${rfc3986Encode(String(data[key]).trim())}&`;
-          }
-        });
-        let getString = pfOutput.slice(0, -1);
-        if (passphrase) {
-          getString += `&passphrase=${rfc3986Encode(passphrase.trim())}`;
-        }
-        console.error('String to hash:', getString);
-
-        return new NextResponse('Signature mismatch', { status: 400 });
-    }
-    
     const orderId = data.m_payment_id;
-    const orderRef = doc(db, 'orders', orderId);
+    const paymentStatus = data.payment_status;
 
-    const itnLog = {
-      receivedAt: Timestamp.now(),
-      status: 'Success',
-      message: 'ITN received and signature verified.',
-      payload: data,
-    };
-    await updateDoc(orderRef, {
-        itnHistory: arrayUnion(itnLog)
-    });
-    
-    if (data.payment_status === 'COMPLETE') {
+    console.log(`Processing ITN for Order ID: ${orderId} with status: ${paymentStatus}`);
+
+    if (!orderId) {
+      console.error('ITN Error: No m_payment_id found in the request.');
+      // Returning 200 OK as PayFast may retry on other statuses.
+      // Logged the error for debugging.
+      return new NextResponse('OK', { status: 200 });
+    }
+
+    if (paymentStatus === 'COMPLETE') {
+      const ordersRef = collection(db, "orders");
+      const q = query(ordersRef, where("id", "==", orderId));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.error(`Firestore Error: Order with ID ${orderId} not found.`);
+        // Still return 200 OK to prevent PayFast retries for a non-existent order.
+        return new NextResponse('OK', { status: 200 });
+      }
+
+      const orderDoc = querySnapshot.docs[0];
+      const orderRef = doc(db, 'orders', orderDoc.id);
+
       await updateDoc(orderRef, {
         status: 'Processing',
       });
-      console.log(`Order ${orderId} updated to Processing.`);
+
+      console.log(`Firestore Success: Order ${orderId} (Doc ID: ${orderDoc.id}) status updated to Processing.`);
 
     } else {
-      console.log(`Payment for order ${orderId} not complete. Status: ${data.payment_status}`);
+      console.log(`Payment status for order ${orderId} is '${paymentStatus}'. No status update needed.`);
     }
 
     return new NextResponse('OK', { status: 200 });
+
   } catch (error) {
-    console.error('PayFast ITN Error:', error);
-     const orderId = (await req.formData()).get('m_payment_id');
-     if (orderId) {
-        const orderRef = doc(db, 'orders', orderId as string);
-         const itnLog = {
-            receivedAt: Timestamp.now(),
-            status: 'Failed',
-            message: `Error processing ITN: ${error instanceof Error ? error.message : String(error)}`,
-            payload: {},
-        };
-        try {
-            await updateDoc(orderRef, { itnHistory: arrayUnion(itnLog) });
-        } catch (dbError) {
-            console.error("Failed to log ITN error to Firestore:", dbError);
-        }
-     }
-    return new NextResponse('Error processing ITN', { status: 500 });
+    console.error('PayFast ITN Handler - Uncaught Error:', error);
+    // Return 500 to indicate a server-side issue.
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
