@@ -64,7 +64,7 @@ export default function OrderConfirmationPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                        Thank you for your order. Please use the banking details below to complete your payment via EFT.
+                        Thank you for your order. You will be redirected to PayFast to complete payment.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -89,35 +89,9 @@ export default function OrderConfirmationPage() {
                             </div>
                         </div>
                     </section>
-
-                    <section>
-                        <h3 className="font-semibold text-lg mb-2 flex items-center gap-2"><Banknote/> EFT Payment Details</h3>
-                         <div className="border rounded-lg p-4 space-y-3">
-                            <div className="grid grid-cols-[150px_1fr] items-center">
-                                <span className="font-medium text-muted-foreground">Bank Name:</span>
-                                <span className="font-semibold">FNB</span>
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center">
-                                <span className="font-medium text-muted-foreground">Account Holder:</span>
-                                <span className="font-semibold">My Accountant (Pty) Ltd</span>
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center">
-                                <span className="font-medium text-muted-foreground">Account Number:</span>
-                                <span className="font-semibold">63084378223</span>
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center">
-                                <span className="font-medium text-muted-foreground">Branch Code:</span>
-                                <span className="font-semibold">250655</span>
-                            </div>
-                             <div className="grid grid-cols-[150px_1fr] items-center mt-2">
-                                <span className="font-medium text-muted-foreground">Reference:</span>
-                                <span className="font-semibold text-destructive p-1 bg-destructive/10 rounded-sm">{order.id}</span>
-                            </div>
-                         </div>
-                    </section>
                     
                     <div className="text-center pt-4">
-                        <p className="text-sm text-muted-foreground">An email with these payment details has been sent to you.</p>
+                        <p className="text-sm text-muted-foreground">If you are not redirected automatically, please click the button below.</p>
                         <Button asChild className="mt-4">
                             <Link href="/">Back to Homepage</Link>
                         </Button>

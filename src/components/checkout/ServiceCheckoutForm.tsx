@@ -22,7 +22,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 
-
 const db = getFirestore(firebaseApp);
 
 
@@ -92,19 +91,19 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     }
   }
 
-  async function createOrder(userId: string | null, customerName: string, customerEmail: string, customerPhone?: string) {
+  async function createOrder(userId: string | null, customerName: string, customerEmail: string, customerPhone?: string | null) {
       const orderId = await getNextOrderId();
       const orderData: Order = {
         id: orderId,
         userId: userId,
         customerName: customerName,
         customerEmail: customerEmail,
-        customerPhone: customerPhone,
+        customerPhone: customerPhone || undefined,
         items: [{ id: service.id, title: service.title, price: service.price, quantity: 1 }],
         total: service.price,
         discountCode: null,
         discountAmount: null,
-        paymentMethod: 'EFT',
+        paymentMethod: 'PayFast',
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: service.department || null,
@@ -121,7 +120,42 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
           html: emailHtml,
       });
 
-      router.push(`/order-confirmation/${orderId}`);
+      // Instead of redirecting to confirmation, submit to PayFast
+      submitToPayFast(orderData);
+  }
+
+  const submitToPayFast = (order: Order) => {
+    const payfastUrl = 'https://sandbox.payfast.co.za/eng/process';
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = payfastUrl;
+
+    const data: { [key: string]: string } = {
+        merchant_id: '10000100',
+        merchant_key: '46f0cd694581a',
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/products/${service.slug}`,
+        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+        name_first: order.customerName.split(' ')[0],
+        name_last: order.customerName.split(' ').slice(1).join(' '),
+        email_address: order.customerEmail,
+        cell_number: order.customerPhone || '',
+        m_payment_id: order.id,
+        amount: order.total.toFixed(2),
+        item_name: `Order #${order.id}`,
+        item_description: order.items.map(i => i.title).join(', '),
+    };
+
+    for (const key in data) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = data[key];
+        form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
   }
   
   const handleMainButtonClick = () => {
@@ -181,7 +215,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                   <FormField control={form.control} name="cell_number" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
                 <Button type="submit" className="w-full" size="lg" disabled={isLoading || !canPurchase}>
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Place Order
+                    Proceed to Payment
                 </Button>
               </form>
             </Form>
@@ -193,9 +227,27 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
             size="lg"
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? 'Processing...' : user ? 'Buy Now' : 'Proceed to Checkout'}
+            {isLoading ? 'Processing...' : user ? 'Proceed to Payment' : 'Checkout as Guest'}
           </Button>
       )}
+       {!user && !showGuestForm && (
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">OR</span>
+              </div>
+            </div>
+          )}
+       {!user && !showGuestForm && (
+            <Button variant="secondary" className="w-full" asChild>
+                <Link href="/login?redirect=/products/new-company-registration">
+                    <LogIn className="mr-2 h-4 w-4" />
+                    Login to your account
+                </Link>
+            </Button>
+        )}
 
     </div>
     </>

@@ -155,7 +155,7 @@ export default function CheckoutForm() {
         total: finalTotal,
         discountCode: appliedDiscount ? appliedDiscount.code : null,
         discountAmount: appliedDiscount ? appliedDiscount.amount : null,
-        paymentMethod: 'EFT',
+        paymentMethod: 'PayFast',
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
@@ -181,8 +181,8 @@ export default function CheckoutForm() {
           html: emailHtml,
       });
 
-      clearCart();
-      router.push(`/order-confirmation/${orderId}`);
+      // Instead of redirecting, submit to PayFast
+      submitToPayFast(orderData);
 
     } catch (error: any) {
         console.error("Error creating order: ", error);
@@ -197,6 +197,40 @@ export default function CheckoutForm() {
         });
         setIsLoading(false);
     }
+  }
+
+  const submitToPayFast = (order: Order) => {
+    const payfastUrl = 'https://sandbox.payfast.co.za/eng/process';
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = payfastUrl;
+
+    const data: { [key: string]: string } = {
+        merchant_id: '10000100',
+        merchant_key: '46f0cd694581a',
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/cart`,
+        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+        name_first: order.customerName.split(' ')[0],
+        name_last: order.customerName.split(' ').slice(1).join(' '),
+        email_address: order.customerEmail,
+        cell_number: order.customerPhone || '',
+        m_payment_id: order.id,
+        amount: order.total.toFixed(2),
+        item_name: `Order #${order.id}`,
+        item_description: order.items.map(i => i.title).join(', '),
+    };
+
+    for (const key in data) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = data[key];
+        form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
   }
 
   return (
@@ -234,7 +268,7 @@ export default function CheckoutForm() {
 
               <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isLoading ? 'Processing...' : 'Place Order via EFT'}
+                  {isLoading ? 'Processing...' : 'Proceed to PayFast'}
               </Button>
                {!currentUser && (
                     <p className="text-xs text-center text-muted-foreground mt-2">

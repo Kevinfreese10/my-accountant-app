@@ -47,48 +47,8 @@ export default function PaymentSuccessPage() {
                 if (orderSnap.exists()) {
                     const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
                     
-                     if (orderData.status !== 'Processing') {
-                        // Update status to 'Processing'
-                        await updateDoc(orderRef, { status: 'Processing' });
-                        orderData.status = 'Processing';
-
-                        const itemsWithServices = orderData.items.map(item => {
-                            const service = allServices.find(s => s.id === item.id);
-                            return { ...item, service };
-                        }).filter(item => item.service) as { service: Service }[];
-
-                        const emailHtml = render(<DocumentRequestEmail order={orderData} items={itemsWithServices} replyTo="info@myacc.co.za" />);
-                        
-                        const attachments = itemsWithServices
-                            .filter(item => item.service.attachmentUrl)
-                            .map(item => ({
-                                filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
-                                path: item.service.attachmentUrl!,
-                            }));
-                        
-                        try {
-                            await sendEmail({
-                                to: orderData.customerEmail,
-                                bcc: 'kev@thinkestry.co.za',
-                                subject: `Action Required for Your Order #${orderId}`,
-                                html: emailHtml,
-                                attachments: attachments,
-                            });
-                             const emailNote: OrderNote = {
-                                text: 'Sent "Request Documents" email to client after payment.',
-                                date: Timestamp.now(),
-                                authorId: 'system', // System-sent
-                                type: 'email',
-                                subject: `Action Required for Your Order #${orderId}`,
-                            };
-                            await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
-                        } catch(e) {
-                             console.error("Failed to send document request email:", e);
-                             toast({ title: 'Email Failed', description: 'Could not send document request email.', variant: 'destructive'});
-                        }
-
-                    }
-                    
+                    // The ITN listener will handle status updates. 
+                    // We just display the success message.
                     setOrder(orderData);
 
                     if (orderData.assignedTo && orderData.assignedTo.length > 0) {
@@ -105,6 +65,7 @@ export default function PaymentSuccessPage() {
             };
 
             fetchOrderDetails();
+
         } else {
             // No order ID, redirect to dashboard or home
             router.push(user ? '/dashboard' : '/');
