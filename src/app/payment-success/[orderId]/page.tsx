@@ -2,10 +2,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, notFound } from 'next/navigation';
-import { getFirestore, doc, onSnapshot, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order } from '@/lib/types';
-import { Loader2, CheckCircle, Banknote } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
@@ -27,32 +27,22 @@ export default function PaymentSuccessPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-
     useEffect(() => {
         if (orderId) {
             const orderRef = doc(db, 'orders', orderId);
-
-            // Fetch initial data to display summary immediately
-            getDoc(orderRef).then(docSnap => {
-                if (docSnap.exists()) {
-                    setOrder({ ...docSnap.data(), id: docSnap.id } as Order);
-                } else {
-                    setIsLoading(false);
-                    notFound();
-                }
-            }).catch(() => {
-                 setIsLoading(false);
-                 notFound();
-            });
 
             const unsubscribe = onSnapshot(orderRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const orderData = { ...docSnap.data(), id: docSnap.id } as Order;
                     setOrder(orderData);
+                    
                     if (orderData.status === 'Processing' || orderData.status === 'Completed') {
                         setIsLoading(false);
                         setError(null);
                     }
+                } else {
+                    setIsLoading(false);
+                    notFound();
                 }
             }, (err) => {
                 console.error("Error with real-time listener:", err);
@@ -60,10 +50,22 @@ export default function PaymentSuccessPage() {
                 setIsLoading(false);
             });
 
-            // Fallback timer
+            // Fallback timer to check for ITN issues
             const timer = setTimeout(() => {
                 if (isLoading) {
-                    setError("Confirmation is taking longer than expected. Please check your dashboard for updates or contact support if your order status hasn't updated within a few minutes.");
+                    // Re-check order one last time
+                    if (order) {
+                        if (!order.itnHistory || order.itnHistory.length === 0) {
+                            setError("We haven't received payment confirmation from PayFast yet. Please don't worry, your order is safe. Our team will manually verify it shortly. You can check your dashboard for updates.");
+                        } else {
+                            const lastAttempt = order.itnHistory[order.itnHistory.length - 1];
+                            if (lastAttempt.status === 'Failed') {
+                                setError(`Payment confirmation failed: ${lastAttempt.message}. Please contact support with your order ID.`);
+                            }
+                        }
+                    } else {
+                        setError("Confirmation is taking longer than expected. Please check your dashboard for updates or contact support if your order status doesn't update within a few minutes.");
+                    }
                     setIsLoading(false);
                 }
             }, 15000); // 15 seconds
@@ -73,7 +75,7 @@ export default function PaymentSuccessPage() {
                 clearTimeout(timer);
             };
         }
-    }, [orderId]);
+    }, [orderId, order, isLoading]); // Add order and isLoading to dependency array
 
     const ConfirmationView = () => (
         <CardHeader className="text-center">
@@ -95,13 +97,17 @@ export default function PaymentSuccessPage() {
         </CardHeader>
     );
     
-    if (!order) {
+    if (!order && isLoading) {
         return (
              <div className="container mx-auto px-4 py-20 text-center">
                 <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
                 <h1 className="mt-4 text-2xl font-semibold">Loading Your Order...</h1>
             </div>
         )
+    }
+
+    if (!order) {
+        return notFound();
     }
 
     return (
@@ -136,7 +142,10 @@ export default function PaymentSuccessPage() {
                     </section>
                     
                     {error && (
-                        <p className="text-center text-sm text-destructive">{error}</p>
+                        <div className="flex items-center gap-4 bg-destructive/10 border border-destructive/20 p-4 rounded-lg">
+                            <AlertTriangle className="h-6 w-6 text-destructive" />
+                            <p className="text-sm text-destructive">{error}</p>
+                        </div>
                     )}
 
                     <div className="text-center pt-4">

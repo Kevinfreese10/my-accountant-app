@@ -1,5 +1,4 @@
 
-
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
