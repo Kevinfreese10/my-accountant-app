@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -130,19 +130,21 @@ export default function AdminOrdersPage() {
     }).format(price);
   };
 
+  useEffect(() => {
+    if (!user) return;
+    setIsLoading(true);
 
-  const fetchOrdersAndStaff = async () => {
-      setIsLoading(true);
-      try {
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
-        const staffSnapshot = await getDocs(staffQuery);
+    const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+    getDocs(staffQuery).then(staffSnapshot => {
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setAllStaff(fetchedStaff);
+    }).catch(error => {
+        console.error("Error fetching staff:", error);
+    });
 
-        const ordersRef = collection(db, 'orders');
-        
-        const allOrdersSnapshot = await getDocs(query(ordersRef, orderBy('date', 'desc')));
-        const allFetchedOrders = allOrdersSnapshot.docs.map(doc => {
+    const ordersQuery = query(collection(db, 'orders'), orderBy('date', 'desc'));
+    const unsubscribe = onSnapshot(ordersQuery, async (snapshot) => {
+        const fetchedOrders = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 ...data,
@@ -152,8 +154,8 @@ export default function AdminOrdersPage() {
                 itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt.toDate() })),
             } as Order;
         });
-        
-        const ordersWithClientDetails = await Promise.all(allFetchedOrders.map(async (order) => {
+
+        const ordersWithClientDetails = await Promise.all(fetchedOrders.map(async (order) => {
             if (order.resellerId && order.originalOrderId && !order.endCustomerEmail) {
                 const originalOrderRef = doc(db, 'orders', order.originalOrderId);
                 const originalOrderSnap = await getDoc(originalOrderRef);
@@ -167,18 +169,15 @@ export default function AdminOrdersPage() {
         }));
         
         setOrders(ordersWithClientDetails.filter(order => order.status !== 'Cancelled'));
-      } catch (error) {
-        console.error("Error fetching orders: ", error);
-      } finally {
         setIsLoading(false);
-      }
-    };
-    
-  useEffect(() => {
-    if (user) {
-        fetchOrdersAndStaff();
-    }
-  }, [user]);
+    }, (error) => {
+        console.error("Error fetching orders in real-time:", error);
+        toast({ title: "Error", description: "Could not fetch real-time order data.", variant: "destructive" });
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user, toast]);
 
    const handleAssignment = async (orderId: string, staffId: string) => {
     try {
@@ -198,13 +197,6 @@ export default function AdminOrdersPage() {
         }
 
         await batch.commit();
-
-        // 3. Update local state
-        setOrders(prevOrders =>
-            prevOrders.map(order =>
-                order.id === orderId ? { ...order, assignedTo: [staffId] } : order
-            )
-        );
 
         toast({
             title: 'Order Reassigned',
@@ -237,14 +229,6 @@ export default function AdminOrdersPage() {
       await updateDoc(orderRef, {
         notes: arrayUnion(emailNote),
       });
-      // Optimistically update the UI to avoid a full re-fetch
-       setOrders(prevOrders =>
-        prevOrders.map(order =>
-          order.id === orderId
-            ? { ...order, notes: [...(order.notes || []), {...emailNote, date: new Date()}] } // Use JS Date for UI
-            : order
-        )
-      );
     } catch (error) {
         console.error("Error logging email to history:", error);
     }
@@ -308,13 +292,6 @@ export default function AdminOrdersPage() {
           });
       }
 
-
-      // Update local state
-      const updatedOrders = orders.map(order =>
-          order.id === orderId ? { ...order, status: newStatus, assignedTo: assignedStaffIds } : order
-      );
-      setOrders(updatedOrders);
-
       toast({
         title: 'Status Updated',
         description: `Order ${orderId} has been marked as ${newStatus}.`,
@@ -367,13 +344,6 @@ export default function AdminOrdersPage() {
         });
       }
 
-
-       if (newStatus === 'Cancelled') {
-        // If an order is cancelled, we remove it from the list after a brief moment
-        setTimeout(() => {
-          setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
-        }, 500);
-      }
     } catch (error) {
       console.error('Error updating order status: ', error);
       toast({
