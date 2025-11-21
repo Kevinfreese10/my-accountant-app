@@ -47,8 +47,6 @@ export default function PaymentSuccessPage() {
                 if (orderSnap.exists()) {
                     const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
                     
-                    // The ITN listener will handle status updates. 
-                    // We just display the success message.
                     setOrder(orderData);
 
                     if (orderData.assignedTo && orderData.assignedTo.length > 0) {
@@ -67,7 +65,6 @@ export default function PaymentSuccessPage() {
             fetchOrderDetails();
 
         } else {
-            // No order ID, redirect to dashboard or home
             router.push(user ? '/dashboard' : '/');
         }
     }, [orderId, toast, user, router]);
