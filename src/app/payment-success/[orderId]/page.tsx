@@ -1,11 +1,11 @@
 
 'use client';
 import { useEffect, useState } from 'react';
-import { useParams, notFound, useRouter } from 'next/navigation';
-import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+import { useParams, notFound } from 'next/navigation';
+import { getFirestore, doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order } from '@/lib/types';
-import { Loader2, CheckCircle } from 'lucide-react';
+import { Loader2, CheckCircle, Banknote } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
@@ -25,34 +25,48 @@ export default function PaymentSuccessPage() {
     const orderId = params.orderId as string;
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
 
     useEffect(() => {
         if (orderId) {
             const orderRef = doc(db, 'orders', orderId);
-            const unsubscribe = onSnapshot(orderRef, (docSnap) => {
+
+            // Fetch initial data to display summary immediately
+            getDoc(orderRef).then(docSnap => {
                 if (docSnap.exists()) {
-                    const orderData = { ...docSnap.data(), id: docSnap.id } as Order;
-                    setOrder(orderData);
-                    // If status is 'Processing' or 'Completed', we know ITN was successful
-                    if (orderData.status === 'Processing' || orderData.status === 'Completed') {
-                        setIsLoading(false);
-                    }
+                    setOrder({ ...docSnap.data(), id: docSnap.id } as Order);
                 } else {
                     setIsLoading(false);
                     notFound();
                 }
-            }, (error) => {
-                console.error("Error fetching order:", error);
-                setIsLoading(false);
-                notFound();
+            }).catch(() => {
+                 setIsLoading(false);
+                 notFound();
             });
 
-            // Fallback timer in case ITN is delayed
+            const unsubscribe = onSnapshot(orderRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const orderData = { ...docSnap.data(), id: docSnap.id } as Order;
+                    setOrder(orderData);
+                    if (orderData.status === 'Processing' || orderData.status === 'Completed') {
+                        setIsLoading(false);
+                        setError(null);
+                    }
+                }
+            }, (err) => {
+                console.error("Error with real-time listener:", err);
+                setError("There was a problem confirming your order status.");
+                setIsLoading(false);
+            });
+
+            // Fallback timer
             const timer = setTimeout(() => {
                 if (isLoading) {
+                    setError("Confirmation is taking longer than expected. Please check your dashboard for updates or contact support if your order status hasn't updated within a few minutes.");
                     setIsLoading(false);
                 }
-            }, 10000); // 10 seconds
+            }, 15000); // 15 seconds
 
             return () => {
                 unsubscribe();
@@ -61,30 +75,39 @@ export default function PaymentSuccessPage() {
         }
     }, [orderId]);
 
-    if (isLoading) {
-        return (
-            <div className="container mx-auto px-4 py-20 text-center">
-                <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-                <h1 className="mt-4 text-2xl font-semibold">Finalizing your order...</h1>
-                <p className="text-muted-foreground">Please wait while we confirm your payment with the bank.</p>
-            </div>
-        );
-    }
+    const ConfirmationView = () => (
+        <CardHeader className="text-center">
+            <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
+            <CardTitle className="text-3xl mt-4">Payment Received!</CardTitle>
+            <CardDescription>
+                Thank you for your payment. Your order is now being processed.
+            </CardDescription>
+        </CardHeader>
+    );
+
+    const LoadingView = () => (
+        <CardHeader className="text-center">
+            <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+            <CardTitle className="text-3xl mt-4">Finalizing your order...</CardTitle>
+            <CardDescription>
+                Please wait while we confirm your payment. This may take a few moments.
+            </CardDescription>
+        </CardHeader>
+    );
     
     if (!order) {
-        return notFound();
+        return (
+             <div className="container mx-auto px-4 py-20 text-center">
+                <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+                <h1 className="mt-4 text-2xl font-semibold">Loading Your Order...</h1>
+            </div>
+        )
     }
 
     return (
         <div className="container mx-auto px-4 py-12 max-w-4xl">
             <Card>
-                <CardHeader className="text-center">
-                    <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
-                    <CardTitle className="text-3xl mt-4">Payment Received!</CardTitle>
-                    <CardDescription>
-                       Thank you for your payment. Your order is now being processed.
-                    </CardDescription>
-                </CardHeader>
+                {isLoading ? <LoadingView /> : <ConfirmationView />}
                 <CardContent className="space-y-8">
                      <section>
                         <h3 className="font-semibold text-lg mb-2">Order Summary</h3>
@@ -112,6 +135,10 @@ export default function PaymentSuccessPage() {
                         </div>
                     </section>
                     
+                    {error && (
+                        <p className="text-center text-sm text-destructive">{error}</p>
+                    )}
+
                     <div className="text-center pt-4">
                         <Button asChild>
                             <Link href="/dashboard/orders">Go to My Dashboard</Link>
