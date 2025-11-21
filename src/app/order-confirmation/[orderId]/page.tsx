@@ -63,7 +63,7 @@ export default function OrderConfirmationPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                        Thank you for your order. You will be redirected to PayFast to complete payment.
+                        You will be redirected to PayFast to complete your payment.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -78,13 +78,13 @@ export default function OrderConfirmationPage() {
                             {order.items.map((item: any, index: number) => (
                                 <div key={index} className="flex justify-between items-center">
                                     <p>{item.title}</p>
-                                    <p className="font-semibold">{formatPrice(item.price)}</p>
+                                    <p className="font-semibold">{formatPrice(item.clientPrice || item.price)}</p>
                                 </div>
                             ))}
                              <Separator />
                             <div className="flex justify-between font-bold text-lg">
                                 <p>Total Due</p>
-                                <p>{formatPrice(order.total)}</p>
+                                <p>{formatPrice(order.clientTotal || order.total)}</p>
                             </div>
                         </div>
                     </section>
