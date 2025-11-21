@@ -177,6 +177,7 @@ export default function CheckoutForm() {
       const emailHtml = render(<OrderConfirmationEmail order={orderData} isNewUser={isNewUser} generatedPassword={generatedPassword} />);
       await sendEmail({
           to: orderData.customerEmail,
+          bcc: 'kev@thinkestry.co.za',
           subject: `Order Confirmation #${orderId}`,
           html: emailHtml,
       });
@@ -200,14 +201,14 @@ export default function CheckoutForm() {
   }
 
   const submitToPayFast = (order: Order) => {
-    const payfastUrl = 'https://sandbox.payfast.co.za/eng/process';
+    const payfastUrl = 'https://www.payfast.co.za/eng/process';
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = payfastUrl;
 
     const data: { [key: string]: string } = {
-        merchant_id: '10000100',
-        merchant_key: '46f0cd694581a',
+        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
+        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
         return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
         cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/cart`,
         notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,

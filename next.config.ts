@@ -43,6 +43,9 @@ const nextConfig: NextConfig = {
   },
   env: {
     NEXT_PUBLIC_APP_URL: "https://www.myacc.co.za",
+    PAYFAST_MERCHANT_ID: process.env.PAYFAST_MERCHANT_ID,
+    PAYFAST_MERCHANT_KEY: process.env.PAYFAST_MERCHANT_KEY,
+    PAYFAST_PASSPHRASE: process.env.PAYFAST_PASSPHRASE,
   },
 };
 
