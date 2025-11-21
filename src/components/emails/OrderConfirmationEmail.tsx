@@ -92,53 +92,11 @@ const heading = {
   color: '#333',
 }
 
-const paymentInstructionSection = {
-    border: '1px solid #e6ebf1',
-    borderRadius: '5px',
-    padding: '20px',
-    marginTop: '20px',
-    backgroundColor: '#fafafa',
-}
-
-const detailItem = {
-    marginBottom: '12px',
-};
-
-const detailLabel = {
-    fontSize: '14px',
-    color: '#525f7f',
-    margin: '0 0 4px 0',
-};
-
-const detailValue = {
-    fontSize: '14px',
-    fontWeight: 'bold' as const,
-    color: '#333',
-    margin: 0,
-};
-
-const referenceValue = {
-    ...detailValue,
-    display: 'inline-block',
-    color: '#c00',
-    backgroundColor: '#fff0f0',
-    padding: '4px 8px',
-    borderRadius: '4px',
-}
-
 export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPassword }: OrderConfirmationEmailProps) => {
     const previewText = `Order Confirmation #${order.id}`;
     
     // For reseller orders, greet them by their contact person name. Otherwise, use the customer name.
     const customerDisplayName = reseller ? reseller.contactPerson : order.customerName;
-
-    // Use My Accountant's banking details by default, unless it's a reseller and they have their own details.
-    const bankingDetails = {
-        bankName: 'FNB',
-        accountHolder: 'My Accountant (Pty) Ltd',
-        accountNumber: '63084378223',
-        branchCode: '250655',
-    };
 
     const companyName = 'My Accountant';
     const companyEmail = 'info@myacc.co.za';
@@ -163,7 +121,7 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                     </Text>
                  )}
                 <Text style={paragraph}>
-                    Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed and is now pending payment.
+                    Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed. You will be redirected to PayFast to complete your payment. If you are not redirected, please use the button below.
                 </Text>
                 <Hr style={hr} />
                 <Text style={{ ...paragraph, fontWeight: 'bold' }}>
@@ -189,34 +147,6 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                     </tbody>
                 </table>
                 <Hr style={hr} />
-                
-                <Heading style={{...heading, fontSize: '20px', marginTop: '30px'}}>Payment Instructions</Heading>
-                <Text style={paragraph}>
-                    Please make a manual EFT payment using the details below to finalize your order. Your order will be processed once payment is confirmed.
-                </Text>
-
-                <Section style={paymentInstructionSection}>
-                    <div style={detailItem}>
-                        <p style={detailLabel}>Bank Name:</p>
-                        <p style={detailValue}>{bankingDetails.bankName}</p>
-                    </div>
-                     <div style={detailItem}>
-                        <p style={detailLabel}>Account Holder:</p>
-                        <p style={detailValue}>{bankingDetails.accountHolder}</p>
-                    </div>
-                     <div style={detailItem}>
-                        <p style={detailLabel}>Account Number:</p>
-                        <p style={detailValue}>{bankingDetails.accountNumber}</p>
-                    </div>
-                     <div style={detailItem}>
-                        <p style={detailLabel}>Branch Code:</p>
-                        <p style={detailValue}>{bankingDetails.branchCode}</p>
-                    </div>
-                    <div style={detailItem}>
-                        <p style={detailLabel}>Reference:</p>
-                        <p style={{...referenceValue, display: 'inline-block'}}>{order.id}</p>
-                    </div>
-                </Section>
                 
                 <Text style={{...paragraph, fontSize: '14px', marginTop: '20px'}}>
                     By making payment, you accept our <Link href={`${siteUrl}/refund-policy`} style={anchor}>Refund Policy</Link>.
