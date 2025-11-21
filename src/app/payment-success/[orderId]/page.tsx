@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, notFound, useRouter } from 'next/navigation';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User } from '@/lib/types';
+import { Order } from '@/lib/types';
 import { Loader2, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -22,7 +22,6 @@ const formatPrice = (price: number) => {
 
 export default function PaymentSuccessPage() {
     const params = useParams();
-    const router = useRouter();
     const orderId = params.orderId as string;
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -52,8 +51,6 @@ export default function PaymentSuccessPage() {
             const timer = setTimeout(() => {
                 if (isLoading) {
                     setIsLoading(false);
-                    // If still loading, we can assume payment was likely okay
-                    // but ITN is just slow. We can show a slightly different message.
                 }
             }, 10000); // 10 seconds
 
