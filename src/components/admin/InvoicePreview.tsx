@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Invoice, ClientCustomer, User } from "@/lib/types";
@@ -14,7 +13,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
     
     const getVatAmount = (lineItem: { rate: number, quantity: number, vatType: string }) => {
         if (lineItem.vatType === 'standard_rated_sales') {
-            return (lineItem.rate * lineItem.quantity) * 0.15;
+            return (item.rate * item.quantity) * 0.15;
         }
         return 0;
     };
@@ -75,27 +74,27 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 {/* Right Column */}
                 <div className="w-1/2 text-right space-y-4">
                     <h2 className="text-4xl font-extrabold uppercase text-gray-400">Tax Invoice</h2>
-                     <div className="grid grid-cols-[auto_1fr] gap-x-4 text-sm text-right">
-                        <span className="font-semibold text-gray-600">Invoice Number:</span>
+                     <div className="grid grid-cols-[auto_1fr] gap-x-4 text-sm justify-end">
+                        <span className="font-semibold text-gray-600 text-right">Invoice Number:</span>
                         <span className="text-left">{invoice.id}</span>
-                        <span className="font-semibold text-gray-600">Date:</span>
+                        <span className="font-semibold text-gray-600 text-right">Date:</span>
                         <span className="text-left">{format(invoice.invoiceDate, 'dd/MM/yyyy')}</span>
-                        <span className="font-semibold text-gray-600">Due Date:</span>
+                        <span className="font-semibold text-gray-600 text-right">Due Date:</span>
                         <span className="text-left">{format(invoice.dueDate, 'dd/MM/yyyy')}</span>
                     </div>
 
                     {hasBankingDetails && (
-                        <div className="text-left border-t pt-4 mt-4 space-y-1">
-                            <p className="text-sm font-semibold text-gray-600">Banking Details:</p>
-                             <div className="grid grid-cols-[110px_1fr] text-sm">
-                                <span className="font-medium text-gray-600">Account Holder:</span>
-                                <span>{client.bankingDetails?.accountHolder}</span>
-                                <span className="font-medium text-gray-600">Bank:</span>
-                                <span>{client.bankingDetails?.bankName}</span>
-                                <span className="font-medium text-gray-600">Account:</span>
-                                <span>{client.bankingDetails?.accountNumber}</span>
-                                <span className="font-medium text-gray-600">Branch Code:</span>
-                                <span>{client.bankingDetails?.branchCode}</span>
+                        <div className="border-t pt-4 mt-4 space-y-1">
+                            <p className="text-sm font-semibold text-gray-600 text-right">Banking Details:</p>
+                             <div className="grid grid-cols-[auto_1fr] text-sm justify-end">
+                                <span className="font-medium text-gray-600 text-right">Account Holder:</span>
+                                <span className="text-left ml-4">{client.bankingDetails?.accountHolder}</span>
+                                <span className="font-medium text-gray-600 text-right">Bank:</span>
+                                <span className="text-left ml-4">{client.bankingDetails?.bankName}</span>
+                                <span className="font-medium text-gray-600 text-right">Account:</span>
+                                <span className="text-left ml-4">{client.bankingDetails?.accountNumber}</span>
+                                <span className="font-medium text-gray-600 text-right">Branch Code:</span>
+                                <span className="text-left ml-4">{client.bankingDetails?.branchCode}</span>
                             </div>
                         </div>
                     )}
