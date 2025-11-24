@@ -29,7 +29,7 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
     host: 'mail.myacc.co.za',
     port: '465',
     user: 'info@myacc.co.za',
-    pass: 'KhaiFreese10$',
+    pass: 'Thinkestry10$',
   };
   
   if (!systemSmtpConfig.host || !systemSmtpConfig.port || !systemSmtpConfig.user || !systemSmtpConfig.pass) {
