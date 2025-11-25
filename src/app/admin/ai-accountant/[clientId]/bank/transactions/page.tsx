@@ -84,6 +84,8 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
     const { toast } = useToast();
     const [importStartDate, setImportStartDate] = useState<string>('');
     const [potentialAllocations, setPotentialAllocations] = useState(0);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const missingFileInputRef = useRef<HTMLInputElement>(null);
 
 
     const resetState = () => {
@@ -98,27 +100,37 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         setIsAnalyzing(false);
         setIsExtracting(false);
         setIsUploading(false);
-        const fileInput = document.getElementById('ai-statement-file') as HTMLInputElement;
-        if(fileInput) fileInput.value = '';
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        if (missingFileInputRef.current) missingFileInputRef.current.value = '';
     };
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, append = false) => {
         const selectedFiles = e.target.files;
         if (selectedFiles && selectedFiles.length > 0) {
-            setFiles(Array.from(selectedFiles));
-            // Reset states for a new upload batch
-            setPeriodAnalysis([]);
-            setMissingPeriods([]);
-            setExtractedTransactions([]);
-            setFinalTransactions([]);
-            setReconciliation(null);
-            setImportStartDate('');
-            setPotentialAllocations(0);
+            const newFiles = Array.from(selectedFiles);
+            if (append) {
+                // Combine and remove duplicates based on file name
+                const combined = [...files, ...newFiles];
+                const uniqueFiles = combined.filter((file, index, self) =>
+                    index === self.findIndex((f) => f.name === file.name)
+                );
+                setFiles(uniqueFiles);
+            } else {
+                setFiles(newFiles);
+                // Reset states for a new upload batch
+                setPeriodAnalysis([]);
+                setMissingPeriods([]);
+                setExtractedTransactions([]);
+                setFinalTransactions([]);
+                setReconciliation(null);
+                setImportStartDate('');
+                setPotentialAllocations(0);
+            }
         }
     };
     
     useEffect(() => {
-        if (files.length > 0 && periodAnalysis.length === 0) { // Only run if analysis hasn't been done
+        if (files.length > 0 && !isAnalyzing) {
             handlePeriodAnalysis();
         }
     }, [files]);
@@ -236,8 +248,8 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             // Reconciliation
             const openingBalance = periodAnalysis.length > 0 ? periodAnalysis[0].openingBalance : 0;
             const closingBalance = periodAnalysis.length > 0 ? periodAnalysis[periodAnalysis.length - 1].closingBalance : 0;
-            const totalDebits = uniqueNewTransactions.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0);
-            const totalCredits = uniqueNewTransactions.filter(tx => tx.amount > 0).reduce((sum, tx) => sum + tx.amount, 0);
+            const totalDebits = uniqueNewTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+            const totalCredits = uniqueNewTransactions.reduce((sum, tx) => sum + tx.amount, 0);
             const calculatedClosingBalance = openingBalance + totalDebits + totalCredits;
             
             setReconciliation({
@@ -396,7 +408,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                     <Input id="ai-statement-file" type="file" accept="application/pdf,image/jpeg,image/png" onChange={handleFileChange} disabled={isAnalyzing || isExtracting} multiple />
+                     <Input ref={fileInputRef} id="ai-statement-file" type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => handleFileChange(e, false)} disabled={isAnalyzing || isExtracting} multiple />
                      
                      {(isAnalyzing || isExtracting) && 
                         <div className="flex items-center gap-2 text-primary">
@@ -416,14 +428,26 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                                     {missingPeriods.length > 0 && (
                                         <Alert variant="destructive" className="mb-4">
                                             <AlertTriangle className="h-4 w-4" />
-                                            <div className="flex justify-between items-center">
+                                            <div className="flex justify-between items-center gap-4">
                                                 <div>
                                                     <AlertTitle>Missing Statement Periods Detected</AlertTitle>
                                                     <AlertDescription>
                                                         The following periods appear to be missing: {missingPeriods.join(', ')}
                                                     </AlertDescription>
                                                 </div>
-                                                 <Button variant="outline" size="sm" onClick={handleRequestStatements}><Mail className="mr-2 h-4 w-4"/> Request from Client</Button>
+                                                 <div className="flex gap-2 flex-shrink-0">
+                                                    <input
+                                                        ref={missingFileInputRef}
+                                                        type="file"
+                                                        accept="application/pdf,image/jpeg,image/png"
+                                                        onChange={(e) => handleFileChange(e, true)}
+                                                        className="hidden"
+                                                        id="missing-file-input"
+                                                        multiple
+                                                    />
+                                                    <Button variant="secondary" size="sm" onClick={() => missingFileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/> Upload Missing</Button>
+                                                    <Button variant="outline" size="sm" onClick={handleRequestStatements}><Mail className="mr-2 h-4 w-4"/> Request from Client</Button>
+                                                 </div>
                                             </div>
                                         </Alert>
                                     )}
