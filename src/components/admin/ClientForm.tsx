@@ -197,7 +197,7 @@ export default function ClientForm({
                              <FormField control={form.control} name="enableInvoicing" render={({ field }) => (
                                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                                     <div className="space-y-0.5"><FormLabel>Enable Invoicing</FormLabel><FormDescription>Allow invoices to be generated for this client.</FormDescription></div>
-                                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                    <FormControl><Switch disabled checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                                 </FormItem>
                             )} />
 
