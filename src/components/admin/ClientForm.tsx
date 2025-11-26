@@ -63,6 +63,9 @@ const formSchema = z.object({
       accountNumber: z.string().optional(),
       branchCode: z.string().optional(),
   }).optional(),
+  
+  // AI Accountant Profile Toggle
+  createAIProfile: z.boolean().default(false),
 });
 
 export default function ClientForm({ 
@@ -112,7 +115,8 @@ export default function ClientForm({
                 accountHolder: client?.bankingDetails?.accountHolder || '',
                 accountNumber: client?.bankingDetails?.accountNumber || '',
                 branchCode: client?.bankingDetails?.branchCode || '',
-            }
+            },
+            createAIProfile: isAIClient || client?.hasNumeraProfile || false,
         },
     });
 
@@ -169,74 +173,81 @@ export default function ClientForm({
                     {!isAIClient && ( <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />)}
                 </div>
 
-                {isAIClient && (
-                    <>
-                        <Separator />
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-medium">Accounting Setup</h3>
-                            <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                            
-                            <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                    <div className="space-y-0.5"><FormLabel>Is the client registered for VAT?</FormLabel></div>
-                                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                                </FormItem>
-                            )} />
+                <Separator />
+                <div className="space-y-4">
+                     <h3 className="text-lg font-medium">Accounting Setup</h3>
+                     
+                     {!isAIClient && (
+                         <FormField control={form.control} name="createAIProfile" render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5"><FormLabel>Create AI Accountant Profile?</FormLabel><FormDescription>This will give the client access to the AI Accountant module.</FormDescription></div>
+                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            </FormItem>
+                         )}/>
+                     )}
 
-                            {isVatRegistered && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                     <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                     <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                                </div>
-                            )}
+                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    
+                    <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Is the client registered for VAT?</FormLabel></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )} />
+
+                    {isVatRegistered && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
-                        <Separator />
-                         <div className="space-y-4">
-                            <h3 className="text-lg font-medium">Invoicing Setup</h3>
-                            <p className="text-sm text-muted-foreground">Only complete this section if you want to generate invoices from this company profile.</p>
-                             <FormField control={form.control} name="enableInvoicing" render={({ field }) => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                    <div className="space-y-0.5"><FormLabel>Enable Invoicing</FormLabel><FormDescription>Allow invoices to be generated for this client.</FormDescription></div>
-                                    <FormControl><Switch disabled checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                                </FormItem>
-                            )} />
+                    )}
+                </div>
+                
+                <Separator />
+                 <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Invoicing Setup</h3>
+                    <p className="text-sm text-muted-foreground">Only complete this section if you want to generate invoices from this company profile.</p>
+                     <FormField control={form.control} name="enableInvoicing" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Enable Invoicing</FormLabel><FormDescription>Allow invoices to be generated for this client.</FormDescription></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )} />
 
-                            {enableInvoicing && (
-                                <div className="space-y-4 pt-4 border-t">
-                                     <FormItem>
-                                        <FormLabel>Company Logo</FormLabel>
-                                        <div className="flex items-center gap-4">
-                                            <div className="relative h-24 w-24 flex-shrink-0 border rounded-md overflow-hidden bg-muted">
-                                                {isUploadingLogo ? (
-                                                    <div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin"/></div>
-                                                ) : currentLogoUrl ? (
-                                                    <Image src={currentLogoUrl} alt="Company logo" fill className="object-contain p-2"/>
-                                                ) : null}
-                                            </div>
-                                            <FormControl><Input type="file" accept="image/*" onChange={handleLogoUpload} className="max-w-xs" /></FormControl>
-                                        </div>
-                                        <FormMessage />
-                                     </FormItem>
-                                    <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input placeholder="e.g., 123 Main Street" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel>Suburb</FormLabel><FormControl><Input placeholder="e.g., Sandton" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel>City</FormLabel><FormControl><Input placeholder="e.g., Johannesburg" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={form.control} name="address.country" render={({ field }) => ( <FormItem><FormLabel>Country</FormLabel><FormControl><Input placeholder="e.g., South Africa" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel>Postal Code</FormLabel><FormControl><Input placeholder="e.g., 2196" {...field} /></FormControl><FormMessage /></FormItem>)} />
-
-                                     <FormField control={form.control} name="nextInvoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Next Invoice Number</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                     
-                                     <h4 className="font-medium text-base pt-2">Banking Details for Invoices</h4>
-                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    {enableInvoicing && (
+                        <div className="space-y-4 pt-4 border-t">
+                             <FormItem>
+                                <FormLabel>Company Logo</FormLabel>
+                                <div className="flex items-center gap-4">
+                                    <div className="relative h-24 w-24 flex-shrink-0 border rounded-md overflow-hidden bg-muted">
+                                        {isUploadingLogo ? (
+                                            <div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin"/></div>
+                                        ) : currentLogoUrl ? (
+                                            <Image src={currentLogoUrl} alt="Company logo" fill className="object-contain p-2"/>
+                                        ) : null}
                                     </div>
+                                    <FormControl><Input type="file" accept="image/*" onChange={handleLogoUpload} className="max-w-xs" /></FormControl>
                                 </div>
-                            )}
+                                <FormMessage />
+                             </FormItem>
+                            <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input placeholder="e.g., 123 Main Street" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel>Suburb</FormLabel><FormControl><Input placeholder="e.g., Sandton" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel>City</FormLabel><FormControl><Input placeholder="e.g., Johannesburg" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="address.country" render={({ field }) => ( <FormItem><FormLabel>Country</FormLabel><FormControl><Input placeholder="e.g., South Africa" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel>Postal Code</FormLabel><FormControl><Input placeholder="e.g., 2196" {...field} /></FormControl><FormMessage /></FormItem>)} />
+
+                             <FormField control={form.control} name="nextInvoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Next Invoice Number</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             
+                             <h4 className="font-medium text-base pt-2">Banking Details for Invoices</h4>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            </div>
                         </div>
-                    </>
-                )}
+                    )}
+                </div>
 
 
                 <div className="flex justify-end gap-2 pt-4">

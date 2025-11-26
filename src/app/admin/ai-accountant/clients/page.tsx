@@ -1,11 +1,10 @@
 
-
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, ArrowRight, Edit, Share2, Copy } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, ArrowRight, Edit, Share2, Copy, Archive, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -25,6 +24,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import * as XLSX from 'xlsx';
 
 
 const db = getFirestore(firebaseApp);
@@ -127,6 +127,66 @@ function DuplicateClientDialog({ client, onDuplicate }: { client: User | null, o
     );
 }
 
+function BackupClientDialog({ client }: { client: User | null }) {
+    const [isBackingUp, setIsBackingUp] = useState(false);
+    const { toast } = useToast();
+
+    const handleBackup = async () => {
+        if (!client) return;
+        setIsBackingUp(true);
+        toast({ title: 'Backup Started', description: `Creating a backup for ${client.name}. This may take a moment.` });
+
+        try {
+            // This would be a server-side function in a real app
+            const backupData: any = {
+                client: { ...client, id: undefined, uid: undefined }, // Don't backup IDs
+                subCollections: {}
+            };
+            
+            const subCollections = ['transactions', 'customers', 'suppliers', 'invoices'];
+            for (const sub of subCollections) {
+                const snapshot = await getDocs(collection(db, 'aiAccountantClients', client.id, sub));
+                backupData.subCollections[sub] = snapshot.docs.map(d => d.data());
+            }
+
+            const jsonString = JSON.stringify(backupData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `backup-${client.name.replace(/\s/g, '_')}-${new Date().toISOString()}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            toast({ title: 'Backup Complete', description: 'Your backup file has been downloaded.' });
+
+        } catch (error) {
+            console.error("Backup failed:", error);
+            toast({ title: 'Backup Failed', variant: 'destructive' });
+        } finally {
+            setIsBackingUp(false);
+        }
+    };
+
+    if (!client) return null;
+
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Backup Client Data</DialogTitle>
+                <DialogDescription>Create a downloadable JSON backup of all data for "{client.name}".</DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Button onClick={handleBackup} disabled={isBackingUp} className="w-full">
+                    {isBackingUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Archive className="mr-2 h-4 w-4"/>}
+                    Download Backup File
+                </Button>
+            </div>
+        </DialogContent>
+    );
+}
+
+
 export default function AIAccountantClientsPage() {
   const [myClients, setMyClients] = useState<User[]>([]);
   const [sharedClients, setSharedClients] = useState<User[]>([]);
@@ -135,6 +195,8 @@ export default function AIAccountantClientsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isDuplicateOpen, setIsDuplicateOpen] = useState(false);
+  const [isBackupOpen, setIsBackupOpen] = useState(false);
+  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<User | null>(null);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
@@ -203,6 +265,16 @@ export default function AIAccountantClientsPage() {
     setSelectedClient(client);
     setIsDuplicateOpen(true);
   };
+  
+  const handleBackupClick = (client: User) => {
+    setSelectedClient(client);
+    setIsBackupOpen(true);
+  }
+  
+   const handleRestoreClick = (client: User) => {
+    setSelectedClient(client);
+    toast({ title: 'Coming Soon', description: 'Restore functionality is not yet implemented.' });
+  }
 
   const handleShareAction = async (email: string, action: 'add' | 'remove') => {
     if (!selectedClient) return;
@@ -398,6 +470,13 @@ export default function AIAccountantClientsPage() {
                                     <Copy className="mr-2 h-4 w-4" /> Duplicate
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleBackupClick(client)}>
+                                    <Archive className="mr-2 h-4 w-4" /> Backup Company
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleRestoreClick(client)}>
+                                    <RotateCcw className="mr-2 h-4 w-4" /> Restore from Backup
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">Delete</DropdownMenuItem>
@@ -461,6 +540,10 @@ export default function AIAccountantClientsPage() {
 
         <Dialog open={isDuplicateOpen} onOpenChange={setIsDuplicateOpen}>
           <DuplicateClientDialog client={selectedClient} onDuplicate={handleDuplicateClient} />
+       </Dialog>
+       
+       <Dialog open={isBackupOpen} onOpenChange={setIsBackupOpen}>
+            <BackupClientDialog client={selectedClient} />
        </Dialog>
       
       {isLoading ? (
