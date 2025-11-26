@@ -1294,7 +1294,7 @@ const NewTransactionsTab = React.forwardRef<
         if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
         setIsAiAllocating(true);
         toast({ title: "Starting AI Allocation...", description: "Fetching all new expense transactions." });
-
+    
         let allNewExpenseTransactions: ImportedTransaction[] = [];
         try {
             const q = query(
@@ -1311,38 +1311,43 @@ const NewTransactionsTab = React.forwardRef<
             setIsAiAllocating(false);
             return;
         }
-
+    
         const totalToProcess = allNewExpenseTransactions.length;
         if (totalToProcess === 0) {
             toast({ title: "No Transactions", description: "There are no new expenses to allocate." });
             setIsAiAllocating(false);
             return;
         }
-
+    
         const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
         
+        // Group similar transactions
+        const groups: { [key: string]: ImportedTransaction[] } = {};
+        allNewExpenseTransactions.forEach(tx => {
+            const key = tx.description.replace(/\d+/g, '').trim(); // Simple grouping by removing numbers
+            if (!groups[key]) {
+                groups[key] = [];
+            }
+            groups[key].push(tx);
+        });
+
         const batch = writeBatch(db);
-        const processedTxIds = new Set<string>();
         let overallAllocatedCount = 0;
-
-        for (const tx of allNewExpenseTransactions) {
-            if (processedTxIds.has(tx.id)) continue;
-
+    
+        for (const key in groups) {
+            const group = groups[key];
+            const representativeTx = group[0];
+    
             try {
                 const result = await suggestTransactionAllocation({
-                    description: tx.description,
+                    description: representativeTx.description, // Use full description
                     chartOfAccounts: chartOfAccountsJson,
                     isVatRegistered: client.isVatRegistered || false,
                 });
-
-                if (result.accountId && result.confidence > confidenceThreshold) {
-                    const similarDescriptionPrefix = tx.description.substring(0, 10);
-                    const similarTransactions = allNewExpenseTransactions.filter(
-                        t => !processedTxIds.has(t.id) && t.description.startsWith(similarDescriptionPrefix)
-                    );
-                    
+    
+                if (result.accountId && result.confidence >= confidenceThreshold) {
                     let batchAllocatedCount = 0;
-                    similarTransactions.forEach(similarTx => {
+                    group.forEach(similarTx => {
                         const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', similarTx.id);
                         batch.update(transactionRef, {
                             status: 'review',
@@ -1350,38 +1355,38 @@ const NewTransactionsTab = React.forwardRef<
                             vatType: client.isVatRegistered ? result.vatType : 'no_vat',
                             allocatedAt: new Date(),
                         });
-                        processedTxIds.add(similarTx.id);
                         batchAllocatedCount++;
                     });
-                    overallAllocatedCount += batchAllocatedCount;
                     
                     if (batchAllocatedCount > 0) {
                          toast({
                             title: `Batch Allocated (${result.confidence.toFixed(0)}%)`,
-                            description: `Allocated ${batchAllocatedCount} transaction(s) for "${tx.description.substring(0,20)}..." pattern.`
+                            description: `Allocated ${batchAllocatedCount} transaction(s) for "${key}" pattern.`
                         });
                     }
-                } else {
-                    processedTxIds.add(tx.id);
+                    overallAllocatedCount += batchAllocatedCount;
                 }
             } catch (error) {
-                console.error(`AI allocation failed for tx ${tx.id}:`, error);
-                processedTxIds.add(tx.id); 
+                console.error(`AI allocation failed for group ${key}:`, error);
             }
         }
         
         try {
             if (overallAllocatedCount > 0) {
                 await batch.commit();
+                 toast({
+                    title: "AI Bulk Allocation Complete",
+                    description: `${overallAllocatedCount} out of ${totalToProcess} transactions were confidently allocated for review.`
+                });
+            } else {
+                 toast({
+                    title: "AI Bulk Allocation Complete",
+                    description: `The AI did not find any transactions to allocate above your confidence threshold of ${confidenceThreshold}%.`
+                });
             }
         } catch (error) {
             toast({ title: "Error Saving Allocations", description: "Could not save all AI allocations.", variant: 'destructive' });
         }
-        
-        toast({
-            title: "AI Bulk Allocation Complete",
-            description: `${overallAllocatedCount} out of ${totalToProcess} transactions were confidently allocated for review.`
-        });
         
         refetch();
         setIsAiAllocating(false);
@@ -2825,4 +2830,5 @@ export default function BankTransactionsPage() {
     
 
     
+
 

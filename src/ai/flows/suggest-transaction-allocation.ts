@@ -37,7 +37,7 @@ const prompt = ai.definePrompt({
   name: 'suggestTransactionAllocationPrompt',
   input: { schema: SuggestTransactionAllocationInputSchema },
   output: { schema: SuggestTransactionAllocationOutputSchema },
-  prompt: `You are an expert South African accountant. Your task is to suggest the correct general ledger account and VAT type for a bank transaction based on its description.
+  prompt: `You are an expert South African accountant. Your task is to suggest the correct general ledger account and VAT type for a bank transaction based on its full description.
 
 Analyze the transaction description and choose the most appropriate account from the provided chart of accounts. Also, determine the correct VAT treatment.
 
@@ -67,6 +67,7 @@ const suggestTransactionAllocationFlow = ai.defineFlow(
     return output!;
   }
 );
+
 
 
 
