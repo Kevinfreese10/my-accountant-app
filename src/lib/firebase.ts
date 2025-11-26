@@ -33,23 +33,26 @@ function initializeFirebase(): FirebaseServices {
 
   if (typeof window !== 'undefined' && !persistenceEnabled) {
     enableIndexedDbPersistence(db, {
-      // For multiple tabs, use memory cache as a fallback.
-      // This helps prevent the "failed-precondition" error.
-      cacheSizeBytes: 104857600, // 100 MB
-    }).then(() => {
+        // Use memoryLocalCache as a fallback for multiple tabs.
+        // This prevents the "failed-precondition" error and subsequent timeouts.
+        localCache: memoryLocalCache({
+          // Force ownership of the local cache.
+          forceOwnership: true,
+        }),
+      })
+      .then(() => {
         persistenceEnabled = true;
         console.log("Firestore persistence enabled.");
-    }).catch((err) => {
+      })
+      .catch((err) => {
         if (err.code === 'failed-precondition') {
-            console.warn('Firestore persistence failed: Multiple tabs open. Using memory cache.');
-            // This is a valid scenario, no need to throw an error.
-            // Firestore will work but without offline persistence for this tab.
+          console.warn('Firestore persistence failed: Multiple tabs open. Using in-memory cache.');
         } else if (err.code === 'unimplemented') {
-            console.warn('Firestore persistence not supported in this browser.');
+          console.warn('Firestore persistence not supported in this browser.');
         } else {
             console.error("Error enabling Firestore persistence:", err);
         }
-    });
+      });
   }
 
   firebaseServices = { app, auth, db };
