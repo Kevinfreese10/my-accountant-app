@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -1311,18 +1312,17 @@ const NewTransactionsTab = React.forwardRef<
             return;
         }
 
-        const totalToProcess = allNewExpenseTransactions.length;
         const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
         
-        let successCount = 0;
         const batch = writeBatch(db);
+        const processedTxIds = new Set<string>();
+        let overallAllocatedCount = 0;
 
-        for (let i = 0; i < totalToProcess; i++) {
-            const tx = allNewExpenseTransactions[i];
-            toast({
-                title: `Processing ${i + 1} of ${totalToProcess}`,
-                description: `AI is analyzing: ${tx.description}`
-            });
+        for (const tx of allNewExpenseTransactions) {
+            if (processedTxIds.has(tx.id)) continue;
+
+            toast({ title: `Analyzing Pattern...`, description: `AI is analyzing: ${tx.description}` });
+
             try {
                 const result = await suggestTransactionAllocation({
                     description: tx.description,
@@ -1330,26 +1330,55 @@ const NewTransactionsTab = React.forwardRef<
                 });
 
                 if (result.accountId && result.confidence > 70) {
-                    const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
-                    batch.update(transactionRef, {
-                        status: 'review',
-                        allocatedTo: { value: result.accountId, type: 'account' },
-                        vatType: result.vatType,
-                        allocatedAt: new Date(),
+                    // Find all similar transactions
+                    const similarDescriptionPrefix = tx.description.substring(0, 10); // Use a prefix to find similar ones
+                    const similarTransactions = allNewExpenseTransactions.filter(
+                        t => !processedTxIds.has(t.id) && t.description.startsWith(similarDescriptionPrefix)
+                    );
+                    
+                    let batchAllocatedCount = 0;
+                    similarTransactions.forEach(similarTx => {
+                        const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', similarTx.id);
+                        batch.update(transactionRef, {
+                            status: 'review',
+                            allocatedTo: { value: result.accountId, type: 'account' },
+                            vatType: result.vatType,
+                            allocatedAt: new Date(),
+                        });
+                        processedTxIds.add(similarTx.id);
+                        batchAllocatedCount++;
                     });
-                    successCount++;
+                    overallAllocatedCount += batchAllocatedCount;
+                    
+                    if (batchAllocatedCount > 0) {
+                         toast({
+                            title: `Batch Allocated!`,
+                            description: `Allocated ${batchAllocatedCount} transaction(s) for "${tx.description}" pattern.`
+                        });
+                    }
+                } else {
+                    // If AI is not confident, mark as processed and move on
+                    processedTxIds.add(tx.id);
                 }
             } catch (error) {
                 console.error(`AI allocation failed for tx ${tx.id}:`, error);
+                processedTxIds.add(tx.id); // Mark as processed to avoid retrying
             }
         }
         
         try {
-            await batch.commit();
-            toast({
-                title: "AI Bulk Allocation Complete",
-                description: `${successCount} out of ${totalToProcess} transactions were confidently allocated for review.`
-            });
+            if (overallAllocatedCount > 0) {
+                await batch.commit();
+                toast({
+                    title: "AI Bulk Allocation Complete",
+                    description: `${overallAllocatedCount} out of ${allNewExpenseTransactions.length} transactions were confidently allocated for review.`
+                });
+            } else {
+                 toast({
+                    title: "AI Bulk Allocation Finished",
+                    description: `The AI could not confidently allocate any transactions.`
+                });
+            }
         } catch (error) {
             toast({ title: "Error Saving Allocations", description: "Could not save all AI allocations.", variant: 'destructive' });
         }
@@ -2646,5 +2675,8 @@ export default function BankTransactionsPage() {
 }
     
     
+
+    
+
 
     
