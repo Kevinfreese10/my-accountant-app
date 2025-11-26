@@ -5,14 +5,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, ArrowRight, Edit, Share2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, ArrowRight, Edit, Share2, Copy } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { User } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc, arrayUnion, arrayRemove, getDoc, collectionGroup } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import ClientForm from '@/components/admin/ClientForm';
@@ -21,6 +21,10 @@ import { allocationRules as initialAllocationRules } from '@/lib/allocation-rule
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 
 const db = getFirestore(firebaseApp);
@@ -70,6 +74,59 @@ function ShareClientDialog({ client, onShare, allUsers }: { client: User | null,
     )
 }
 
+const duplicateFormSchema = z.object({
+  newCompanyName: z.string().min(2, 'A new company name is required.'),
+});
+
+function DuplicateClientDialog({ client, onDuplicate }: { client: User | null, onDuplicate: (newCompanyName: string) => void }) {
+    const [isDuplicating, setIsDuplicating] = useState(false);
+    
+    const form = useForm<z.infer<typeof duplicateFormSchema>>({
+        resolver: zodResolver(duplicateFormSchema),
+        defaultValues: { newCompanyName: '' },
+    });
+    
+    const handleFormSubmit = async (values: z.infer<typeof duplicateFormSchema>) => {
+        setIsDuplicating(true);
+        await onDuplicate(values.newCompanyName);
+        setIsDuplicating(false);
+    };
+
+    if (!client) return null;
+
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Duplicate Client Profile</DialogTitle>
+                <DialogDescription>
+                    Create a complete copy of "{client.name}" including all transactions, customers, and settings. Enter a new name for the duplicate company.
+                </DialogDescription>
+            </DialogHeader>
+             <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+                    <FormField
+                        control={form.control}
+                        name="newCompanyName"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>New Company Name</FormLabel>
+                                <FormControl><Input placeholder="e.g., Cloned Company (Pty) Ltd" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <DialogFooter>
+                        <Button type="submit" disabled={isDuplicating}>
+                            {isDuplicating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Copy className="mr-2 h-4 w-4" />}
+                            {isDuplicating ? 'Duplicating...' : 'Create Duplicate'}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </DialogContent>
+    );
+}
+
 export default function AIAccountantClientsPage() {
   const [myClients, setMyClients] = useState<User[]>([]);
   const [sharedClients, setSharedClients] = useState<User[]>([]);
@@ -77,6 +134,7 @@ export default function AIAccountantClientsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isDuplicateOpen, setIsDuplicateOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<User | null>(null);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
@@ -140,6 +198,11 @@ export default function AIAccountantClientsPage() {
     setSelectedClient(client);
     setIsShareOpen(true);
   }
+  
+  const handleDuplicateClick = (client: User) => {
+    setSelectedClient(client);
+    setIsDuplicateOpen(true);
+  };
 
   const handleShareAction = async (email: string, action: 'add' | 'remove') => {
     if (!selectedClient) return;
@@ -182,6 +245,55 @@ export default function AIAccountantClientsPage() {
         toast({ title: 'Error', description: 'Could not delete client profile.', variant: 'destructive' });
     }
   };
+
+  const handleDuplicateClient = async (newCompanyName: string) => {
+    if (!selectedClient || !currentUser) return;
+
+    toast({ title: "Duplication in Progress", description: "This may take a few moments..."});
+
+    try {
+        const batch = writeBatch(db);
+
+        // 1. Create new client document
+        const { id, uid, ...originalClientData } = selectedClient;
+        const newClientDocRef = doc(collection(db, 'aiAccountantClients'));
+        const newClientData = {
+            ...originalClientData,
+            name: newCompanyName,
+            companyName: newCompanyName,
+            email: `copy-${Date.now()}@myacc.co.za`, // Assign a temporary unique email
+            id: newClientDocRef.id,
+            uid: newClientDocRef.id,
+            createdAt: Timestamp.now(),
+            createdBy: currentUser.uid,
+            sharedWith: [], // Don't copy sharing settings
+        };
+        batch.set(newClientDocRef, newClientData);
+
+        // 2. Deep copy all sub-collections
+        const subCollections = ['transactions', 'customers', 'suppliers', 'invoices']; // Add any other sub-collections here
+        for (const subCollection of subCollections) {
+            const sourceCollectionRef = collection(db, 'aiAccountantClients', selectedClient.id, subCollection);
+            const sourceSnapshot = await getDocs(sourceCollectionRef);
+            
+            sourceSnapshot.forEach(sourceDoc => {
+                const newSubDocRef = doc(collection(db, 'aiAccountantClients', newClientDocRef.id, subCollection), sourceDoc.id);
+                batch.set(newSubDocRef, sourceDoc.data());
+            });
+        }
+        
+        await batch.commit();
+
+        toast({ title: "Client Duplicated Successfully!", description: `A copy named "${newCompanyName}" has been created.` });
+        setIsDuplicateOpen(false);
+        fetchClients();
+
+    } catch (error) {
+        console.error("Error duplicating client:", error);
+        toast({ title: "Duplication Failed", description: "An error occurred during the duplication process.", variant: "destructive" });
+    }
+  }
+
 
   const handleFormSubmit = async (data: any) => {
     if (!currentUser) return;
@@ -282,6 +394,9 @@ export default function AIAccountantClientsPage() {
                                  <DropdownMenuItem onClick={() => handleShareClick(client)}>
                                     <Share2 className="mr-2 h-4 w-4" /> Share Access
                                 </DropdownMenuItem>
+                                 <DropdownMenuItem onClick={() => handleDuplicateClick(client)}>
+                                    <Copy className="mr-2 h-4 w-4" /> Duplicate
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -290,7 +405,7 @@ export default function AIAccountantClientsPage() {
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will permanently delete the AI Accountant profile for {client.name}. This cannot be undone.</AlertDialogDescription>
+                                            <AlertDialogDescription>This will permanently delete the AI Accountant profile for {client.name}. This action cannot be undone.</AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -342,6 +457,10 @@ export default function AIAccountantClientsPage() {
 
        <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
           <ShareClientDialog client={selectedClient} onShare={handleShareAction} allUsers={allUsers} />
+       </Dialog>
+
+        <Dialog open={isDuplicateOpen} onOpenChange={setIsDuplicateOpen}>
+          <DuplicateClientDialog client={selectedClient} onDuplicate={handleDuplicateClient} />
        </Dialog>
       
       {isLoading ? (
