@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -939,6 +938,77 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
     );
 }
 
+const generalAccountFormSchema = z.object({
+  accountNumber: z.string().min(1, "Account number is required."),
+  description: z.string().min(3, "Description is required."),
+  section: z.enum(['Income Statement', 'Balance Sheet']),
+});
+
+function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChange }: { client: User | null; onAccountCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void }) {
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    const form = useForm<z.infer<typeof generalAccountFormSchema>>({
+        resolver: zodResolver(generalAccountFormSchema),
+        defaultValues: { accountNumber: '', description: '', section: 'Income Statement' },
+    });
+
+    const handleCreateAccount = async (values: z.infer<typeof generalAccountFormSchema>) => {
+        if (!client || !client.uid) return;
+        
+        // Check for duplicate account number
+        const existingAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === values.accountNumber);
+        if (existingAccount) {
+            form.setError('accountNumber', { message: 'This account number already exists.' });
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const newAccount: ChartOfAccount = {
+                id: values.accountNumber, // Use account number as ID for new accounts
+                accountNumber: values.accountNumber,
+                description: values.description,
+                section: values.section,
+            };
+
+            const clientRef = doc(db, 'aiAccountantClients', client.uid);
+            await updateDoc(clientRef, { chartOfAccounts: arrayUnion(newAccount) });
+            
+            toast({ title: 'Account Created', description: `Account "${values.description}" has been added.` });
+            onAccountCreated(); // This should trigger a refetch of client data
+            form.reset();
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Error creating general account:", error);
+            toast({ title: 'Error', description: 'Could not create the account.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New General Ledger Account</DialogTitle>
+                    <DialogDescription>Add a new account to this client's chart of accounts.</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
+                        <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g., 3000-058" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g., Office Flowers" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                            <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create Account</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 // #endregion
 
 // #region Rule Creation Dialog
@@ -1069,19 +1139,22 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; globalRules: AllocationRule[] }
->(({ client, bankAccountId, customers, invoices, fetchClientData, globalRules }, ref) => {
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; globalRules: AllocationRule[]; onAccountCreated: () => void; }
+>(({ client, bankAccountId, customers, invoices, fetchClientData, globalRules, onAccountCreated }, ref) => {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
     const [searchAccountTerm, setSearchAccountTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
+    const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
     const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isConfidenceDialogOpen, setIsConfidenceDialogOpen] = useState(false);
     const [aiConfidenceThreshold, setAiConfidenceThreshold] = useState(70);
 
@@ -1123,7 +1196,7 @@ const NewTransactionsTab = React.forwardRef<
     }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
 
     const {
-        documents,
+        documents: paginatedDocuments,
         isLoading,
         goToNextPage,
         goToPreviousPage,
@@ -1133,10 +1206,49 @@ const NewTransactionsTab = React.forwardRef<
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: newTransactionsQuery, pageSize: PAGE_SIZE });
 
+     useEffect(() => {
+        const handleSearch = async () => {
+            if (!searchTerm.trim()) {
+                setSearchResults(null);
+                return;
+            }
+             if (!client?.uid || !bankAccountId) return;
+
+            setIsSearching(true);
+            let searchConstraints: QueryConstraint[] = [
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'new'),
+            ];
+             if (activeSubTab === 'expenses') {
+                searchConstraints.push(where('amount', '<', 0));
+            } else {
+                searchConstraints.push(where('amount', '>=', 0));
+            }
+             const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
+
+            try {
+                const snapshot = await getDocs(q);
+                const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+                const filtered = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+                setSearchResults(filtered);
+            } catch (error) {
+                console.error("Error during search:", error);
+                toast({title: "Search Error", variant: "destructive"});
+            } finally {
+                setIsSearching(false);
+            }
+        };
+
+        const debounce = setTimeout(() => {
+            handleSearch();
+        }, 500);
+
+        return () => clearTimeout(debounce);
+    }, [searchTerm, client, bankAccountId, activeSubTab, toast]);
+
     const transactions = useMemo(() => {
-      if (!searchTerm) return documents;
-      return documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [documents, searchTerm]);
+        return searchResults !== null ? searchResults : paginatedDocuments;
+    }, [searchResults, paginatedDocuments]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -1144,6 +1256,8 @@ const NewTransactionsTab = React.forwardRef<
 
     useEffect(() => {
         refetch();
+        setSearchTerm('');
+        setSearchResults(null);
     }, [activeSubTab, refetch]);
     
     const handleAllocateByRules = useCallback(async () => {
@@ -1321,10 +1435,9 @@ const NewTransactionsTab = React.forwardRef<
     
         const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
         
-        // Group similar transactions
         const groups: { [key: string]: ImportedTransaction[] } = {};
         allNewExpenseTransactions.forEach(tx => {
-            const key = tx.description.replace(/\d+/g, '').trim(); // Simple grouping by removing numbers
+            const key = tx.description.replace(/\d+/g, '').trim(); 
             if (!groups[key]) {
                 groups[key] = [];
             }
@@ -1340,7 +1453,7 @@ const NewTransactionsTab = React.forwardRef<
     
             try {
                 const result = await suggestTransactionAllocation({
-                    description: representativeTx.description, // Use full description
+                    description: representativeTx.description,
                     chartOfAccounts: chartOfAccountsJson,
                     isVatRegistered: client.isVatRegistered || false,
                 });
@@ -1575,6 +1688,13 @@ const NewTransactionsTab = React.forwardRef<
                 }}
                 defaultValues={ruleDefaultValues}
             />
+             <CreateGeneralAccountDialog 
+                client={client}
+                onAccountCreated={onAccountCreated}
+                open={isCreateGeneralAccountOpen}
+                onOpenChange={setIsCreateGeneralAccountOpen}
+             />
+
             <Dialog open={isConfidenceDialogOpen} onOpenChange={setIsConfidenceDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -1628,7 +1748,14 @@ const NewTransactionsTab = React.forwardRef<
                                             <CommandList>
                                                 <ScrollArea className="h-72">
                                                 <CommandEmpty>No results found.</CommandEmpty>
-                                                <CommandGroup heading="Accounts">
+                                                <CommandGroup heading="Customers">
+                                                    {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
+                                                        <DropdownMenuItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                            {c.name}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </CommandGroup>
+                                                 <CommandGroup heading="Accounts">
                                                     {client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
                                                             <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
@@ -1644,13 +1771,6 @@ const NewTransactionsTab = React.forwardRef<
                                                                 )}
                              </DropdownMenuSubContent>
                                                         </DropdownMenuSub>
-                                                    ))}
-                                                </CommandGroup>
-                                                <CommandGroup heading="Customers">
-                                                    {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
-                                                        <DropdownMenuItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                            {c.name}
-                                                        </DropdownMenuItem>
                                                     ))}
                                                 </CommandGroup>
                                                 </ScrollArea>
@@ -1744,7 +1864,7 @@ const NewTransactionsTab = React.forwardRef<
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading ? (
+                            {isLoading || isSearching ? (
                                 <TableRow><TableCell colSpan={8} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                             ) : transactions.length === 0 ? (
                                 <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No new transactions found.</TableCell></TableRow>
@@ -1776,6 +1896,7 @@ const NewTransactionsTab = React.forwardRef<
                                                         <CommandInput placeholder="Search..." />
                                                         <CommandList>
                                                             <CommandEmpty>No results found.</CommandEmpty>
+                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
                                                             <CommandGroup heading="Customers">
                                                                 {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer' }}))}>{c.name}</CommandItem>)}
                                                             </CommandGroup>
@@ -1833,6 +1954,338 @@ const NewTransactionsTab = React.forwardRef<
                     </Table>
                 </div>
             </CardContent>
+             {!searchTerm && (
+                <CardFooter className="flex items-center justify-center p-4">
+                    <div className="flex items-center space-x-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={goToPreviousPage}
+                            disabled={!canGoPrev || isLoading}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                            Previous
+                        </Button>
+                        <span className="text-sm font-medium">
+                            Page {currentPage}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={goToNextPage}
+                            disabled={!canGoNext || isLoading}
+                        >
+                            Next
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </CardFooter>
+             )}
+        </Card>
+    )
+});
+NewTransactionsTab.displayName = 'NewTransactionsTab';
+
+
+const ReviewedTab = React.forwardRef<
+    { refetch: () => void },
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[], onAccountCreated: () => void; }
+>(({ client, bankAccountId, customers, onAccountCreated }, ref) => {
+    
+    const [searchTerm, setSearchTerm] = useState('');
+    const [searchAmount, setSearchAmount] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const { toast } = useToast();
+    const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
+    const [isDownloading, setIsDownloading] = useState(false);
+    const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
+
+    type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
+    type SortDirection = 'asc' | 'desc';
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
+    
+    const reviewedTransactionsQuery = useMemo(() => {
+        if (!client?.uid || !bankAccountId) return null;
+        
+        let constraints: QueryConstraint[] = [
+            where('bankAccountId', '==', bankAccountId),
+            where('status', '==', 'allocated'),
+        ];
+
+        const sortableFields: SortField[] = ['date', 'description', 'amount'];
+        if (sortableFields.includes(sortField)) {
+            constraints.push(orderBy(sortField, sortDirection));
+        }
+        
+        return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
+    }, [client?.uid, bankAccountId, sortField, sortDirection]);
+
+    const {
+        documents,
+        isLoading,
+        goToNextPage,
+        goToPreviousPage,
+        canGoNext,
+        canGoPrev,
+        currentPage,
+        refetch
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
+
+     const transactions = useMemo(() => {
+        let filteredDocs = documents;
+
+        if (searchTerm) {
+            filteredDocs = filteredDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        }
+
+        if (searchAmount) {
+            const amount = parseFloat(searchAmount);
+            if (!isNaN(amount)) {
+                filteredDocs = filteredDocs.filter(tx => Math.abs(tx.amount - amount) < 0.01);
+            }
+        }
+        
+        const nonSortableFields: SortField[] = ['allocatedTo', 'vatType'];
+        if (nonSortableFields.includes(sortField)) {
+            return [...filteredDocs].sort((a, b) => {
+                const aVal = sortField === 'allocatedTo' ? getAllocationDescription(a) : a.vatType || '';
+                const bVal = sortField === 'allocatedTo' ? getAllocationDescription(b) : b.vatType || '';
+                return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            });
+        }
+        
+        return filteredDocs;
+    }, [documents, searchTerm, searchAmount, sortField, sortDirection]);
+    
+    React.useImperativeHandle(ref, () => ({
+        refetch,
+    }));
+    
+    const getAllocationDescription = (tx: ImportedTransaction) => {
+        const changedTx = changes[tx.id];
+        const allocatedTo = changedTx?.allocatedTo || tx.allocatedTo;
+
+        if (!allocatedTo) return 'N/A';
+        if (allocatedTo.type === 'customer') {
+            return customers.find(c => c.id === allocatedTo.value)?.name || 'Unknown Customer';
+        }
+        return client?.chartOfAccounts?.find(acc => acc.id === allocatedTo.value)?.description || 'Unknown Account';
+    }
+
+    const handleAllocationChange = (txId: string, value: string) => {
+        const [type, val] = value.split(':');
+        setChanges(prev => ({
+            ...prev,
+            [txId]: {
+                ...prev[txId],
+                allocatedTo: { value: val, type: type as 'account' | 'customer' }
+            }
+        }));
+    }
+
+    const handleVatChange = (txId: string, value: VatType) => {
+        setChanges(prev => ({
+            ...prev,
+            [txId]: {
+                ...prev[txId],
+                vatType: value
+            }
+        }));
+    }
+
+    const handleSaveChanges = async () => {
+        if (!client || Object.keys(changes).length === 0) return;
+        setIsSaving(true);
+        toast({ title: 'Saving changes...', description: 'Please wait.' });
+
+        const batch = writeBatch(db);
+        Object.entries(changes).forEach(([txId, changeData]) => {
+            const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+            const updateData: { [key: string]: any } = {};
+            if (changeData.allocatedTo) {
+                updateData.allocatedTo = changeData.allocatedTo;
+            }
+            if (changeData.vatType) {
+                updateData.vatType = changeData.vatType;
+            }
+            batch.update(txRef, updateData);
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Success!', description: 'Your changes have been saved.' });
+            setChanges({});
+            refetch();
+        } catch (error) {
+            console.error('Error saving changes:', error);
+            toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    }
+    
+    const handleDownloadExcel = async () => {
+        if (!client || !client.uid || !bankAccountId) return;
+        setIsDownloading(true);
+        toast({ title: "Preparing Download...", description: "Fetching all reviewed transactions." });
+
+        try {
+            const q = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'allocated')
+            );
+            
+            const snapshot = await getDocs(q);
+
+            const mapToExport = (tx: ImportedTransaction) => ({
+                'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
+                'Description': tx.description,
+                'Allocated To': getAllocationDescription(tx),
+                'VAT Type': allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A',
+                'Amount': tx.amount,
+            });
+
+            const dataToExport = snapshot.docs.map(doc => mapToExport(doc.data() as ImportedTransaction));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(dataToExport);
+            XLSX.utils.book_append_sheet(wb, ws, "Reviewed Transactions");
+            
+            XLSX.writeFile(wb, `Reviewed_Transactions_${client.name.replace(/\s/g, '_')}.xlsx`);
+
+            toast({ title: 'Download Ready!', description: 'Your Excel file has been downloaded.' });
+        } catch (error) {
+            console.error("Error downloading excel:", error);
+            toast({ title: 'Download Failed', description: 'Could not generate the Excel file.', variant: 'destructive' });
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+
+    return (
+        <Card>
+             <CreateGeneralAccountDialog 
+                client={client}
+                onAccountCreated={onAccountCreated}
+                open={isCreateGeneralAccountOpen}
+                onOpenChange={setIsCreateGeneralAccountOpen}
+             />
+            <CardHeader className="p-4 border-b">
+                 <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="search"
+                                placeholder="Search descriptions..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-8 w-64"
+                            />
+                        </div>
+                         <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="number"
+                                placeholder="Search by amount..."
+                                value={searchAmount}
+                                onChange={(e) => setSearchAmount(e.target.value)}
+                                className="pl-8 w-48"
+                            />
+                        </div>
+                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Download Excel
+                        </Button>
+                    </div>
+                     <Button onClick={handleSaveChanges} disabled={isSaving || Object.keys(changes).length === 0}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Save Changes
+                    </Button>
+                </div>
+            </CardHeader>
+            <CardContent className="p-0">
+                 <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('allocatedTo')}>Allocated To <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                {client?.isVatRegistered && <TableHead><Button variant="ghost" onClick={() => handleSort('vatType')}>VAT Type <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>}
+                                <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                            ) : transactions.length === 0 ? (
+                                <TableRow><TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
+                            ) : (
+                                transactions.map(tx => (
+                                    <TableRow key={tx.id}>
+                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                        <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
+                                        <TableCell className="w-[250px]">
+                                            <Select
+                                                value={`${changes[tx.id]?.allocatedTo?.type || tx.allocatedTo?.type}:${changes[tx.id]?.allocatedTo?.value || tx.allocatedTo?.value}`}
+                                                onValueChange={(value) => handleAllocationChange(tx.id, value)}
+                                            >
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                     <Button variant="ghost" className="w-full justify-start text-primary" onClick={() => setIsCreateGeneralAccountOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/>Create new account</Button>
+                                                     <Separator className="my-1"/>
+                                                    <SelectGroup>
+                                                        <Label>Accounts</Label>
+                                                        {client?.chartOfAccounts?.map(acc => (
+                                                            <SelectItem key={acc.id} value={`account:${acc.id}`}>{acc.description}</SelectItem>
+                                                        ))}
+                                                    </SelectGroup>
+                                                     <SelectGroup>
+                                                        <Label>Customers</Label>
+                                                        {customers.map(c => (
+                                                            <SelectItem key={c.id} value={`customer:${c.id}`}>{c.name}</SelectItem>
+                                                        ))}
+                                                    </SelectGroup>
+                                                </SelectContent>
+                                            </Select>
+                                        </TableCell>
+                                        {client?.isVatRegistered && (
+                                            <TableCell className="w-[200px]">
+                                                <Select
+                                                    value={changes[tx.id]?.vatType || tx.vatType}
+                                                    onValueChange={(value) => handleVatChange(tx.id, value as VatType)}
+                                                    disabled={tx.allocatedTo?.type === 'customer'}
+                                                >
+                                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                                    <SelectContent>
+                                                        {allVatTypes.map(vt => (
+                                                            <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                        )}
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
             <CardFooter className="flex items-center justify-center p-4">
                 <div className="flex items-center space-x-2">
                     <Button
@@ -1859,10 +2312,9 @@ const NewTransactionsTab = React.forwardRef<
                 </div>
             </CardFooter>
         </Card>
-    )
+    );
 });
-NewTransactionsTab.displayName = 'NewTransactionsTab';
-
+ReviewedTab.displayName = 'ReviewedTab';
 
 const ForReviewTab = React.forwardRef<
     { refetch: () => void },
@@ -2211,326 +2663,6 @@ const ForReviewTab = React.forwardRef<
 });
 ForReviewTab.displayName = 'ForReviewTab';
 
-const ReviewedTab = React.forwardRef<
-    { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[] }
->(({ client, bankAccountId, customers }, ref) => {
-    
-    const [searchTerm, setSearchTerm] = useState('');
-    const [searchAmount, setSearchAmount] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
-    const { toast } = useToast();
-    const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
-    const [isDownloading, setIsDownloading] = useState(false);
-
-    type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
-    type SortDirection = 'asc' | 'desc';
-    const [sortField, setSortField] = useState<SortField>('date');
-    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-
-    const handleSort = (field: SortField) => {
-        if (sortField === field) {
-            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortField(field);
-            setSortDirection('asc');
-        }
-    };
-    
-    const reviewedTransactionsQuery = useMemo(() => {
-        if (!client?.uid || !bankAccountId) return null;
-        
-        let constraints: QueryConstraint[] = [
-            where('bankAccountId', '==', bankAccountId),
-            where('status', '==', 'allocated'),
-        ];
-
-        const sortableFields: SortField[] = ['date', 'description', 'amount'];
-        if (sortableFields.includes(sortField)) {
-            constraints.push(orderBy(sortField, sortDirection));
-        }
-        
-        return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, sortField, sortDirection]);
-
-    const {
-        documents,
-        isLoading,
-        goToNextPage,
-        goToPreviousPage,
-        canGoNext,
-        canGoPrev,
-        currentPage,
-        refetch
-    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
-
-     const transactions = useMemo(() => {
-        let filteredDocs = documents;
-
-        if (searchTerm) {
-            filteredDocs = filteredDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-        }
-
-        if (searchAmount) {
-            const amount = parseFloat(searchAmount);
-            if (!isNaN(amount)) {
-                filteredDocs = filteredDocs.filter(tx => Math.abs(tx.amount - amount) < 0.01);
-            }
-        }
-        
-        const nonSortableFields: SortField[] = ['allocatedTo', 'vatType'];
-        if (nonSortableFields.includes(sortField)) {
-            return [...filteredDocs].sort((a, b) => {
-                const aVal = sortField === 'allocatedTo' ? getAllocationDescription(a) : a.vatType || '';
-                const bVal = sortField === 'allocatedTo' ? getAllocationDescription(b) : b.vatType || '';
-                return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-            });
-        }
-        
-        return filteredDocs;
-    }, [documents, searchTerm, searchAmount, sortField, sortDirection]);
-    
-    React.useImperativeHandle(ref, () => ({
-        refetch,
-    }));
-    
-    const getAllocationDescription = (tx: ImportedTransaction) => {
-        const changedTx = changes[tx.id];
-        const allocatedTo = changedTx?.allocatedTo || tx.allocatedTo;
-
-        if (!allocatedTo) return 'N/A';
-        if (allocatedTo.type === 'customer') {
-            return customers.find(c => c.id === allocatedTo.value)?.name || 'Unknown Customer';
-        }
-        return client?.chartOfAccounts?.find(acc => acc.id === allocatedTo.value)?.description || 'Unknown Account';
-    }
-
-    const handleAllocationChange = (txId: string, value: string) => {
-        const [type, val] = value.split(':');
-        setChanges(prev => ({
-            ...prev,
-            [txId]: {
-                ...prev[txId],
-                allocatedTo: { value: val, type: type as 'account' | 'customer' }
-            }
-        }));
-    }
-
-    const handleVatChange = (txId: string, value: VatType) => {
-        setChanges(prev => ({
-            ...prev,
-            [txId]: {
-                ...prev[txId],
-                vatType: value
-            }
-        }));
-    }
-
-    const handleSaveChanges = async () => {
-        if (!client || Object.keys(changes).length === 0) return;
-        setIsSaving(true);
-        toast({ title: 'Saving changes...', description: 'Please wait.' });
-
-        const batch = writeBatch(db);
-        Object.entries(changes).forEach(([txId, changeData]) => {
-            const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
-            const updateData: { [key: string]: any } = {};
-            if (changeData.allocatedTo) {
-                updateData.allocatedTo = changeData.allocatedTo;
-            }
-            if (changeData.vatType) {
-                updateData.vatType = changeData.vatType;
-            }
-            batch.update(txRef, updateData);
-        });
-
-        try {
-            await batch.commit();
-            toast({ title: 'Success!', description: 'Your changes have been saved.' });
-            setChanges({});
-            refetch();
-        } catch (error) {
-            console.error('Error saving changes:', error);
-            toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
-        } finally {
-            setIsSaving(false);
-        }
-    }
-    
-    const handleDownloadExcel = async () => {
-        if (!client || !client.uid || !bankAccountId) return;
-        setIsDownloading(true);
-        toast({ title: "Preparing Download...", description: "Fetching all reviewed transactions." });
-
-        try {
-            const q = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'allocated')
-            );
-            
-            const snapshot = await getDocs(q);
-
-            const mapToExport = (tx: ImportedTransaction) => ({
-                'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
-                'Description': tx.description,
-                'Allocated To': getAllocationDescription(tx),
-                'VAT Type': allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A',
-                'Amount': tx.amount,
-            });
-
-            const dataToExport = snapshot.docs.map(doc => mapToExport(doc.data() as ImportedTransaction));
-
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(dataToExport);
-            XLSX.utils.book_append_sheet(wb, ws, "Reviewed Transactions");
-            
-            XLSX.writeFile(wb, `Reviewed_Transactions_${client.name.replace(/\s/g, '_')}.xlsx`);
-
-            toast({ title: 'Download Ready!', description: 'Your Excel file has been downloaded.' });
-        } catch (error) {
-            console.error("Error downloading excel:", error);
-            toast({ title: 'Download Failed', description: 'Could not generate the Excel file.', variant: 'destructive' });
-        } finally {
-            setIsDownloading(false);
-        }
-    };
-
-
-    return (
-        <Card>
-            <CardHeader className="p-4 border-b">
-                 <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                type="search"
-                                placeholder="Search descriptions..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-8 w-64"
-                            />
-                        </div>
-                         <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                type="number"
-                                placeholder="Search by amount..."
-                                value={searchAmount}
-                                onChange={(e) => setSearchAmount(e.target.value)}
-                                className="pl-8 w-48"
-                            />
-                        </div>
-                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
-                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                            Download Excel
-                        </Button>
-                    </div>
-                     <Button onClick={handleSaveChanges} disabled={isSaving || Object.keys(changes).length === 0}>
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Save Changes
-                    </Button>
-                </div>
-            </CardHeader>
-            <CardContent className="p-0">
-                 <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => handleSort('allocatedTo')}>Allocated To <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                {client?.isVatRegistered && <TableHead><Button variant="ghost" onClick={() => handleSort('vatType')}>VAT Type <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>}
-                                <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
-                            ) : transactions.length === 0 ? (
-                                <TableRow><TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
-                            ) : (
-                                transactions.map(tx => (
-                                    <TableRow key={tx.id}>
-                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                        <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
-                                        <TableCell className="w-[250px]">
-                                            <Select
-                                                value={`${changes[tx.id]?.allocatedTo?.type || tx.allocatedTo?.type}:${changes[tx.id]?.allocatedTo?.value || tx.allocatedTo?.value}`}
-                                                onValueChange={(value) => handleAllocationChange(tx.id, value)}
-                                            >
-                                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectGroup>
-                                                        <Label>Accounts</Label>
-                                                        {client?.chartOfAccounts?.map(acc => (
-                                                            <SelectItem key={acc.id} value={`account:${acc.id}`}>{acc.description}</SelectItem>
-                                                        ))}
-                                                    </SelectGroup>
-                                                     <SelectGroup>
-                                                        <Label>Customers</Label>
-                                                        {customers.map(c => (
-                                                            <SelectItem key={c.id} value={`customer:${c.id}`}>{c.name}</SelectItem>
-                                                        ))}
-                                                    </SelectGroup>
-                                                </SelectContent>
-                                            </Select>
-                                        </TableCell>
-                                        {client?.isVatRegistered && (
-                                            <TableCell className="w-[200px]">
-                                                <Select
-                                                    value={changes[tx.id]?.vatType || tx.vatType}
-                                                    onValueChange={(value) => handleVatChange(tx.id, value as VatType)}
-                                                    disabled={tx.allocatedTo?.type === 'customer'}
-                                                >
-                                                    <SelectTrigger><SelectValue/></SelectTrigger>
-                                                    <SelectContent>
-                                                        {allVatTypes.map(vt => (
-                                                            <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </TableCell>
-                                        )}
-                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-            <CardFooter className="flex items-center justify-center p-4">
-                <div className="flex items-center space-x-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToPreviousPage}
-                        disabled={!canGoPrev || isLoading}
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                        Previous
-                    </Button>
-                    <span className="text-sm font-medium">
-                        Page {currentPage}
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToNextPage}
-                        disabled={!canGoNext || isLoading}
-                    >
-                        Next
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
-            </CardFooter>
-        </Card>
-    );
-});
-ReviewedTab.displayName = 'ReviewedTab';
-
 
 export default function BankTransactionsPage() {
     const [client, setClient] = useState<User | null>(null);
@@ -2796,6 +2928,7 @@ export default function BankTransactionsPage() {
                         bankAccountId={selectedAccountId} 
                         fetchClientData={fetchClientAndRelatedData}
                         globalRules={globalRules}
+                        onAccountCreated={fetchClientAndRelatedData}
                     />
                 </TabsContent>
                  <TabsContent value="review" className="mt-0">
@@ -2813,6 +2946,7 @@ export default function BankTransactionsPage() {
                         client={client} 
                         bankAccountId={selectedAccountId} 
                         customers={customers}
+                        onAccountCreated={fetchClientAndRelatedData}
                     />
                 </TabsContent>
             </Tabs>
@@ -2830,5 +2964,7 @@ export default function BankTransactionsPage() {
     
 
     
+
+
 
 
