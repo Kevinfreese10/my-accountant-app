@@ -1306,7 +1306,8 @@ const NewTransactionsTab = React.forwardRef<
             return;
         }
 
-        if (allNewExpenseTransactions.length === 0) {
+        const totalToProcess = allNewExpenseTransactions.length;
+        if (totalToProcess === 0) {
             toast({ title: "No Transactions", description: "There are no new expenses to allocate." });
             setIsAiAllocating(false);
             return;
@@ -1321,8 +1322,6 @@ const NewTransactionsTab = React.forwardRef<
         for (const tx of allNewExpenseTransactions) {
             if (processedTxIds.has(tx.id)) continue;
 
-            toast({ title: `Analyzing Pattern...`, description: `AI is analyzing: ${tx.description}` });
-
             try {
                 const result = await suggestTransactionAllocation({
                     description: tx.description,
@@ -1330,8 +1329,7 @@ const NewTransactionsTab = React.forwardRef<
                 });
 
                 if (result.accountId && result.confidence > 70) {
-                    // Find all similar transactions
-                    const similarDescriptionPrefix = tx.description.substring(0, 10); // Use a prefix to find similar ones
+                    const similarDescriptionPrefix = tx.description.substring(0, 10);
                     const similarTransactions = allNewExpenseTransactions.filter(
                         t => !processedTxIds.has(t.id) && t.description.startsWith(similarDescriptionPrefix)
                     );
@@ -1352,36 +1350,31 @@ const NewTransactionsTab = React.forwardRef<
                     
                     if (batchAllocatedCount > 0) {
                          toast({
-                            title: `Batch Allocated!`,
-                            description: `Allocated ${batchAllocatedCount} transaction(s) for "${tx.description}" pattern.`
+                            title: `Batch Allocated (${result.confidence}%)`,
+                            description: `Allocated ${batchAllocatedCount} transaction(s) for "${tx.description.substring(0,20)}..." pattern.`
                         });
                     }
                 } else {
-                    // If AI is not confident, mark as processed and move on
                     processedTxIds.add(tx.id);
                 }
             } catch (error) {
                 console.error(`AI allocation failed for tx ${tx.id}:`, error);
-                processedTxIds.add(tx.id); // Mark as processed to avoid retrying
+                processedTxIds.add(tx.id); 
             }
         }
         
         try {
             if (overallAllocatedCount > 0) {
                 await batch.commit();
-                toast({
-                    title: "AI Bulk Allocation Complete",
-                    description: `${overallAllocatedCount} out of ${allNewExpenseTransactions.length} transactions were confidently allocated for review.`
-                });
-            } else {
-                 toast({
-                    title: "AI Bulk Allocation Finished",
-                    description: `The AI could not confidently allocate any transactions.`
-                });
             }
         } catch (error) {
             toast({ title: "Error Saving Allocations", description: "Could not save all AI allocations.", variant: 'destructive' });
         }
+        
+        toast({
+            title: "AI Bulk Allocation Complete",
+            description: `${overallAllocatedCount} out of ${totalToProcess} transactions were confidently allocated for review.`
+        });
         
         refetch();
         setIsAiAllocating(false);
@@ -2678,5 +2671,7 @@ export default function BankTransactionsPage() {
 
     
 
+
+    
 
     
