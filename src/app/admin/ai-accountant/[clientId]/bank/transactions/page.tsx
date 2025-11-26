@@ -45,6 +45,7 @@ import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMont
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { requestMissingStatements } from '@/app/actions';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Slider } from '@/components/ui/slider';
 
 
 const PAGE_SIZE = 50;
@@ -1079,6 +1080,8 @@ const NewTransactionsTab = React.forwardRef<
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isConfidenceDialogOpen, setIsConfidenceDialogOpen] = useState(false);
+    const [aiConfidenceThreshold, setAiConfidenceThreshold] = useState(70);
 
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
@@ -1284,7 +1287,7 @@ const NewTransactionsTab = React.forwardRef<
         setIsAiAllocating(false);
     };
     
-    const handleAiAllocateAllExpenses = async () => {
+    const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
         if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
         setIsAiAllocating(true);
         toast({ title: "Starting AI Allocation...", description: "Fetching all new expense transactions." });
@@ -1328,7 +1331,7 @@ const NewTransactionsTab = React.forwardRef<
                     chartOfAccounts: chartOfAccountsJson,
                 });
 
-                if (result.accountId && result.confidence > 70) {
+                if (result.accountId && result.confidence > confidenceThreshold) {
                     const similarDescriptionPrefix = tx.description.substring(0, 10);
                     const similarTransactions = allNewExpenseTransactions.filter(
                         t => !processedTxIds.has(t.id) && t.description.startsWith(similarDescriptionPrefix)
@@ -1350,7 +1353,7 @@ const NewTransactionsTab = React.forwardRef<
                     
                     if (batchAllocatedCount > 0) {
                          toast({
-                            title: `Batch Allocated (${result.confidence}%)`,
+                            title: `Batch Allocated (${result.confidence.toFixed(0)}%)`,
                             description: `Allocated ${batchAllocatedCount} transaction(s) for "${tx.description.substring(0,20)}..." pattern.`
                         });
                     }
@@ -1378,6 +1381,7 @@ const NewTransactionsTab = React.forwardRef<
         
         refetch();
         setIsAiAllocating(false);
+        setIsConfidenceDialogOpen(false);
     };
 
     const handleAiIncomeAllocate = async () => {
@@ -1562,6 +1566,37 @@ const NewTransactionsTab = React.forwardRef<
                 }}
                 defaultValues={ruleDefaultValues}
             />
+            <Dialog open={isConfidenceDialogOpen} onOpenChange={setIsConfidenceDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Set AI Confidence Level</DialogTitle>
+                        <DialogDescription>
+                            Choose the minimum confidence level the AI must have to automatically allocate a transaction. Higher values mean fewer, but more accurate, automatic allocations.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="confidence-slider">Confidence Threshold: <span className="font-bold">{aiConfidenceThreshold}%</span></Label>
+                        </div>
+                        <Slider
+                            id="confidence-slider"
+                            min={50}
+                            max={100}
+                            step={5}
+                            value={[aiConfidenceThreshold]}
+                            onValueChange={(value) => setAiConfidenceThreshold(value[0])}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={() => setIsConfidenceDialogOpen(false)}>Cancel</Button>
+                        <Button type="button" onClick={() => handleAiAllocateAllExpenses(aiConfidenceThreshold)} disabled={isAiAllocating}>
+                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                            Start Allocation
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <CardHeader className="p-0">
                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
@@ -1635,7 +1670,7 @@ const NewTransactionsTab = React.forwardRef<
 
                         {activeSubTab === 'expenses' ? (
                             <>
-                             <Button variant="outline" onClick={handleAiAllocateAllExpenses} disabled={isAiAllocating || isLoading || transactions.length === 0}>
+                            <Button variant="outline" onClick={() => setIsConfidenceDialogOpen(true)} disabled={isAiAllocating || isLoading || transactions.length === 0}>
                                 {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
                                 AI Allocate All
                             </Button>
