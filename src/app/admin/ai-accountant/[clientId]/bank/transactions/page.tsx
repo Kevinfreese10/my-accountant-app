@@ -358,7 +358,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 if (matchedRule) {
                     transaction.status = 'review';
                     transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
-                    transaction.vatType = matchedRule.vatType;
+                    transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
                 }
                 
                 batch.set(newTransactionRef, transaction);
@@ -717,7 +717,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: 
                 if (matchedRule) {
                     transaction.status = 'review';
                     transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
-                    transaction.vatType = matchedRule.vatType;
+                    transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
                 }
 
                 batch.set(newTransactionRef, transaction);
@@ -976,7 +976,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
       description: values.description,
       keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
       accountId: values.accountId,
-      vatType: values.vatType,
+      vatType: client?.isVatRegistered ? values.vatType : 'no_vat',
       type: 'hard', // All user-created rules are 'hard' rules
     };
 
@@ -1048,7 +1048,9 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
             <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input placeholder="e.g., Monthly bank charges" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., monthly account fee, service fee" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )}/>
-            <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+            {client?.isVatRegistered && (
+              <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+            )}
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
               <Button type="submit" disabled={isSaving}>
@@ -1192,7 +1194,7 @@ const NewTransactionsTab = React.forwardRef<
                     batch.update(transactionRef, {
                         status: 'review',
                         allocatedTo: { value: matchedRule.accountId, type: 'account' },
-                        vatType: matchedRule.vatType,
+                        vatType: client.isVatRegistered ? matchedRule.vatType : 'no_vat',
                         allocatedAt: new Date(),
                     });
                     allocatedCount++;
@@ -1240,6 +1242,7 @@ const NewTransactionsTab = React.forwardRef<
                 const result = await suggestTransactionAllocation({
                     description: tx.description,
                     chartOfAccounts: chartOfAccountsJson,
+                    isVatRegistered: client.isVatRegistered || false,
                 });
 
                 if (result.accountId && result.confidence > 70) {
@@ -1247,7 +1250,7 @@ const NewTransactionsTab = React.forwardRef<
                     await updateDoc(transactionRef, {
                         status: 'review',
                         allocatedTo: { value: result.accountId, type: 'account' },
-                        vatType: result.vatType,
+                        vatType: client.isVatRegistered ? result.vatType : 'no_vat',
                         allocatedAt: new Date(),
                     });
                     successCount++;
@@ -1260,7 +1263,7 @@ const NewTransactionsTab = React.forwardRef<
                             <div>
                                 <p>Transaction: <span className="font-semibold">{tx.description}</span></p>
                                 <p>Account: <span className="font-semibold">{accountName}</span></p>
-                                <p>VAT Type: <span className="font-semibold">{result.vatType}</span></p>
+                                {client.isVatRegistered && <p>VAT Type: <span className="font-semibold">{result.vatType}</span></p>}
                                 <p>AI Confidence: <span className="font-semibold">{result.confidence}%</span></p>
                             </div>
                         ),
@@ -1329,6 +1332,7 @@ const NewTransactionsTab = React.forwardRef<
                 const result = await suggestTransactionAllocation({
                     description: tx.description,
                     chartOfAccounts: chartOfAccountsJson,
+                    isVatRegistered: client.isVatRegistered || false,
                 });
 
                 if (result.accountId && result.confidence > confidenceThreshold) {
@@ -1343,7 +1347,7 @@ const NewTransactionsTab = React.forwardRef<
                         batch.update(transactionRef, {
                             status: 'review',
                             allocatedTo: { value: result.accountId, type: 'account' },
-                            vatType: result.vatType,
+                            vatType: client.isVatRegistered ? result.vatType : 'no_vat',
                             allocatedAt: new Date(),
                         });
                         processedTxIds.add(similarTx.id);
@@ -1471,7 +1475,7 @@ const NewTransactionsTab = React.forwardRef<
             batch.update(transactionRef, {
                 status: 'review',
                 allocatedTo: allocation,
-                vatType: vatType,
+                vatType: client.isVatRegistered ? vatType : 'no_vat',
                 allocatedAt: new Date(),
             });
         }
@@ -1624,11 +1628,15 @@ const NewTransactionsTab = React.forwardRef<
                                                         <DropdownMenuSub key={acc.id}>
                                                             <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
                                                             <DropdownMenuSubContent>
-                                                                {allVatTypes.map(vat => (
+                                                                {client?.isVatRegistered ? allVatTypes.map(vat => (
                                                                     <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
                                                                         {vat.label}
                                                                     </DropdownMenuItem>
-                                                                ))}
+                                                                )) : (
+                                                                    <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                                        No VAT
+                                                                    </DropdownMenuItem>
+                                                                )}
                              </DropdownMenuSubContent>
                                                         </DropdownMenuSub>
                                                     ))}
@@ -1945,7 +1953,7 @@ const ForReviewTab = React.forwardRef<
                         description: `Auto-generated for: ${tx.description}`,
                         keywords: [coreKeyword],
                         accountId: tx.allocatedTo.value,
-                        vatType: tx.vatType || 'no_vat',
+                        vatType: client.isVatRegistered ? tx.vatType || 'no_vat' : 'no_vat',
                         type: 'soft', // Mark as AI-generated,
                     };
                     const clientRef = doc(db, 'aiAccountantClients', client.uid);
@@ -2073,7 +2081,7 @@ const ForReviewTab = React.forwardRef<
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead>Suggested Allocation</TableHead>
-                                <TableHead>Suggested VAT</TableHead>
+                                {client?.isVatRegistered && <TableHead>Suggested VAT</TableHead>}
                                 <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -2098,7 +2106,7 @@ const ForReviewTab = React.forwardRef<
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
                                         <TableCell>{getAllocationDescription(tx)}</TableCell>
-                                        <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
+                                        {client?.isVatRegistered && <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>}
                                         <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                     </TableRow>
                                 ))
@@ -2323,7 +2331,7 @@ const ReviewedTab = React.forwardRef<
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('allocatedTo')}>Allocated To <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => handleSort('vatType')}>VAT Type <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                {client?.isVatRegistered && <TableHead><Button variant="ghost" onClick={() => handleSort('vatType')}>VAT Type <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>}
                                 <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -2359,20 +2367,22 @@ const ReviewedTab = React.forwardRef<
                                                 </SelectContent>
                                             </Select>
                                         </TableCell>
-                                        <TableCell className="w-[200px]">
-                                            <Select
-                                                value={changes[tx.id]?.vatType || tx.vatType}
-                                                onValueChange={(value) => handleVatChange(tx.id, value as VatType)}
-                                                disabled={tx.allocatedTo?.type === 'customer'}
-                                            >
-                                                <SelectTrigger><SelectValue/></SelectTrigger>
-                                                <SelectContent>
-                                                    {allVatTypes.map(vt => (
-                                                        <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </TableCell>
+                                        {client?.isVatRegistered && (
+                                            <TableCell className="w-[200px]">
+                                                <Select
+                                                    value={changes[tx.id]?.vatType || tx.vatType}
+                                                    onValueChange={(value) => handleVatChange(tx.id, value as VatType)}
+                                                    disabled={tx.allocatedTo?.type === 'customer'}
+                                                >
+                                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                                    <SelectContent>
+                                                        {allVatTypes.map(vt => (
+                                                            <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                        )}
                                         <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                     </TableRow>
                                 ))

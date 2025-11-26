@@ -20,6 +20,7 @@ export type SuggestIncomeAllocationInput = z.infer<typeof SuggestIncomeAllocatio
 const SuggestIncomeAllocationOutputSchema = z.object({
   customerId: z.string().optional().describe("The ID of the suggested customer from the provided list. This must exactly match an ID from the list."),
   confidence: z.number().min(0).max(100).describe('A confidence score (0-100) of how certain you are about the allocation. A higher score means more confidence. Base confidence on how clearly the description matches a customer name or invoice number.'),
+  vatType: z.literal('no_vat').describe("Always return 'no_vat' for income allocations as VAT is handled on the invoice."),
 });
 export type SuggestIncomeAllocationOutput = z.infer<typeof SuggestIncomeAllocationOutputSchema>;
 
@@ -48,6 +49,7 @@ Based on the description, provide the customer ID. Your confidence score should 
 - If you find an exact invoice number or a full name match, confidence should be high (90-100).
 - If you find a partial name match, confidence should be medium (60-80).
 - If the description is too generic (e.g., "INTERNET TRANSFER") or doesn't match anyone, confidence should be very low (0-20), and you should not return a customerId.
+- For the vatType, you must always return 'no_vat' as VAT is accounted for on the original sales invoice, not the payment receipt.
   `,
 });
 
