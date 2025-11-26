@@ -1868,6 +1868,7 @@ const ForReviewTab = React.forwardRef<
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isApprovingAll, setIsApprovingAll] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
     const [sortField, setSortField] = useState<SortField>('date');
@@ -2029,6 +2030,62 @@ const ForReviewTab = React.forwardRef<
         }
         return client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo?.value)?.description || 'Unknown Account';
     }
+    
+    const handleDownloadExcel = async () => {
+        if (!client || !client.uid || !bankAccountId) return;
+        setIsDownloading(true);
+        toast({ title: "Preparing Download...", description: "Fetching all transactions for review." });
+
+        try {
+            const expensesQuery = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'review'),
+                where('amount', '<', 0)
+            );
+            const incomeQuery = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'review'),
+                where('amount', '>=', 0)
+            );
+            
+            const [expensesSnapshot, incomeSnapshot] = await Promise.all([
+                getDocs(expensesQuery),
+                getDocs(incomeQuery),
+            ]);
+
+            const mapToExport = (tx: ImportedTransaction) => ({
+                'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
+                'Description': tx.description,
+                'Suggested Allocation': getAllocationDescription(tx),
+                'Suggested VAT': allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A',
+                'Amount': tx.amount,
+            });
+
+            const expensesData = expensesSnapshot.docs.map(doc => mapToExport(doc.data() as ImportedTransaction));
+            const incomeData = incomeSnapshot.docs.map(doc => mapToExport(doc.data() as ImportedTransaction));
+
+            const wb = XLSX.utils.book_new();
+            if (expensesData.length > 0) {
+                const expensesSheet = XLSX.utils.json_to_sheet(expensesData);
+                XLSX.utils.book_append_sheet(wb, expensesSheet, "Expenses For Review");
+            }
+            if (incomeData.length > 0) {
+                const incomeSheet = XLSX.utils.json_to_sheet(incomeData);
+                XLSX.utils.book_append_sheet(wb, incomeSheet, "Income For Review");
+            }
+            
+            XLSX.writeFile(wb, `For_Review_Transactions_${client.name.replace(/\s/g, '_')}.xlsx`);
+
+            toast({ title: 'Download Ready!', description: 'Your Excel file has been downloaded.' });
+        } catch (error) {
+            console.error("Error downloading excel:", error);
+            toast({ title: 'Download Failed', description: 'Could not generate the Excel file.', variant: 'destructive' });
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
 
     return (
@@ -2051,6 +2108,10 @@ const ForReviewTab = React.forwardRef<
                         </Button>
                         <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
                             <RotateCcw className="mr-2 h-4 w-4" />Reject Selected
+                        </Button>
+                        <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Download Excel
                         </Button>
                     </div>
                      <div className="relative">
@@ -2155,6 +2216,7 @@ const ReviewedTab = React.forwardRef<
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
     const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
+    const [isDownloading, setIsDownloading] = useState(false);
 
     type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
     type SortDirection = 'asc' | 'desc';
@@ -2289,6 +2351,45 @@ const ReviewedTab = React.forwardRef<
             setIsSaving(false);
         }
     }
+    
+    const handleDownloadExcel = async () => {
+        if (!client || !client.uid || !bankAccountId) return;
+        setIsDownloading(true);
+        toast({ title: "Preparing Download...", description: "Fetching all reviewed transactions." });
+
+        try {
+            const q = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'allocated')
+            );
+            
+            const snapshot = await getDocs(q);
+
+            const mapToExport = (tx: ImportedTransaction) => ({
+                'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
+                'Description': tx.description,
+                'Allocated To': getAllocationDescription(tx),
+                'VAT Type': allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A',
+                'Amount': tx.amount,
+            });
+
+            const dataToExport = snapshot.docs.map(doc => mapToExport(doc.data() as ImportedTransaction));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(dataToExport);
+            XLSX.utils.book_append_sheet(wb, ws, "Reviewed Transactions");
+            
+            XLSX.writeFile(wb, `Reviewed_Transactions_${client.name.replace(/\s/g, '_')}.xlsx`);
+
+            toast({ title: 'Download Ready!', description: 'Your Excel file has been downloaded.' });
+        } catch (error) {
+            console.error("Error downloading excel:", error);
+            toast({ title: 'Download Failed', description: 'Could not generate the Excel file.', variant: 'destructive' });
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
 
     return (
@@ -2316,6 +2417,10 @@ const ReviewedTab = React.forwardRef<
                                 className="pl-8 w-48"
                             />
                         </div>
+                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Download Excel
+                        </Button>
                     </div>
                      <Button onClick={handleSaveChanges} disabled={isSaving || Object.keys(changes).length === 0}>
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -2720,3 +2825,4 @@ export default function BankTransactionsPage() {
     
 
     
+
