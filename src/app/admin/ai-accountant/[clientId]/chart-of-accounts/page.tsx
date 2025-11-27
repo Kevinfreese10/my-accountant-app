@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, PlusCircle, Edit, Trash2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { User, ChartOfAccount } from '@/lib/types';
+import { User, ChartOfAccount, AllocatedTransaction } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useForm } from "react-hook-form";
@@ -66,13 +66,14 @@ export default function ChartOfAccountsPage() {
     const params = useParams();
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
+    const [transactions, setTransactions] = useState<AllocatedTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
     const [filter, setFilter] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<ChartOfAccount | null>(null);
 
-    const fetchClient = async () => {
+    const fetchClientData = async () => {
         if (!clientId) return;
         setIsLoading(true);
         try {
@@ -80,12 +81,17 @@ export default function ChartOfAccountsPage() {
             const clientSnap = await getDoc(clientRef);
             if (clientSnap.exists()) {
                 const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
-                // Ensure chart of accounts is sorted
                 if (clientData.chartOfAccounts) {
                     clientData.chartOfAccounts.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber));
                 }
                 setClient(clientData);
             }
+
+            const transQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'));
+            const transSnap = await getDocs(transQuery);
+            const fetchedTransactions = transSnap.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction);
+            setTransactions(fetchedTransactions);
+
         } catch (e) {
             toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
         } finally {
@@ -94,7 +100,7 @@ export default function ChartOfAccountsPage() {
     }
   
     useEffect(() => {
-        fetchClient();
+        fetchClientData();
     }, [clientId]);
 
     const filteredAccounts = useMemo(() => {
@@ -107,22 +113,27 @@ export default function ChartOfAccountsPage() {
 
     const handleSaveAccount = async (data: AccountFormValues) => {
         if (!client) return;
-
+        
         let updatedAccounts: ChartOfAccount[];
-        if (data.id) { // Editing existing account
+        if (editingAccount && data.id) { // Editing existing account
             updatedAccounts = client.chartOfAccounts?.map(acc => acc.id === data.id ? { ...acc, ...data } : acc) || [];
         } else { // Adding new account
-            const newAccount: ChartOfAccount = { ...data, id: data.accountNumber }; // Use account number as ID for simplicity
+            const existingAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === data.accountNumber);
+            if(existingAccount) {
+                toast({ title: 'Duplicate Account', description: 'An account with this number already exists.', variant: 'destructive' });
+                return;
+            }
+            const newAccount: ChartOfAccount = { ...data, id: data.accountNumber };
             updatedAccounts = [...(client.chartOfAccounts || []), newAccount];
         }
 
         try {
             const clientRef = doc(db, 'aiAccountantClients', client.id);
             await updateDoc(clientRef, { chartOfAccounts: updatedAccounts });
-            toast({ title: 'Success', description: `Account ${data.id ? 'updated' : 'created'} successfully.` });
+            toast({ title: 'Success', description: `Account ${editingAccount ? 'updated' : 'created'} successfully.` });
             setIsFormOpen(false);
             setEditingAccount(null);
-            await fetchClient();
+            await fetchClientData();
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to save account.', variant: 'destructive' });
         }
@@ -131,13 +142,24 @@ export default function ChartOfAccountsPage() {
     const handleDeleteAccount = async (accountId: string) => {
         if (!client?.chartOfAccounts) return;
         
+        const isAccountInUse = transactions.some(tx => tx.allocatedTo?.value === accountId);
+
+        if(isAccountInUse) {
+            toast({
+                title: 'Cannot Delete Account',
+                description: 'This account has transactions allocated to it and cannot be deleted.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         const updatedAccounts = client.chartOfAccounts.filter(acc => acc.id !== accountId);
 
         try {
             const clientRef = doc(db, 'aiAccountantClients', client.id);
             await updateDoc(clientRef, { chartOfAccounts: updatedAccounts });
             toast({ title: 'Success', description: 'Account deleted successfully.', variant: 'destructive' });
-            await fetchClient();
+            await fetchClientData();
         } catch(error) {
             toast({ title: 'Error', description: 'Failed to delete account.', variant: 'destructive' });
         }
@@ -150,7 +172,7 @@ export default function ChartOfAccountsPage() {
             const clientRef = doc(db, 'aiAccountantClients', client.id);
             await updateDoc(clientRef, { chartOfAccounts: masterChartOfAccounts });
             toast({ title: 'Chart of Accounts Reset', description: 'The accounts have been reset to the master list.' });
-            await fetchClient();
+            await fetchClientData();
         } catch (error) {
              toast({ title: 'Error', description: 'Failed to reset accounts.', variant: 'destructive' });
         }
@@ -161,7 +183,7 @@ export default function ChartOfAccountsPage() {
     }
 
     return (
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <Dialog open={isFormOpen} onOpenChange={(open) => { setIsFormOpen(open); if(!open) setEditingAccount(null); }}>
             <Card>
                 <CardHeader>
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
