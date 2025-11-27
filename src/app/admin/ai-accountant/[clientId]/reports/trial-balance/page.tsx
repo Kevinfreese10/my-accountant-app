@@ -68,11 +68,12 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
         const reportEndDate = dateRange?.to ? endOfDay(dateRange.to) : new Date();
         
         const retainedIncomeAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '9000-004');
+        const currentYearEarningsAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '9000-003');
         const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008');
         
         let priorPeriodNetIncome = 0;
+        let currentPeriodNetIncome = 0;
 
-        // Process all transactions
         transactions.forEach(tx => {
             const txDate = new Date(tx.date);
             const isPriorPeriod = txDate < reportStartDate;
@@ -83,12 +84,14 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
 
                 if (isPriorPeriod) {
                     if (account.section === 'Income Statement') {
-                        priorPeriodNetIncome -= amount;
-                    } else if (balances.has(accountId)) {
+                        priorPeriodNetIncome -= amount; // Income is credit (negative), expenses are debit (positive)
+                    } else { // Balance Sheet accounts
                         balances.set(accountId, (balances.get(accountId) || 0) + amount);
                     }
                 } else if (txDate <= reportEndDate) {
-                    if (balances.has(accountId)) {
+                    if (account.section === 'Income Statement') {
+                        currentPeriodNetIncome -= amount;
+                    } else { // Balance Sheet accounts
                         balances.set(accountId, (balances.get(accountId) || 0) + amount);
                     }
                 }
@@ -101,7 +104,7 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
             } 
             else { // Bank Transactions
                 const inclusiveAmount = tx.amount;
-                const isStandardVat = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'standard_rated_sales';
+                const isStandardVat = client.isVatRegistered && (tx.vatType === 'standard_rated_purchases' || tx.vatType === 'standard_rated_sales');
                 
                 let vatAmount = 0;
                 let exclusiveAmount = inclusiveAmount;
@@ -130,6 +133,10 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
         
         if (retainedIncomeAccount) {
             balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) + priorPeriodNetIncome);
+        }
+        
+        if (currentYearEarningsAccount) {
+            balances.set(currentYearEarningsAccount.id, (balances.get(currentYearEarningsAccount.id) || 0) + currentPeriodNetIncome);
         }
 
         return balances;
