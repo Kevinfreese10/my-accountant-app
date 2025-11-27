@@ -1624,7 +1624,6 @@ const NewTransactionsTab = React.forwardRef<
             await batch.commit();
             toast({ title: "Allocation Successful", description: `${selectedTransactions.length} transactions have been sent for review.` });
             setSelectedTransactions([]);
-            // After allocation, re-run the search to show the updated list
             handleSearch();
         } catch (error) {
             console.error("Error during bulk allocation:", error);
@@ -1683,19 +1682,11 @@ const NewTransactionsTab = React.forwardRef<
     };
     
     const allocationOptions = useMemo(() => {
-        const accounts = client?.chartOfAccounts?.map(acc => ({
-            value: acc.id,
-            label: acc.description,
-            group: 'Accounts',
-        })) || [];
-        const customerOptions = customers.map(cust => ({
-            value: cust.id,
-            label: cust.name,
-            group: 'Customers',
-        }));
-        // Add suppliers here when available
-        return [...accounts, ...customerOptions];
-    }, [client?.chartOfAccounts, customers]);
+        const accounts = client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())) || [];
+        const customerOptions = customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase()));
+
+        return { accounts, customers: customerOptions };
+    }, [client?.chartOfAccounts, customers, searchAccountTerm]);
     
     return (
         <Card>
@@ -1772,14 +1763,14 @@ const NewTransactionsTab = React.forwardRef<
                                                 <ScrollArea className="h-72">
                                                 <CommandEmpty>No results found.</CommandEmpty>
                                                 <CommandGroup heading="Customers">
-                                                    {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
+                                                    {allocationOptions.customers.map(c => (
                                                         <DropdownMenuItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
                                                             {c.name}
                                                         </DropdownMenuItem>
                                                     ))}
                                                 </CommandGroup>
                                                  <CommandGroup heading="Accounts">
-                                                    {client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
+                                                    {allocationOptions.accounts.map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
                                                             <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
                                                             <DropdownMenuSubContent>
@@ -1911,7 +1902,7 @@ const NewTransactionsTab = React.forwardRef<
                                             <Popover>
                                                 <PopoverTrigger asChild>
                                                     <Button variant="outline" className="w-full justify-start text-left font-normal">
-                                                        {allocations[tx.id] ? allocationOptions.find(o => o.value === allocations[tx.id].value)?.label : "Select..."}
+                                                        {allocations[tx.id] ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.name : "Select..."}
                                                     </Button>
                                                 </PopoverTrigger>
                                                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
@@ -3192,6 +3183,7 @@ export default function BankTransactionsPage() {
     
 
     
+
 
 
 
