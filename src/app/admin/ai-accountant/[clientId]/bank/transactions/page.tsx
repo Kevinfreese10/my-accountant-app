@@ -2009,6 +2009,16 @@ const ReviewedTab = React.forwardRef<
     type SortDirection = 'asc' | 'desc';
     const [sortField, setSortField] = useState<SortField>('date');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+    
+    const uniqueChartOfAccounts = useMemo(() => {
+        if (!client?.chartOfAccounts) return [];
+        const seen = new Set();
+        return client.chartOfAccounts.filter(el => {
+            const duplicate = seen.has(el.id);
+            seen.add(el.id);
+            return !duplicate;
+        });
+    }, [client?.chartOfAccounts]);
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -2103,7 +2113,7 @@ const ReviewedTab = React.forwardRef<
         if (allocatedTo.type === 'customer') {
             return customers.find(c => c.id === allocatedTo.value)?.name || 'Unknown Customer';
         }
-        return client?.chartOfAccounts?.find(acc => acc.id === allocatedTo.value)?.description || 'Unknown Account';
+        return uniqueChartOfAccounts?.find(acc => acc.id === allocatedTo.value)?.description || 'Unknown Account';
     }
 
     const handleAllocationChange = (txId: string, value: string) => {
@@ -2308,7 +2318,7 @@ const ReviewedTab = React.forwardRef<
                                                     ))}
                                                 </CommandGroup>
                                                  <CommandGroup heading="Accounts">
-                                                    {client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
+                                                    {uniqueChartOfAccounts.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
                                                             <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
                                                             <DropdownMenuSubContent>
@@ -2432,7 +2442,7 @@ const ReviewedTab = React.forwardRef<
                                                      <Separator className="my-1"/>
                                                     <SelectGroup>
                                                         <Label>Accounts</Label>
-                                                        {client?.chartOfAccounts?.map(acc => (
+                                                        {uniqueChartOfAccounts.map(acc => (
                                                             <SelectItem key={acc.id} value={`account:${acc.id}`}>{acc.description}</SelectItem>
                                                         ))}
                                                     </SelectGroup>
@@ -3153,6 +3163,7 @@ export default function BankTransactionsPage() {
     
 
     
+
 
 
 
