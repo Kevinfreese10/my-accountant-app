@@ -1625,6 +1625,8 @@ const NewTransactionsTab = React.forwardRef<
             toast({ title: "Allocation Successful", description: `${selectedTransactions.length} transactions have been sent for review.` });
             setSelectedTransactions([]);
             refetch();
+            setSearchResults(null); // Clear search results after allocation
+            setSearchTerm(''); // Reset search term
         } catch (error) {
             console.error("Error during bulk allocation:", error);
             toast({ title: "Allocation Failed", variant: "destructive" });
@@ -3191,6 +3193,7 @@ export default function BankTransactionsPage() {
     
 
     
+
 
 
 
