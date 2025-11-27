@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -93,7 +94,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin'] },
+     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'ai_accountant'] },
   ];
 
   const settingsNavItems = [
@@ -156,6 +157,17 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuButton>
             </SidebarMenuItem>
         ))}
+        
+        {hasAIAccountantProfile && (user.role === 'ai_accountant' || user.role === 'client') && (
+            <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`)} tooltip="AI Accountant">
+                    <Link href={`${basePath}/ai-accountant/clients`}>
+                        <BrainCircuit />
+                        <span>AI Accountant</span>
+                    </Link>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+        )}
 
         {(user.role === 'admin' || user.role === 'staff') && visibleAdminNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>

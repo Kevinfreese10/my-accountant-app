@@ -31,6 +31,7 @@ const lineItemSchema = z.object({
   description: z.string().min(1, 'Description is required.'),
   quantity: z.preprocess(val => Number(val), z.number().min(1, 'Quantity must be at least 1.')),
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
+  clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
 });
 
 
@@ -83,7 +84,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       customerLastName: '',
       customerEmail: '',
       customerPhone: '',
-      items: [{ serviceId: '', description: '', quantity: 1, resellerPrice: 0 }],
+      items: [{ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 }],
     },
     mode: 'onChange',
   });
@@ -116,6 +117,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
     if (selectedService) {
         form.setValue(`items.${index}.description`, selectedService.title);
         form.setValue(`items.${index}.resellerPrice`, selectedService.resellerPrice || selectedService.price);
+        form.setValue(`items.${index}.clientPrice`, selectedService.price);
         form.trigger(`items.${index}`);
     }
   };
@@ -144,11 +146,12 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
     try {
       const orderId = await getNextOrderId();
       const resellerTotalCost = values.items.reduce((acc, item) => acc + (item.resellerPrice * item.quantity), 0);
+      const clientTotal = values.items.reduce((acc, item) => acc + (item.clientPrice * item.quantity), 0);
       
       const orderData: Order = {
         id: orderId,
         resellerId: reseller.id,
-        customerName: reseller.companyName || reseller.name, // Main contact is reseller
+        customerName: `${reseller.name} ${reseller.surname}`,
         customerEmail: reseller.email,
         customerPhone: reseller.contactNumber,
         documentContact: 'reseller',
@@ -158,11 +161,11 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
             id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
             title: item.description, 
             price: item.resellerPrice,
-            clientPrice: item.resellerPrice,
+            clientPrice: item.clientPrice,
             quantity: item.quantity
         })),
         total: resellerTotalCost,
-        clientTotal: resellerTotalCost,
+        clientTotal: clientTotal,
         status: 'Pending Payment',
         date: Timestamp.now(),
         isOutsourced: true, // All reseller-created orders are now considered outsourced
@@ -179,7 +182,6 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
           bcc: 'kev@thinkestry.co.za',
           subject: confirmationEmailSubject,
           html: emailHtml,
-          // resellerId is removed to ensure it sends from the default My Accountant address
         });
       } catch (emailError) {
         console.error("Failed to send reseller email:", emailError);
@@ -268,6 +270,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
             <div className="space-y-4">
                 {fields.map((field, index) => {
                     const resellerPrice = form.watch(`items.${index}.resellerPrice`);
+                    const clientPrice = form.watch(`items.${index}.clientPrice`);
                     const serviceId = form.watch(`items.${index}.serviceId`);
                     const selectedService = serviceId ? allServices.find(s => s.id === serviceId) : null;
                     
@@ -323,12 +326,17 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                                     </FormItem>
                                 )}
                                 />
-                             <FormItem>
-                                <FormLabel>Outsourcing cost</FormLabel>
-                                <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
-                                    <span>{formatPrice(resellerPrice)}</span>
-                                </div>
-                             </FormItem>
+                             <FormField
+                                control={form.control}
+                                name={`items.${index}.clientPrice`}
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Selling Price (R)</FormLabel>
+                                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
                              <div className="md:col-span-1 flex items-end">
                                 <Button
                                     type="button"
@@ -351,7 +359,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                     variant="outline"
                     size="sm"
                     className="mt-4"
-                    onClick={() => append({ serviceId: '', description: '', quantity: 1, resellerPrice: 0 })}
+                    onClick={() => append({ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 })}
                 >
                     <Plus className="mr-2 h-4 w-4" /> Add Line Item
                 </Button>

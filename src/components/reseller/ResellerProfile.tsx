@@ -17,7 +17,8 @@ import { useState } from 'react';
 
 const formSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
-  contactPerson: z.string().min(2, 'Contact person is required.'),
+  name: z.string().min(2, 'Contact name is required.'),
+  surname: z.string().min(2, 'Contact surname is required.'),
   email: z.string().email('Please enter a valid email.'),
   contactNumber: z.string().min(10, 'A valid contact number is required.'),
   address: z.object({
@@ -44,7 +45,8 @@ export default function ResellerProfile() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       companyName: user?.companyName || '',
-      contactPerson: user?.contactPerson || '',
+      name: user?.name?.split(' ')[0] || user?.contactPerson?.split(' ')[0] || '',
+      surname: user?.name?.split(' ').slice(1).join(' ') || user?.contactPerson?.split(' ').slice(1).join(' ') || '',
       email: user?.email || '',
       contactNumber: user?.contactNumber || '',
       address: { 
@@ -83,7 +85,8 @@ export default function ResellerProfile() {
              <h3 className="text-lg font-medium">Company Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Contact Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="surname" render={({ field }) => ( <FormItem><FormLabel>Contact Surname</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} readOnly disabled /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="contactNumber" render={({ field }) => ( <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
