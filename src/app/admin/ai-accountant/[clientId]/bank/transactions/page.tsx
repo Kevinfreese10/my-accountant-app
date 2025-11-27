@@ -590,7 +590,7 @@ type ParsedTransaction = {
     Amount: number;
 }
 
-function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: { client: User | null, bankAccountId: string, onImportComplete: () => void, globalRules: AllocationRule[] }) {
+function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete, globalRules }: { client: User | null, bankAccountId: string, currentBalance: number, onImportComplete: () => void, globalRules: AllocationRule[] }) {
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
@@ -599,6 +599,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: 
     const { toast } = useToast();
     const [potentialAllocations, setPotentialAllocations] = useState(0);
     const [potentialAiAllocations, setPotentialAiAllocations] = useState(0);
+    const [importError, setImportError] = useState<string | null>(null);
 
     const resetState = useCallback(() => {
         setFile(null);
@@ -607,6 +608,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: 
         setPotentialAiAllocations(0);
         setIsParsing(false);
         setIsUploading(false);
+        setImportError(null);
         const fileInput = document.getElementById('statement-file') as HTMLInputElement;
         if(fileInput) fileInput.value = '';
     }, []);
@@ -615,6 +617,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: 
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
             setIsParsing(true);
+            setImportError(null);
             setFile(selectedFile);
             setParsedTransactions([]);
             setPotentialAllocations(0);
@@ -632,6 +635,13 @@ function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: 
                     header: true,
                     skipEmptyLines: true,
                     complete: (results) => {
+                        if (results.data.length > 2000) {
+                            setImportError('File is too large. Please import no more than 2000 lines at a time.');
+                            setParsedTransactions([]);
+                            setIsParsing(false);
+                            return;
+                        }
+                        
                         const data = results.data as any[];
                         const transactions: ParsedTransaction[] = data.map(row => ({
                             Date: row.Date,
@@ -674,7 +684,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: 
     };
     
     const handleImport = async () => {
-        if (!file || !client || !client.uid || !bankAccountId || parsedTransactions.length === 0) return;
+        if (!file || !client || !client.uid || !bankAccountId || parsedTransactions.length === 0 || importError) return;
         setIsUploading(true);
         toast({ title: "Importing...", description: "Processing your file and applying rules."});
 
@@ -758,9 +768,9 @@ function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: 
         return parsedTransactions.reduce((sum, tx) => sum + tx.Amount, 0);
     }, [parsedTransactions]);
 
+    const newBalance = useMemo(() => currentBalance + importTotal, [currentBalance, importTotal]);
+
     const totalAutomated = potentialAllocations + potentialAiAllocations;
-    const timeSavedMinutes = totalAutomated * 0.5; // Example: 30 seconds per auto-allocation
-    const timeSavedHours = Math.ceil(timeSavedMinutes / 60);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
@@ -781,22 +791,33 @@ function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: 
                      </div>
                      <Input id="statement-file" type="file" accept=".csv" onChange={handleFileChange} />
                      {isParsing && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 animate-spin"/> Parsing file...</p>}
+                     {importError && (
+                         <Alert variant="destructive">
+                             <AlertTriangle className="h-4 w-4" />
+                             <AlertTitle>Import Error</AlertTitle>
+                             <AlertDescription>{importError}</AlertDescription>
+                         </Alert>
+                     )}
                      {parsedTransactions.length > 0 && 
                         <div className="pt-4 space-y-4">
-                             <div className="space-y-1">
-                                <p className="text-sm text-green-600 font-semibold">{parsedTransactions.length} transactions found in file.</p>
-                                {totalAutomated > 0 && (
-                                     <p className="text-sm text-purple-600">
-                                       {totalAutomated} transaction(s) can be automatically processed (by rules or AI), saving you an estimated {timeSavedHours} hour(s).
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1 p-3 rounded-lg bg-muted">
+                                    <p className="text-sm font-semibold">{parsedTransactions.length} transactions found.</p>
+                                    <p className="text-sm text-purple-600">
+                                       {totalAutomated} transaction(s) can be automatically processed.
                                     </p>
-                                )}
+                                </div>
+                                <div className="space-y-1 p-3 rounded-lg bg-muted">
+                                    <p className="text-sm text-muted-foreground">New Potential Balance</p>
+                                    <p className="text-lg font-bold">{new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(newBalance)}</p>
+                                </div>
                             </div>
                         </div>
                      }
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={handleCancel}>Cancel</Button>
-                    <Button type="button" onClick={handleImport} disabled={isUploading || isParsing || parsedTransactions.length === 0}>
+                    <Button type="button" onClick={handleImport} disabled={isUploading || isParsing || parsedTransactions.length === 0 || !!importError}>
                         {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Save {parsedTransactions.length > 0 ? parsedTransactions.length : ''} Transactions
                     </Button>
@@ -2950,6 +2971,13 @@ export default function BankTransactionsPage() {
     const selectedAccount = useMemo(() => {
         return bankAccounts.find(acc => acc.id === selectedAccountId);
     }, [bankAccounts, selectedAccountId]);
+
+    const selectedAccountBalance = useMemo(() => {
+        if (!selectedAccount) return 0;
+        return allTransactions
+            .filter(tx => tx.bankAccountId === selectedAccount.id)
+            .reduce((sum, tx) => sum + tx.amount, 0);
+    }, [allTransactions, selectedAccount]);
     
     const handleDeleteBankAccount = async () => {
         if (!client || !client.uid || !selectedAccountId) return;
@@ -3108,7 +3136,7 @@ export default function BankTransactionsPage() {
 
                 <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto justify-end">
                     {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} existingTransactions={currentAccountTransactions} onImportComplete={handleImportComplete} globalRules={globalRules} />}
-                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} globalRules={globalRules} />}
+                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} currentBalance={selectedAccountBalance} onImportComplete={handleImportComplete} globalRules={globalRules} />}
                 </div>
             </div>
 
@@ -3163,6 +3191,7 @@ export default function BankTransactionsPage() {
     
 
     
+
 
 
 
