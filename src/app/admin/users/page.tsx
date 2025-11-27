@@ -200,23 +200,22 @@ export default function ManageUsersPage() {
     try {
       const batch = writeBatch(db);
 
-      // 1. Reassign tasks
+      // Reassign tasks
       const tasksQuery = query(collection(db, 'tasks'), where('assignedTo', 'array-contains', userIdToDelete));
       const tasksSnapshot = await getDocs(tasksQuery);
       
       tasksSnapshot.forEach((taskDoc) => {
         const taskData = taskDoc.data();
         const newAssignedTo = [...taskData.assignedTo.filter((id: string) => id !== userIdToDelete), transferToUserId];
-        batch.update(taskDoc.ref, { assignedTo: Array.from(new Set(newAssignedTo)) }); // Ensure no duplicates
+        batch.update(taskDoc.ref, { assignedTo: Array.from(new Set(newAssignedTo)) });
       });
       
-      // 2. Delete the user document from Firestore
+      // Delete the user document from Firestore
       const userRef = doc(db, 'users', userIdToDelete);
       batch.delete(userRef);
 
-      // Note: Deleting from Firebase Auth requires admin SDK, which is not available client-side.
-      // This action only removes them from the application's user database.
-
+      // Note: Deleting from Firebase Auth is not handled here as it requires admin SDK.
+      
       await batch.commit();
       
       toast({
