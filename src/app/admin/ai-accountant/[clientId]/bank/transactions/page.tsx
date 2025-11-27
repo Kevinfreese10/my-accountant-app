@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -2002,7 +2001,7 @@ NewTransactionsTab.displayName = 'NewTransactionsTab';
 
 
 const ReviewedTab = React.forwardRef<
-    { refetch: () => void },
+    { refetch: () => void; setDocuments: React.Dispatch<React.SetStateAction<ImportedTransaction[]>> },
     { client: User | null; bankAccountId: string | null; customers: ClientCustomer[], onAccountCreated: () => void; }
 >(({ client, bankAccountId, customers, onAccountCreated }, ref) => {
     
@@ -2061,6 +2060,7 @@ const ReviewedTab = React.forwardRef<
 
     const {
         documents: paginatedDocuments,
+        setDocuments: setPaginatedDocuments,
         isLoading,
         goToNextPage,
         goToPreviousPage,
@@ -2120,6 +2120,7 @@ const ReviewedTab = React.forwardRef<
     
     React.useImperativeHandle(ref, () => ({
         refetch,
+        setDocuments: searchResults ? setSearchResults : setPaginatedDocuments,
     }));
     
     const getAllocationDescription = (tx: ImportedTransaction) => {
@@ -2205,10 +2206,8 @@ const ReviewedTab = React.forwardRef<
         if (!client || Object.keys(changes).length === 0) return;
         setIsSaving(true);
         toast({ title: 'Saving changes...', description: 'Please wait.' });
-    
+
         const batch = writeBatch(db);
-        const updatedTransactions = [...documents];
-    
         Object.entries(changes).forEach(([txId, changeData]) => {
             const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
             const updateData: { [key: string]: any } = {};
@@ -2219,28 +2218,29 @@ const ReviewedTab = React.forwardRef<
                 updateData.vatType = changeData.vatType;
             }
             batch.update(txRef, updateData);
-    
-            // Optimistic UI update
-            const txIndex = updatedTransactions.findIndex(t => t.id === txId);
-            if (txIndex !== -1) {
-                updatedTransactions[txIndex] = { ...updatedTransactions[txIndex], ...changeData };
-            }
         });
-    
+
         try {
             await batch.commit();
+            
+            // Optimistically update the UI before refetching
+            const updateLocalState = (prevDocs: ImportedTransaction[]) => 
+                prevDocs.map(tx => 
+                    changes[tx.id] ? { ...tx, ...changes[tx.id] } : tx
+                );
+            
+            if (searchResults) {
+                setSearchResults(updateLocalState);
+            } else {
+                setPaginatedDocuments(updateLocalState);
+            }
+            
+            setChanges({});
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
             
-            // Apply optimistic updates to state immediately
-            if (searchResults) {
-                setSearchResults(prev => prev!.map(tx => changes[tx.id] ? { ...tx, ...changes[tx.id] } : tx));
-            } else {
-                setDocuments(prev => prev.map(tx => changes[tx.id] ? { ...tx, ...changes[tx.id] } : tx));
-            }
-    
-            setChanges({});
-            // Refetch in the background to ensure consistency, though UI is already updated
-            refetch(); 
+            // Refetch in background to ensure consistency
+            refetch();
+
         } catch (error) {
             console.error('Error saving changes:', error);
             toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
@@ -2779,11 +2779,11 @@ const ForReviewTab = React.forwardRef<
             const wb = XLSX.utils.book_new();
             if (expensesData.length > 0) {
                 const expensesSheet = XLSX.utils.json_to_sheet(expensesData);
-                XLSX.utils.book_append_sheet(wb, expensesSheet, "Expenses For Review");
+                XLSX.utils.book_append_sheet(wb, wb.SheetNames.length > 0 ? expensesSheet : wb.Sheets[0], "Expenses For Review");
             }
             if (incomeData.length > 0) {
                 const incomeSheet = XLSX.utils.json_to_sheet(incomeData);
-                XLSX.utils.book_append_sheet(wb, incomeSheet, "Income For Review");
+                XLSX.utils.book_append_sheet(wb, wb.SheetNames.length > 0 ? incomeSheet : wb.Sheets[0], "Income For Review");
             }
             
             XLSX.writeFile(wb, `For_Review_Transactions_${client.name.replace(/\s/g, '_')}.xlsx`);
@@ -2932,7 +2932,7 @@ export default function BankTransactionsPage() {
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
-    const reviewedTabRef = useRef<{ refetch: () => void }>(null);
+    const reviewedTabRef = useRef<{ refetch: () => void; setDocuments: React.Dispatch<React.SetStateAction<ImportedTransaction[]>> }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     
@@ -3235,3 +3235,6 @@ export default function BankTransactionsPage() {
 
 
 
+
+
+    
