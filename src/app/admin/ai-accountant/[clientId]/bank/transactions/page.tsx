@@ -2008,6 +2008,7 @@ const ReviewedTab = React.forwardRef<
     
     const [searchTerm, setSearchTerm] = useState('');
     const [searchAmount, setSearchAmount] = useState('');
+    const [searchAccount, setSearchAccount] = useState('all');
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
     const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
@@ -2071,7 +2072,7 @@ const ReviewedTab = React.forwardRef<
 
      useEffect(() => {
         const handleSearch = async () => {
-            if (!searchTerm.trim() && !searchAmount.trim()) {
+            if (!searchTerm.trim() && !searchAmount.trim() && searchAccount === 'all') {
                 setSearchResults(null);
                 return;
             }
@@ -2098,6 +2099,9 @@ const ReviewedTab = React.forwardRef<
                         allDocs = allDocs.filter(tx => Math.abs(tx.amount - amountValue) < 0.01);
                     }
                 }
+                if (searchAccount !== 'all') {
+                    allDocs = allDocs.filter(tx => tx.allocatedTo?.value === searchAccount);
+                }
                 setSearchResults(allDocs);
             } catch (error) {
                 console.error("Error during search:", error);
@@ -2112,7 +2116,7 @@ const ReviewedTab = React.forwardRef<
         }, 500);
 
         return () => clearTimeout(debounce);
-    }, [searchTerm, searchAmount, client, bankAccountId, toast]);
+    }, [searchTerm, searchAmount, searchAccount, client, bankAccountId, toast]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -2201,8 +2205,10 @@ const ReviewedTab = React.forwardRef<
         if (!client || Object.keys(changes).length === 0) return;
         setIsSaving(true);
         toast({ title: 'Saving changes...', description: 'Please wait.' });
-
+    
         const batch = writeBatch(db);
+        const updatedTransactions = [...documents];
+    
         Object.entries(changes).forEach(([txId, changeData]) => {
             const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
             const updateData: { [key: string]: any } = {};
@@ -2213,13 +2219,28 @@ const ReviewedTab = React.forwardRef<
                 updateData.vatType = changeData.vatType;
             }
             batch.update(txRef, updateData);
+    
+            // Optimistic UI update
+            const txIndex = updatedTransactions.findIndex(t => t.id === txId);
+            if (txIndex !== -1) {
+                updatedTransactions[txIndex] = { ...updatedTransactions[txIndex], ...changeData };
+            }
         });
-
+    
         try {
             await batch.commit();
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
+            
+            // Apply optimistic updates to state immediately
+            if (searchResults) {
+                setSearchResults(prev => prev!.map(tx => changes[tx.id] ? { ...tx, ...changes[tx.id] } : tx));
+            } else {
+                setDocuments(prev => prev.map(tx => changes[tx.id] ? { ...tx, ...changes[tx.id] } : tx));
+            }
+    
             setChanges({});
-            refetch();
+            // Refetch in the background to ensure consistency, though UI is already updated
+            refetch(); 
         } catch (error) {
             console.error('Error saving changes:', error);
             toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
@@ -2267,7 +2288,7 @@ const ReviewedTab = React.forwardRef<
         }
     };
     
-    const transactions = useMemo(() => {
+    const documents = useMemo(() => {
         let docs = searchResults !== null ? searchResults : paginatedDocuments;
 
         if (!sortField) return docs;
@@ -2388,7 +2409,7 @@ const ReviewedTab = React.forwardRef<
                                 placeholder="Search descriptions..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-8 w-64"
+                                className="pl-8 w-48"
                             />
                         </div>
                          <div className="relative">
@@ -2398,9 +2419,29 @@ const ReviewedTab = React.forwardRef<
                                 placeholder="Search amount..."
                                 value={searchAmount}
                                 onChange={(e) => setSearchAmount(e.target.value)}
-                                className="pl-8 w-48"
+                                className="pl-8 w-32"
                             />
                         </div>
+                        <Select value={searchAccount} onValueChange={setSearchAccount}>
+                            <SelectTrigger className="w-[200px]">
+                                <SelectValue placeholder="Filter by account..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Accounts</SelectItem>
+                                <SelectGroup>
+                                    <Label>Accounts</Label>
+                                    {uniqueChartOfAccounts.map(acc => (
+                                        <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                    ))}
+                                </SelectGroup>
+                                <SelectGroup>
+                                    <Label>Customers</Label>
+                                    {customers.map(c => (
+                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                    ))}
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
                      </div>
                 </div>
             </CardHeader>
@@ -2411,9 +2452,9 @@ const ReviewedTab = React.forwardRef<
                             <TableRow>
                                 <TableCell className="w-12 p-2">
                                      <Checkbox
-                                        checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
+                                        checked={documents.length > 0 && selectedTransactions.length === documents.length}
                                         onCheckedChange={(checked) => {
-                                            setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
+                                            setSelectedTransactions(checked ? documents.map(tx => tx.id) : []);
                                         }}
                                     />
                                 </TableCell>
@@ -2427,10 +2468,10 @@ const ReviewedTab = React.forwardRef<
                         <TableBody>
                             {isLoading || isSearching ? (
                                 <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
-                            ) : transactions.length === 0 ? (
+                            ) : documents.length === 0 ? (
                                 <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
                             ) : (
-                                transactions.map(tx => (
+                                documents.map(tx => (
                                     <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
                                         <TableCell className="p-2">
                                             <Checkbox
@@ -3183,6 +3224,7 @@ export default function BankTransactionsPage() {
     
 
     
+
 
 
 
