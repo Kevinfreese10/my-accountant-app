@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -1999,6 +2000,10 @@ const ReviewedTab = React.forwardRef<
     const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
     const [isDownloading, setIsDownloading] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
+    const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    const [searchAccountTerm, setSearchAccountTerm] = useState('');
 
     type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
     type SortDirection = 'asc' | 'desc';
@@ -2019,7 +2024,7 @@ const ReviewedTab = React.forwardRef<
         
         let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
-            where('status', '==', 'allocated'),
+            where('status', 'in', ['reviewed', 'allocated']), // Also include 'allocated'
         ];
 
         const sortableFields: SortField[] = ['date', 'description', 'amount'];
@@ -2031,7 +2036,7 @@ const ReviewedTab = React.forwardRef<
     }, [client?.uid, bankAccountId, sortField, sortDirection]);
 
     const {
-        documents,
+        documents: paginatedDocuments,
         isLoading,
         goToNextPage,
         goToPreviousPage,
@@ -2041,31 +2046,50 @@ const ReviewedTab = React.forwardRef<
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
 
-     const transactions = useMemo(() => {
-        let filteredDocs = documents;
-
-        if (searchTerm) {
-            filteredDocs = filteredDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-        }
-
-        if (searchAmount) {
-            const amount = parseFloat(searchAmount);
-            if (!isNaN(amount)) {
-                filteredDocs = filteredDocs.filter(tx => Math.abs(tx.amount - amount) < 0.01);
+     useEffect(() => {
+        const handleSearch = async () => {
+            if (!searchTerm.trim() && !searchAmount.trim()) {
+                setSearchResults(null);
+                return;
             }
-        }
-        
-        const nonSortableFields: SortField[] = ['allocatedTo', 'vatType'];
-        if (nonSortableFields.includes(sortField)) {
-            return [...filteredDocs].sort((a, b) => {
-                const aVal = sortField === 'allocatedTo' ? getAllocationDescription(a) : a.vatType || '';
-                const bVal = sortField === 'allocatedTo' ? getAllocationDescription(b) : b.vatType || '';
-                return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-            });
-        }
-        
-        return filteredDocs;
-    }, [documents, searchTerm, searchAmount, sortField, sortDirection]);
+            if (!client?.uid || !bankAccountId) return;
+            
+            setIsSearching(true);
+            const searchConstraints: QueryConstraint[] = [
+                where('bankAccountId', '==', bankAccountId),
+                where('status', 'in', ['reviewed', 'allocated']),
+            ];
+
+            const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
+
+            try {
+                const snapshot = await getDocs(q);
+                let allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
+
+                if (searchTerm.trim()) {
+                    allDocs = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+                }
+                if (searchAmount.trim()) {
+                    const amountValue = parseFloat(searchAmount);
+                    if (!isNaN(amountValue)) {
+                        allDocs = allDocs.filter(tx => Math.abs(tx.amount - amountValue) < 0.01);
+                    }
+                }
+                setSearchResults(allDocs);
+            } catch (error) {
+                console.error("Error during search:", error);
+                toast({ title: "Search Error", variant: "destructive" });
+            } finally {
+                setIsSearching(false);
+            }
+        };
+
+        const debounce = setTimeout(() => {
+            handleSearch();
+        }, 500);
+
+        return () => clearTimeout(debounce);
+    }, [searchTerm, searchAmount, client, bankAccountId, toast]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -2102,6 +2126,53 @@ const ReviewedTab = React.forwardRef<
             }
         }));
     }
+    
+    const handleBulkDelete = async () => {
+        if (!client || !client.uid || selectedTransactions.length === 0) return;
+
+        const batch = writeBatch(db);
+        selectedTransactions.forEach(txId => {
+            const docRef = doc(db, 'aiAccountantClients', client!.uid, 'transactions', txId);
+            batch.delete(docRef);
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.`, variant: 'destructive' });
+            setSelectedTransactions([]);
+            refetch();
+        } catch (error) {
+            toast({ title: 'Deletion Failed', variant: 'destructive' });
+            console.error(error);
+        }
+    };
+
+    const handleBulkReallocate = async (allocation: { value: string, type: 'account' | 'customer' | 'supplier' }, vatType: VatType) => {
+        if (!client || !client.uid || selectedTransactions.length === 0) return;
+        toast({ title: "Reallocating...", description: `Reallocating ${selectedTransactions.length} transactions.` });
+
+        const batch = writeBatch(db);
+        const transactionsToReallocate = (searchResults ?? paginatedDocuments).filter(tx => selectedTransactions.includes(tx.id));
+
+        for (const tx of transactionsToReallocate) {
+            const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+            batch.update(transactionRef, {
+                allocatedTo: allocation,
+                vatType: client.isVatRegistered ? vatType : 'no_vat',
+            });
+        }
+
+        try {
+            await batch.commit();
+            toast({ title: "Reallocation Successful", description: `${selectedTransactions.length} transactions have been reallocated.` });
+            setSelectedTransactions([]);
+            refetch();
+        } catch (error) {
+            console.error("Error during bulk reallocation:", error);
+            toast({ title: "Reallocation Failed", variant: "destructive" });
+        }
+    };
+
 
     const handleSaveChanges = async () => {
         if (!client || Object.keys(changes).length === 0) return;
@@ -2143,7 +2214,7 @@ const ReviewedTab = React.forwardRef<
             const q = query(
                 collection(db, 'aiAccountantClients', client.uid, 'transactions'),
                 where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'allocated')
+                where('status', 'in', ['reviewed', 'allocated'])
             );
             
             const snapshot = await getDocs(q);
@@ -2172,7 +2243,36 @@ const ReviewedTab = React.forwardRef<
             setIsDownloading(false);
         }
     };
+    
+    const transactions = useMemo(() => {
+        let docs = searchResults !== null ? searchResults : paginatedDocuments;
 
+        if (!sortField) return docs;
+        
+        return [...docs].sort((a, b) => {
+            let aVal: any;
+            let bVal: any;
+            
+            switch (sortField) {
+                case 'allocatedTo':
+                    aVal = getAllocationDescription(a);
+                    bVal = getAllocationDescription(b);
+                    break;
+                case 'vatType':
+                    aVal = a.vatType || '';
+                    bVal = b.vatType || '';
+                    break;
+                default:
+                    aVal = a[sortField];
+                    bVal = b[sortField];
+            }
+
+            if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+    }, [searchResults, paginatedDocuments, sortField, sortDirection]);
 
     return (
         <Card>
@@ -2185,6 +2285,79 @@ const ReviewedTab = React.forwardRef<
             <CardHeader className="p-4 border-b">
                  <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
+                         <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                    Actions <MoreHorizontal className="ml-2 h-4 w-4"/>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Reallocate Selected</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent className="p-0">
+                                         <Command>
+                                            <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
+                                            <CommandList>
+                                                <ScrollArea className="h-72">
+                                                <CommandEmpty>No results found.</CommandEmpty>
+                                                <CommandGroup heading="Customers">
+                                                    {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
+                                                        <DropdownMenuItem key={c.id} onSelect={() => handleBulkReallocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                            {c.name}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </CommandGroup>
+                                                 <CommandGroup heading="Accounts">
+                                                    {client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
+                                                        <DropdownMenuSub key={acc.id}>
+                                                            <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubContent>
+                                                                {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                                        {vat.label}
+                                                                    </DropdownMenuItem>
+                                                                )) : (
+                                                                    <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                                        No VAT
+                                                                    </DropdownMenuItem>
+                                                                )}
+                             </DropdownMenuSubContent>
+                                                        </DropdownMenuSub>
+                                                    ))}
+                                                </CommandGroup>
+                                                </ScrollArea>
+                                            </CommandList>
+                                        </Command>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuSeparator />
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                            Delete Selected
+                                        </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Download Excel
+                        </Button>
+                    </div>
+                     <div className="flex items-center gap-2">
                         <div className="relative">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
@@ -2199,21 +2372,13 @@ const ReviewedTab = React.forwardRef<
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
                                 type="number"
-                                placeholder="Search by amount..."
+                                placeholder="Search amount..."
                                 value={searchAmount}
                                 onChange={(e) => setSearchAmount(e.target.value)}
                                 className="pl-8 w-48"
                             />
                         </div>
-                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
-                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                            Download Excel
-                        </Button>
-                    </div>
-                     <Button onClick={handleSaveChanges} disabled={isSaving || Object.keys(changes).length === 0}>
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Save Changes
-                    </Button>
+                     </div>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -2221,6 +2386,14 @@ const ReviewedTab = React.forwardRef<
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableCell className="w-12 p-2">
+                                     <Checkbox
+                                        checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
+                                        onCheckedChange={(checked) => {
+                                            setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
+                                        }}
+                                    />
+                                </TableCell>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('allocatedTo')}>Allocated To <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
@@ -2229,13 +2402,23 @@ const ReviewedTab = React.forwardRef<
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading ? (
-                                <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                            {isLoading || isSearching ? (
+                                <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                             ) : transactions.length === 0 ? (
-                                <TableRow><TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
                             ) : (
                                 transactions.map(tx => (
-                                    <TableRow key={tx.id}>
+                                    <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                        <TableCell className="p-2">
+                                            <Checkbox
+                                                checked={selectedTransactions.includes(tx.id)}
+                                                onCheckedChange={(checked) => {
+                                                    setSelectedTransactions(prev =>
+                                                        checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
+                                                    );
+                                                }}
+                                            />
+                                        </TableCell>
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
                                         <TableCell className="w-[250px]">
@@ -2286,30 +2469,36 @@ const ReviewedTab = React.forwardRef<
                     </Table>
                 </div>
             </CardContent>
-            <CardFooter className="flex items-center justify-center p-4">
-                <div className="flex items-center space-x-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToPreviousPage}
-                        disabled={!canGoPrev || isLoading}
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                        Previous
-                    </Button>
-                    <span className="text-sm font-medium">
-                        Page {currentPage}
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToNextPage}
-                        disabled={!canGoNext || isLoading}
-                    >
-                        Next
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
+             <CardFooter className="flex items-center justify-between p-4">
+                 <Button onClick={handleSaveChanges} disabled={isSaving || Object.keys(changes).length === 0}>
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Save Changes
+                </Button>
+                {(!searchTerm && !searchAmount) && (
+                    <div className="flex items-center space-x-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={goToPreviousPage}
+                            disabled={!canGoPrev || isLoading}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                            Previous
+                        </Button>
+                        <span className="text-sm font-medium">
+                            Page {currentPage}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={goToNextPage}
+                            disabled={!canGoNext || isLoading}
+                        >
+                            Next
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
+                )}
             </CardFooter>
         </Card>
     );
@@ -2964,6 +3153,7 @@ export default function BankTransactionsPage() {
     
 
     
+
 
 
 
