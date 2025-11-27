@@ -68,11 +68,9 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
         const reportEndDate = dateRange?.to ? endOfDay(dateRange.to) : new Date();
         
         const retainedIncomeAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '9000-004');
-        const currentYearEarningsAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '9000-003');
         const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008');
         
         let priorPeriodNetIncome = 0;
-        let currentPeriodNetIncome = 0;
 
         transactions.forEach(tx => {
             const txDate = new Date(tx.date);
@@ -89,11 +87,8 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
                         balances.set(accountId, (balances.get(accountId) || 0) + amount);
                     }
                 } else if (txDate <= reportEndDate) {
-                    if (account.section === 'Income Statement') {
-                        currentPeriodNetIncome -= amount;
-                    } else { // Balance Sheet accounts
-                        balances.set(accountId, (balances.get(accountId) || 0) + amount);
-                    }
+                    // For the current period, we affect ALL accounts directly
+                    balances.set(accountId, (balances.get(accountId) || 0) + amount);
                 }
             };
             
@@ -135,10 +130,6 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
             balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) + priorPeriodNetIncome);
         }
         
-        if (currentYearEarningsAccount) {
-            balances.set(currentYearEarningsAccount.id, (balances.get(currentYearEarningsAccount.id) || 0) + currentPeriodNetIncome);
-        }
-
         return balances;
     }, [client, dateRange, transactions]);
 
@@ -149,7 +140,7 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
               ...account,
               balance: accountBalances.get(account.id) || 0
           }))
-          .filter(account => account.balance !== 0) // Only show accounts with activity
+          .filter(account => Math.abs(account.balance) >= 0.01) // Only show accounts with activity
           .sort((a, b) => a.accountNumber.localeCompare(b.accountNumber));
     }, [client.chartOfAccounts, accountBalances]);
 
@@ -263,6 +254,7 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
 export default function TrialBalancePage() {
     const params = useParams();
     const clientId = params.clientId as string;
+
     const [client, setClient] = useState<User | null>(null);
     const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
