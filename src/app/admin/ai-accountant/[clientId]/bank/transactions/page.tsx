@@ -1228,45 +1228,45 @@ const NewTransactionsTab = React.forwardRef<
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: newTransactionsQuery, pageSize: PAGE_SIZE });
 
-     useEffect(() => {
-        const handleSearch = async () => {
-            if (!searchTerm.trim()) {
-                setSearchResults(null);
-                return;
-            }
-             if (!client?.uid || !bankAccountId) return;
+     const handleSearch = useCallback(async () => {
+        if (!searchTerm.trim()) {
+            setSearchResults(null);
+            return;
+        }
+            if (!client?.uid || !bankAccountId) return;
 
-            setIsSearching(true);
-            let searchConstraints: QueryConstraint[] = [
-                where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'new'),
-            ];
-             if (activeSubTab === 'expenses') {
-                searchConstraints.push(where('amount', '<', 0));
-            } else {
-                searchConstraints.push(where('amount', '>=', 0));
-            }
-             const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
+        setIsSearching(true);
+        let searchConstraints: QueryConstraint[] = [
+            where('bankAccountId', '==', bankAccountId),
+            where('status', '==', 'new'),
+        ];
+            if (activeSubTab === 'expenses') {
+            searchConstraints.push(where('amount', '<', 0));
+        } else {
+            searchConstraints.push(where('amount', '>=', 0));
+        }
+            const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
 
-            try {
-                const snapshot = await getDocs(q);
-                const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
-                const filtered = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-                setSearchResults(filtered);
-            } catch (error) {
-                console.error("Error during search:", error);
-                toast({title: "Search Error", variant: "destructive"});
-            } finally {
-                setIsSearching(false);
-            }
-        };
-
+        try {
+            const snapshot = await getDocs(q);
+            const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+            const filtered = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+            setSearchResults(filtered);
+        } catch (error) {
+            console.error("Error during search:", error);
+            toast({title: "Search Error", variant: "destructive"});
+        } finally {
+            setIsSearching(false);
+        }
+    }, [searchTerm, client, bankAccountId, activeSubTab, toast]);
+    
+    useEffect(() => {
         const debounce = setTimeout(() => {
             handleSearch();
         }, 500);
 
         return () => clearTimeout(debounce);
-    }, [searchTerm, client, bankAccountId, activeSubTab, toast]);
+    }, [searchTerm, handleSearch]);
 
     const transactions = useMemo(() => {
         return searchResults !== null ? searchResults : paginatedDocuments;
@@ -1624,9 +1624,8 @@ const NewTransactionsTab = React.forwardRef<
             await batch.commit();
             toast({ title: "Allocation Successful", description: `${selectedTransactions.length} transactions have been sent for review.` });
             setSelectedTransactions([]);
-            refetch();
-            setSearchResults(null); // Clear search results after allocation
-            setSearchTerm(''); // Reset search term
+            // After allocation, re-run the search to show the updated list
+            handleSearch();
         } catch (error) {
             console.error("Error during bulk allocation:", error);
             toast({ title: "Allocation Failed", variant: "destructive" });
@@ -3193,6 +3192,7 @@ export default function BankTransactionsPage() {
     
 
     
+
 
 
 
