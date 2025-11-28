@@ -1175,7 +1175,7 @@ const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
     { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; globalRules: AllocationRule[]; onAccountCreated: () => void; }
 >(({ client, bankAccountId, customers, invoices, fetchClientData, globalRules, onAccountCreated }, ref) => {
-    const { toast } = useToast();
+    const { toast, dismiss } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
@@ -1444,7 +1444,7 @@ const NewTransactionsTab = React.forwardRef<
    const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
         if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
         setIsAiAllocating(true);
-        const toastId = toast({ title: "Step 1: Fetching Transactions...", description: "Gathering all new expenses." }).id;
+        const { id: toastId } = toast({ title: "Step 1: Fetching Transactions...", description: "Gathering all new expenses." });
 
         try {
             const q = query(
@@ -1459,6 +1459,7 @@ const NewTransactionsTab = React.forwardRef<
             if (allNewExpenseTransactions.length === 0) {
                 toast({ title: "No Transactions", description: "There are no new expenses to allocate." });
                 setIsAiAllocating(false);
+                dismiss(toastId);
                 return;
             }
             
@@ -1527,7 +1528,7 @@ const NewTransactionsTab = React.forwardRef<
 
             await Promise.all(allUpdatePromises);
             
-            useToast.dismiss(toastId);
+            dismiss(toastId);
             if (overallAllocatedCount > 0) {
                  toast({
                     title: "AI Bulk Allocation Complete!",
@@ -1543,6 +1544,8 @@ const NewTransactionsTab = React.forwardRef<
         } catch (error) {
             console.error("Error during AI bulk allocation:", error);
             toast({ id: toastId, title: "Error", description: "An error occurred during the AI allocation process.", variant: "destructive" });
+        } finally {
+            dismiss(toastId);
         }
         
         refetch();
@@ -2269,7 +2272,6 @@ const ReviewedTab = React.forwardRef<
     
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
             
-            // Manually update the local state to provide immediate feedback
             const updateLocalState = (docs: ImportedTransaction[]) => 
                 docs.map(tx => {
                     const change = changesToSave[tx.id];
@@ -2283,6 +2285,8 @@ const ReviewedTab = React.forwardRef<
             }
 
             setChanges({});
+            setSelectedTransactions([]);
+            // Do not refetch immediately to allow user to see optimistic update
     
         } catch (error) {
             console.error('Error saving changes:', error);
@@ -2799,7 +2803,6 @@ const ForReviewTab = React.forwardRef<
             );
             const incomeQuery = query(
                 collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('bankAccountId', '==', bankAccountId),
                 where('status', '==', 'review'),
                 where('amount', '>=', 0)
             );
@@ -3265,4 +3268,5 @@ export default function BankTransactionsPage() {
     
 
     
+
 
