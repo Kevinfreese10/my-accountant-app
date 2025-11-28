@@ -21,6 +21,8 @@ import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { getNextOrderId } from '@/lib/sequence';
 import { Input } from '@/components/ui/input';
+import { useRouter } from 'next/navigation';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -82,6 +84,7 @@ export default function AIAccountantClientsPage() {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const router = useRouter();
   
   const fetchClientsAndTasks = async () => {
     if (!currentUser?.uid) return;
@@ -237,32 +240,44 @@ export default function AIAccountantClientsPage() {
     }
   };
 
-  const handleFormSubmit = async (data: any) => {
+ const handleFormSubmit = async (data: any) => {
     if (!currentUser) return;
-    
-    const clientData: Partial<User> = {
-        ...data,
-        yearEnd: data.yearEnd || null,
-        role: 'client',
-        source: 'AI Accountant',
-        hasNumeraProfile: true, // Legacy field, keeping for compatibility
-        chartOfAccounts: initialChartOfAccounts,
-        allocationRules: initialAllocationRules,
-    };
 
-    if (!data.isVatRegistered) {
-      clientData.vatNumber = null;
-      clientData.vatCategory = null;
-    }
-    
     try {
         if (selectedClient?.id) {
-            await setDoc(doc(db, "aiAccountantClients", selectedClient.id), clientData, { merge: true });
+            // This is an update, only merge the fields from the form
+            const { createAIProfile, ...clientFormData } = data;
+            const updateData: Partial<User> = {
+                ...clientFormData,
+                yearEnd: data.yearEnd || null,
+            };
+             if (!data.isVatRegistered) {
+                updateData.vatNumber = null;
+                updateData.vatCategory = null;
+            }
+            await setDoc(doc(db, "aiAccountantClients", selectedClient.id), updateData, { merge: true });
             toast({ title: 'Client Updated'});
         } else {
+            // This is a new client creation
+            const { createAIProfile, ...clientFormData } = data;
+            const newClientData: Partial<User> = {
+                ...clientFormData,
+                yearEnd: data.yearEnd || null,
+                role: 'client',
+                source: 'AI Accountant',
+                hasNumeraProfile: true,
+                chartOfAccounts: initialChartOfAccounts,
+                allocationRules: initialAllocationRules,
+            };
+
+            if (!data.isVatRegistered) {
+                newClientData.vatNumber = null;
+                newClientData.vatCategory = null;
+            }
+
             const newDocRef = doc(collection(db, 'aiAccountantClients'));
             await setDoc(newDocRef, {
-              ...clientData,
+              ...newClientData,
               id: newDocRef.id,
               uid: newDocRef.id,
               createdAt: Timestamp.now(),
@@ -343,7 +358,7 @@ export default function AIAccountantClientsPage() {
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will permanently delete the AI Accountant profile for {client.name}. This cannot be undone.</AlertDialogDescription>
+                                            <AlertDialogDescription>This will permanently delete the AI Accountant profile for {client.name}. This action cannot be undone.</AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>

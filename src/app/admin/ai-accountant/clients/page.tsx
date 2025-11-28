@@ -369,30 +369,42 @@ export default function AIAccountantClientsPage() {
 
   const handleFormSubmit = async (data: any) => {
     if (!currentUser) return;
-    
-    const clientData: Partial<User> = {
-        ...data,
-        yearEnd: data.yearEnd || null,
-        role: 'client',
-        source: 'AI Accountant',
-        hasNumeraProfile: true,
-        chartOfAccounts: initialChartOfAccounts,
-        allocationRules: initialAllocationRules,
-    };
 
-    if (!data.isVatRegistered) {
-      clientData.vatNumber = null;
-      clientData.vatCategory = null;
-    }
-    
     try {
         if (selectedClient?.id) {
-            await setDoc(doc(db, "aiAccountantClients", selectedClient.id), clientData, { merge: true });
+            // This is an update, only merge the fields from the form
+            const { createAIProfile, ...clientFormData } = data;
+            const updateData: Partial<User> = {
+                ...clientFormData,
+                yearEnd: data.yearEnd || null,
+            };
+             if (!data.isVatRegistered) {
+                updateData.vatNumber = null;
+                updateData.vatCategory = null;
+            }
+            await setDoc(doc(db, "aiAccountantClients", selectedClient.id), updateData, { merge: true });
             toast({ title: 'Client Updated'});
         } else {
+            // This is a new client creation
+            const { createAIProfile, ...clientFormData } = data;
+            const newClientData: Partial<User> = {
+                ...clientFormData,
+                yearEnd: data.yearEnd || null,
+                role: 'client',
+                source: 'AI Accountant',
+                hasNumeraProfile: true,
+                chartOfAccounts: initialChartOfAccounts,
+                allocationRules: initialAllocationRules,
+            };
+
+            if (!data.isVatRegistered) {
+                newClientData.vatNumber = null;
+                newClientData.vatCategory = null;
+            }
+
             const newDocRef = doc(collection(db, 'aiAccountantClients'));
             await setDoc(newDocRef, {
-              ...clientData,
+              ...newClientData,
               id: newDocRef.id,
               uid: newDocRef.id,
               createdAt: Timestamp.now(),
