@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, 'useState', useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1639,9 +1639,9 @@ const NewTransactionsTab = React.forwardRef<
     const handleBulkAllocate = async (allocation: { value: string, type: 'account' | 'customer' | 'supplier' }, vatType: VatType) => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         toast({ title: "Allocating...", description: `Allocating ${selectedTransactions.length} transactions.` });
-
+    
         const transactionsToAllocate = selectedTransactions;
-
+    
         try {
             for (let i = 0; i < transactionsToAllocate.length; i += BATCH_SIZE) {
                 const batch = writeBatch(db);
@@ -1658,13 +1658,22 @@ const NewTransactionsTab = React.forwardRef<
                 await batch.commit();
             }
             toast({ title: "Allocation Successful", description: `${transactionsToAllocate.length} transactions have been sent for review.` });
+            
             setSelectedTransactions([]);
-            handleSearch();
+            
+            // Re-run the search to show remaining items
+            if(searchTerm) {
+                handleSearch();
+            } else {
+                refetch();
+            }
+    
         } catch (error) {
             console.error("Error during bulk allocation:", error);
             toast({ title: "Allocation Failed", variant: "destructive" });
         }
     };
+    
 
     const handleDownloadExcel = async () => {
         if (!client || !client.uid || !bankAccountId) return;
@@ -2119,6 +2128,9 @@ const ReviewedTab = React.forwardRef<
                 where('bankAccountId', '==', bankAccountId),
                 where('status', 'in', ['reviewed', 'allocated']),
             ];
+             if (searchAccount) {
+                searchConstraints.push(where('allocatedTo.value', '==', searchAccount));
+            }
 
             const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
 
@@ -2135,9 +2147,7 @@ const ReviewedTab = React.forwardRef<
                         allDocs = allDocs.filter(tx => Math.abs(tx.amount - amountValue) < 0.01);
                     }
                 }
-                if (searchAccount) {
-                    allDocs = allDocs.filter(tx => tx.allocatedTo?.value === searchAccount);
-                }
+                
                 setSearchResults(allDocs);
             } catch (error) {
                 console.error("Error during search:", error);
@@ -2216,72 +2226,58 @@ const ReviewedTab = React.forwardRef<
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         toast({ title: "Reallocating...", description: `Reallocating ${selectedTransactions.length} transactions.` });
 
-        try {
-             for (let i = 0; i < selectedTransactions.length; i += BATCH_SIZE) {
-                const batch = writeBatch(db);
-                const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
-                chunk.forEach(txId => {
-                    const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                    batch.update(transactionRef, {
-                        allocatedTo: allocation,
-                        vatType: client.isVatRegistered ? vatType : 'no_vat',
-                    });
-                });
-                await batch.commit();
-            }
+        const newChanges: { [key: string]: Partial<ImportedTransaction> } = {};
+        selectedTransactions.forEach(txId => {
+            newChanges[txId] = {
+                allocatedTo: allocation,
+                vatType: client.isVatRegistered ? vatType : 'no_vat',
+            };
+        });
 
-            toast({ title: "Reallocation Successful", description: `${selectedTransactions.length} transactions have been reallocated.` });
-            setSelectedTransactions([]);
-            refetch();
-        } catch (error) {
-            console.error("Error during bulk reallocation:", error);
-            toast({ title: "Reallocation Failed", variant: "destructive" });
-        }
+        await handleSaveChanges(newChanges, selectedTransactions);
+        setSelectedTransactions([]);
     };
 
 
-    const handleSaveChanges = async () => {
-        if (!client || Object.keys(changes).length === 0) return;
+    const handleSaveChanges = async (changesToSave: typeof changes, transactionIds: string[]) => {
+        if (!client || transactionIds.length === 0) return;
         setIsSaving(true);
         toast({ title: 'Saving changes...', description: 'Please wait.' });
-    
-        const changeEntries = Object.entries(changes);
-    
+
         try {
-            for (let i = 0; i < changeEntries.length; i += BATCH_SIZE) {
+            for (let i = 0; i < transactionIds.length; i += BATCH_SIZE) {
                 const batch = writeBatch(db);
-                const chunk = changeEntries.slice(i, i + BATCH_SIZE);
+                const chunkIds = transactionIds.slice(i, i + BATCH_SIZE);
     
-                chunk.forEach(([txId, changeData]) => {
-                    const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
-                    const updateData: { [key: string]: any } = {};
-                    if (changeData.allocatedTo) {
-                        updateData.allocatedTo = changeData.allocatedTo;
+                chunkIds.forEach(txId => {
+                    const changeData = changesToSave[txId];
+                    if (changeData) {
+                       const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+                        const updateData: { [key: string]: any } = {};
+                        if (changeData.allocatedTo) updateData.allocatedTo = changeData.allocatedTo;
+                        if (changeData.vatType) updateData.vatType = changeData.vatType;
+                        if (Object.keys(updateData).length > 0) {
+                            batch.update(txRef, updateData);
+                        }
                     }
-                    if (changeData.vatType) {
-                        updateData.vatType = changeData.vatType;
-                    }
-                    batch.update(txRef, updateData);
                 });
                 await batch.commit();
             }
     
-            // Optimistically update the UI state
-            const updateLocalState = (prevDocs: ImportedTransaction[]) => 
-                prevDocs.map(tx => 
-                    changes[tx.id] ? { ...tx, ...changes[tx.id] } : tx
+            const updateLocalState = (docs: ImportedTransaction[]) => 
+                docs.map(tx => 
+                    changesToSave[tx.id] ? { ...tx, ...changesToSave[tx.id] } : tx
                 );
     
             if (searchResults) {
-                setSearchResults(updateLocalState);
+                setSearchResults(updateLocalState(searchResults));
             } else {
-                setPaginatedDocuments(updateLocalState);
+                setPaginatedDocuments(prevDocs => updateLocalState(prevDocs));
             }
     
             setChanges({});
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
             
-            // Refetch in the background to ensure consistency
             refetch();
     
         } catch (error) {
@@ -2470,7 +2466,7 @@ const ReviewedTab = React.forwardRef<
                                 <SelectValue placeholder="Filter by account..." />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">All Accounts</SelectItem>
+                                <SelectItem value="all">All Accounts</SelectItem>
                                 <SelectGroup>
                                     <Label>Accounts</Label>
                                     {uniqueChartOfAccounts.map(acc => (
@@ -2577,7 +2573,7 @@ const ReviewedTab = React.forwardRef<
                 </div>
             </CardContent>
              <CardFooter className="flex items-center justify-between p-4">
-                 <Button onClick={handleSaveChanges} disabled={isSaving || Object.keys(changes).length === 0}>
+                 <Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Save Changes
                 </Button>
@@ -3264,4 +3260,4 @@ export default function BankTransactionsPage() {
     
     
 
-
+    
