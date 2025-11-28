@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -250,9 +251,9 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             // Reconciliation
             const openingBalance = periodAnalysis.length > 0 ? periodAnalysis[0].openingBalance : 0;
             const closingBalance = periodAnalysis.length > 0 ? periodAnalysis[periodAnalysis.length - 1].closingBalance : 0;
-            const totalDebits = uniqueNewTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-            const totalCredits = uniqueNewTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-            const calculatedClosingBalance = openingBalance + totalDebits + totalCredits;
+            const totalCredits = uniqueNewTransactions.reduce((sum, tx) => tx.amount > 0 ? sum + tx.amount : sum, 0);
+            const totalDebits = uniqueNewTransactions.reduce((sum, tx) => tx.amount < 0 ? sum + tx.amount : sum, 0);
+            const calculatedClosingBalance = openingBalance + totalCredits + totalDebits;
             
             setReconciliation({
                 openingBalance,
@@ -1481,7 +1482,6 @@ const NewTransactionsTab = React.forwardRef<
         });
 
         let allUpdatePromises: Promise<void>[] = [];
-        let overallAllocatedCount = 0;
         let batch = writeBatch(db);
         let batchCount = 0;
 
@@ -1523,6 +1523,8 @@ const NewTransactionsTab = React.forwardRef<
             allUpdatePromises.push(batch.commit());
         }
 
+        let overallAllocatedCount = 0;
+
         try {
             await Promise.all(allUpdatePromises);
             if (overallAllocatedCount > 0) {
@@ -1537,7 +1539,7 @@ const NewTransactionsTab = React.forwardRef<
                 });
             }
         } catch (error) {
-            toast({ title: "Error Saving Allocations", description: "Could not save all AI allocations.", variant: 'destructive' });
+            toast({ title: "Error Saving Allocations", description: "Could not save all AI allocations.", variant: "destructive" });
         }
         
         refetch();
@@ -3260,3 +3262,4 @@ export default function BankTransactionsPage() {
 }
     
     
+
