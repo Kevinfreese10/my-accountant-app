@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, 'useState', useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -2037,13 +2037,13 @@ NewTransactionsTab.displayName = 'NewTransactionsTab';
 
 
 const ReviewedTab = React.forwardRef<
-    { refetch: () => void; setDocuments: React.Dispatch<React.SetStateAction<ImportedTransaction[]>> },
+    { refetch: () => void; },
     { client: User | null; bankAccountId: string | null; customers: ClientCustomer[], onAccountCreated: () => void; }
 >(({ client, bankAccountId, customers, onAccountCreated }, ref) => {
     
     const [searchTerm, setSearchTerm] = useState('');
     const [searchAmount, setSearchAmount] = useState('');
-    const [searchAccount, setSearchAccount] = useState('all');
+    const [searchAccount, setSearchAccount] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
     const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
@@ -2108,7 +2108,7 @@ const ReviewedTab = React.forwardRef<
 
      useEffect(() => {
         const handleSearch = async () => {
-            if (!searchTerm.trim() && !searchAmount.trim() && searchAccount === 'all') {
+            if (!searchTerm.trim() && !searchAmount.trim() && !searchAccount) {
                 setSearchResults(null);
                 return;
             }
@@ -2135,7 +2135,7 @@ const ReviewedTab = React.forwardRef<
                         allDocs = allDocs.filter(tx => Math.abs(tx.amount - amountValue) < 0.01);
                     }
                 }
-                if (searchAccount !== 'all') {
+                if (searchAccount) {
                     allDocs = allDocs.filter(tx => tx.allocatedTo?.value === searchAccount);
                 }
                 setSearchResults(allDocs);
@@ -2156,7 +2156,6 @@ const ReviewedTab = React.forwardRef<
     
     React.useImperativeHandle(ref, () => ({
         refetch,
-        setDocuments: searchResults ? setSearchResults : setPaginatedDocuments,
     }));
     
     const getAllocationDescription = (tx: ImportedTransaction) => {
@@ -2245,14 +2244,14 @@ const ReviewedTab = React.forwardRef<
         if (!client || Object.keys(changes).length === 0) return;
         setIsSaving(true);
         toast({ title: 'Saving changes...', description: 'Please wait.' });
-
+    
         const changeEntries = Object.entries(changes);
-        
+    
         try {
-             for (let i = 0; i < changeEntries.length; i += BATCH_SIZE) {
+            for (let i = 0; i < changeEntries.length; i += BATCH_SIZE) {
                 const batch = writeBatch(db);
                 const chunk = changeEntries.slice(i, i + BATCH_SIZE);
-
+    
                 chunk.forEach(([txId, changeData]) => {
                     const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
                     const updateData: { [key: string]: any } = {};
@@ -2264,25 +2263,27 @@ const ReviewedTab = React.forwardRef<
                     }
                     batch.update(txRef, updateData);
                 });
-                 await batch.commit();
+                await batch.commit();
             }
-            
+    
+            // Optimistically update the UI state
             const updateLocalState = (prevDocs: ImportedTransaction[]) => 
                 prevDocs.map(tx => 
                     changes[tx.id] ? { ...tx, ...changes[tx.id] } : tx
                 );
-            
+    
             if (searchResults) {
                 setSearchResults(updateLocalState);
             } else {
                 setPaginatedDocuments(updateLocalState);
             }
-            
+    
             setChanges({});
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
             
+            // Refetch in the background to ensure consistency
             refetch();
-
+    
         } catch (error) {
             console.error('Error saving changes:', error);
             toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
@@ -2469,7 +2470,7 @@ const ReviewedTab = React.forwardRef<
                                 <SelectValue placeholder="Filter by account..." />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Accounts</SelectItem>
+                                <SelectItem value="">All Accounts</SelectItem>
                                 <SelectGroup>
                                     <Label>Accounts</Label>
                                     {uniqueChartOfAccounts.map(acc => (
@@ -2975,7 +2976,7 @@ export default function BankTransactionsPage() {
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
-    const reviewedTabRef = useRef<{ refetch: () => void; setDocuments: React.Dispatch<React.SetStateAction<ImportedTransaction[]>> }>(null);
+    const reviewedTabRef = useRef<{ refetch: () => void; }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     
@@ -3262,4 +3263,5 @@ export default function BankTransactionsPage() {
 }
     
     
+
 
