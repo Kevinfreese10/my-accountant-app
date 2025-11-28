@@ -312,7 +312,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                      const reference = `${dateString}00`;
                      
                      allDbOperations.push((batch) => {
-                        const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid, 'transactions'));
+                        const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
                          batch.set(newTransactionRef, {
                              clientId: client.uid,
                              date: openingBalanceDate.toISOString(),
@@ -1441,12 +1441,12 @@ const NewTransactionsTab = React.forwardRef<
         setIsAiAllocating(false);
     };
     
-    const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
+   const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
         if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
         setIsAiAllocating(true);
-        toast({ title: "Starting AI Allocation...", description: "Fetching all new expense transactions." });
-    
-        let allNewExpenseTransactions: ImportedTransaction[] = [];
+        const { toast } = useToast();
+        const toastId = toast({ title: "Step 1: Fetching Transactions...", description: "Gathering all new expenses." }).id;
+
         try {
             const q = query(
                 collection(db, 'aiAccountantClients', client.uid, 'transactions'),
@@ -1455,82 +1455,87 @@ const NewTransactionsTab = React.forwardRef<
                 where('amount', '<', 0)
             );
             const snapshot = await getDocs(q);
-            allNewExpenseTransactions = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
-        } catch (error) {
-            console.error("Error fetching all new expenses:", error);
-            toast({ title: "Error", description: "Could not fetch transactions to allocate.", variant: "destructive" });
-            setIsAiAllocating(false);
-            return;
-        }
-    
-        const totalToProcess = allNewExpenseTransactions.length;
-        if (totalToProcess === 0) {
-            toast({ title: "No Transactions", description: "There are no new expenses to allocate." });
-            setIsAiAllocating(false);
-            return;
-        }
-    
-        const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
-        
-        const groups: { [key: string]: ImportedTransaction[] } = {};
-        allNewExpenseTransactions.forEach(tx => {
-            const key = tx.description.replace(/\d+/g, '').trim(); 
-            if (!groups[key]) {
-                groups[key] = [];
+            const allNewExpenseTransactions = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+
+            if (allNewExpenseTransactions.length === 0) {
+                toast({ title: "No Transactions", description: "There are no new expenses to allocate." });
+                setIsAiAllocating(false);
+                return;
             }
-            groups[key].push(tx);
-        });
+            
+            useToast.dismiss(toastId);
+            toast({ id: toastId, title: "Step 2: Grouping Similar Transactions...", description: `Found ${allNewExpenseTransactions.length} transactions to process.`});
 
-        let allUpdatePromises: Promise<void>[] = [];
-        let batch = writeBatch(db);
-        let batchCount = 0;
-
-        for (const key in groups) {
-            const group = groups[key];
-            const representativeTx = group[0];
-    
-            try {
-                const result = await suggestTransactionAllocation({
-                    description: representativeTx.description,
-                    chartOfAccounts: chartOfAccountsJson,
-                    isVatRegistered: client.isVatRegistered || false,
-                });
-    
-                if (result.accountId && result.confidence >= confidenceThreshold) {
-                    group.forEach(similarTx => {
-                        if (batchCount >= BATCH_SIZE) {
-                            allUpdatePromises.push(batch.commit());
-                            batch = writeBatch(db);
-                            batchCount = 0;
-                        }
-                        const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', similarTx.id);
-                        batch.update(transactionRef, {
-                            status: 'review',
-                            allocatedTo: { value: result.accountId, type: 'account' },
-                            vatType: client.isVatRegistered ? result.vatType : 'no_vat',
-                            allocatedAt: new Date(),
-                        });
-                        batchCount++;
-                        overallAllocatedCount++;
-                    });
+            const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
+            
+            const groups: { [key: string]: ImportedTransaction[] } = {};
+            allNewExpenseTransactions.forEach(tx => {
+                const key = tx.description.replace(/\d+/g, '').trim(); 
+                if (!groups[key]) {
+                    groups[key] = [];
                 }
-            } catch (error) {
-                console.error(`AI allocation failed for group ${key}:`, error);
-            }
-        }
+                groups[key].push(tx);
+            });
+            const totalGroups = Object.keys(groups).length;
+
+            let allUpdatePromises: Promise<void>[] = [];
+            let batch = writeBatch(db);
+            let batchCount = 0;
+            let overallAllocatedCount = 0;
+            let groupsProcessed = 0;
+
+            for (const key in groups) {
+                groupsProcessed++;
+                useToast.dismiss(toastId);
+                toast({ id: toastId, title: `Step 3: Analyzing Group ${groupsProcessed} of ${totalGroups}...`, description: `Processing transactions for "${key}"` });
+                
+                const group = groups[key];
+                const representativeTx = group[0];
         
-        if (batchCount > 0) {
-            allUpdatePromises.push(batch.commit());
-        }
+                try {
+                    const result = await suggestTransactionAllocation({
+                        description: representativeTx.description,
+                        chartOfAccounts: chartOfAccountsJson,
+                        isVatRegistered: client.isVatRegistered || false,
+                    });
+        
+                    if (result.accountId && result.confidence >= confidenceThreshold) {
+                        group.forEach(similarTx => {
+                            if (batchCount >= BATCH_SIZE) {
+                                allUpdatePromises.push(batch.commit());
+                                batch = writeBatch(db);
+                                batchCount = 0;
+                            }
+                            const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', similarTx.id);
+                            batch.update(transactionRef, {
+                                status: 'review',
+                                allocatedTo: { value: result.accountId, type: 'account' },
+                                vatType: client.isVatRegistered ? result.vatType : 'no_vat',
+                                allocatedAt: new Date(),
+                            });
+                            batchCount++;
+                            overallAllocatedCount++;
+                        });
+                    }
+                } catch (error) {
+                    console.error(`AI allocation failed for group ${key}:`, error);
+                }
+            }
+            
+            if (batchCount > 0) {
+                allUpdatePromises.push(batch.commit());
+            }
+            
+            useToast.dismiss(toastId);
+            toast({ id: toastId, title: "Step 4: Saving Allocations...", description: "Committing changes to the database." });
 
-        let overallAllocatedCount = 0;
-
-        try {
             await Promise.all(allUpdatePromises);
+            
+            useToast.dismiss(toastId);
             if (overallAllocatedCount > 0) {
                  toast({
-                    title: "AI Bulk Allocation Complete",
-                    description: `${overallAllocatedCount} out of ${totalToProcess} transactions were confidently allocated for review.`
+                    title: "AI Bulk Allocation Complete!",
+                    description: `${overallAllocatedCount} out of ${allNewExpenseTransactions.length} transactions were confidently allocated for review.`
                 });
             } else {
                  toast({
@@ -1538,8 +1543,11 @@ const NewTransactionsTab = React.forwardRef<
                     description: `The AI did not find any transactions to allocate above your confidence threshold of ${confidenceThreshold}%.`
                 });
             }
+            
         } catch (error) {
-            toast({ title: "Error Saving Allocations", description: "Could not save all AI allocations.", variant: "destructive" });
+            console.error("Error during AI bulk allocation:", error);
+            useToast.dismiss(toastId);
+            toast({ title: "Error", description: "An error occurred during the AI allocation process.", variant: "destructive" });
         }
         
         refetch();
@@ -2252,7 +2260,7 @@ const ReviewedTab = React.forwardRef<
                 chunkIds.forEach(txId => {
                     const changeData = changesToSave[txId];
                     if (changeData) {
-                       const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+                       const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                         const updateData: { [key: string]: any } = {};
                         if (changeData.allocatedTo) updateData.allocatedTo = changeData.allocatedTo;
                         if (changeData.vatType) updateData.vatType = changeData.vatType;
@@ -2264,21 +2272,22 @@ const ReviewedTab = React.forwardRef<
                 await batch.commit();
             }
     
+            toast({ title: 'Success!', description: 'Your changes have been saved.' });
+            
+            // Manually update the local state to provide immediate feedback
             const updateLocalState = (docs: ImportedTransaction[]) => 
-                docs.map(tx => 
-                    changesToSave[tx.id] ? { ...tx, ...changesToSave[tx.id] } : tx
-                );
-    
-            if (searchResults) {
-                setSearchResults(updateLocalState(searchResults));
+                docs.map(tx => {
+                    const change = changesToSave[tx.id];
+                    return change ? { ...tx, ...change } : tx;
+                });
+
+            if (searchResults !== null) {
+                setSearchResults(prev => updateLocalState(prev || []));
             } else {
                 setPaginatedDocuments(prevDocs => updateLocalState(prevDocs));
             }
-    
+
             setChanges({});
-            toast({ title: 'Success!', description: 'Your changes have been saved.' });
-            
-            refetch();
     
         } catch (error) {
             console.error('Error saving changes:', error);
