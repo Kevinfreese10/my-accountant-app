@@ -1444,7 +1444,6 @@ const NewTransactionsTab = React.forwardRef<
    const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
         if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
         setIsAiAllocating(true);
-        const { toast } = useToast();
         const toastId = toast({ title: "Step 1: Fetching Transactions...", description: "Gathering all new expenses." }).id;
 
         try {
@@ -1463,7 +1462,6 @@ const NewTransactionsTab = React.forwardRef<
                 return;
             }
             
-            useToast.dismiss(toastId);
             toast({ id: toastId, title: "Step 2: Grouping Similar Transactions...", description: `Found ${allNewExpenseTransactions.length} transactions to process.`});
 
             const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
@@ -1486,7 +1484,6 @@ const NewTransactionsTab = React.forwardRef<
 
             for (const key in groups) {
                 groupsProcessed++;
-                useToast.dismiss(toastId);
                 toast({ id: toastId, title: `Step 3: Analyzing Group ${groupsProcessed} of ${totalGroups}...`, description: `Processing transactions for "${key}"` });
                 
                 const group = groups[key];
@@ -1526,7 +1523,6 @@ const NewTransactionsTab = React.forwardRef<
                 allUpdatePromises.push(batch.commit());
             }
             
-            useToast.dismiss(toastId);
             toast({ id: toastId, title: "Step 4: Saving Allocations...", description: "Committing changes to the database." });
 
             await Promise.all(allUpdatePromises);
@@ -1546,8 +1542,7 @@ const NewTransactionsTab = React.forwardRef<
             
         } catch (error) {
             console.error("Error during AI bulk allocation:", error);
-            useToast.dismiss(toastId);
-            toast({ title: "Error", description: "An error occurred during the AI allocation process.", variant: "destructive" });
+            toast({ id: toastId, title: "Error", description: "An error occurred during the AI allocation process.", variant: "destructive" });
         }
         
         refetch();
@@ -3270,3 +3265,4 @@ export default function BankTransactionsPage() {
     
 
     
+
