@@ -48,6 +48,7 @@ import { Slider } from '@/components/ui/slider';
 
 
 const PAGE_SIZE = 50;
+const BATCH_SIZE = 400; // Firestore batch limit is 500
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -292,9 +293,10 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         toast({ title: "Importing...", description: "Saving extracted transactions."});
 
         try {
-            const batch = writeBatch(db);
-            const dailyCounters: { [key: string]: number } = {};
             const allRules = [...(client.allocationRules || []), ...globalRules];
+            
+            let allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
+            const dailyCounters: { [key: string]: number } = {};
 
             // Add Opening Balance if needed
             if (importStartDate && new Date(importStartDate) > new Date(finalTransactions[0]?.date)) {
@@ -306,24 +308,24 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 
                 if (openingBalanceValue !== 0) {
                      const dateString = openingBalanceDate.toISOString().split('T')[0].replace(/-/g, '');
-                     const reference = `${dateString}00`; // Use '00' for OB
+                     const reference = `${dateString}00`;
                      
-                     const openingBalanceTransaction: Omit<ImportedTransaction, 'id'> = {
-                         clientId: client.uid,
-                         date: openingBalanceDate.toISOString(),
-                         reference: reference,
-                         description: 'Opening Balance',
-                         amount: openingBalanceValue,
-                         bankAccountId: bankAccountId,
-                         status: 'allocated',
-                         allocatedTo: { value: '9500-002', type: 'account' },
-                         vatType: 'no_vat',
-                     };
-                     const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid, 'transactions'));
-                     batch.set(newTransactionRef, openingBalanceTransaction);
+                     allDbOperations.push((batch) => {
+                        const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid, 'transactions'));
+                         batch.set(newTransactionRef, {
+                             clientId: client.uid,
+                             date: openingBalanceDate.toISOString(),
+                             reference: reference,
+                             description: 'Opening Balance',
+                             amount: openingBalanceValue,
+                             bankAccountId: bankAccountId,
+                             status: 'allocated',
+                             allocatedTo: { value: '9500-002', type: 'account' },
+                             vatType: 'no_vat',
+                         });
+                     });
                 }
             }
-
 
             transactionsToImport.forEach((row) => {
                  const parsedDate = new Date(row.date);
@@ -337,9 +339,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
                 
-                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
-                
-                let transaction: Omit<ImportedTransaction, 'id'> = {
+                 let transaction: Omit<ImportedTransaction, 'id'> = {
                     clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: reference,
@@ -359,11 +359,18 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                     transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
                     transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
                 }
-                
-                batch.set(newTransactionRef, transaction);
+                 allDbOperations.push((batch) => {
+                    const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
+                    batch.set(newTransactionRef, transaction);
+                });
             });
-            
-            await batch.commit();
+
+            for (let i = 0; i < allDbOperations.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = allDbOperations.slice(i, i + BATCH_SIZE);
+                chunk.forEach(op => op(batch));
+                await batch.commit();
+            }
 
             toast({ title: "Import Successful", description: `${transactionsToImport.length} new transactions have been imported.`});
             onImportComplete();
@@ -688,11 +695,11 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
         toast({ title: "Importing...", description: "Processing your file and applying rules."});
 
         try {
-            const batch = writeBatch(db);
-            let importedCount = 0;
-            const dailyCounters: { [key: string]: number } = {};
             const allRules = [...(client.allocationRules || []), ...globalRules];
 
+            const allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
+            const dailyCounters: { [key: string]: number } = {};
+            
             parsedTransactions.forEach((row, index) => {
                 const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
 
@@ -705,8 +712,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 dailyCounters[dateString] = (dailyCounters[dateString] || 0) + 1;
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
-                
-                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
                 
                 let transaction: Omit<ImportedTransaction, 'id'> = {
                     clientId: client.uid!,
@@ -729,13 +734,20 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
                 }
 
-                batch.set(newTransactionRef, transaction);
-                importedCount++;
+                allDbOperations.push((batch) => {
+                    const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
+                    batch.set(newTransactionRef, transaction);
+                });
             });
-            
-            await batch.commit();
 
-            toast({ title: "Import Successful", description: `${importedCount} transactions have been imported. ${potentialAllocations} transactions were automatically allocated for review.`});
+            for (let i = 0; i < allDbOperations.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = allDbOperations.slice(i, i + BATCH_SIZE);
+                chunk.forEach(op => op(batch));
+                await batch.commit();
+            }
+
+            toast({ title: "Import Successful", description: `${parsedTransactions.length} transactions have been imported. ${potentialAllocations} transactions were automatically allocated for review.`});
             onImportComplete();
             setIsOpen(false);
             resetState();
@@ -1294,7 +1306,6 @@ const NewTransactionsTab = React.forwardRef<
                 return;
             }
 
-            // Query for all 'new' transactions for the specific bank account and type
             let baseQuery = query(
                 collection(db, 'aiAccountantClients', client.uid, 'transactions'),
                 where('bankAccountId', '==', bankAccountId),
@@ -1315,29 +1326,34 @@ const NewTransactionsTab = React.forwardRef<
                 return;
             }
             
-            const batch = writeBatch(db);
             let allocatedCount = 0;
+            const updatePromises = [];
+            for (let i = 0; i < allNewTransactions.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = allNewTransactions.slice(i, i + BATCH_SIZE);
+                chunk.forEach(tx => {
+                    const txDescriptionLower = tx.description.toLowerCase();
+                    const matchedRule = allRules.find(rule =>
+                        rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
+                    );
 
-            allNewTransactions.forEach(tx => {
-                const txDescriptionLower = tx.description.toLowerCase();
-                const matchedRule = allRules.find(rule =>
-                    rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
-                );
-
-                if (matchedRule) {
-                    const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                    batch.update(transactionRef, {
-                        status: 'review',
-                        allocatedTo: { value: matchedRule.accountId, type: 'account' },
-                        vatType: client.isVatRegistered ? matchedRule.vatType : 'no_vat',
-                        allocatedAt: new Date(),
-                    });
-                    allocatedCount++;
-                }
-            });
+                    if (matchedRule) {
+                        const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+                        batch.update(transactionRef, {
+                            status: 'review',
+                            allocatedTo: { value: matchedRule.accountId, type: 'account' },
+                            vatType: client.isVatRegistered ? matchedRule.vatType : 'no_vat',
+                            allocatedAt: new Date(),
+                        });
+                        allocatedCount++;
+                    }
+                });
+                updatePromises.push(batch.commit());
+            }
+            
+            await Promise.all(updatePromises);
 
             if (allocatedCount > 0) {
-                await batch.commit();
                 toast({ title: 'Rules Applied', description: `${allocatedCount} transaction(s) have been allocated for review.` });
                 refetch();
             } else {
@@ -1353,7 +1369,6 @@ const NewTransactionsTab = React.forwardRef<
 
     const handleRuleCreated = useCallback(() => {
         fetchClientData();
-        // Use a timeout to ensure the client data (with new rule) is likely fetched before allocating
         setTimeout(() => {
             handleAllocateByRules();
         }, 1000);
@@ -1465,9 +1480,11 @@ const NewTransactionsTab = React.forwardRef<
             groups[key].push(tx);
         });
 
-        const batch = writeBatch(db);
+        let allUpdatePromises: Promise<void>[] = [];
         let overallAllocatedCount = 0;
-    
+        let batch = writeBatch(db);
+        let batchCount = 0;
+
         for (const key in groups) {
             const group = groups[key];
             const representativeTx = group[0];
@@ -1480,34 +1497,35 @@ const NewTransactionsTab = React.forwardRef<
                 });
     
                 if (result.accountId && result.confidence >= confidenceThreshold) {
-                    let batchAllocatedCount = 0;
                     group.forEach(similarTx => {
-                        const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', similarTx.id);
+                        if (batchCount >= BATCH_SIZE) {
+                            allUpdatePromises.push(batch.commit());
+                            batch = writeBatch(db);
+                            batchCount = 0;
+                        }
+                        const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', similarTx.id);
                         batch.update(transactionRef, {
                             status: 'review',
                             allocatedTo: { value: result.accountId, type: 'account' },
                             vatType: client.isVatRegistered ? result.vatType : 'no_vat',
                             allocatedAt: new Date(),
                         });
-                        batchAllocatedCount++;
+                        batchCount++;
+                        overallAllocatedCount++;
                     });
-                    
-                    if (batchAllocatedCount > 0) {
-                         toast({
-                            title: `Batch Allocated (${result.confidence.toFixed(0)}%)`,
-                            description: `Allocated ${batchAllocatedCount} transaction(s) for "${key}" pattern.`
-                        });
-                    }
-                    overallAllocatedCount += batchAllocatedCount;
                 }
             } catch (error) {
                 console.error(`AI allocation failed for group ${key}:`, error);
             }
         }
         
+        if (batchCount > 0) {
+            allUpdatePromises.push(batch.commit());
+        }
+
         try {
+            await Promise.all(allUpdatePromises);
             if (overallAllocatedCount > 0) {
-                await batch.commit();
                  toast({
                     title: "AI Bulk Allocation Complete",
                     description: `${overallAllocatedCount} out of ${totalToProcess} transactions were confidently allocated for review.`
@@ -1539,8 +1557,10 @@ const NewTransactionsTab = React.forwardRef<
             invoiceNumbers: invoices.filter(inv => inv.customerId === c.id).map(inv => inv.id),
         }));
 
-        const batch = writeBatch(db);
         let successCount = 0;
+        const allUpdatePromises: Promise<void>[] = [];
+        let batch = writeBatch(db);
+        let batchCount = 0;
 
         for (const tx of transactionsToAllocate) {
             try {
@@ -1550,13 +1570,19 @@ const NewTransactionsTab = React.forwardRef<
                 });
 
                 if (result.customerId && result.confidence > 70) {
+                    if (batchCount >= BATCH_SIZE) {
+                        allUpdatePromises.push(batch.commit());
+                        batch = writeBatch(db);
+                        batchCount = 0;
+                    }
                     const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
                     batch.update(transactionRef, {
-                        status: 'review', // Move to review instead of allocated
+                        status: 'review', 
                         allocatedTo: { value: result.customerId, type: 'customer' },
                         vatType: 'no_vat',
                         allocatedAt: new Date(),
                     });
+                    batchCount++;
                     successCount++;
                 }
             } catch (error) {
@@ -1564,8 +1590,12 @@ const NewTransactionsTab = React.forwardRef<
             }
         }
         
+        if (batchCount > 0) {
+            allUpdatePromises.push(batch.commit());
+        }
+
         try {
-            await batch.commit();
+            await Promise.all(allUpdatePromises);
             if(successCount > 0) {
               toast({ title: "AI Allocation Complete", description: `${successCount} out of ${selectedTransactions.length} transactions were confidently allocated for review.` });
             } else {
@@ -1585,14 +1615,16 @@ const NewTransactionsTab = React.forwardRef<
     const handleBulkDelete = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
 
-        const batch = writeBatch(db);
-        selectedTransactions.forEach(txId => {
-            const docRef = doc(db, 'aiAccountantClients', client!.uid, 'transactions', txId);
-            batch.delete(docRef);
-        });
-
         try {
-            await batch.commit();
+            for (let i = 0; i < selectedTransactions.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
+                chunk.forEach(txId => {
+                    const docRef = doc(db, 'aiAccountantClients', client!.uid, 'transactions', txId);
+                    batch.delete(docRef);
+                });
+                await batch.commit();
+            }
             toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.`, variant: 'destructive' });
             setSelectedTransactions([]);
             refetch();
@@ -1606,22 +1638,24 @@ const NewTransactionsTab = React.forwardRef<
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         toast({ title: "Allocating...", description: `Allocating ${selectedTransactions.length} transactions.` });
 
-        const batch = writeBatch(db);
-        const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
-
-        for (const tx of transactionsToAllocate) {
-            const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
-            batch.update(transactionRef, {
-                status: 'review',
-                allocatedTo: allocation,
-                vatType: client.isVatRegistered ? vatType : 'no_vat',
-                allocatedAt: new Date(),
-            });
-        }
+        const transactionsToAllocate = selectedTransactions;
 
         try {
-            await batch.commit();
-            toast({ title: "Allocation Successful", description: `${selectedTransactions.length} transactions have been sent for review.` });
+            for (let i = 0; i < transactionsToAllocate.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = transactionsToAllocate.slice(i, i + BATCH_SIZE);
+                chunk.forEach(txId => {
+                    const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+                    batch.update(transactionRef, {
+                        status: 'review',
+                        allocatedTo: allocation,
+                        vatType: client.isVatRegistered ? vatType : 'no_vat',
+                        allocatedAt: new Date(),
+                    });
+                });
+                await batch.commit();
+            }
+            toast({ title: "Allocation Successful", description: `${transactionsToAllocate.length} transactions have been sent for review.` });
             setSelectedTransactions([]);
             handleSearch();
         } catch (error) {
@@ -2047,7 +2081,7 @@ const ReviewedTab = React.forwardRef<
         
         let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
-            where('status', 'in', ['reviewed', 'allocated']), // Also include 'allocated'
+            where('status', 'in', ['reviewed', 'allocated']),
         ];
 
         const sortableFields: SortField[] = ['date', 'description', 'amount'];
@@ -2157,15 +2191,17 @@ const ReviewedTab = React.forwardRef<
     
     const handleBulkDelete = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
-
-        const batch = writeBatch(db);
-        selectedTransactions.forEach(txId => {
-            const docRef = doc(db, 'aiAccountantClients', client!.uid, 'transactions', txId);
-            batch.delete(docRef);
-        });
-
+        
         try {
-            await batch.commit();
+             for (let i = 0; i < selectedTransactions.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
+                chunk.forEach(txId => {
+                    const docRef = doc(db, 'aiAccountantClients', client!.uid, 'transactions', txId);
+                    batch.delete(docRef);
+                });
+                await batch.commit();
+            }
             toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.`, variant: 'destructive' });
             setSelectedTransactions([]);
             refetch();
@@ -2179,19 +2215,20 @@ const ReviewedTab = React.forwardRef<
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         toast({ title: "Reallocating...", description: `Reallocating ${selectedTransactions.length} transactions.` });
 
-        const batch = writeBatch(db);
-        const transactionsToReallocate = (searchResults ?? paginatedDocuments).filter(tx => selectedTransactions.includes(tx.id));
-
-        for (const tx of transactionsToReallocate) {
-            const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
-            batch.update(transactionRef, {
-                allocatedTo: allocation,
-                vatType: client.isVatRegistered ? vatType : 'no_vat',
-            });
-        }
-
         try {
-            await batch.commit();
+             for (let i = 0; i < selectedTransactions.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
+                chunk.forEach(txId => {
+                    const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+                    batch.update(transactionRef, {
+                        allocatedTo: allocation,
+                        vatType: client.isVatRegistered ? vatType : 'no_vat',
+                    });
+                });
+                await batch.commit();
+            }
+
             toast({ title: "Reallocation Successful", description: `${selectedTransactions.length} transactions have been reallocated.` });
             setSelectedTransactions([]);
             refetch();
@@ -2207,23 +2244,27 @@ const ReviewedTab = React.forwardRef<
         setIsSaving(true);
         toast({ title: 'Saving changes...', description: 'Please wait.' });
 
-        const batch = writeBatch(db);
-        Object.entries(changes).forEach(([txId, changeData]) => {
-            const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
-            const updateData: { [key: string]: any } = {};
-            if (changeData.allocatedTo) {
-                updateData.allocatedTo = changeData.allocatedTo;
-            }
-            if (changeData.vatType) {
-                updateData.vatType = changeData.vatType;
-            }
-            batch.update(txRef, updateData);
-        });
-
+        const changeEntries = Object.entries(changes);
+        
         try {
-            await batch.commit();
+             for (let i = 0; i < changeEntries.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = changeEntries.slice(i, i + BATCH_SIZE);
+
+                chunk.forEach(([txId, changeData]) => {
+                    const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+                    const updateData: { [key: string]: any } = {};
+                    if (changeData.allocatedTo) {
+                        updateData.allocatedTo = changeData.allocatedTo;
+                    }
+                    if (changeData.vatType) {
+                        updateData.vatType = changeData.vatType;
+                    }
+                    batch.update(txRef, updateData);
+                });
+                 await batch.commit();
+            }
             
-            // Optimistically update the UI before refetching
             const updateLocalState = (prevDocs: ImportedTransaction[]) => 
                 prevDocs.map(tx => 
                     changes[tx.id] ? { ...tx, ...changes[tx.id] } : tx
@@ -2238,7 +2279,6 @@ const ReviewedTab = React.forwardRef<
             setChanges({});
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
             
-            // Refetch in background to ensure consistency
             refetch();
 
         } catch (error) {
@@ -2644,44 +2684,42 @@ const ForReviewTab = React.forwardRef<
         if (!client || !client.uid || selectedTransactions.length === 0) return;
 
         toast({ title: "Processing...", description: `Updating ${selectedTransactions.length} transactions.` });
-
-        const batch = writeBatch(db);
-        const transactionsToUpdate = transactions.filter(t => selectedTransactions.includes(t.id));
         
-        for(const tx of transactionsToUpdate) {
-            const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
-            if (action === 'approve') {
-                batch.update(transactionRef, { status: 'allocated', allocatedAt: new Date() });
-                
-                // Create a rule for this approved transaction if one doesn't already exist for the core keyword
-                const description = tx.description.toLowerCase();
-                const coreKeyword = description.split(/\s+/)[0];
-                
-                const ruleExists = client.allocationRules?.some(rule => rule.keywords.includes(coreKeyword));
-                
-                if (!ruleExists && tx.allocatedTo?.type === 'account') {
-                    const newRule: Partial<AllocationRule> = {
-                        description: `Auto-generated for: ${tx.description}`,
-                        keywords: [coreKeyword],
-                        accountId: tx.allocatedTo.value,
-                        vatType: client.isVatRegistered ? tx.vatType || 'no_vat' : 'no_vat',
-                        type: 'soft', // Mark as AI-generated,
-                    };
-                    const clientRef = doc(db, 'aiAccountantClients', client.uid);
-                    batch.update(clientRef, { allocationRules: arrayUnion(newRule) });
+        const updatePromises: Promise<void>[] = [];
+        for (let i = 0; i < selectedTransactions.length; i += BATCH_SIZE) {
+            const batch = writeBatch(db);
+            const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
+            chunk.forEach(txId => {
+                const tx = transactions.find(t => t.id === txId);
+                if (!tx) return;
+                const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+                if (action === 'approve') {
+                    batch.update(transactionRef, { status: 'allocated', allocatedAt: new Date() });
+                    if (tx.allocatedTo?.type === 'account' && !client.allocationRules?.some(rule => tx.description.toLowerCase().includes(rule.keywords[0]))) {
+                         const coreKeyword = tx.description.split(/\s+/)[0].toLowerCase();
+                        const newRule: Partial<AllocationRule> = {
+                            description: `Auto-generated for: ${tx.description}`,
+                            keywords: [coreKeyword],
+                            accountId: tx.allocatedTo.value,
+                            vatType: client.isVatRegistered ? tx.vatType || 'no_vat' : 'no_vat',
+                            type: 'soft',
+                        };
+                        const clientRef = doc(db, 'aiAccountantClients', client.uid!);
+                        batch.update(clientRef, { allocationRules: arrayUnion(newRule) });
+                    }
+                } else { // reject
+                    batch.update(transactionRef, { status: 'new', allocatedTo: null, vatType: null, allocatedAt: null });
                 }
-
-            } else { // reject
-                batch.update(transactionRef, { status: 'new', allocatedTo: null, vatType: null, allocatedAt: null });
-            }
+            });
+            updatePromises.push(batch.commit());
         }
-        
+
         try {
-            await batch.commit();
+            await Promise.all(updatePromises);
             toast({ title: `Transactions ${action === 'approve' ? 'Approved' : 'Rejected'}`, description: `${selectedTransactions.length} transactions have been updated.` });
             setSelectedTransactions([]);
             refetch();
-            fetchClientData(); // Refetch client to get new rules
+            if (action === 'approve') fetchClientData();
         } catch (error) {
             console.error(`Error during bulk ${action}:`, error);
             toast({ title: "Action Failed", variant: "destructive" });
@@ -2712,13 +2750,16 @@ const ForReviewTab = React.forwardRef<
                 setIsApprovingAll(false);
                 return;
             }
-
-            const batch = writeBatch(db);
-            snapshot.docs.forEach(doc => {
-                batch.update(doc.ref, { status: 'allocated', allocatedAt: new Date() });
-            });
-
-            await batch.commit();
+            
+            const allDocs = snapshot.docs;
+            for(let i = 0; i < allDocs.length; i+= BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = allDocs.slice(i, i + BATCH_SIZE);
+                chunk.forEach(doc => {
+                    batch.update(doc.ref, { status: 'allocated', allocatedAt: new Date() });
+                });
+                await batch.commit();
+            }
 
             toast({ title: 'All Approved!', description: `${snapshot.size} transactions have been approved and allocated.` });
             refetch();
@@ -3051,7 +3092,6 @@ export default function BankTransactionsPage() {
         toast({ title: "Clearing Transactions...", description: "This may take a moment."});
         
         try {
-            const batch = writeBatch(db);
             const transactionsQuery = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), where('bankAccountId', '==', selectedAccountId));
             const transactionsSnapshot = await getDocs(transactionsQuery);
             
@@ -3060,14 +3100,17 @@ export default function BankTransactionsPage() {
                 return;
             }
 
-            transactionsSnapshot.forEach(doc => {
-                batch.delete(doc.ref);
-            });
+            for (let i = 0; i < transactionsSnapshot.docs.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = transactionsSnapshot.docs.slice(i, i + BATCH_SIZE);
+                chunk.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+            }
 
-            await batch.commit();
             toast({ title: "Transactions Cleared", description: `Successfully deleted ${transactionsSnapshot.size} transaction(s).` });
             
-            // Refetch all data to update UI correctly
             handleImportComplete();
 
         } catch(error) {
@@ -3216,25 +3259,4 @@ export default function BankTransactionsPage() {
     );
 }
     
-    
-
-    
-
-
-    
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
     
