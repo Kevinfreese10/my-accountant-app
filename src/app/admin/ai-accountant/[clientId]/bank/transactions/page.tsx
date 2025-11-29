@@ -89,6 +89,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
     const [potentialAllocations, setPotentialAllocations] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const missingFileInputRef = useRef<HTMLInputElement>(null);
+    const [editableOpeningBalance, setEditableOpeningBalance] = useState<number>(0);
 
 
     const resetState = () => {
@@ -103,6 +104,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         setIsAnalyzing(false);
         setIsExtracting(false);
         setIsUploading(false);
+        setEditableOpeningBalance(0);
         if (fileInputRef.current) fileInputRef.current.value = '';
         if (missingFileInputRef.current) missingFileInputRef.current.value = '';
     };
@@ -128,6 +130,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 setReconciliation(null);
                 setImportStartDate('');
                 setPotentialAllocations(0);
+                setEditableOpeningBalance(0);
             }
         }
     };
@@ -246,24 +249,12 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             const existingTransactionSignatures = new Set(existingTransactions.map(tx => `${format(new Date(tx.date), 'yyyy-MM-dd')}_${tx.description}_${tx.amount.toFixed(2)}`));
             const uniqueNewTransactions = extractedTransactions.filter(tx => !existingTransactionSignatures.has(`${format(new Date(tx.date), 'yyyy-MM-dd')}_${tx.description}_${tx.amount.toFixed(2)}`));
             
-            setFinalTransactions(uniqueNewTransactions); // Only unique ones for import
+            setFinalTransactions(uniqueNewTransactions);
 
-            // Reconciliation
-            const openingBalance = periodAnalysis.length > 0 ? periodAnalysis[0].openingBalance : 0;
-            const closingBalance = periodAnalysis.length > 0 ? periodAnalysis[periodAnalysis.length - 1].closingBalance : 0;
-            const totalCredits = uniqueNewTransactions.reduce((sum, tx) => tx.amount > 0 ? sum + tx.amount : sum, 0);
-            const totalDebits = uniqueNewTransactions.reduce((sum, tx) => tx.amount < 0 ? sum + tx.amount : sum, 0);
-            const calculatedClosingBalance = openingBalance + totalCredits + totalDebits;
+            // Set initial editable opening balance
+            const initialOpeningBalance = periodAnalysis.length > 0 ? periodAnalysis[0].openingBalance : 0;
+            setEditableOpeningBalance(initialOpeningBalance);
             
-            setReconciliation({
-                openingBalance,
-                totalCredits,
-                totalDebits,
-                calculatedClosingBalance,
-                closingBalance,
-                difference: calculatedClosingBalance - closingBalance,
-            });
-
              // Rule allocation check
             let ruleAllocationCount = 0;
             const allRules = [...(client?.allocationRules || []), ...globalRules];
@@ -282,6 +273,29 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
 
         }
     }, [extractedTransactions, existingTransactions, periodAnalysis, client, globalRules]);
+
+    const reconciliationDetails = useMemo(() => {
+        if (finalTransactions.length === 0) return null;
+
+        const transactionsForCalc = finalTransactions.filter(tx => !importStartDate || !isAfter(startOfDay(parseISO(importStartDate)), startOfDay(new Date(tx.date))));
+
+        const openingBalance = editableOpeningBalance;
+        const closingBalance = periodAnalysis.length > 0 ? periodAnalysis[periodAnalysis.length - 1].closingBalance : 0;
+        
+        const totalCredits = transactionsForCalc.reduce((sum, tx) => tx.amount > 0 ? sum + tx.amount : sum, 0);
+        const totalDebits = transactionsForCalc.reduce((sum, tx) => tx.amount < 0 ? sum + tx.amount : sum, 0);
+        
+        const calculatedClosingBalance = openingBalance + totalCredits + totalDebits;
+
+        return {
+            openingBalance,
+            totalCredits,
+            totalDebits,
+            calculatedClosingBalance,
+            closingBalance,
+            difference: calculatedClosingBalance - closingBalance,
+        };
+    }, [finalTransactions, importStartDate, editableOpeningBalance, periodAnalysis]);
     
     const transactionsToImport = useMemo(() => {
         if (!importStartDate) return finalTransactions;
@@ -289,7 +303,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
     }, [finalTransactions, importStartDate]);
 
     const handleImport = async () => {
-        if (!client || !client.uid || !bankAccountId || transactionsToImport.length === 0) return;
+        if (!client || !client.uid || !bankAccountId || transactionsToImport.length === 0 || !reconciliationDetails) return;
         setIsUploading(true);
         toast({ title: "Importing...", description: "Saving extracted transactions."});
 
@@ -305,7 +319,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 const openingBalanceDate = subDays(startDate, 1);
                 
                 const transactionsBeforeStart = finalTransactions.filter(tx => isAfter(startDate, startOfDay(new Date(tx.date))));
-                const openingBalanceValue = (reconciliation?.openingBalance || 0) + transactionsBeforeStart.reduce((sum, tx) => sum + tx.amount, 0);
+                const openingBalanceValue = editableOpeningBalance + transactionsBeforeStart.reduce((sum, tx) => sum + tx.amount, 0);
                 
                 if (openingBalanceValue !== 0) {
                      const dateString = openingBalanceDate.toISOString().split('T')[0].replace(/-/g, '');
@@ -487,7 +501,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                         </div>
                      )}
 
-                     {reconciliation && 
+                     {reconciliationDetails && 
                         <div className="pt-4 space-y-4">
                              <Card>
                                 <CardHeader>
@@ -497,30 +511,37 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                                 <CardContent>
                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                                         <div className="space-y-1 p-3 rounded-lg bg-muted">
-                                            <p className="text-xs text-muted-foreground">Opening Balance</p>
-                                            <p className="font-semibold">{formatPrice(reconciliation.openingBalance)}</p>
+                                            <Label htmlFor="opening-balance-input" className="text-xs text-muted-foreground">Opening Balance</Label>
+                                            <Input 
+                                                id="opening-balance-input"
+                                                type="number"
+                                                step="0.01"
+                                                className="font-semibold text-center h-8"
+                                                value={editableOpeningBalance}
+                                                onChange={(e) => setEditableOpeningBalance(Number(e.target.value))}
+                                            />
                                         </div>
                                          <div className="space-y-1 p-3 rounded-lg bg-muted">
                                             <p className="text-xs text-muted-foreground">Total Income</p>
-                                            <p className="font-semibold text-green-600">{formatPrice(reconciliation.totalCredits)}</p>
+                                            <p className="font-semibold text-green-600">{formatPrice(reconciliationDetails.totalCredits)}</p>
                                         </div>
                                          <div className="space-y-1 p-3 rounded-lg bg-muted">
                                             <p className="text-xs text-muted-foreground">Total Payments</p>
-                                            <p className="font-semibold text-red-600">{formatPrice(reconciliation.totalDebits)}</p>
+                                            <p className="font-semibold text-red-600">{formatPrice(reconciliationDetails.totalDebits)}</p>
                                         </div>
                                          <div className="space-y-1 p-3 rounded-lg bg-muted">
                                             <p className="text-xs text-muted-foreground">Calculated Balance</p>
-                                            <p className="font-semibold">{formatPrice(reconciliation.calculatedClosingBalance)}</p>
+                                            <p className="font-semibold">{formatPrice(reconciliationDetails.calculatedClosingBalance)}</p>
                                         </div>
                                      </div>
                                       <div className="mt-4 grid grid-cols-2 gap-4">
                                         <Alert>
                                             <AlertTitle>Actual Closing Balance</AlertTitle>
-                                            <AlertDescription className="text-lg font-bold">{formatPrice(reconciliation.closingBalance)}</AlertDescription>
+                                            <AlertDescription className="text-lg font-bold">{formatPrice(reconciliationDetails.closingBalance)}</AlertDescription>
                                         </Alert>
-                                        <Alert variant={Math.abs(reconciliation.difference) < 0.01 ? 'default' : 'destructive'}>
+                                        <Alert variant={Math.abs(reconciliationDetails.difference) < 0.01 ? 'default' : 'destructive'}>
                                             <AlertTitle>Difference</AlertTitle>
-                                            <AlertDescription className="text-lg font-bold">{formatPrice(reconciliation.difference)}</AlertDescription>
+                                            <AlertDescription className="text-lg font-bold">{formatPrice(reconciliationDetails.difference)}</AlertDescription>
                                         </Alert>
                                     </div>
                                 </CardContent>
@@ -567,14 +588,14 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
-                     {periodAnalysis.length > 0 && !reconciliation && (
+                     {periodAnalysis.length > 0 && !reconciliationDetails && (
                         <Button type="button" onClick={handleExtractTransactions} disabled={isExtracting || isAnalyzing}>
                             {isExtracting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                              Extract Transactions
                         </Button>
                     )}
-                    {reconciliation && (
-                        <Button type="button" onClick={handleImport} disabled={isUploading || Math.abs(reconciliation.difference) > 0.01}>
+                    {reconciliationDetails && (
+                        <Button type="button" onClick={handleImport} disabled={isUploading || Math.abs(reconciliationDetails.difference) > 0.01}>
                             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Save {transactionsToImport.length} Transactions
                         </Button>
@@ -3270,3 +3291,6 @@ export default function BankTransactionsPage() {
     
 
 
+
+
+    
