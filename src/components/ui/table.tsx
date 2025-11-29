@@ -115,6 +115,4 @@ export {
   TableRow,
   TableCell,
   TableCaption,
-  // Ensure we export the renamed component
-  TableFooter as TableFooterComponent,
 }

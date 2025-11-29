@@ -113,6 +113,15 @@ export default function AIAccountantClientLayout({ children }: { children: React
                      </MenubarContent>
                 </MenubarMenu>
                  <MenubarMenu>
+                    <MenubarTrigger>VAT <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                    <MenubarContent>
+                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/emp201`}>EMP201</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat-transactions`}>VAT Transactions</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat-recon`}>VAT Recon</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat-audit`}>VAT Audit</Link></MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
+                 <MenubarMenu>
                     <MenubarTrigger>Reports <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
                     <MenubarContent>
                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/profit-and-loss`}>Profit & Loss</Link></MenubarItem>
