@@ -13,7 +13,7 @@ import { Loader2, Download, Eye } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterComponent } from "@/components/ui/table";
-import { format, startOfMonth, endOfMonth, subMonths, getYear, getMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths, getYear, getMonth, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
@@ -76,12 +76,15 @@ const generateVatPeriods = (vatCategory: 'A' | 'B' | 'C' | undefined) => {
     return periods;
 };
 
-function VatAuditReport({ client, transactions, period }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], period: { from: Date, to: Date } }) {
+function VatAuditReport({ client, transactions, period }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], period: { from: string, to: string } }) {
     
     const reportData = useMemo(() => {
+        const fromDate = parseISO(period.from);
+        const toDate = parseISO(period.to);
+
         const vatTransactions = transactions.filter(tx => {
             const txDate = tx.date instanceof Date ? tx.date : new Date(tx.date);
-            return tx.vatType && tx.vatType !== 'no_vat' && txDate >= period.from && txDate <= period.to;
+            return tx.vatType && tx.vatType !== 'no_vat' && txDate >= fromDate && txDate <= toDate;
         });
 
         const sales = vatTransactions
@@ -118,7 +121,7 @@ function VatAuditReport({ client, transactions, period }: { client: User, transa
         const expensesSheet = XLSX.utils.json_to_sheet(expensesData, { header: ["Date", "Description", "Amount"] });
         XLSX.utils.book_append_sheet(wb, expensesSheet, "Top 10 Expenses");
         
-        XLSX.writeFile(wb, `VAT-Audit-${client.name}-${format(period.from, 'yyyyMM')}.xlsx`);
+        XLSX.writeFile(wb, `VAT-Audit-${client.name}-${format(parseISO(period.from), 'yyyyMM')}.xlsx`);
     };
 
     const renderTable = (data: typeof reportData.sales, title: string) => (
@@ -128,7 +131,7 @@ function VatAuditReport({ client, transactions, period }: { client: User, transa
                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
                 <TableBody>
                     {data.length === 0 ? (
-                        <TableRow><TableCell colSpan={3} className="text-center h-24">No transactions found.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={3} className="text-center h-24 text-muted-foreground">No transactions found.</TableCell></TableRow>
                     ) : (
                         data.map((tx, index) => (
                             <TableRow key={index}><TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell><TableCell>{tx.description}</TableCell><TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell></TableRow>
@@ -178,7 +181,11 @@ export default function VatAuditPage() {
                         const periods = generateVatPeriods(clientData.vatCategory);
                         setVatPeriods(periods);
                         if(periods.length > 0) {
-                            setSelectedPeriod(JSON.stringify(periods[0]));
+                            setSelectedPeriod(JSON.stringify({
+                                label: periods[0].label,
+                                from: periods[0].from.toISOString(),
+                                to: periods[0].to.toISOString(),
+                            }));
                         }
                     }
                 }
@@ -222,7 +229,7 @@ export default function VatAuditPage() {
                                 <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
                                     <SelectTrigger><SelectValue placeholder="Select a period..." /></SelectTrigger>
                                     <SelectContent>
-                                        {vatPeriods.map((p, i) => <SelectItem key={i} value={JSON.stringify(p)}>{p.label}</SelectItem>)}
+                                        {vatPeriods.map((p, i) => <SelectItem key={i} value={JSON.stringify({ label: p.label, from: p.from.toISOString(), to: p.to.toISOString() })}>{p.label}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
