@@ -63,15 +63,19 @@ export async function generateMetadata(
     }
   }
 
-  const previousImages = (await parent).openGraph?.images || []
+  const canonicalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/products/${service.slug}`;
  
   return {
     title: service.metaTitle || service.title,
     description: service.metaDescription || service.description,
+     alternates: {
+        canonical: canonicalUrl,
+    },
     openGraph: {
       title: service.metaTitle || service.title,
       description: service.metaDescription || service.excerpt,
-      images: [service.imageUrl, ...previousImages],
+      images: [service.imageUrl],
+      url: canonicalUrl,
     },
     twitter: {
       card: 'summary_large_image',

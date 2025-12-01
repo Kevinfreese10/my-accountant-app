@@ -44,14 +44,20 @@ export async function generateMetadata(
       title: 'Post Not Found'
     }
   }
+
+  const canonicalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/blog/${post.slug}`;
  
   return {
     title: post.metaTitle || post.title,
     description: post.metaDescription || post.excerpt,
+    alternates: {
+        canonical: canonicalUrl,
+    },
     openGraph: {
       title: post.metaTitle || post.title,
       description: post.metaDescription || post.excerpt,
       images: [post.imageUrl],
+      url: canonicalUrl,
     },
     twitter: {
       card: 'summary_large_image',

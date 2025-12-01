@@ -42,7 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const blogPostRoutes = blogPosts.map((post) => {
     let lastModifiedDate;
     if (post.date && typeof post.date === 'object' && 'toDate' in post.date) {
-        lastModifiedDate = (post.date as Timestamp).toDate();
+        lastModifiedDate = (post.date as unknown as Timestamp).toDate();
     } else if (typeof post.date === 'string') {
         lastModifiedDate = new Date(post.date);
     } else {
