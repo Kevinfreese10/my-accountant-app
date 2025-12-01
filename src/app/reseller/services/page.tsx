@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +32,7 @@ export default function ResellerServicesPage() {
             setServices(fetchedServices);
         } catch (error) {
             console.error("Error fetching services:", error);
-            toast({ title: "Error", description: "Could not load services.", variant: "destructive" });
+            toast({ title: "Error", description: "Could not load products.", variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
@@ -112,9 +112,9 @@ export default function ResellerServicesPage() {
                           </DialogTrigger>
                           <DialogContent className="sm:max-w-2xl">
                             <DialogHeader>
-                                <DialogTitle>Service Preview</DialogTitle>
+                                <DialogTitle>Product Preview</DialogTitle>
                                 <DialogDescription>
-                                    This is how your clients will see the service on the public-facing site.
+                                    This is how your clients will see the product on the public-facing site.
                                 </DialogDescription>
                             </DialogHeader>
                             {viewingService && <ServicePreview service={viewingService} />}

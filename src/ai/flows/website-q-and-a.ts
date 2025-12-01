@@ -30,7 +30,7 @@ export type WebsiteQAndAInput = z.infer<typeof WebsiteQAndAInputSchema>;
 const WebsiteQAndAOutputSchema = z.object({
   answer: z.string().describe('A concise and helpful answer to the user\'s question. Prioritize information from the provided context, but use general knowledge if the answer is not available there. If you cannot answer, state that.'),
   confidence: z.number().min(0).max(100).describe('A confidence score (0-100) of how certain you are about the answer. If the answer is directly stated in the context, confidence should be high (90-100). If it is inferred from the context, it should be medium (60-80). If using general knowledge, confidence should be lower (40-60). If you cannot answer, it should be very low (0-10).'),
-  serviceUrl: z.string().optional().describe("If the user's question is about a specific service, provide the URL for that service page. The URL should be in the format '/services/service-slug'."),
+  serviceUrl: z.string().optional().describe("If the user's question is about a specific service, provide the URL for that service page. The URL should be in the format '/products/service-slug'."),
 });
 export type WebsiteQAndAOutput = z.infer<typeof WebsiteQAndAOutputSchema>;
 
@@ -91,7 +91,7 @@ export async function websiteQAndA(
   // Serialize the website content to pass to the prompt
   const websiteContent = `
     SERVICES:
-    ${services.map(s => `Title: ${s.title}, URL: /services/${s.slug}, Description: ${s.longDescription}, Price: R${s.price}, Turnaround Time: ${s.turnaroundTime}, Prerequisites: ${s.clientRequirements.join(', ')}`).join('\n\n')}
+    ${services.map(s => `Title: ${s.title}, URL: /products/${s.slug}, Description: ${s.longDescription}, Price: R${s.price}, Turnaround Time: ${s.turnaroundTime}, Prerequisites: ${s.clientRequirements.join(', ')}`).join('\n\n')}
 
     BLOG POSTS:
     ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
@@ -133,10 +133,10 @@ export async function websiteQAndA(
 
     If the user's question is about a specific service mentioned in the context, you MUST provide the 'serviceUrl' for that service in your response. The service URL must exactly match the URL provided in the context for that service.
     
-    CRITICAL INSTRUCTION: If the user asks a general question about a service (e.g., "What is VAT Registration?" or "Tell me about company registration"), your response should be friendly and confirm the service name. You MUST then provide the Price and the Turnaround Time in full sentences. Do NOT add any other text, description, or prerequisites unless the user specifically asks for them.
-
+    CRITICAL INSTRUCTION: If the user asks a general question about a specific service (e.g., "What is VAT Registration?" or "Tell me about company registration"), your response MUST be direct and comprehensive. You will find the service in the CONTEXT, then state its Price, Turnaround Time, and ALL Prerequisites clearly. Do NOT ask for more information or offer to discuss it further. Provide the concrete details from the context, formatted for clarity (e.g., using bullet points for prerequisites).
+    
     For example, if the user asks "What is VAT Registration?", a good response would be:
-    "Of course! For our VAT Registration service, the price is R1400 and the typical turnaround time is 7-10 working days."
+    "Of course! For our VAT Registration service, the price is R1400 and the typical turnaround time is 7-10 working days. The prerequisites for this service are: [List of prerequisites]."
 
     If you are completely unable to answer, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can call us on 010 109 1625 during office hours or email us at info@myacc.co.za for assistance."
     
