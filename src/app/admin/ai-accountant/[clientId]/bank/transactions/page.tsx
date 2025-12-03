@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -72,7 +73,7 @@ type PeriodAnalysisResult = {
     closingBalance: number;
 };
 
-function UploadStatementDialog({ client, bankAccountId, existingTransactions, onImportComplete, globalRules }: { client: User | null, bankAccountId: string, existingTransactions: ImportedTransaction[], onImportComplete: () => void, globalRules: AllocationRule[] }) {
+function UploadStatementDialog({ client, bankAccountId, existingTransactions, onImportComplete, globalRules, currentBalance }: { client: User | null, bankAccountId: string, existingTransactions: ImportedTransaction[], onImportComplete: () => void, globalRules: AllocationRule[], currentBalance: number }) {
     const [isOpen, setIsOpen] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -310,10 +311,9 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             
             let allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
             const dailyCounters: { [key: string]: number } = {};
-            const existingBalance = existingTransactions.reduce((acc, tx) => acc + tx.amount, 0);
             
             // Add Opening Balance if the account is currently empty
-            if (existingBalance === 0 && periodAnalysis.length > 0) {
+            if (Math.abs(currentBalance) < 0.01 && periodAnalysis.length > 0) {
                  const openingBalanceDate = subDays(startOfDay(new Date(periodAnalysis[0].startDate)), 1);
                  const openingBalanceValue = periodAnalysis[0].openingBalance;
 
@@ -414,6 +414,18 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             toast({ title: "Request Failed", description: "Could not send the email.", variant: "destructive"});
         }
     }
+    
+    const importPreviewTransactions = useMemo(() => {
+        let preview: { date: string, description: string, amount: number }[] = [];
+        if (Math.abs(currentBalance) < 0.01 && periodAnalysis.length > 0 && periodAnalysis[0].openingBalance !== 0) {
+            preview.push({
+                date: format(subDays(startOfDay(new Date(periodAnalysis[0].startDate)), 1), 'yyyy-MM-dd'),
+                description: 'Opening Balance',
+                amount: periodAnalysis[0].openingBalance,
+            });
+        }
+        return [...preview, ...transactionsToImport];
+    }, [currentBalance, periodAnalysis, transactionsToImport]);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
@@ -556,6 +568,36 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                                      {potentialAllocations > 0 && <p className="text-blue-600">{potentialAllocations} transaction(s) will be automatically allocated by rules.</p>}
                                  </div>
                             </div>
+
+                            <Card className="mt-4">
+                                <CardHeader>
+                                    <CardTitle>Transactions to be Imported</CardTitle>
+                                </CardHeader>
+                                <CardContent className="max-h-64 overflow-y-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Date</TableHead>
+                                                <TableHead>Description</TableHead>
+                                                <TableHead className="text-right">Amount</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {importPreviewTransactions.length > 0 ? importPreviewTransactions.map((tx, index) => (
+                                                <TableRow key={index}>
+                                                    <TableCell>{format(parseISO(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                                    <TableCell>{tx.description}</TableCell>
+                                                    <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                                </TableRow>
+                                            )) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={3} className="text-center">No new transactions to import.</TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </Card>
                         </div>
                      }
                 </div>
@@ -564,7 +606,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                     {reconciliationDetails && (
                         <Button type="button" onClick={handleImport} disabled={isUploading || Math.abs(reconciliationDetails.difference) > 0.01}>
                             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save {transactionsToImport.length} Transactions
+                            Save {importPreviewTransactions.length} Transactions
                         </Button>
                     )}
                 </DialogFooter>
@@ -1746,9 +1788,9 @@ const NewTransactionsTab = React.forwardRef<
             await batch.commit();
             toast({ title: `${count} allocations saved!`, description: 'Transactions moved to Pending Review.' });
             setAllocations({});
-            setSearchTerm(''); // Clear search term after saving
-            setSearchResults(null); // Clear search results
-            refetch(); // Refetch the initial list
+            setSearchTerm('');
+            setSearchResults(null);
+            refetch();
             
         } catch (error) {
             console.error("Error saving allocations:", error);
@@ -3248,7 +3290,7 @@ export default function BankTransactionsPage() {
                 </div>
 
                 <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto justify-end">
-                    {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} existingTransactions={currentAccountTransactions} onImportComplete={handleImportComplete} globalRules={globalRules} />}
+                    {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} existingTransactions={currentAccountTransactions} onImportComplete={handleImportComplete} globalRules={globalRules} currentBalance={selectedAccountBalance} />}
                     {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} currentBalance={selectedAccountBalance} onImportComplete={handleImportComplete} globalRules={globalRules} />}
                 </div>
             </div>
@@ -3304,6 +3346,7 @@ export default function BankTransactionsPage() {
 
 
     
+
 
 
 
