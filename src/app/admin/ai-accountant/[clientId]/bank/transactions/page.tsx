@@ -83,7 +83,6 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
     const [missingPeriods, setMissingPeriods] = useState<string[]>([]);
     const [extractedTransactions, setExtractedTransactions] = useState<ExtractedTransaction[]>([]);
     const [finalTransactions, setFinalTransactions] = useState<ExtractedTransaction[]>([]);
-    const [reconciliation, setReconciliation] = useState<any>(null);
     const { toast } = useToast();
     const [importStartDate, setImportStartDate] = useState<string>('');
     const [potentialAllocations, setPotentialAllocations] = useState(0);
@@ -98,7 +97,6 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         setMissingPeriods([]);
         setExtractedTransactions([]);
         setFinalTransactions([]);
-        setReconciliation(null);
         setImportStartDate('');
         setPotentialAllocations(0);
         setIsAnalyzing(false);
@@ -127,7 +125,6 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 setMissingPeriods([]);
                 setExtractedTransactions([]);
                 setFinalTransactions([]);
-                setReconciliation(null);
                 setImportStartDate('');
                 setPotentialAllocations(0);
                 setEditableOpeningBalance(0);
@@ -136,7 +133,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
     };
     
     useEffect(() => {
-        if (files.length > 0 && !isAnalyzing) {
+        if (files.length > 0 && !isAnalyzing && periodAnalysis.length === 0) {
             handlePeriodAnalysis();
         }
     }, [files]);
@@ -195,17 +192,19 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             } else {
                 setMissingPeriods([]);
             }
+             handleExtractTransactions(files); // Auto-trigger extraction
+        } else {
+             setIsAnalyzing(false);
         }
-        
-        setIsAnalyzing(false);
     };
 
-    const handleExtractTransactions = async () => {
+    const handleExtractTransactions = async (filesToProcess: File[]) => {
+        setIsAnalyzing(false);
         setIsExtracting(true);
-        toast({ title: 'Extracting Transactions...', description: `The AI is now reading all transaction data from ${files.length} file(s).` });
+        toast({ title: 'Extracting Transactions...', description: `The AI is now reading all transaction data from ${filesToProcess.length} file(s).` });
         
         const allTransactions: ExtractedTransaction[] = [];
-        await Promise.all(files.map(file => new Promise<void>((resolve) => {
+        await Promise.all(filesToProcess.map(file => new Promise<void>((resolve) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = async () => {
@@ -275,12 +274,12 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
     }, [extractedTransactions, existingTransactions, periodAnalysis, client, globalRules]);
 
     const reconciliationDetails = useMemo(() => {
-        if (finalTransactions.length === 0) return null;
+        if (finalTransactions.length === 0 || periodAnalysis.length === 0) return null;
 
         const transactionsForCalc = finalTransactions.filter(tx => !importStartDate || !isAfter(startOfDay(parseISO(importStartDate)), startOfDay(new Date(tx.date))));
 
         const openingBalance = editableOpeningBalance;
-        const closingBalance = periodAnalysis.length > 0 ? periodAnalysis[periodAnalysis.length - 1].closingBalance : 0;
+        const closingBalance = periodAnalysis[periodAnalysis.length - 1].closingBalance;
         
         const totalCredits = transactionsForCalc.reduce((sum, tx) => tx.amount > 0 ? sum + tx.amount : sum, 0);
         const totalDebits = transactionsForCalc.reduce((sum, tx) => tx.amount < 0 ? sum + tx.amount : sum, 0);
@@ -314,7 +313,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             const dailyCounters: { [key: string]: number } = {};
 
             // Add Opening Balance if needed
-            if (importStartDate && new Date(importStartDate) > new Date(finalTransactions[0]?.date)) {
+            if (importStartDate && finalTransactions.length > 0 && new Date(importStartDate) > new Date(finalTransactions[0]?.date)) {
                 const startDate = startOfDay(parseISO(importStartDate));
                 const openingBalanceDate = subDays(startDate, 1);
                 
@@ -445,7 +444,38 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                             <Card>
                                 <CardHeader>
                                     <CardTitle>Period Analysis</CardTitle>
-                                    <CardDescription>Review the detected statement periods before proceeding.</CardDescription>
+                                    <CardDescription>The AI is now extracting transactions. This may take a moment.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>File Name</TableHead>
+                                                <TableHead>Start Date</TableHead>
+                                                <TableHead>End Date</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {periodAnalysis.map((p, i) => (
+                                                <TableRow key={i}>
+                                                    <TableCell>{p.fileName}</TableCell>
+                                                    <TableCell>{format(parseISO(p.startDate), 'dd MMMM yyyy')}</TableCell>
+                                                    <TableCell>{format(parseISO(p.endDate), 'dd MMMM yyyy')}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </Card>
+                        </div>
+                     )}
+
+                     {reconciliationDetails && 
+                        <div className="pt-4 space-y-4">
+                             <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center"><Scale className="mr-2 h-5 w-5"/> Reconciliation Summary</CardTitle>
+                                    <CardDescription>This is a summary of the transactions to be imported.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     {missingPeriods.length > 0 && (
@@ -474,41 +504,6 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                                             </div>
                                         </Alert>
                                     )}
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>File Name</TableHead>
-                                                <TableHead>Start Date</TableHead>
-                                                <TableHead>End Date</TableHead>
-                                                <TableHead className="text-right">Opening Balance</TableHead>
-                                                <TableHead className="text-right">Closing Balance</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {periodAnalysis.map((p, i) => (
-                                                <TableRow key={i}>
-                                                    <TableCell>{p.fileName}</TableCell>
-                                                    <TableCell>{format(parseISO(p.startDate), 'dd MMMM yyyy')}</TableCell>
-                                                    <TableCell>{format(parseISO(p.endDate), 'dd MMMM yyyy')}</TableCell>
-                                                    <TableCell className="text-right font-mono">{formatPrice(p.openingBalance)}</TableCell>
-                                                    <TableCell className="text-right font-mono">{formatPrice(p.closingBalance)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </CardContent>
-                            </Card>
-                        </div>
-                     )}
-
-                     {reconciliationDetails && 
-                        <div className="pt-4 space-y-4">
-                             <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center"><Scale className="mr-2 h-5 w-5"/> Reconciliation Summary</CardTitle>
-                                    <CardDescription>This is a summary of the transactions to be imported.</CardDescription>
-                                </CardHeader>
-                                <CardContent>
                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                                         <div className="space-y-1 p-3 rounded-lg bg-muted">
                                             <Label htmlFor="opening-balance-input" className="text-xs text-muted-foreground">Opening Balance</Label>
@@ -563,37 +558,11 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                                      {potentialAllocations > 0 && <p className="text-blue-600">{potentialAllocations} transaction(s) will be automatically allocated by rules.</p>}
                                  </div>
                             </div>
-                             <ScrollArea className="h-48 border rounded-md">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Date</TableHead>
-                                            <TableHead>Description</TableHead>
-                                            <TableHead className="text-right">Amount</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {transactionsToImport.map((tx, i) => (
-                                            <TableRow key={i}>
-                                                <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                                <TableCell>{tx.description}</TableCell>
-                                                <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                             </ScrollArea>
                         </div>
                      }
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
-                     {periodAnalysis.length > 0 && !reconciliationDetails && (
-                        <Button type="button" onClick={handleExtractTransactions} disabled={isExtracting || isAnalyzing}>
-                            {isExtracting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                             Extract Transactions
-                        </Button>
-                    )}
                     {reconciliationDetails && (
                         <Button type="button" onClick={handleImport} disabled={isUploading || Math.abs(reconciliationDetails.difference) > 0.01}>
                             {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -1212,6 +1181,7 @@ const NewTransactionsTab = React.forwardRef<
     const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isConfidenceDialogOpen, setIsConfidenceDialogOpen] = useState(false);
     const [aiConfidenceThreshold, setAiConfidenceThreshold] = useState(70);
+    const [isSaving, setIsSaving] = useState(false);
 
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
@@ -1752,6 +1722,41 @@ const NewTransactionsTab = React.forwardRef<
         }
     };
     
+    const handleSaveAllocations = async () => {
+        if (!client || !client.uid || Object.keys(allocations).length === 0) return;
+        setIsSaving(true);
+        toast({ title: "Saving allocations..." });
+    
+        try {
+            const batch = writeBatch(db);
+            let count = 0;
+            for (const txId in allocations) {
+                if (Object.prototype.hasOwnProperty.call(allocations, txId)) {
+                    const allocation = allocations[txId];
+                    if (allocation && allocation.value) {
+                         const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+                         batch.update(transactionRef, {
+                            status: 'review',
+                            allocatedTo: { value: allocation.value, type: allocation.type },
+                            vatType: client.isVatRegistered ? allocation.vatType || (allocation.type === 'customer' ? 'no_vat' : 'standard_rated_purchases') : 'no_vat',
+                            allocatedAt: new Date(),
+                        });
+                        count++;
+                    }
+                }
+            }
+            await batch.commit();
+            toast({ title: `${count} allocations saved!`, description: 'Transactions moved to Pending Review.' });
+            setAllocations({});
+            refetch();
+        } catch (error) {
+            console.error("Error saving allocations:", error);
+            toast({ title: "Save Failed", description: "Could not save allocations.", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const allocationOptions = useMemo(() => {
         const accounts = client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())) || [];
         const customerOptions = customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase()));
@@ -1998,7 +2003,7 @@ const NewTransactionsTab = React.forwardRef<
                                                 <Select
                                                    value={allocations[tx.id]?.vatType}
                                                    onValueChange={(value) => setAllocations(prev => ({...prev, [tx.id]: {...prev[tx.id], vatType: value as VatType}}))}
-                                                   disabled={allocations[tx.id]?.type === 'customer'}
+                                                   disabled={!allocations[tx.id] || allocations[tx.id]?.type === 'customer'}
                                                 >
                                                     <SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger>
                                                     <SelectContent>
@@ -2039,8 +2044,12 @@ const NewTransactionsTab = React.forwardRef<
                     </Table>
                 </div>
             </CardContent>
-             {!searchTerm && (
-                <CardFooter className="flex items-center justify-center p-4">
+             <CardFooter className="flex items-center justify-between p-4">
+                 <Button onClick={handleSaveAllocations} disabled={isSaving || Object.keys(allocations).length === 0}>
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Save Allocations
+                </Button>
+                {!searchTerm && (
                     <div className="flex items-center space-x-2">
                         <Button
                             variant="outline"
@@ -2064,8 +2073,8 @@ const NewTransactionsTab = React.forwardRef<
                             <ChevronRight className="h-4 w-4" />
                         </Button>
                     </div>
-                </CardFooter>
-             )}
+                )}
+             </CardFooter>
         </Card>
     )
 });
