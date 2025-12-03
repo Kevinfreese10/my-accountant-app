@@ -1748,7 +1748,13 @@ const NewTransactionsTab = React.forwardRef<
             await batch.commit();
             toast({ title: `${count} allocations saved!`, description: 'Transactions moved to Pending Review.' });
             setAllocations({});
-            refetch();
+            // If a search is active, re-run the search to filter out the saved items.
+            // Otherwise, just refetch the paginated list.
+            if (searchTerm) {
+                handleSearch();
+            } else {
+                refetch();
+            }
         } catch (error) {
             console.error("Error saving allocations:", error);
             toast({ title: "Save Failed", description: "Could not save allocations.", variant: "destructive" });
@@ -3303,3 +3309,4 @@ export default function BankTransactionsPage() {
 
 
     
+
