@@ -109,6 +109,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
                      <MenubarTrigger>Banking <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
                      <MenubarContent>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/bank/transactions`}>Bank & Credit Cards</Link></MenubarItem>
+                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/bank-transactions`}>Bank Transaction Report</Link></MenubarItem>
                      </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
