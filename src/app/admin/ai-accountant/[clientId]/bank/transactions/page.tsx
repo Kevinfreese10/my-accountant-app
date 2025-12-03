@@ -569,33 +569,35 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                                  </div>
                             </div>
 
-                            <Card className="mt-4">
+                             <Card className="mt-4">
                                 <CardHeader>
                                     <CardTitle>Transactions to be Imported</CardTitle>
                                 </CardHeader>
                                 <CardContent className="max-h-64 overflow-y-auto">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Date</TableHead>
-                                                <TableHead>Description</TableHead>
-                                                <TableHead className="text-right">Amount</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {importPreviewTransactions.length > 0 ? importPreviewTransactions.map((tx, index) => (
-                                                <TableRow key={index}>
-                                                    <TableCell>{format(parseISO(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                                    <TableCell>{tx.description}</TableCell>
-                                                    <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                                </TableRow>
-                                            )) : (
+                                    <ScrollArea>
+                                        <Table>
+                                            <TableHeader>
                                                 <TableRow>
-                                                    <TableCell colSpan={3} className="text-center">No new transactions to import.</TableCell>
+                                                    <TableHead>Date</TableHead>
+                                                    <TableHead>Description</TableHead>
+                                                    <TableHead className="text-right">Amount</TableHead>
                                                 </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {importPreviewTransactions.length > 0 ? importPreviewTransactions.map((tx, index) => (
+                                                    <TableRow key={index}>
+                                                        <TableCell>{format(parseISO(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                                        <TableCell>{tx.description}</TableCell>
+                                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                                    </TableRow>
+                                                )) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={3} className="text-center">No new transactions to import.</TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </ScrollArea>
                                 </CardContent>
                             </Card>
                         </div>
@@ -3287,6 +3289,10 @@ export default function BankTransactionsPage() {
                             {unallocatedCount}
                         </p>
                     </div>
+                     <div className="text-center">
+                        <p className="text-xs text-muted-foreground">Current Balance</p>
+                        <p className="text-lg font-semibold">{formatPrice(selectedAccountBalance)}</p>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto justify-end">
@@ -3346,6 +3352,7 @@ export default function BankTransactionsPage() {
 
 
     
+
 
 
 
