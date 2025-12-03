@@ -1748,7 +1748,8 @@ const NewTransactionsTab = React.forwardRef<
             await batch.commit();
             toast({ title: `${count} allocations saved!`, description: 'Transactions moved to Pending Review.' });
             setAllocations({});
-            setSearchTerm(''); // Clear search term
+            setSearchTerm(''); // Clear search term after saving
+            setSearchResults(null); // Clear search results
             refetch(); // Refetch the initial list
             
         } catch (error) {
@@ -3305,5 +3306,6 @@ export default function BankTransactionsPage() {
 
 
     
+
 
 
