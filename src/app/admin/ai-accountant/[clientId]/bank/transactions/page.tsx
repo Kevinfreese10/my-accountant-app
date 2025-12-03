@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -311,16 +310,14 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             
             let allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
             const dailyCounters: { [key: string]: number } = {};
+            const existingBalance = existingTransactions.reduce((acc, tx) => acc + tx.amount, 0);
+            
+            // Add Opening Balance if the account is currently empty
+            if (existingBalance === 0 && periodAnalysis.length > 0) {
+                 const openingBalanceDate = subDays(startOfDay(new Date(periodAnalysis[0].startDate)), 1);
+                 const openingBalanceValue = periodAnalysis[0].openingBalance;
 
-            // Add Opening Balance if needed
-            if (importStartDate && finalTransactions.length > 0 && new Date(importStartDate) > new Date(finalTransactions[0]?.date)) {
-                const startDate = startOfDay(parseISO(importStartDate));
-                const openingBalanceDate = subDays(startDate, 1);
-                
-                const transactionsBeforeStart = finalTransactions.filter(tx => isAfter(startDate, startOfDay(new Date(tx.date))));
-                const openingBalanceValue = editableOpeningBalance + transactionsBeforeStart.reduce((sum, tx) => sum + tx.amount, 0);
-                
-                if (openingBalanceValue !== 0) {
+                 if (openingBalanceValue !== 0) {
                      const dateString = openingBalanceDate.toISOString().split('T')[0].replace(/-/g, '');
                      const reference = `${dateString}00`;
                      
@@ -338,8 +335,9 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                              vatType: 'no_vat',
                          });
                      });
-                }
+                 }
             }
+
 
             transactionsToImport.forEach((row) => {
                  const parsedDate = new Date(row.date);
@@ -3306,6 +3304,8 @@ export default function BankTransactionsPage() {
 
 
     
+
+
 
 
 
