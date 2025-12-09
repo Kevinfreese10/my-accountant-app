@@ -440,6 +440,16 @@ export default function AIAccountantClientsPage() {
         <div className="space-y-8">
             {myClients.length > 0 && renderClientTable(myClients, "My Clients")}
             {sharedClients.length > 0 && renderClientTable(sharedClients, "Shared With Me")}
+            {myClients.length === 0 && sharedClients.length === 0 && (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>No Clients Found</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                         <p className="text-center text-muted-foreground py-4">You have not created or been given access to any AI Accountant clients yet.</p>
+                    </CardContent>
+                </Card>
+            )}
         </div>
       )}
 
