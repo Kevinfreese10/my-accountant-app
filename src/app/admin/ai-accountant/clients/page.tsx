@@ -213,10 +213,8 @@ export default function AIAccountantClientsPage() {
         
         let myClientsQuery;
         if (currentUser.role === 'admin') {
-            // Admin sees all clients under "My Clients"
             myClientsQuery = query(clientsRef, orderBy("name"));
         } else {
-            // Staff sees only clients they created
             myClientsQuery = query(clientsRef, where("createdBy", "==", currentUser.uid), orderBy("name"));
         }
         
@@ -228,12 +226,18 @@ export default function AIAccountantClientsPage() {
         ]);
         
         const fetchedMyClients = myClientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        
+        // For admin, shared clients are ALL clients. For staff, it's clients shared with them.
         const fetchedSharedClients = sharedSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
-
-        setMyClients(fetchedMyClients);
-        // For admin, sharedClients will be an empty array as they see all clients anyway.
-        // For staff, this will show clients shared with them that they did not create.
-        setSharedClients(currentUser.role === 'admin' ? [] : fetchedSharedClients.filter(sc => !fetchedMyClients.some(mc => mc.id === sc.id)));
+        
+        if(currentUser.role === 'admin') {
+            setMyClients(fetchedMyClients);
+            setSharedClients([]); // Admin sees all, so shared is empty to avoid duplication
+        } else {
+            setMyClients(fetchedMyClients);
+            // Filter out clients they created themselves from the shared list
+            setSharedClients(fetchedSharedClients.filter(sc => !fetchedMyClients.some(mc => mc.id === sc.id)));
+        }
 
     } catch (error) {
         console.error("Error fetching data:", error);
@@ -427,7 +431,7 @@ export default function AIAccountantClientsPage() {
   };
 
 
-  const renderClientTable = (clients: User[], title: string) => (
+  const renderClientTable = (clients: User[], title: string, allowDelete: boolean) => (
      <Card>
         <CardHeader>
           <CardTitle>{title}</CardTitle>
@@ -491,22 +495,26 @@ export default function AIAccountantClientsPage() {
                                 <DropdownMenuItem onClick={() => handleRestoreClick(client)}>
                                     <RotateCcw className="mr-2 h-4 w-4" /> Restore from Backup
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">Delete</DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will permanently delete the AI Accountant profile for {client.name}. This action cannot be undone.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDelete(client.id)}>Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                                {allowDelete && (
+                                    <>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">Delete</DropdownMenuItem>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription>This will permanently delete the AI Accountant profile for {client.name}. This action cannot be undone.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDelete(client.id)}>Delete</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </>
+                                )}
                           </DropdownMenuContent>
                        </DropdownMenu>
                     </TableCell>
@@ -567,8 +575,8 @@ export default function AIAccountantClientsPage() {
         </div>
       ) : (
         <div className="space-y-8">
-            {myClients.length > 0 && renderClientTable(myClients, "My Clients")}
-            {sharedClients.length > 0 && renderClientTable(sharedClients, "Shared With Me")}
+            {(myClients.length > 0 || currentUser?.role === 'admin') && renderClientTable(myClients, currentUser?.role === 'admin' ? "All Clients" : "My Clients", true)}
+            {sharedClients.length > 0 && renderClientTable(sharedClients, "Shared With Me", false)}
         </div>
       )}
     </div>
