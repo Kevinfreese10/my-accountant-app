@@ -94,7 +94,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'ai_accountant'] },
+     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'ai_accountant', 'staff'] },
   ];
 
   const settingsNavItems = [
@@ -158,7 +158,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuItem>
         ))}
         
-        {hasAIAccountantAccess && (user.role === 'ai_accountant' || user.role === 'client') && (
+        {hasAIAccountantAccess && (user.role === 'ai_accountant' || user.role === 'client' || user.role === 'staff' || user.role === 'admin') && (
             <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`)} tooltip="AI Accountant">
                     <Link href={`${basePath}/ai-accountant/clients`}>
@@ -192,7 +192,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         ))}
 
 
-        {user.role === 'admin' && (
+        {(user.role === 'admin' && hasAIAccountantAccess) && (
             <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
             <SidebarMenuItem>
                 <CollapsibleTrigger asChild>

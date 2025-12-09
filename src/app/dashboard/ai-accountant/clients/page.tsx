@@ -439,7 +439,9 @@ export default function AIAccountantClientsPage() {
       ) : (
         <div className="space-y-8">
             {myClients.length > 0 && renderClientTable(myClients, "My Clients")}
+            
             {sharedClients.length > 0 && renderClientTable(sharedClients, "Shared With Me")}
+
             {myClients.length === 0 && sharedClients.length === 0 && (
                  <Card>
                     <CardHeader>
