@@ -212,6 +212,7 @@ export default function AIAccountantClientsPage() {
         const clientsRef = collection(db, "aiAccountantClients");
         
         let myClientsQuery;
+        // Admin sees ALL clients as "their" clients
         if (currentUser.role === 'admin') {
             myClientsQuery = query(clientsRef, orderBy("name"));
         } else {
@@ -226,8 +227,6 @@ export default function AIAccountantClientsPage() {
         ]);
         
         const fetchedMyClients = myClientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
-        
-        // For admin, shared clients are ALL clients. For staff, it's clients shared with them.
         const fetchedSharedClients = sharedSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         
         if(currentUser.role === 'admin') {
@@ -448,7 +447,7 @@ export default function AIAccountantClientsPage() {
             </TableHeader>
             <TableBody>
               {clients.map(client => {
-                const basePath = currentUser?.role === 'admin' ? '/admin' : '/dashboard';
+                const basePath = '/admin'; // Always use admin path for staff/admin roles
                 return (
                     <TableRow key={client.id}>
                     <TableCell className="font-medium">
