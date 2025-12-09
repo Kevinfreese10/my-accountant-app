@@ -118,7 +118,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/reseller/profile', label: 'My Profile', icon: User, roles: ['reseller'] },
   ];
 
-  const hasAIAccountantProfile = user.hasAIAccountantProfile || user.source === 'AI Accountant';
+  const hasAIAccountantAccess = user.hasNumeraProfile || user.source === 'AI Accountant' || (user.sharedWith && user.sharedWith.length > 0);
   
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
@@ -158,7 +158,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuItem>
         ))}
         
-        {hasAIAccountantProfile && (user.role === 'ai_accountant' || user.role === 'client') && (
+        {hasAIAccountantAccess && (user.role === 'ai_accountant' || user.role === 'client') && (
             <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`)} tooltip="AI Accountant">
                     <Link href={`${basePath}/ai-accountant/clients`}>

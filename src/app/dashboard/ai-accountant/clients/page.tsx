@@ -438,8 +438,8 @@ export default function AIAccountantClientsPage() {
         </div>
       ) : (
         <div className="space-y-8">
-            {renderClientTable(myClients, "My Clients")}
-            {renderClientTable(sharedClients, "Shared With Me")}
+            {myClients.length > 0 && renderClientTable(myClients, "My Clients")}
+            {sharedClients.length > 0 && renderClientTable(sharedClients, "Shared With Me")}
         </div>
       )}
 
