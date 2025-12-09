@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Users, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -270,16 +270,9 @@ export default function AdminOrderDetailsPage() {
             itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt.toDate() })),
           } as Order;
           
-          // If it's a reseller order and we don't have end customer details, fetch them from the original order
-          if (fetchedOrder.resellerId && fetchedOrder.originalOrderId) {
-            const originalOrderRef = doc(db, 'orders', fetchedOrder.originalOrderId);
-            const originalOrderSnap = await getDoc(originalOrderRef);
-            if (originalOrderSnap.exists()) {
-                const originalOrderData = originalOrderSnap.data();
-                fetchedOrder.endCustomerName = originalOrderData.customerName;
-                fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
-                fetchedOrder.customerPhone = originalOrderData.customerPhone; // Also copy phone
-            }
+          if (fetchedOrder.resellerId && !fetchedOrder.endCustomerEmail) {
+                fetchedOrder.endCustomerName = fetchedOrder.customerName;
+                fetchedOrder.endCustomerEmail = fetchedOrder.customerEmail;
           }
 
           setOrder(fetchedOrder);
@@ -588,11 +581,10 @@ export default function AdminOrderDetailsPage() {
                         <CardHeader>
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <CardTitle>Order {order.id}</CardTitle>
+                                    <CardTitle>Order {order.originalOrderId || order.id}</CardTitle>
                                     <div className="text-sm text-muted-foreground">
                                         Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
                                         {isOutsourced && resellerDetails && <span className="ml-2">| Reseller: {resellerDetails.companyName || resellerDetails.name}</span>}
-                                        {order.originalOrderId && <span className="ml-2">| Original Order: <Link href={`/reseller/orders/${order.originalOrderId}`} className="text-primary hover:underline">{order.originalOrderId}</Link></span>}
                                     </div>
                                 </div>
                                 <DialogTrigger asChild>

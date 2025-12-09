@@ -1,4 +1,5 @@
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -139,7 +140,7 @@ export type Order = {
   itnHistory?: ItnLog[];
   source?: 'Client' | 'Staff' | 'Reseller' | 'AI Accountant Signup';
   renewalForClientId?: string;
-  documentContact: 'reseller' | 'client';
+  documentContact?: 'reseller' | 'client';
 };
 
 export type Invoice = {
@@ -180,6 +181,7 @@ export type User = {
   uid: string; // Firebase Authentication UID
   id: string; // Document ID
   name: string;
+  surname?: string;
   email: string;
   role: 'client' | 'admin' | 'staff' | 'reseller' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor';
   createdAt?: any;
@@ -196,7 +198,7 @@ export type User = {
       street?: string;
       suburb?: string;
       city?: string;
-      country?: string;
+      province?: string;
       zip?: string;
   },
   bankingDetails?: {
@@ -230,7 +232,7 @@ export type User = {
   submitsEmp501?: boolean;
   chartOfAccounts?: ChartOfAccount[];
   allocationRules?: AllocationRule[];
-  hasAIAccountantProfile?: boolean;
+  hasNumeraProfile?: boolean;
   subscription?: SubscriptionData;
   sharedWith?: string[];
   enableInvoicing?: boolean;

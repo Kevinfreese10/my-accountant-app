@@ -41,6 +41,7 @@ const formSchema = z.object({
   customerEmail: z.string().email('A valid client email is required.'),
   customerPhone: z.string().min(10, 'A valid client phone number is required.'),
   items: z.array(lineItemSchema).min(1, 'At least one line item is required.'),
+  documentContact: z.enum(['reseller', 'client']).default('reseller'),
 });
 
 type CreateOrderFormValues = z.infer<typeof formSchema>;
@@ -85,6 +86,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       customerEmail: '',
       customerPhone: '',
       items: [{ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 }],
+      documentContact: 'reseller',
     },
     mode: 'onChange',
   });
@@ -131,6 +133,40 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
     }).format(price);
   };
 
+    const submitToPayFast = (order: Order) => {
+        const payfastUrl = 'https://www.payfast.co.za/eng/process';
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = payfastUrl;
+
+        const data: { [key: string]: string } = {
+            merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
+            merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
+            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
+            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/reseller/orders`,
+            notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+            name_first: order.customerName.split(' ')[0],
+            name_last: order.customerName.split(' ').slice(1).join(' '),
+            email_address: order.customerEmail,
+            cell_number: order.customerPhone || '',
+            m_payment_id: order.id,
+            amount: order.total.toFixed(2),
+            item_name: `Order #${order.id}`,
+            item_description: order.items.map(i => i.title).join(', '),
+        };
+
+        for (const key in data) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = data[key];
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+
 
   async function onSubmit(values: CreateOrderFormValues) {
     if (!reseller) {
@@ -150,13 +186,14 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       
       const orderData: Order = {
         id: orderId,
-        resellerId: reseller.id,
-        customerName: `${reseller.name} ${reseller.surname}`,
+        resellerId: reseller.uid,
+        customerName: reseller.companyName || `${reseller.name} ${reseller.surname}`,
         customerEmail: reseller.email,
         customerPhone: reseller.contactNumber,
-        documentContact: 'reseller',
         endCustomerName: `${values.customerFirstName} ${values.customerLastName}`,
         endCustomerEmail: values.customerEmail,
+        documentContact: values.documentContact,
+        date: Timestamp.now(),
         items: values.items.map(item => ({ 
             id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
             title: item.description, 
@@ -167,9 +204,8 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
         total: resellerTotalCost,
         clientTotal: clientTotal,
         status: 'Pending Payment',
-        date: Timestamp.now(),
-        isOutsourced: true, // All reseller-created orders are now considered outsourced
         originalOrderId: null,
+        isOutsourced: true,
       };
 
       await setDoc(doc(db, 'orders', orderId), orderData);
@@ -182,6 +218,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
           bcc: 'kev@thinkestry.co.za',
           subject: confirmationEmailSubject,
           html: emailHtml,
+          resellerId: reseller.uid,
         });
       } catch (emailError) {
         console.error("Failed to send reseller email:", emailError);
@@ -194,11 +231,10 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       
       toast({
         title: 'Order Created Successfully',
-        description: `Order ${orderId} has been created.`,
+        description: `Redirecting to payment...`,
       });
       
-      onOrderCreated();
-      router.push(`/order-confirmation/${orderId}`);
+      submitToPayFast(orderData);
 
     } catch (error) {
         console.error("Error creating order: ", error);
@@ -260,6 +296,32 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                 <FormMessage />
                 </FormItem>
             )}
+            />
+            <FormField
+                control={form.control}
+                name="documentContact"
+                render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                        <FormLabel>Who should we contact for documents?</FormLabel>
+                         <FormControl>
+                            <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex items-center space-x-4 pt-2"
+                            >
+                            <FormItem className="flex items-center space-x-2 space-y-0">
+                                <FormControl><RadioGroupItem value="reseller" /></FormControl>
+                                <FormLabel className="font-normal">Contact me (the reseller)</FormLabel>
+                            </FormItem>
+                            <FormItem className="flex items-center space-x-2 space-y-0">
+                                <FormControl><RadioGroupItem value="client" /></FormControl>
+                                <FormLabel className="font-normal">Contact my client directly</FormLabel>
+                            </FormItem>
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
             />
         </div>
         

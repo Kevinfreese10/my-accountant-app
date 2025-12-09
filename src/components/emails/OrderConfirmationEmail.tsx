@@ -95,8 +95,7 @@ const heading = {
 export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPassword }: OrderConfirmationEmailProps) => {
     const previewText = `Order Confirmation #${order.id}`;
     
-    // For reseller orders, greet them by their contact person name. Otherwise, use the customer name.
-    const customerDisplayName = reseller ? reseller.contactPerson : order.customerName;
+    const customerDisplayName = reseller ? reseller.companyName || reseller.name : order.customerName;
 
     const companyName = 'My Accountant';
     const companyEmail = 'info@myacc.co.za';

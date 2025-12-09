@@ -75,7 +75,7 @@ export default function ResellerOrderDetailsPage() {
         if (docSnap.exists()) {
           const data = docSnap.data();
           
-          if (data.resellerId !== currentUser.id) {
+          if (data.resellerId !== currentUser.uid) {
              notFound();
              return;
           }
@@ -86,20 +86,6 @@ export default function ResellerOrderDetailsPage() {
             date: data.date.toDate(),
             notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
           } as Order;
-
-          if (fetchedOrder.resellerId && fetchedOrder.originalOrderId) {
-            const originalOrderRef = doc(db, 'orders', fetchedOrder.originalOrderId);
-            const originalOrderSnap = await getDoc(originalOrderRef);
-            if (originalOrderSnap.exists()) {
-                const originalOrderData = originalOrderSnap.data();
-                fetchedOrder.endCustomerName = originalOrderData.customerName;
-                fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
-                fetchedOrder.customerPhone = originalOrderData.customerPhone; 
-            }
-          } else { // This is a client order created by reseller
-            fetchedOrder.endCustomerName = data.customerName;
-            fetchedOrder.endCustomerEmail = data.customerEmail;
-          }
 
           setOrder(fetchedOrder);
 
@@ -372,4 +358,3 @@ export default function ResellerOrderDetailsPage() {
     </div>
   );
 }
-
