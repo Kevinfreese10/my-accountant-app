@@ -22,6 +22,7 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { getNextOrderId } from '@/lib/sequence';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
 
 const db = getFirestore(firebaseApp);
@@ -206,6 +207,8 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
         status: 'Pending Payment',
         originalOrderId: null,
         isOutsourced: true,
+        discountAmount: null,
+        discountCode: null,
       };
 
       await setDoc(doc(db, 'orders', orderId), orderData);
