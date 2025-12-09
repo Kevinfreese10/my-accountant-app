@@ -90,7 +90,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/resellers', label: 'Manage Resellers', icon: Users, roles: ['admin'] },
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
-    { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'], requiresAIAccess: true },
+    { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
     { href: '/admin/services', label: 'Manage Products', icon: Briefcase, roles: ['admin'] },
   ];
   
@@ -118,11 +118,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const hasAIAccountantAccess = user.hasNumeraProfile || user.source === 'AI Accountant' || (user.sharedWith && user.sharedWith.length > 0);
   
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
-  const visibleAdminNavItems = adminNavItems.filter(item => {
-      if (!item.roles.includes(user.role)) return false;
-      if (item.requiresAIAccess && !hasAIAccountantAccess) return false;
-      return true;
-  });
+  const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
 
