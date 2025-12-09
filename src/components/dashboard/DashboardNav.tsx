@@ -90,13 +90,10 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/resellers', label: 'Manage Resellers', icon: Users, roles: ['admin'] },
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
+    { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'], requiresAIAccess: true },
     { href: '/admin/services', label: 'Manage Products', icon: Briefcase, roles: ['admin'] },
   ];
   
-  const aiAccountantItems = [
-     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'ai_accountant', 'staff'] },
-  ];
-
   const settingsNavItems = [
     { href: '/admin/profile', label: 'My Profile', icon: User, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor']},
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
@@ -121,8 +118,11 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const hasAIAccountantAccess = user.hasNumeraProfile || user.source === 'AI Accountant' || (user.sharedWith && user.sharedWith.length > 0);
   
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
-  const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
-  const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.includes(user.role));
+  const visibleAdminNavItems = adminNavItems.filter(item => {
+      if (!item.roles.includes(user.role)) return false;
+      if (item.requiresAIAccess && !hasAIAccountantAccess) return false;
+      return true;
+  });
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
 
@@ -158,8 +158,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuItem>
         ))}
         
-        {hasAIAccountantAccess && (user.role === 'ai_accountant' || user.role === 'client' || user.role === 'staff' || user.role === 'admin') && (
-            <SidebarMenuItem>
+        {(hasAIAccountantAccess && (user.role === 'ai_accountant' || user.role === 'client')) && (
+             <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`)} tooltip="AI Accountant">
                     <Link href={`${basePath}/ai-accountant/clients`}>
                         <BrainCircuit />
@@ -168,7 +168,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
                 </SidebarMenuButton>
             </SidebarMenuItem>
         )}
-
+        
         {(user.role === 'admin' || user.role === 'staff') && visibleAdminNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
@@ -191,34 +191,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuItem>
         ))}
 
-
-        {(user.role === 'admin' && hasAIAccountantAccess) && (
-            <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
-            <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
-                <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant') || pathname.startsWith('/reseller/ai-accountant')} tooltip="AI Accountant">
-                    <Book />
-                    <span>AI Accountant</span>
-                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
-                </SidebarMenuButton>
-                </CollapsibleTrigger>
-            </SidebarMenuItem>
-            <CollapsibleContent asChild>
-                <SidebarMenu className="pl-4">
-                {visibleAiAccountantItems.map(item => (
-                    <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
-                        <Link href={item.href}>
-                        <item.icon />
-                        <span>{item.label}</span>
-                        </Link>
-                    </SidebarMenuButton>
-                    </SidebarMenuItem>
-                ))}
-                </SidebarMenu>
-            </CollapsibleContent>
-            </Collapsible>
-        )}
         
         {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor') && (
             <>
