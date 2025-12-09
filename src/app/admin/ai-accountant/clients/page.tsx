@@ -211,26 +211,29 @@ export default function AIAccountantClientsPage() {
         
         const clientsRef = collection(db, "aiAccountantClients");
         
-        let createdQuery;
-        
+        let myClientsQuery;
         if (currentUser.role === 'admin') {
-            createdQuery = query(clientsRef, where("createdBy", "==", currentUser.uid), orderBy("name"));
+            // Admin sees all clients under "My Clients"
+            myClientsQuery = query(clientsRef, orderBy("name"));
         } else {
-            createdQuery = query(clientsRef, where("createdBy", "==", currentUser.uid), orderBy("name"));
+            // Staff sees only clients they created
+            myClientsQuery = query(clientsRef, where("createdBy", "==", currentUser.uid), orderBy("name"));
         }
         
         const sharedQuery = query(clientsRef, where("sharedWith", "array-contains", currentUser.uid), orderBy("name"));
         
-        const [createdSnapshot, sharedSnapshot] = await Promise.all([
-             getDocs(createdQuery),
+        const [myClientsSnapshot, sharedSnapshot] = await Promise.all([
+             getDocs(myClientsQuery),
              getDocs(sharedQuery)
         ]);
         
-        const fetchedMyClients = createdSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedMyClients = myClientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         const fetchedSharedClients = sharedSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
 
         setMyClients(fetchedMyClients);
-        setSharedClients(fetchedSharedClients);
+        // For admin, sharedClients will be an empty array as they see all clients anyway.
+        // For staff, this will show clients shared with them that they did not create.
+        setSharedClients(currentUser.role === 'admin' ? [] : fetchedSharedClients.filter(sc => !fetchedMyClients.some(mc => mc.id === sc.id)));
 
     } catch (error) {
         console.error("Error fetching data:", error);
@@ -564,8 +567,8 @@ export default function AIAccountantClientsPage() {
         </div>
       ) : (
         <div className="space-y-8">
-            {renderClientTable(myClients, "My Clients")}
-            {currentUser?.role === 'admin' && renderClientTable(sharedClients, "Shared With Me")}
+            {myClients.length > 0 && renderClientTable(myClients, "My Clients")}
+            {sharedClients.length > 0 && renderClientTable(sharedClients, "Shared With Me")}
         </div>
       )}
     </div>
