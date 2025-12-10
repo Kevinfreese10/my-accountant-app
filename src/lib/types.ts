@@ -188,7 +188,7 @@ export type User = {
   password?: string;
   source?: 'AI Accountant' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
-  status?: 'Active' | 'Inactive';
+  status?: 'Active' | 'Inactive' | 'Archived';
   // Reseller specific fields or contact person for AI Accountant
   companyName?: string;
   contactPerson?: string;

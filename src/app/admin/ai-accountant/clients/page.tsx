@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,6 +25,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as XLSX from 'xlsx';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 const db = getFirestore(firebaseApp);
@@ -188,8 +189,7 @@ function BackupClientDialog({ client }: { client: User | null }) {
 
 
 export default function AIAccountantClientsPage() {
-  const [myClients, setMyClients] = useState<User[]>([]);
-  const [sharedClients, setSharedClients] = useState<User[]>([]);
+  const [allClients, setAllClients] = useState<User[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -209,34 +209,10 @@ export default function AIAccountantClientsPage() {
         const allUsersData = usersSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User));
         setAllUsers(allUsersData);
         
-        const clientsRef = collection(db, "aiAccountantClients");
-        
-        let myClientsQuery;
-        // Admin sees ALL clients as "their" clients
-        if (currentUser.role === 'admin') {
-            myClientsQuery = query(clientsRef, orderBy("name"));
-        } else {
-            myClientsQuery = query(clientsRef, where("createdBy", "==", currentUser.uid), orderBy("name"));
-        }
-        
-        const sharedQuery = query(clientsRef, where("sharedWith", "array-contains", currentUser.uid), orderBy("name"));
-        
-        const [myClientsSnapshot, sharedSnapshot] = await Promise.all([
-             getDocs(myClientsQuery),
-             getDocs(sharedQuery)
-        ]);
-        
-        const fetchedMyClients = myClientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
-        const fetchedSharedClients = sharedSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
-        
-        if(currentUser.role === 'admin') {
-            setMyClients(fetchedMyClients);
-            setSharedClients([]); // Admin sees all, so shared is empty to avoid duplication
-        } else {
-            setMyClients(fetchedMyClients);
-            // Filter out clients they created themselves from the shared list
-            setSharedClients(fetchedSharedClients.filter(sc => !fetchedMyClients.some(mc => mc.id === sc.id)));
-        }
+        const clientsQuery = query(collection(db, "aiAccountantClients"), orderBy("name"));
+        const clientsSnapshot = await getDocs(clientsQuery);
+        const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setAllClients(fetchedClients);
 
     } catch (error) {
         console.error("Error fetching data:", error);
@@ -251,6 +227,22 @@ export default function AIAccountantClientsPage() {
         fetchClients();
     }
   }, [currentUser]);
+
+  const { myClients, sharedClients, archivedClients } = useMemo(() => {
+    if (!currentUser) return { myClients: [], sharedClients: [], archivedClients: [] };
+
+    const activeClients = allClients.filter(c => c.status !== 'Archived');
+    const archived = allClients.filter(c => c.status === 'Archived');
+
+    if (currentUser.role === 'admin') {
+      return { myClients: activeClients, sharedClients: [], archivedClients: archived };
+    }
+    
+    const own = activeClients.filter(c => c.createdBy === currentUser.uid);
+    const shared = activeClients.filter(c => c.sharedWith?.includes(currentUser.uid) && c.createdBy !== currentUser.uid);
+
+    return { myClients: own, sharedClients: shared, archivedClients: archived };
+  }, [allClients, currentUser]);
 
   const handleAddClick = () => {
     setSelectedClient(null);
@@ -321,6 +313,18 @@ export default function AIAccountantClientsPage() {
     } catch (error) {
         console.error("Error deleting client:", error);
         toast({ title: 'Error', description: 'Could not delete client profile.', variant: 'destructive' });
+    }
+  };
+
+  const handleArchive = async (clientId: string, archive: boolean) => {
+      try {
+        const clientRef = doc(db, 'aiAccountantClients', clientId);
+        await updateDoc(clientRef, { status: archive ? 'Archived' : 'Active' });
+        toast({ title: `Client ${archive ? 'Archived' : 'Restored'}`, description: `The client profile has been ${archive ? 'archived' : 'restored'}.` });
+        fetchClients();
+    } catch(e) {
+         console.error(`Error ${archive ? 'archiving' : 'restoring'} client:`, e);
+        toast({ title: 'Error', description: `Could not ${archive ? 'archive' : 'restore'} client profile.`, variant: 'destructive'});
     }
   };
 
@@ -401,6 +405,7 @@ export default function AIAccountantClientsPage() {
                 hasNumeraProfile: true,
                 chartOfAccounts: initialChartOfAccounts,
                 allocationRules: initialAllocationRules,
+                status: 'Active',
             };
 
             if (!data.isVatRegistered) {
@@ -430,7 +435,7 @@ export default function AIAccountantClientsPage() {
   };
 
 
-  const renderClientTable = (clients: User[], title: string, allowDelete: boolean) => (
+  const renderClientTable = (clients: User[], title: string, allowDelete: boolean, isArchived: boolean = false) => (
      <Card>
         <CardHeader>
           <CardTitle>{title}</CardTitle>
@@ -481,7 +486,7 @@ export default function AIAccountantClientsPage() {
                                 <DropdownMenuItem onClick={() => handleEdit(client)}>
                                     <Edit className="mr-2 h-4 w-4" /> Edit
                                 </DropdownMenuItem>
-                                 <DropdownMenuItem onClick={() => handleShareClick(client)}>
+                                <DropdownMenuItem onClick={() => handleShareClick(client)}>
                                     <Share2 className="mr-2 h-4 w-4" /> Share Access
                                 </DropdownMenuItem>
                                  <DropdownMenuItem onClick={() => handleDuplicateClick(client)}>
@@ -497,6 +502,10 @@ export default function AIAccountantClientsPage() {
                                 {allowDelete && (
                                     <>
                                         <DropdownMenuSeparator />
+                                         <DropdownMenuItem onClick={() => handleArchive(client.id, !isArchived)}>
+                                            {isArchived ? <RotateCcw className="mr-2 h-4 w-4" /> : <Archive className="mr-2 h-4 w-4" />}
+                                            {isArchived ? 'Restore Client' : 'Archive Client'}
+                                        </DropdownMenuItem>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">Delete</DropdownMenuItem>
@@ -574,8 +583,20 @@ export default function AIAccountantClientsPage() {
         </div>
       ) : (
         <div className="space-y-8">
-            {(myClients.length > 0 || currentUser?.role === 'admin') && renderClientTable(myClients, currentUser?.role === 'admin' ? "All Clients" : "My Clients", true)}
-            {sharedClients.length > 0 && renderClientTable(sharedClients, "Shared With Me", false)}
+            {(myClients.length > 0 || currentUser?.role === 'admin') && renderClientTable(myClients, currentUser?.role === 'admin' ? "All Clients" : "My Clients", true, false)}
+            {sharedClients.length > 0 && renderClientTable(sharedClients, "Shared With Me", false, false)}
+             {archivedClients.length > 0 && (
+                <Accordion type="single" collapsible>
+                    <AccordionItem value="archived-clients">
+                        <AccordionTrigger>
+                            <h2 className="text-lg font-semibold">Archived Clients ({archivedClients.length})</h2>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                           {renderClientTable(archivedClients, "", true, true)}
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+            )}
         </div>
       )}
     </div>
