@@ -19,7 +19,7 @@ import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransactio
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
@@ -3047,6 +3047,7 @@ export default function BankTransactionsPage() {
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const params = useParams();
+    const searchParams = useSearchParams();
     const clientId = params.clientId as string;
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
@@ -3074,8 +3075,12 @@ export default function BankTransactionsPage() {
                 ).sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)) || [];
 
                 setBankAccounts(cashbookAccounts);
+                
+                const accountIdFromQuery = searchParams.get('accountId');
 
-                if (cashbookAccounts.length > 0 && !selectedAccountId) {
+                if (accountIdFromQuery && cashbookAccounts.some(acc => acc.id === accountIdFromQuery)) {
+                    setSelectedAccountId(accountIdFromQuery);
+                } else if (cashbookAccounts.length > 0 && !selectedAccountId) {
                     setSelectedAccountId(cashbookAccounts[0].id);
                 } else if (cashbookAccounts.length === 0) {
                     setSelectedAccountId(null);
@@ -3101,7 +3106,8 @@ export default function BankTransactionsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [clientId, toast, selectedAccountId]);
+    }, [clientId, toast, selectedAccountId, searchParams]);
+
 
     useEffect(() => {
         fetchClientAndRelatedData();
@@ -3352,6 +3358,7 @@ export default function BankTransactionsPage() {
 
 
     
+
 
 
 

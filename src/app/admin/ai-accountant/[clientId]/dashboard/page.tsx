@@ -237,7 +237,7 @@ export default function AIAccountantClientDashboardPage() {
                                         <TableCell>{acc.lastImportDate ? format(acc.lastImportDate, 'dd MMMM yyyy') : 'N/A'}</TableCell>
                                         <TableCell className="text-right">
                                              <Button asChild variant="outline" size="sm">
-                                                <Link href={`/admin/ai-accountant/${clientId}/bank/transactions`}>
+                                                <Link href={`/admin/ai-accountant/${clientId}/bank/transactions?accountId=${acc.id}`}>
                                                     View Account <ArrowRight className="ml-2 h-4 w-4" />
                                                 </Link>
                                             </Button>
