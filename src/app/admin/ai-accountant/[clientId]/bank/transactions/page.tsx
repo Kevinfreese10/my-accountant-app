@@ -3186,7 +3186,7 @@ export default function BankTransactionsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [clientId, toast, selectedAccountId, searchParams]);
+    }, [clientId, toast, searchParams]);
 
 
     useEffect(() => {
