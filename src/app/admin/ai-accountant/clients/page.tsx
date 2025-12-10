@@ -230,18 +230,18 @@ export default function AIAccountantClientsPage() {
 
   const { myClients, sharedClients, archivedClients } = useMemo(() => {
     if (!currentUser) return { myClients: [], sharedClients: [], archivedClients: [] };
-
+  
+    const activeClients = allClients.filter(c => c.status !== 'Archived');
     const archived = allClients.filter(c => c.status === 'Archived');
     
     if (currentUser.role === 'admin') {
-      const activeClients = allClients.filter(c => c.status !== 'Archived');
       return { myClients: activeClients, sharedClients: [], archivedClients: archived };
     }
     
     // For staff users
-    const my = allClients.filter(c => c.status !== 'Archived' && c.createdBy === currentUser.uid);
-    const shared = allClients.filter(c => c.status !== 'Archived' && c.sharedWith?.includes(currentUser.uid) && c.createdBy !== currentUser.uid);
-
+    const my = activeClients.filter(c => c.createdBy === currentUser.uid);
+    const shared = activeClients.filter(c => c.sharedWith?.includes(currentUser.uid) && c.createdBy !== currentUser.uid);
+  
     return { myClients: my, sharedClients: shared, archivedClients: archived };
   }, [allClients, currentUser]);
 
@@ -436,7 +436,12 @@ export default function AIAccountantClientsPage() {
   };
 
 
-  const renderClientTable = (clients: User[], title: string, allowDelete: boolean, isArchived: boolean = false) => (
+  const renderClientTable = (clients: User[], title: string, allowDelete: boolean, isArchived: boolean = false) => {
+    const getCreatorName = (uid: string) => {
+        return allUsers.find(u => u.uid === uid)?.name || 'Unknown';
+    }
+
+    return (
      <Card>
         <CardHeader>
           <CardTitle>{title}</CardTitle>
@@ -447,6 +452,7 @@ export default function AIAccountantClientsPage() {
               <TableRow>
                 <TableHead>Client</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Created By</TableHead>
                 <TableHead>VAT Registered</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -463,6 +469,7 @@ export default function AIAccountantClientsPage() {
                         </div>
                     </TableCell>
                     <TableCell>{client.email}</TableCell>
+                    <TableCell>{getCreatorName(client.createdBy || '')}</TableCell>
                     <TableCell>
                         {client.isVatRegistered ? (
                             <Badge variant="success">Yes</Badge>
@@ -535,7 +542,8 @@ export default function AIAccountantClientsPage() {
           {clients.length === 0 && <p className="text-center text-muted-foreground py-4">No clients found in this section.</p>}
         </CardContent>
       </Card>
-  )
+    )
+  }
 
 
   return (
