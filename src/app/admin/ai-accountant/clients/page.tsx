@@ -231,17 +231,18 @@ export default function AIAccountantClientsPage() {
   const { myClients, sharedClients, archivedClients } = useMemo(() => {
     if (!currentUser) return { myClients: [], sharedClients: [], archivedClients: [] };
 
-    const activeClients = allClients.filter(c => c.status !== 'Archived');
     const archived = allClients.filter(c => c.status === 'Archived');
-
+    
     if (currentUser.role === 'admin') {
+      const activeClients = allClients.filter(c => c.status !== 'Archived');
       return { myClients: activeClients, sharedClients: [], archivedClients: archived };
     }
     
-    const own = activeClients.filter(c => c.createdBy === currentUser.uid);
-    const shared = activeClients.filter(c => c.sharedWith?.includes(currentUser.uid) && c.createdBy !== currentUser.uid);
+    // For staff users
+    const my = allClients.filter(c => c.status !== 'Archived' && c.createdBy === currentUser.uid);
+    const shared = allClients.filter(c => c.status !== 'Archived' && c.sharedWith?.includes(currentUser.uid) && c.createdBy !== currentUser.uid);
 
-    return { myClients: own, sharedClients: shared, archivedClients: archived };
+    return { myClients: my, sharedClients: shared, archivedClients: archived };
   }, [allClients, currentUser]);
 
   const handleAddClick = () => {
@@ -584,7 +585,7 @@ export default function AIAccountantClientsPage() {
       ) : (
         <div className="space-y-8">
             {(myClients.length > 0 || currentUser?.role === 'admin') && renderClientTable(myClients, currentUser?.role === 'admin' ? "All Clients" : "My Clients", true, false)}
-            {sharedClients.length > 0 && renderClientTable(sharedClients, "Shared With Me", false, false)}
+            {(currentUser?.role !== 'admin' && sharedClients.length > 0) && renderClientTable(sharedClients, "Shared With Me", false, false)}
              {archivedClients.length > 0 && (
                 <Accordion type="single" collapsible>
                     <AccordionItem value="archived-clients">
