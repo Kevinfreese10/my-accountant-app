@@ -1252,12 +1252,15 @@ const NewTransactionsTab = React.forwardRef<
         } else {
              constraints.push(where('amount', '>=', 0));
         }
-    
-        if(constraints.some(c => c.type === 'where' && (c as any)._op === '<')) {
-            constraints.push(orderBy('amount', sortDirection === 'asc' ? 'desc' : 'asc')); // Amount < 0, so sorting visually asc means firestore desc
-        } else {
-             constraints.push(orderBy(sortField, sortDirection));
+
+        // Apply sorting
+        let finalSortDirection = sortDirection;
+        // For expense tab, amount is negative, so visual ASC is firestore DESC
+        if (activeSubTab === 'expenses' && sortField === 'amount') {
+            finalSortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
         }
+    
+        constraints.push(orderBy(sortField, finalSortDirection));
     
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
     }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
@@ -3450,3 +3453,4 @@ export default function BankTransactionsPage() {
 
 
     
+
