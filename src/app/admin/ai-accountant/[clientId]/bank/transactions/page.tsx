@@ -2181,9 +2181,6 @@ const ReviewedTab = React.forwardRef<
     { client: User | null; bankAccountId: string | null; customers: ClientCustomer[], onAccountCreated: () => void; }
 >(({ client, bankAccountId, customers, onAccountCreated }, ref) => {
     
-    const [searchTerm, setSearchTerm] = useState('');
-    const [searchAmount, setSearchAmount] = useState('');
-    const [searchAccount, setSearchAccount] = useState('');
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
@@ -2200,6 +2197,7 @@ const ReviewedTab = React.forwardRef<
     const [isConsistencyCheckOpen, setIsConsistencyCheckOpen] = useState(false);
     const [inconsistencies, setInconsistencies] = useState<any[]>([]);
     const [selectedCorrections, setSelectedCorrections] = useState<string[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
 
     type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
     type SortDirection = 'asc' | 'desc';
@@ -2264,7 +2262,7 @@ const ReviewedTab = React.forwardRef<
 
      useEffect(() => {
         const handleSearch = async () => {
-            if (!searchTerm.trim() && !searchAmount.trim() && !searchAccount) {
+            if (!searchTerm.trim()) {
                 setSearchResults(null);
                 return;
             }
@@ -2275,9 +2273,6 @@ const ReviewedTab = React.forwardRef<
                 where('bankAccountId', '==', bankAccountId),
                 where('status', 'in', ['reviewed', 'allocated']),
             ];
-             if (searchAccount) {
-                searchConstraints.push(where('allocatedTo.value', '==', searchAccount));
-            }
 
             const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
 
@@ -2287,12 +2282,6 @@ const ReviewedTab = React.forwardRef<
 
                 if (searchTerm.trim()) {
                     allDocs = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-                }
-                if (searchAmount.trim()) {
-                    const amountValue = parseFloat(searchAmount);
-                    if (!isNaN(amountValue)) {
-                        allDocs = allDocs.filter(tx => Math.abs(tx.amount - amountValue) < 0.01);
-                    }
                 }
                 
                 setSearchResults(allDocs);
@@ -2309,7 +2298,7 @@ const ReviewedTab = React.forwardRef<
         }, 500);
 
         return () => clearTimeout(debounce);
-    }, [searchTerm, searchAmount, searchAccount, client, bankAccountId, toast]);
+    }, [searchTerm, client, bankAccountId, toast]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -2545,16 +2534,19 @@ const ReviewedTab = React.forwardRef<
 
             const allocationCounts: { [key: string]: number } = {};
             group.forEach(tx => {
-                const key = `${tx.allocatedTo?.value || 'unallocated'}_${tx.vatType || 'no_vat'}`;
-                allocationCounts[key] = (allocationCounts[key] || 0) + 1;
+                if (tx.allocatedTo?.value) { // Only consider allocated transactions
+                    const key = `${tx.allocatedTo.value}_${tx.vatType || 'no_vat'}`;
+                    allocationCounts[key] = (allocationCounts[key] || 0) + 1;
+                }
             });
-
+            
             if (Object.keys(allocationCounts).length > 1) { // Inconsistency found
                 const [mostCommonKey, _] = Object.entries(allocationCounts).reduce((a, b) => a[1] > b[1] ? a : b);
                 const [correctAccountId, correctVatType] = mostCommonKey.split('_');
 
                 group.forEach(tx => {
-                    if (tx.allocatedTo?.value !== correctAccountId || tx.vatType !== correctVatType) {
+                    const currentKey = `${tx.allocatedTo?.value}_${tx.vatType || 'no_vat'}`;
+                    if (tx.allocatedTo?.value && currentKey !== mostCommonKey) {
                         foundInconsistencies.push({
                             ...tx,
                             suggestedAccountId: correctAccountId,
@@ -2801,26 +2793,6 @@ const ReviewedTab = React.forwardRef<
                                 className="pl-8 w-48"
                             />
                         </div>
-                        <Select value={searchAccount} onValueChange={setSearchAccount}>
-                            <SelectTrigger className="w-[200px]">
-                                <SelectValue placeholder="Filter by account..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Accounts</SelectItem>
-                                <SelectGroup>
-                                    <Label>Accounts</Label>
-                                    {uniqueChartOfAccounts.map(acc => (
-                                        <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                    ))}
-                                </SelectGroup>
-                                <SelectGroup>
-                                    <Label>Customers</Label>
-                                    {customers.map(c => (
-                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
                      </div>
                 </div>
             </CardHeader>
@@ -2921,7 +2893,7 @@ const ReviewedTab = React.forwardRef<
                     <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
                         {showAll ? 'Show Paginated' : 'Show All'}
                     </Button>
-                    {(!searchTerm && !searchAmount && !showAll) && (
+                    {(!searchTerm && !showAll) && (
                         <div className="flex items-center space-x-2">
                             <Button
                                 variant="outline"
