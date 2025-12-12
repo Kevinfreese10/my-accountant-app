@@ -1457,6 +1457,11 @@ const NewTransactionsTab = React.forwardRef<
     const handleAiExpenseAllocate = async (confidenceThreshold: number) => {
         if (!client || !client.uid || !client.chartOfAccounts || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
+        const toastId = toast({
+            title: "AI is allocating...",
+            description: `Processing ${selectedTransactions.length} transaction(s). Please wait.`,
+            duration: Infinity,
+        }).id;
         
         const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
         const totalToProcess = transactionsToAllocate.length;
@@ -1467,6 +1472,13 @@ const NewTransactionsTab = React.forwardRef<
 
         for (const tx of transactionsToAllocate) {
             processedCount++;
+            toast({
+                id: toastId,
+                title: `AI Allocation: ${processedCount}/${totalToProcess}`,
+                description: `Processing: ${tx.description}`,
+                duration: Infinity,
+            });
+
             try {
                 const result = await suggestTransactionAllocation({
                     description: tx.description,
@@ -1483,21 +1495,6 @@ const NewTransactionsTab = React.forwardRef<
                         allocatedAt: new Date(),
                     });
                     successCount++;
-                    
-                    const accountName = client.chartOfAccounts.find(a => a.id === result.accountId)?.description || 'Unknown';
-                    
-                    toast({
-                        title: `Allocated ${processedCount} of ${totalToProcess}`,
-                        description: (
-                            <div>
-                                <p>Transaction: <span className="font-semibold">{tx.description}</span></p>
-                                <p>Account: <span className="font-semibold">{accountName}</span></p>
-                                {client.isVatRegistered && <p>VAT Type: <span className="font-semibold">{result.vatType}</span></p>}
-                                <p>AI Confidence: <span className="font-semibold">{result.confidence}%</span></p>
-                            </div>
-                        ),
-                        duration: 5000,
-                    });
                 }
             } catch (error) {
                 console.error(`AI allocation failed for tx ${tx.id}:`, error);
@@ -1509,6 +1506,7 @@ const NewTransactionsTab = React.forwardRef<
             }
         }
         
+        dismiss(toastId);
         toast({
             title: "AI Allocation Complete",
             description: `${successCount} out of ${totalToProcess} transactions were confidently allocated for review.`
@@ -1523,7 +1521,7 @@ const NewTransactionsTab = React.forwardRef<
     const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
         if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
         setIsAiAllocating(true);
-        const toastId = toast({ title: "Step 1: Building Knowledge Base...", description: "Analyzing reviewed transactions." }).id;
+        const toastId = toast({ title: "Step 1: Building Knowledge Base...", description: "Analyzing reviewed transactions.", duration: Infinity }).id;
     
         try {
             // Step 1: Build knowledge base from reviewed transactions
@@ -1655,7 +1653,7 @@ const NewTransactionsTab = React.forwardRef<
                 await batch.commit();
             }
     
-            toast.dismiss(toastId);
+            dismiss(toastId);
             toast({
                 title: "AI Bulk Allocation Complete!",
                 description: `A total of ${learnedRulesApplied + (batchCount > 0 ? batchCount : 0)} transactions were allocated.`
@@ -1994,7 +1992,7 @@ const NewTransactionsTab = React.forwardRef<
                                 </DropdownMenuItem>
                                 <DropdownMenuSub>
                                     <DropdownMenuSubTrigger>Manual Allocate</DropdownMenuSubTrigger>
-                                     <DropdownMenuSubContent className="p-0">
+                                    <DropdownMenuSubContent className="p-0">
                                         <Command>
                                             <CommandInput placeholder="Search..." autoFocus />
                                             <CommandList>
@@ -2594,16 +2592,22 @@ const ReviewedTab = React.forwardRef<
             const foundKeyword = commonKeywords.find(kw => lowerDesc.includes(kw));
             if (foundKeyword) return foundKeyword;
             
+            // Fallback for descriptions without a major keyword
             const words = lowerDesc.replace(/[^a-z\s]/g, '').split(/\s+/);
-            const significantWords = words.filter(w => w.length > 3 && !['cheque', 'card', 'purchase', 'payment', 'debit', 'order'].includes(w));
-            return significantWords.slice(0, 2).join(' ') || lowerDesc;
+            const significantWords = words.filter(w => w.length > 3 && !['cheque', 'card', 'purchase', 'payment', 'debit', 'order', 'eft', 'from'].includes(w));
+            
+            if(significantWords.length > 0) return significantWords[0];
+            
+            return lowerDesc.slice(0, 15); // a less reliable fallback
         };
 
         const groups: { [key: string]: ImportedTransaction[] } = {};
         allReviewed.forEach(tx => {
-            const key = getGroupKey(tx.description);
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(tx);
+            if(tx.allocatedTo?.type === 'account') { // Only check account allocations
+                const key = getGroupKey(tx.description);
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(tx);
+            }
         });
     
         const foundInconsistencies: any[] = [];
@@ -3735,3 +3739,4 @@ export default function BankTransactionsPage() {
 }
 
     
+
