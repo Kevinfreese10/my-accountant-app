@@ -1329,8 +1329,8 @@ const NewTransactionsTab = React.forwardRef<
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
-                // Remove limit constraint for fetching all
-                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...(baseQuery as any)._query.constraints.filter((c: any) => c.type !== 'limit'));
+                // @ts-ignore
+                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
@@ -1519,116 +1519,154 @@ const NewTransactionsTab = React.forwardRef<
         setIsAiAllocating(false);
     };
     
-   const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
+    const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
         if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
         setIsAiAllocating(true);
-        const { id: toastId } = toast({ title: "Step 1: Fetching Transactions...", description: "Gathering all new expenses." });
-
+        const toastId = toast({ title: "Step 1: Building Knowledge Base...", description: "Analyzing reviewed transactions." }).id;
+    
         try {
-            const q = query(
+            // Step 1: Build knowledge base from reviewed transactions
+            const reviewedQuery = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', 'in', ['reviewed', 'allocated'])
+            );
+            const reviewedSnapshot = await getDocs(reviewedQuery);
+            const knowledgeBase: { [key: string]: { accountId: string; vatType: VatType; count: number } } = {};
+            
+            reviewedSnapshot.forEach(doc => {
+                const tx = doc.data() as AllocatedTransaction;
+                if (!tx.allocatedTo || tx.bankAccountId === 'JOURNAL') return;
+                
+                const key = tx.description.replace(/\d+/g, '').trim().toLowerCase();
+                const allocationKey = `${tx.allocatedTo.value}-${tx.vatType}`;
+                
+                if (!knowledgeBase[key]) knowledgeBase[key] = {};
+                knowledgeBase[key][allocationKey] = (knowledgeBase[key][allocationKey] || 0) + 1;
+            });
+    
+            // Simplify knowledge base to most common allocation for each description key
+            const learnedRules: { [key: string]: { accountId: string; vatType: VatType } } = {};
+            for (const key in knowledgeBase) {
+                const allocations = knowledgeBase[key];
+                const mostCommon = Object.entries(allocations).reduce((a, b) => a[1] > b[1] ? a : b);
+                const [accountId, vatType] = mostCommon[0].split('-');
+                learnedRules[key] = { accountId, vatType: vatType as VatType };
+            }
+    
+            toast({ id: toastId, title: "Step 2: Fetching New Transactions...", description: "Gathering all new expenses to process." });
+    
+            // Step 2: Fetch all new expense transactions
+            const newExpensesQuery = query(
                 collection(db, 'aiAccountantClients', client.uid, 'transactions'),
                 where('bankAccountId', '==', bankAccountId),
                 where('status', '==', 'new'),
                 where('amount', '<', 0)
             );
-            const snapshot = await getDocs(q);
-            const allNewExpenseTransactions = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
-
+            const newExpensesSnapshot = await getDocs(newExpensesQuery);
+            const allNewExpenseTransactions = newExpensesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
+    
             if (allNewExpenseTransactions.length === 0) {
-                toast({ title: "No Transactions", description: "There are no new expenses to allocate." });
+                toast({ id: toastId, title: "No Transactions", description: "There are no new expenses to allocate." });
                 setIsAiAllocating(false);
-                dismiss(toastId);
                 return;
             }
-            
-            toast({ id: toastId, title: "Step 2: Grouping Similar Transactions...", description: `Found ${allNewExpenseTransactions.length} transactions to process.`});
-
-            const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
-            
-            const groups: { [key: string]: ImportedTransaction[] } = {};
-            allNewExpenseTransactions.forEach(tx => {
-                const key = tx.description.replace(/\d+/g, '').trim(); 
-                if (!groups[key]) {
-                    groups[key] = [];
-                }
-                groups[key].push(tx);
-            });
-            const totalGroups = Object.keys(groups).length;
-
-            let allUpdatePromises: Promise<void>[] = [];
+    
+            // Step 3: First pass with learned rules
+            let transactionsToAiProcess: ImportedTransaction[] = [];
             let batch = writeBatch(db);
             let batchCount = 0;
-            let overallAllocatedCount = 0;
-            let groupsProcessed = 0;
-
-            for (const key in groups) {
-                groupsProcessed++;
-                toast({ id: toastId, title: `Step 3: Analyzing Group ${groupsProcessed} of ${totalGroups}...`, description: `Processing transactions for "${key}"` });
-                
-                const group = groups[key];
-                const representativeTx = group[0];
-        
-                try {
-                    const result = await suggestTransactionAllocation({
-                        description: representativeTx.description,
-                        chartOfAccounts: chartOfAccountsJson,
-                        isVatRegistered: client.isVatRegistered || false,
+            let learnedRulesApplied = 0;
+    
+            allNewExpenseTransactions.forEach(tx => {
+                const key = tx.description.replace(/\d+/g, '').trim().toLowerCase();
+                if (learnedRules[key]) {
+                    const rule = learnedRules[key];
+                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+                    batch.update(txRef, {
+                        status: 'review',
+                        allocatedTo: { value: rule.accountId, type: 'account' },
+                        vatType: client.isVatRegistered ? rule.vatType : 'no_vat',
+                        allocatedAt: new Date(),
                     });
-        
-                    if (result.accountId && result.confidence >= confidenceThreshold) {
-                        group.forEach(similarTx => {
-                            if (batchCount >= BATCH_SIZE) {
-                                allUpdatePromises.push(batch.commit());
-                                batch = writeBatch(db);
-                                batchCount = 0;
-                            }
-                            const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', similarTx.id);
-                            batch.update(transactionRef, {
-                                status: 'review',
-                                allocatedTo: { value: result.accountId, type: 'account' },
-                                vatType: client.isVatRegistered ? result.vatType : 'no_vat',
-                                allocatedAt: new Date(),
-                            });
-                            batchCount++;
-                            overallAllocatedCount++;
-                        });
+                    batchCount++;
+                    learnedRulesApplied++;
+                    if (batchCount >= BATCH_SIZE) {
+                        batch.commit();
+                        batch = writeBatch(db);
+                        batchCount = 0;
                     }
-                } catch (error) {
-                    console.error(`AI allocation failed for group ${key}:`, error);
+                } else {
+                    transactionsToAiProcess.push(tx);
+                }
+            });
+    
+            toast({ id: toastId, title: `Step 3: Applying Learned Rules...`, description: `${learnedRulesApplied} transactions allocated based on your history.` });
+    
+            // Step 4: Second pass with AI for remaining transactions
+            if (transactionsToAiProcess.length > 0) {
+                 toast({ id: toastId, title: `Step 4: AI Processing...`, description: `Using AI for the remaining ${transactionsToAiProcess.length} transactions.` });
+                const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
+                
+                const groups: { [key: string]: ImportedTransaction[] } = {};
+                transactionsToAiProcess.forEach(tx => {
+                    const key = tx.description.replace(/\d+/g, '').trim();
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(tx);
+                });
+    
+                for (const key in groups) {
+                    const group = groups[key];
+                    const representativeTx = group[0];
+            
+                    try {
+                        const result = await suggestTransactionAllocation({
+                            description: representativeTx.description,
+                            chartOfAccounts: chartOfAccountsJson,
+                            isVatRegistered: client.isVatRegistered || false,
+                        });
+            
+                        if (result.accountId && result.confidence >= confidenceThreshold) {
+                            group.forEach(similarTx => {
+                                if (batchCount >= BATCH_SIZE) {
+                                    batch.commit();
+                                    batch = writeBatch(db);
+                                    batchCount = 0;
+                                }
+                                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', similarTx.id);
+                                batch.update(txRef, {
+                                    status: 'review',
+                                    allocatedTo: { value: result.accountId, type: 'account' },
+                                    vatType: client.isVatRegistered ? result.vatType : 'no_vat',
+                                    allocatedAt: new Date(),
+                                });
+                                batchCount++;
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`AI allocation failed for group ${key}:`, error);
+                    }
                 }
             }
-            
+    
             if (batchCount > 0) {
-                allUpdatePromises.push(batch.commit());
+                await batch.commit();
             }
-            
-            toast({ id: toastId, title: "Step 4: Saving Allocations...", description: "Committing changes to the database." });
-
-            await Promise.all(allUpdatePromises);
-            
-            dismiss(toastId);
-            if (overallAllocatedCount > 0) {
-                 toast({
-                    title: "AI Bulk Allocation Complete!",
-                    description: `${overallAllocatedCount} out of ${allNewExpenseTransactions.length} transactions were confidently allocated for review.`
-                });
-            } else {
-                 toast({
-                    title: "AI Bulk Allocation Complete",
-                    description: `The AI did not find any transactions to allocate above your confidence threshold of ${confidenceThreshold}%.`
-                });
-            }
-            
+    
+            toast.dismiss(toastId);
+            toast({
+                title: "AI Bulk Allocation Complete!",
+                description: `A total of ${learnedRulesApplied + (batchCount > 0 ? batchCount : 0)} transactions were allocated.`
+            });
+    
         } catch (error) {
             console.error("Error during AI bulk allocation:", error);
             toast({ id: toastId, title: "Error", description: "An error occurred during the AI allocation process.", variant: "destructive" });
         } finally {
-            dismiss(toastId);
+            setIsAiAllocating(false);
+            setIsConfidenceDialogOpen(false);
+            refetch();
         }
-        
-        refetch();
-        setIsAiAllocating(false);
-        setIsConfidenceDialogOpen(false);
     };
 
     const handleAiIncomeAllocate = async () => {
@@ -2304,7 +2342,8 @@ const ReviewedTab = React.forwardRef<
             if (!reviewedTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...(reviewedTransactionsQuery as any)._query.constraints.filter((c: any) => c.type !== 'limit'));
+                 // @ts-ignore
+                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
@@ -2398,7 +2437,7 @@ const ReviewedTab = React.forwardRef<
         if (!client || transactionIds.length === 0) return;
         setIsSaving(true);
         toast({ title: 'Saving changes...', description: 'Please wait.' });
-
+    
         try {
             for (let i = 0; i < transactionIds.length; i += BATCH_SIZE) {
                 const batch = writeBatch(db);
@@ -2421,8 +2460,8 @@ const ReviewedTab = React.forwardRef<
     
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
             
-            refetch(); // Refetch the data to show changes
-
+            refetch(); // This will refetch data based on current pagination/filters
+    
             setChanges({});
             setSelectedTransactions([]);
             
@@ -3012,7 +3051,8 @@ const ForReviewTab = React.forwardRef<
             if (!reviewTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...(reviewTransactionsQuery as any)._query.constraints.filter((c: any) => c.type !== 'limit'));
+                 // @ts-ignore
+                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
