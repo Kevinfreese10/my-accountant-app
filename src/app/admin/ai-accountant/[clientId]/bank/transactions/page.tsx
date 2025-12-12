@@ -46,6 +46,8 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { requestMissingStatements } from '@/app/actions';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { DateRange } from 'react-day-picker';
 
 
 const PAGE_SIZE = 50;
@@ -1224,6 +1226,10 @@ const NewTransactionsTab = React.forwardRef<
     const [isConfidenceDialogOpen, setIsConfidenceDialogOpen] = useState(false);
     const [aiConfidenceThreshold, setAiConfidenceThreshold] = useState(70);
     const [isSaving, setIsSaving] = useState(false);
+    const [showAll, setShowAll] = useState(false);
+    const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
+    const [isFetchingAll, setIsFetchingAll] = useState(false);
+
 
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
@@ -1239,9 +1245,9 @@ const NewTransactionsTab = React.forwardRef<
         }
     };
     
-    const newTransactionsQuery = useMemo(() => {
+    const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
-    
+
         let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'new'),
@@ -1252,18 +1258,17 @@ const NewTransactionsTab = React.forwardRef<
         } else {
              constraints.push(where('amount', '>=', 0));
         }
-
-        // Apply sorting
-        let finalSortDirection = sortDirection;
-        // For expense tab, amount is negative, so visual ASC is firestore DESC
+        
+        let finalSortDirection: 'asc' | 'desc' = sortDirection;
         if (activeSubTab === 'expenses' && sortField === 'amount') {
             finalSortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
         }
     
         constraints.push(orderBy(sortField, finalSortDirection));
-    
+        
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
     }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
+
 
     const {
         documents: paginatedDocuments,
@@ -1274,7 +1279,7 @@ const NewTransactionsTab = React.forwardRef<
         canGoPrev,
         currentPage,
         refetch
-    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: newTransactionsQuery, pageSize: PAGE_SIZE });
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: baseQuery, pageSize: PAGE_SIZE });
 
      const handleSearch = useCallback(async () => {
         if (!searchTerm.trim()) {
@@ -1316,9 +1321,34 @@ const NewTransactionsTab = React.forwardRef<
         return () => clearTimeout(debounce);
     }, [searchTerm, handleSearch]);
 
+     useEffect(() => {
+        const fetchAll = async () => {
+            if (!baseQuery) return;
+            setIsFetchingAll(true);
+            try {
+                const snapshot = await getDocs(baseQuery);
+                const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+                setAllTransactions(allDocs);
+            } catch (error) {
+                console.error("Error fetching all transactions:", error);
+                toast({ title: 'Error', description: 'Could not fetch all transactions.', variant: 'destructive' });
+            } finally {
+                setIsFetchingAll(false);
+            }
+        };
+
+        if (showAll) {
+            fetchAll();
+        } else {
+            setAllTransactions([]);
+        }
+    }, [showAll, baseQuery, toast]);
+
+
     const transactions = useMemo(() => {
+        if (showAll) return allTransactions;
         return searchResults !== null ? searchResults : paginatedDocuments;
-    }, [searchResults, paginatedDocuments]);
+    }, [showAll, allTransactions, searchResults, paginatedDocuments]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -2002,7 +2032,7 @@ const NewTransactionsTab = React.forwardRef<
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading || isSearching ? (
+                            {isLoading || isSearching || isFetchingAll ? (
                                 <TableRow><TableCell colSpan={8} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                             ) : transactions.length === 0 ? (
                                 <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No new transactions found.</TableCell></TableRow>
@@ -2097,31 +2127,36 @@ const NewTransactionsTab = React.forwardRef<
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Save Allocations
                 </Button>
-                {!searchTerm && (
-                    <div className="flex items-center space-x-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={goToPreviousPage}
-                            disabled={!canGoPrev || isLoading}
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                            Previous
-                        </Button>
-                        <span className="text-sm font-medium">
-                            Page {currentPage}
-                        </span>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={goToNextPage}
-                            disabled={!canGoNext || isLoading}
-                        >
-                            Next
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                    </div>
-                )}
+                 <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
+                        {showAll ? 'Show Paginated' : 'Show All'}
+                    </Button>
+                    {!searchTerm && !showAll && (
+                        <div className="flex items-center space-x-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={goToPreviousPage}
+                                disabled={!canGoPrev || isLoading}
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                                Previous
+                            </Button>
+                            <span className="text-sm font-medium">
+                                Page {currentPage}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={goToNextPage}
+                                disabled={!canGoNext || isLoading}
+                            >
+                                Next
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
+                 </div>
              </CardFooter>
         </Card>
     )
@@ -2137,6 +2172,7 @@ const ReviewedTab = React.forwardRef<
     const [searchTerm, setSearchTerm] = useState('');
     const [searchAmount, setSearchAmount] = useState('');
     const [searchAccount, setSearchAccount] = useState('');
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
     const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
@@ -2179,13 +2215,23 @@ const ReviewedTab = React.forwardRef<
             where('status', 'in', ['reviewed', 'allocated']),
         ];
 
+        if (dateRange?.from) {
+            constraints.push(where('date', '>=', dateRange.from.toISOString()));
+        }
+        if (dateRange?.to) {
+            constraints.push(where('date', '<=', dateRange.to.toISOString()));
+        }
+
         const sortableFields: SortField[] = ['date', 'description', 'amount'];
         if (sortableFields.includes(sortField)) {
             constraints.push(orderBy(sortField, sortDirection));
+        } else {
+             constraints.push(orderBy('date', 'desc')); // Default sort if not a sortable field
         }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, sortField, sortDirection]);
+    }, [client?.uid, bankAccountId, sortField, sortDirection, dateRange]);
+
 
     const {
         documents: paginatedDocuments,
@@ -2527,6 +2573,7 @@ const ReviewedTab = React.forwardRef<
                         </Button>
                     </div>
                      <div className="flex items-center gap-2">
+                        <DateRangePicker onDateChange={setDateRange} />
                         <div className="relative">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
@@ -2535,16 +2582,6 @@ const ReviewedTab = React.forwardRef<
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-8 w-48"
-                            />
-                        </div>
-                         <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                type="number"
-                                placeholder="Search amount..."
-                                value={searchAmount}
-                                onChange={(e) => setSearchAmount(e.target.value)}
-                                className="pl-8 w-32"
                             />
                         </div>
                         <Select value={searchAccount} onValueChange={setSearchAccount}>
@@ -3432,25 +3469,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-    
-    
-
-    
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-    
 
