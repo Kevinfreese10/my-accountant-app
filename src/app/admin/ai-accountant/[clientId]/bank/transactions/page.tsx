@@ -1023,7 +1023,6 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
     const handleCreateAccount = async (values: z.infer<typeof generalAccountFormSchema>) => {
         if (!client || !client.uid) return;
         
-        // Check for duplicate account number
         const existingAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === values.accountNumber);
         if (existingAccount) {
             form.setError('accountNumber', { message: 'This account number already exists.' });
@@ -1033,7 +1032,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
         setIsSaving(true);
         try {
             const newAccount: ChartOfAccount = {
-                id: values.accountNumber, // Use account number as ID for new accounts
+                id: values.accountNumber,
                 accountNumber: values.accountNumber,
                 description: values.description,
                 section: values.section,
@@ -1043,7 +1042,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
             await updateDoc(clientRef, { chartOfAccounts: arrayUnion(newAccount) });
             
             toast({ title: 'Account Created', description: `Account "${values.description}" has been added.` });
-            onAccountCreated(); // This should trigger a refetch of client data
+            onAccountCreated();
             form.reset();
             onOpenChange(false);
         } catch (error) {
@@ -1259,11 +1258,9 @@ const NewTransactionsTab = React.forwardRef<
              constraints.push(where('amount', '>=', 0));
         }
         
-        // Let's create a consistent base sort order.
         let finalSortField = sortField;
         let finalSortDirection: 'asc' | 'desc' = sortDirection;
 
-        // Special handling for amount in expenses tab. Firestore sorts negative numbers ascending from -1, -2, etc.
         if (activeSubTab === 'expenses' && sortField === 'amount') {
             finalSortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
         }
@@ -1330,7 +1327,6 @@ const NewTransactionsTab = React.forwardRef<
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
-                // Correctly use the baseQuery to build the unlimited query
                 const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
@@ -1354,7 +1350,6 @@ const NewTransactionsTab = React.forwardRef<
     const transactions = useMemo(() => {
         let docs = showAll ? allTransactions : (searchResults !== null ? searchResults : paginatedDocuments);
         
-        // Only do client-side sort if the field is one that Firestore doesn't sort well with other constraints
         if (sortField === 'description') {
             docs.sort((a, b) => {
                 const comparison = a.description.localeCompare(b.description);
@@ -1747,7 +1742,6 @@ const NewTransactionsTab = React.forwardRef<
             
             setSelectedTransactions([]);
             
-            // Re-run the search to show remaining items
             if(searchTerm) {
                 handleSearch();
             } else {
@@ -2199,6 +2193,9 @@ const ReviewedTab = React.forwardRef<
     const [showAll, setShowAll] = useState(false);
     const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
     const [isFetchingAll, setIsFetchingAll] = useState(false);
+    const [isConsistencyCheckOpen, setIsConsistencyCheckOpen] = useState(false);
+    const [inconsistencies, setInconsistencies] = useState<any[]>([]);
+    const [selectedCorrections, setSelectedCorrections] = useState<string[]>([]);
 
     type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
     type SortDirection = 'asc' | 'desc';
@@ -2243,7 +2240,7 @@ const ReviewedTab = React.forwardRef<
         if (sortableFields.includes(sortField)) {
             constraints.push(orderBy(sortField, sortDirection));
         } else {
-             constraints.push(orderBy('date', 'desc')); // Default sort if not a sortable field
+             constraints.push(orderBy('date', 'desc'));
         }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
@@ -2451,8 +2448,7 @@ const ReviewedTab = React.forwardRef<
 
             setChanges({});
             setSelectedTransactions([]);
-            // Do not refetch immediately to allow user to see optimistic update
-    
+            
         } catch (error) {
             console.error('Error saving changes:', error);
             toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
@@ -2529,6 +2525,91 @@ const ReviewedTab = React.forwardRef<
         });
 
     }, [searchResults, paginatedDocuments, sortField, sortDirection, showAll, allTransactions]);
+    
+     const handleReviewConsistency = async () => {
+        if (!client || !bankAccountId) return;
+        toast({ title: "Analyzing Transactions...", description: "Checking for allocation inconsistencies." });
+
+        const q = query(
+            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+            where('bankAccountId', '==', bankAccountId),
+            where('status', 'in', ['reviewed', 'allocated'])
+        );
+        const snapshot = await getDocs(q);
+        const allReviewed = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+
+        const groups: { [key: string]: ImportedTransaction[] } = {};
+        allReviewed.forEach(tx => {
+            const key = tx.description.replace(/[^a-zA-Z\s]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(tx);
+        });
+
+        const foundInconsistencies: any[] = [];
+
+        Object.values(groups).forEach(group => {
+            if (group.length < 2) return;
+
+            const allocationCounts: { [key: string]: number } = {};
+            group.forEach(tx => {
+                const key = `${tx.allocatedTo?.value || 'unallocated'}_${tx.vatType || 'no_vat'}`;
+                allocationCounts[key] = (allocationCounts[key] || 0) + 1;
+            });
+
+            if (Object.keys(allocationCounts).length > 1) { // Inconsistency found
+                const [mostCommonKey, _] = Object.entries(allocationCounts).reduce((a, b) => a[1] > b[1] ? a : b);
+                const [correctAccountId, correctVatType] = mostCommonKey.split('_');
+
+                group.forEach(tx => {
+                    if (tx.allocatedTo?.value !== correctAccountId || tx.vatType !== correctVatType) {
+                        foundInconsistencies.push({
+                            ...tx,
+                            suggestedAccountId: correctAccountId,
+                            suggestedVatType: correctVatType,
+                        });
+                    }
+                });
+            }
+        });
+
+        setInconsistencies(foundInconsistencies);
+        setSelectedCorrections(foundInconsistencies.map(inc => inc.id));
+        setIsConsistencyCheckOpen(true);
+         if (foundInconsistencies.length === 0) {
+            toast({ title: 'No Inconsistencies Found!', description: 'All your allocations look consistent.' });
+        }
+    };
+    
+    const handleApplyCorrections = async () => {
+        if (!client || selectedCorrections.length === 0) return;
+        
+        setIsSaving(true);
+        toast({ title: "Applying Corrections...", description: "Updating transactions." });
+
+        try {
+            const batch = writeBatch(db);
+            selectedCorrections.forEach(txId => {
+                const inconsistency = inconsistencies.find(inc => inc.id === txId);
+                if (inconsistency) {
+                    const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+                    batch.update(txRef, {
+                        allocatedTo: { value: inconsistency.suggestedAccountId, type: 'account' },
+                        vatType: inconsistency.suggestedVatType,
+                    });
+                }
+            });
+            await batch.commit();
+            toast({ title: 'Corrections Applied!', description: `${selectedCorrections.length} transactions have been updated.` });
+            
+            refetch();
+            setIsConsistencyCheckOpen(false);
+
+        } catch (error) {
+             toast({ title: 'Error', description: 'Could not apply corrections.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     return (
         <Card>
@@ -2538,6 +2619,72 @@ const ReviewedTab = React.forwardRef<
                 open={isCreateGeneralAccountOpen}
                 onOpenChange={setIsCreateGeneralAccountOpen}
              />
+             <Dialog open={isConsistencyCheckOpen} onOpenChange={setIsConsistencyCheckOpen}>
+                <DialogContent className="sm:max-w-4xl">
+                     <DialogHeader>
+                        <DialogTitle>Allocation Consistency Review</DialogTitle>
+                        <DialogDescription>
+                            The AI found the following inconsistencies. Select the corrections you want to apply.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {inconsistencies.length > 0 ? (
+                        <div className="max-h-[60vh] overflow-y-auto pr-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableCell className="w-12 p-2">
+                                            <Checkbox
+                                                checked={selectedCorrections.length === inconsistencies.length}
+                                                onCheckedChange={(checked) => setSelectedCorrections(checked ? inconsistencies.map(i => i.id) : [])}
+                                            />
+                                        </TableCell>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead>Current Allocation</TableHead>
+                                        <TableHead>Suggested Allocation</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {inconsistencies.map(tx => (
+                                        <TableRow key={tx.id}>
+                                            <TableCell className="p-2">
+                                                <Checkbox
+                                                    checked={selectedCorrections.includes(tx.id)}
+                                                    onCheckedChange={(checked) => {
+                                                        setSelectedCorrections(prev =>
+                                                            checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
+                                                        );
+                                                    }}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <p className="font-semibold">{tx.description}</p>
+                                                <p className="text-xs text-muted-foreground">{format(new Date(tx.date), 'dd MMMM yyyy')}</p>
+                                            </TableCell>
+                                             <TableCell>
+                                                <p className="text-xs">{getAllocationDescription(tx)}</p>
+                                                <p className="text-xs font-mono">{tx.vatType}</p>
+                                            </TableCell>
+                                            <TableCell>
+                                                <p className="text-xs text-green-600 font-semibold">{uniqueChartOfAccounts?.find(a => a.id === tx.suggestedAccountId)?.description}</p>
+                                                <p className="text-xs font-mono text-green-600">{tx.suggestedVatType}</p>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    ) : (
+                        <p className="text-center text-muted-foreground py-8">No inconsistencies were found.</p>
+                    )}
+                     <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsConsistencyCheckOpen(false)}>Cancel</Button>
+                        <Button onClick={handleApplyCorrections} disabled={isSaving || selectedCorrections.length === 0}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                            Apply {selectedCorrections.length} Corrections
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+             </Dialog>
             <CardHeader className="p-4 border-b">
                  <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
@@ -2611,6 +2758,9 @@ const ReviewedTab = React.forwardRef<
                          <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
                             {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Download Excel
+                        </Button>
+                         <Button variant="outline" onClick={handleReviewConsistency}>
+                            <Sparkles className="mr-2 h-4 w-4" /> Review Consistency
                         </Button>
                     </div>
                      <div className="flex items-center gap-2">
@@ -2842,7 +2992,6 @@ const ForReviewTab = React.forwardRef<
      const transactions = useMemo(() => {
         let docs = showAll ? allTransactions : (searchTerm ? documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase())) : documents);
         
-        // Manual sort for description if needed
         if (sortField === 'description') {
             docs.sort((a, b) => {
                 const comparison = a.description.localeCompare(b.description);
@@ -3190,7 +3339,7 @@ export default function BankTransactionsPage() {
     
     const fetchClientAndRelatedData = useCallback(async () => {
         if (!clientId) return;
-        setIsLoading(true);
+        
         try {
             const clientRef = doc(db, 'aiAccountantClients', clientId);
             const clientSnap = await getDoc(clientRef);
