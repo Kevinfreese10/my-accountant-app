@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -1331,7 +1330,7 @@ const NewTransactionsTab = React.forwardRef<
             setIsFetchingAll(true);
             try {
                 // Remove limit constraint for fetching all
-                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
+                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...(baseQuery as any)._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
@@ -1908,23 +1907,22 @@ const NewTransactionsTab = React.forwardRef<
                 </Tabs>
                  <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                        <DropdownMenu>
+                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="outline">Actions <MoreHorizontal className="ml-2 h-4 w-4"/></Button>
+                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                    Actions <MoreHorizontal className="ml-2 h-4 w-4"/>
+                                </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger disabled={selectedTransactions.length === 0}>Allocate Selected</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubTrigger>Allocate Selected</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent className="p-0">
-                                        <Command>
+                                         <Command>
                                             <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
                                             <CommandList>
                                                 <ScrollArea className="h-72">
                                                 <CommandEmpty>No results found.</CommandEmpty>
-                                                <CommandItem onSelect={() => {
-                                                    setIsCreateGeneralAccountOpen(true);
-                                                }} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-
+                                                 <CommandItem onSelect={() => { setIsCreateGeneralAccountOpen(true); }} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
                                                 <CommandGroup heading="Customers">
                                                     {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
                                                         <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
@@ -1958,7 +1956,7 @@ const NewTransactionsTab = React.forwardRef<
                                 <DropdownMenuSeparator />
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={selectedTransactions.length === 0}>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
                                             Delete Selected
                                         </DropdownMenuItem>
                                     </AlertDialogTrigger>
@@ -1966,7 +1964,7 @@ const NewTransactionsTab = React.forwardRef<
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                This action will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
+                                                This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -2306,7 +2304,7 @@ const ReviewedTab = React.forwardRef<
             if (!reviewedTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
+                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...(reviewedTransactionsQuery as any)._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
@@ -3014,7 +3012,7 @@ const ForReviewTab = React.forwardRef<
             if (!reviewTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
+                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...(reviewTransactionsQuery as any)._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
@@ -3634,3 +3632,4 @@ export default function BankTransactionsPage() {
     );
 }
 
+    
