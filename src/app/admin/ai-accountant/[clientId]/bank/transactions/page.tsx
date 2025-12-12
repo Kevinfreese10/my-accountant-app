@@ -46,7 +46,6 @@ import { requestMissingStatements } from '@/app/actions';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { DateRange } from 'react-day-picker';
 
 
 const PAGE_SIZE = 50;
@@ -1222,6 +1221,7 @@ const NewTransactionsTab = React.forwardRef<
     const [isSearching, setIsSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isConfidenceDialogOpen, setIsConfidenceDialogOpen] = useState(false);
+    const [isAiSelectedDialogOpen, setIsAiSelectedDialogOpen] = useState(false);
     const [aiConfidenceThreshold, setAiConfidenceThreshold] = useState(70);
     const [isSaving, setIsSaving] = useState(false);
     const [showAll, setShowAll] = useState(false);
@@ -1454,7 +1454,7 @@ const NewTransactionsTab = React.forwardRef<
     }, [fetchClientData, handleAllocateByRules]);
 
 
-    const handleAiExpenseAllocate = async () => {
+    const handleAiExpenseAllocate = async (confidenceThreshold: number) => {
         if (!client || !client.uid || !client.chartOfAccounts || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
         
@@ -1474,7 +1474,7 @@ const NewTransactionsTab = React.forwardRef<
                     isVatRegistered: client.isVatRegistered || false,
                 });
 
-                if (result.accountId && result.confidence > 70) {
+                if (result.accountId && result.confidence >= confidenceThreshold) {
                     const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
                     await updateDoc(transactionRef, {
                         status: 'review',
@@ -1517,6 +1517,7 @@ const NewTransactionsTab = React.forwardRef<
         setSelectedTransactions([]);
         refetch();
         setIsAiAllocating(false);
+        setIsAiSelectedDialogOpen(false);
     };
     
     const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
@@ -1670,7 +1671,7 @@ const NewTransactionsTab = React.forwardRef<
         }
     };
 
-    const handleAiIncomeAllocate = async () => {
+    const handleAiIncomeAllocate = async (confidenceThreshold: number) => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
         toast({ title: "AI is allocating...", description: `Processing ${selectedTransactions.length} income transactions.` });
@@ -1694,7 +1695,7 @@ const NewTransactionsTab = React.forwardRef<
                     customers: JSON.stringify(customersWithInvoices)
                 });
 
-                if (result.customerId && result.confidence > 70) {
+                if (result.customerId && result.confidence >= confidenceThreshold) {
                     if (batchCount >= BATCH_SIZE) {
                         allUpdatePromises.push(batch.commit());
                         batch = writeBatch(db);
@@ -1733,6 +1734,7 @@ const NewTransactionsTab = React.forwardRef<
             toast({ title: "AI Allocation Failed", description: "An error occurred while saving the allocations.", variant: "destructive" });
         } finally {
             setIsAiAllocating(false);
+            setIsAiSelectedDialogOpen(false);
         }
     };
 
@@ -1909,9 +1911,9 @@ const NewTransactionsTab = React.forwardRef<
             <Dialog open={isConfidenceDialogOpen} onOpenChange={setIsConfidenceDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Set AI Confidence Level</DialogTitle>
+                        <DialogTitle>AI Bulk Allocation</DialogTitle>
                         <DialogDescription>
-                            Choose the minimum confidence level the AI must have to automatically allocate a transaction. Higher values mean fewer, but more accurate, automatic allocations.
+                            This process will attempt to allocate all new expenses. It first learns from your previously reviewed transactions, then uses AI for the rest. Set the minimum confidence level the AI must have to make an allocation.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="py-4 space-y-4">
@@ -1937,6 +1939,40 @@ const NewTransactionsTab = React.forwardRef<
                 </DialogContent>
             </Dialog>
 
+             <Dialog open={isAiSelectedDialogOpen} onOpenChange={setIsAiSelectedDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>AI Allocate Selected</DialogTitle>
+                        <DialogDescription>
+                            The AI will attempt to allocate the selected transaction(s). Choose the minimum confidence level required for an allocation to be made.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="confidence-slider-selected">Confidence Threshold: <span className="font-bold">{aiConfidenceThreshold}%</span></Label>
+                        </div>
+                        <Slider
+                            id="confidence-slider-selected"
+                            min={50}
+                            max={100}
+                            step={5}
+                            value={[aiConfidenceThreshold]}
+                            onValueChange={(value) => setAiConfidenceThreshold(value[0])}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={() => setIsAiSelectedDialogOpen(false)}>Cancel</Button>
+                        <Button type="button" onClick={() => {
+                            if (activeSubTab === 'expenses') handleAiExpenseAllocate(aiConfidenceThreshold);
+                            else handleAiIncomeAllocate(aiConfidenceThreshold);
+                        }} disabled={isAiAllocating}>
+                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                            Allocate Selected
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <CardHeader className="p-0">
                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
@@ -1952,27 +1988,34 @@ const NewTransactionsTab = React.forwardRef<
                                     Actions <MoreHorizontal className="ml-2 h-4 w-4"/>
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent>
+                             <DropdownMenuContent>
+                                <DropdownMenuItem onSelect={() => setIsAiSelectedDialogOpen(true)}>
+                                    <Sparkles className="mr-2 h-4 w-4" /> AI Allocate Selected
+                                </DropdownMenuItem>
                                 <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Allocate Selected</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent className="p-0">
+                                    <DropdownMenuSubTrigger>Manual Allocate</DropdownMenuSubTrigger>
+                                     <DropdownMenuSubContent className="p-0">
                                         <Command>
                                             <CommandInput placeholder="Search..." autoFocus />
                                             <CommandList>
                                                 <ScrollArea className="h-72">
                                                     <CommandEmpty>No results found.</CommandEmpty>
                                                     <CommandItem onSelect={() => { setIsCreateGeneralAccountOpen(true); }} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-                                                    <CommandGroup heading="Customers">
-                                                        {customers.map(c => (
-                                                            <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                                {c.name}
-                                                            </CommandItem>
-                                                        ))}
-                                                    </CommandGroup>
+                                                    {activeSubTab === 'income' && customers.length > 0 && (
+                                                        <CommandGroup heading="Customers">
+                                                            {customers.map(c => (
+                                                                <CommandItem key={c.id} value={c.name} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                                    {c.name}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                    )}
                                                     <CommandGroup heading="Accounts">
                                                         {client?.chartOfAccounts?.map(acc => (
                                                             <DropdownMenuSub key={acc.id}>
-                                                                <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                                                <DropdownMenuSubTrigger asChild>
+                                                                    <CommandItem value={acc.description}>{acc.description}</CommandItem>
+                                                                </DropdownMenuSubTrigger>
                                                                 <DropdownMenuSubContent>
                                                                     {client?.isVatRegistered ? allVatTypes.map(vat => (
                                                                         <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
@@ -2015,21 +2058,10 @@ const NewTransactionsTab = React.forwardRef<
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {activeSubTab === 'expenses' ? (
-                            <>
+                        {activeSubTab === 'expenses' && (
                             <Button variant="outline" onClick={() => setIsConfidenceDialogOpen(true)} disabled={isAiAllocating || isLoading || transactions.length === 0}>
                                 {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
                                 AI Allocate All
-                            </Button>
-                            <Button variant="outline" onClick={handleAiExpenseAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
-                                {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
-                                AI Allocate Selected
-                            </Button>
-                            </>
-                        ) : (
-                            <Button variant="outline" onClick={handleAiIncomeAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
-                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
-                            AI Allocate Selected
                             </Button>
                         )}
                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
@@ -2815,9 +2847,25 @@ const ReviewedTab = React.forwardRef<
                             {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Download Excel
                         </Button>
-                         <Button variant="outline" onClick={handleReviewConsistency}>
-                            <Sparkles className="mr-2 h-4 w-4" /> Review Consistency
-                        </Button>
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="outline">
+                                    <Sparkles className="mr-2 h-4 w-4" /> Review Consistency
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Review Allocation Consistency</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This tool will analyze your reviewed transactions to find allocations that are inconsistent with how you've categorized similar items in the past. It will then suggest corrections. Do you want to proceed?
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleReviewConsistency}>Yes, Review Consistency</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </div>
                      <div className="flex items-center gap-2">
                         <DateRangePicker onDateChange={setDateRange} />
@@ -2931,7 +2979,7 @@ const ReviewedTab = React.forwardRef<
                     <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
                         {showAll ? 'Show Paginated' : 'Show All'}
                     </Button>
-                    {(!searchTerm && !showAll) && (
+                    {!searchTerm && !showAll && (
                         <div className="flex items-center space-x-2">
                             <Button
                                 variant="outline"
@@ -3672,3 +3720,5 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
+    
