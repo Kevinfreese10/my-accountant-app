@@ -12,12 +12,12 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -44,7 +44,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths, isSameMonth, addDays, differenceInDays, isAfter, subDays, startOfDay, endOfDay } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { requestMissingStatements } from '@/app/actions';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from 'react-day-picker';
@@ -1039,7 +1039,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
             };
 
             const clientRef = doc(db, 'aiAccountantClients', client.uid);
-            await updateDoc(clientRef, { chartOfAccounts: arrayUnion(newAccount) });
+            await setDoc(clientRef, { chartOfAccounts: arrayUnion(newAccount) }, { merge: true });
             
             toast({ title: 'Account Created', description: `Account "${values.description}" has been added.` });
             onAccountCreated();
@@ -1846,13 +1846,6 @@ const NewTransactionsTab = React.forwardRef<
             setIsSaving(false);
         }
     };
-
-    const allocationOptions = useMemo(() => {
-        const accounts = client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())) || [];
-        const customerOptions = customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase()));
-
-        return { accounts, customers: customerOptions };
-    }, [client?.chartOfAccounts, customers, searchAccountTerm]);
     
     return (
         <Card>
@@ -1928,15 +1921,19 @@ const NewTransactionsTab = React.forwardRef<
                                             <CommandList>
                                                 <ScrollArea className="h-72">
                                                 <CommandEmpty>No results found.</CommandEmpty>
+                                                <CommandItem onSelect={() => {
+                                                    setIsCreateGeneralAccountOpen(true);
+                                                }} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+
                                                 <CommandGroup heading="Customers">
-                                                    {allocationOptions.customers.map(c => (
-                                                        <DropdownMenuItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                    {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
+                                                        <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
                                                             {c.name}
-                                                        </DropdownMenuItem>
+                                                        </CommandItem>
                                                     ))}
                                                 </CommandGroup>
                                                  <CommandGroup heading="Accounts">
-                                                    {allocationOptions.accounts.map(acc => (
+                                                    {client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
                                                             <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
                                                             <DropdownMenuSubContent>
@@ -2067,7 +2064,7 @@ const NewTransactionsTab = React.forwardRef<
                                         <TableCell>
                                             <Popover>
                                                 <PopoverTrigger asChild>
-                                                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                                    <Button variant="outline" className="w-full justify-start text-left font-normal h-8">
                                                         {allocations[tx.id] ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.name : "Select..."}
                                                     </Button>
                                                 </PopoverTrigger>
@@ -2078,10 +2075,10 @@ const NewTransactionsTab = React.forwardRef<
                                                             <CommandEmpty>No results found.</CommandEmpty>
                                                             <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
                                                             <CommandGroup heading="Customers">
-                                                                {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer' }}))}>{c.name}</CommandItem>)}
+                                                                {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))}>{c.name}</CommandItem>)}
                                                             </CommandGroup>
                                                             <CommandGroup heading="Accounts">
-                                                                {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account' }}))}>{acc.description}</CommandItem>)}
+                                                                {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account', vatType: prev[tx.id]?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat') }}))}>{acc.description}</CommandItem>)}
                                                             </CommandGroup>
                                                         </CommandList>
                                                     </Command>
@@ -2095,7 +2092,7 @@ const NewTransactionsTab = React.forwardRef<
                                                    onValueChange={(value) => setAllocations(prev => ({...prev, [tx.id]: {...prev[tx.id], vatType: value as VatType}}))}
                                                    disabled={!allocations[tx.id] || allocations[tx.id]?.type === 'customer'}
                                                 >
-                                                    <SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger>
+                                                    <SelectTrigger className="h-8"><SelectValue placeholder="Select VAT type" /></SelectTrigger>
                                                     <SelectContent>
                                                         {allVatTypes.map(vat => (
                                                             <SelectItem key={vat.name} value={vat.name}>{vat.label}</SelectItem>
@@ -2545,8 +2542,11 @@ const ReviewedTab = React.forwardRef<
                 const [correctAccountId, correctVatType] = mostCommonKey.split('_');
 
                 group.forEach(tx => {
-                    const currentKey = `${tx.allocatedTo?.value}_${tx.vatType || 'no_vat'}`;
-                    if (tx.allocatedTo?.value && currentKey !== mostCommonKey) {
+                    const currentAllocationId = tx.allocatedTo?.value;
+                    const currentVatType = tx.vatType || 'no_vat';
+                    const isConsistent = currentAllocationId === correctAccountId && currentVatType === correctVatType;
+                    
+                    if (currentAllocationId && !isConsistent) {
                         foundInconsistencies.push({
                             ...tx,
                             suggestedAccountId: correctAccountId,
@@ -3171,11 +3171,11 @@ const ForReviewTab = React.forwardRef<
             const wb = XLSX.utils.book_new();
             if (expensesData.length > 0) {
                 const expensesSheet = XLSX.utils.json_to_sheet(expensesData);
-                XLSX.utils.book_append_sheet(wb, wb.SheetNames.length > 0 ? expensesSheet : wb.Sheets[0], "Expenses For Review");
+                XLSX.utils.book_append_sheet(wb, expensesSheet, "Expenses For Review");
             }
             if (incomeData.length > 0) {
                 const incomeSheet = XLSX.utils.json_to_sheet(incomeData);
-                XLSX.utils.book_append_sheet(wb, wb.SheetNames.length > 0 ? incomeSheet : wb.Sheets[0], "Income For Review");
+                XLSX.utils.book_append_sheet(wb, incomeSheet, "Income For Review");
             }
             
             XLSX.writeFile(wb, `For_Review_Transactions_${client.name.replace(/\s/g, '_')}.xlsx`);
@@ -3383,7 +3383,7 @@ export default function BankTransactionsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [clientId, toast, searchParams]);
+    }, [clientId, toast, searchParams, selectedAccountId]);
 
 
     useEffect(() => {
@@ -3420,7 +3420,7 @@ export default function BankTransactionsPage() {
     const selectedAccountBalance = useMemo(() => {
         if (!selectedAccount) return 0;
         return allTransactions
-            .filter(tx => tx.bankAccountId === selectedAccount.id)
+            .filter(tx => tx.bankAccountId === selectedAccount.id && tx.status !== 'new')
             .reduce((sum, tx) => sum + tx.amount, 0);
     }, [allTransactions, selectedAccount]);
     
@@ -3633,3 +3633,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
