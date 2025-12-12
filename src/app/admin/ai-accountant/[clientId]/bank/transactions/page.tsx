@@ -2623,10 +2623,26 @@ const ReviewedTab = React.forwardRef<
                 }
             }
             
+            // Fallback to finding most significant repeating word
             const words = lowerDesc.replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 3 && !['cheque', 'card', 'purchase', 'payment', 'debit', 'order', 'eft', 'from'].includes(w));
-            const significantWord = words.find(w => allReviewed.filter(tx => tx.description.toLowerCase().includes(w)).length > 1);
+            const wordCounts = words.reduce((acc, word) => {
+                acc[word] = (acc[word] || 0) + 1;
+                return acc;
+            }, {} as {[key: string]: number});
 
-            return significantWord || lowerDesc.slice(0, 15);
+            // Find the most significant word that appears in multiple transactions
+            let mostSignificantWord = '';
+            let maxCount = 0;
+
+            for (const word of words) {
+                 const totalOccurrences = allReviewed.filter(tx => tx.description.toLowerCase().includes(word)).length;
+                 if (totalOccurrences > maxCount && totalOccurrences > 1) {
+                     maxCount = totalOccurrences;
+                     mostSignificantWord = word;
+                 }
+            }
+            
+            return mostSignificantWord || lowerDesc.slice(0, 15);
         };
 
         const groups: { [key: string]: ImportedTransaction[] } = {};
@@ -2660,7 +2676,7 @@ const ReviewedTab = React.forwardRef<
                     const currentVatType = tx.vatType || 'no_vat';
                     const isConsistent = currentAllocationId === correctAccountId && currentVatType === correctVatType;
                     
-                    if (currentAllocationId && !isConsistent) {
+                    if (!isConsistent && currentAllocationId) {
                         foundInconsistencies.push({
                             ...tx,
                             suggestedAccountId: correctAccountId,
@@ -3769,9 +3785,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-    
-
-
-
-    
