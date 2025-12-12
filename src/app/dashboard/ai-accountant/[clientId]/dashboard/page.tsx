@@ -159,10 +159,8 @@ export default function AIAccountantClientDashboardPage() {
         
         return bankAccounts.map(account => {
             const accountTransactions = transactions.filter(tx => tx.bankAccountId === account.id);
-            const unallocatedTransactions = accountTransactions.filter(tx => tx.bankAccountId === account.id && tx.status === 'new');
-            const balance = accountTransactions
-                .filter(tx => tx.status === 'allocated' || tx.status === 'reviewed')
-                .reduce((sum, tx) => sum + tx.amount, 0);
+            const unallocatedTransactions = accountTransactions.filter(tx => tx.status === 'new');
+            const balance = accountTransactions.reduce((sum, tx) => sum + tx.amount, 0);
             
             const lastImportDate = accountTransactions.length > 0
                 ? new Date(Math.max(...accountTransactions.map(tx => new Date(tx.date).getTime())))

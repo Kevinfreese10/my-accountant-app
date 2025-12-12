@@ -1532,7 +1532,7 @@ const NewTransactionsTab = React.forwardRef<
                 where('status', 'in', ['reviewed', 'allocated'])
             );
             const reviewedSnapshot = await getDocs(reviewedQuery);
-            const knowledgeBase: { [key: string]: { accountId: string; vatType: VatType; count: number } } = {};
+            const knowledgeBase: { [key: string]: { [key: string]: number } } = {};
             
             reviewedSnapshot.forEach(doc => {
                 const tx = doc.data() as AllocatedTransaction;
@@ -1549,6 +1549,7 @@ const NewTransactionsTab = React.forwardRef<
             const learnedRules: { [key: string]: { accountId: string; vatType: VatType } } = {};
             for (const key in knowledgeBase) {
                 const allocations = knowledgeBase[key];
+                if (Object.keys(allocations).length === 0) continue;
                 const mostCommon = Object.entries(allocations).reduce((a, b) => a[1] > b[1] ? a : b);
                 const [accountId, vatType] = mostCommon[0].split('-');
                 learnedRules[key] = { accountId, vatType: vatType as VatType };
@@ -1956,20 +1957,20 @@ const NewTransactionsTab = React.forwardRef<
                                     <DropdownMenuSubTrigger>Allocate Selected</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent className="p-0">
                                          <Command>
-                                            <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
+                                            <CommandInput placeholder="Search..." autoFocus />
                                             <CommandList>
                                                 <ScrollArea className="h-72">
                                                 <CommandEmpty>No results found.</CommandEmpty>
                                                  <CommandItem onSelect={() => { setIsCreateGeneralAccountOpen(true); }} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
                                                 <CommandGroup heading="Customers">
-                                                    {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
+                                                    {customers.map(c => (
                                                         <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
                                                             {c.name}
                                                         </CommandItem>
                                                     ))}
                                                 </CommandGroup>
                                                  <CommandGroup heading="Accounts">
-                                                    {client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
+                                                    {client?.chartOfAccounts?.map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
                                                             <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
                                                             <DropdownMenuSubContent>
@@ -2542,7 +2543,7 @@ const ReviewedTab = React.forwardRef<
 
     }, [searchResults, paginatedDocuments, sortField, sortDirection, showAll, allTransactions]);
     
-     const handleReviewConsistency = async () => {
+    const handleReviewConsistency = async () => {
         if (!client || !bankAccountId) return;
         toast({ title: "Analyzing Transactions...", description: "Checking for allocation inconsistencies." });
 
@@ -3458,7 +3459,7 @@ export default function BankTransactionsPage() {
     const selectedAccountBalance = useMemo(() => {
         if (!selectedAccount) return 0;
         return allTransactions
-            .filter(tx => tx.bankAccountId === selectedAccount.id && tx.status !== 'new')
+            .filter(tx => tx.bankAccountId === selectedAccount.id)
             .reduce((sum, tx) => sum + tx.amount, 0);
     }, [allTransactions, selectedAccount]);
     
