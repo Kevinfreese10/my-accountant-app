@@ -2604,6 +2604,22 @@ const ReviewedTab = React.forwardRef<
         }
     };
 
+    const handleInconsistencyChange = (txId: string, field: 'accountId' | 'vatType', value: string) => {
+        setInconsistencies(prev =>
+            prev.map(inc => {
+                if (inc.id === txId) {
+                    if (field === 'accountId') {
+                        return { ...inc, suggestedAccountId: value };
+                    }
+                    if (field === 'vatType') {
+                        return { ...inc, suggestedVatType: value };
+                    }
+                }
+                return inc;
+            })
+        );
+    };
+
     return (
         <Card>
              <CreateGeneralAccountDialog 
@@ -2633,7 +2649,8 @@ const ReviewedTab = React.forwardRef<
                                         </TableCell>
                                         <TableHead>Description</TableHead>
                                         <TableHead>Current Allocation</TableHead>
-                                        <TableHead>Suggested Allocation</TableHead>
+                                        <TableHead className="w-[250px]">Suggested Account</TableHead>
+                                        <TableHead className="w-[200px]">Suggested VAT</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -2658,8 +2675,24 @@ const ReviewedTab = React.forwardRef<
                                                 <p className="text-xs font-mono">{tx.vatType}</p>
                                             </TableCell>
                                             <TableCell>
-                                                <p className="text-xs text-green-600 font-semibold">{uniqueChartOfAccounts?.find(a => a.id === tx.suggestedAccountId)?.description}</p>
-                                                <p className="text-xs font-mono text-green-600">{tx.suggestedVatType}</p>
+                                                 <Select value={tx.suggestedAccountId} onValueChange={(value) => handleInconsistencyChange(tx.id, 'accountId', value)}>
+                                                    <SelectTrigger className="h-8 text-xs"><SelectValue/></SelectTrigger>
+                                                    <SelectContent>
+                                                        {uniqueChartOfAccounts.map(acc => (
+                                                            <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                            <TableCell>
+                                                 <Select value={tx.suggestedVatType} onValueChange={(value) => handleInconsistencyChange(tx.id, 'vatType', value as VatType)}>
+                                                    <SelectTrigger className="h-8 text-xs"><SelectValue/></SelectTrigger>
+                                                    <SelectContent>
+                                                        {allVatTypes.map(vt => (
+                                                            <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             </TableCell>
                                         </TableRow>
                                     ))}
