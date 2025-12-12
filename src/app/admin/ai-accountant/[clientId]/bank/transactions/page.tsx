@@ -308,7 +308,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         toast({ title: "Importing...", description: "Saving extracted transactions."});
 
         try {
-            const allRules = [...(client.allocationRules || []), ...globalRules];
+            const allRules = [...(client?.allocationRules || []), ...globalRules];
             
             let allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
             const dailyCounters: { [key: string]: number } = {};
@@ -1472,6 +1472,7 @@ const NewTransactionsTab = React.forwardRef<
 
         for (const tx of transactionsToAllocate) {
             processedCount++;
+            dismiss(toastId);
             toast({
                 id: toastId,
                 title: `AI Allocation: ${processedCount}/${totalToProcess}`,
@@ -1993,12 +1994,14 @@ const NewTransactionsTab = React.forwardRef<
                                 <DropdownMenuSub>
                                     <DropdownMenuSubTrigger>Manual Allocate</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent className="p-0">
-                                        <Command>
+                                         <Command>
                                             <CommandInput placeholder="Search..." autoFocus />
                                             <CommandList>
                                                 <ScrollArea className="h-72">
                                                     <CommandEmpty>No results found.</CommandEmpty>
-                                                    <CommandItem onSelect={() => { setIsCreateGeneralAccountOpen(true); }} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                    <CommandGroup>
+                                                        <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                    </CommandGroup>
                                                     {activeSubTab === 'income' && customers.length > 0 && (
                                                         <CommandGroup heading="Customers">
                                                             {customers.map(c => (
@@ -2012,7 +2015,7 @@ const NewTransactionsTab = React.forwardRef<
                                                         {client?.chartOfAccounts?.map(acc => (
                                                             <DropdownMenuSub key={acc.id}>
                                                                 <DropdownMenuSubTrigger asChild>
-                                                                    <CommandItem value={acc.description}>{acc.description}</CommandItem>
+                                                                    <CommandItem value={acc.description} onSelect={(e) => e.preventDefault()}>{acc.description}</CommandItem>
                                                                 </DropdownMenuSubTrigger>
                                                                 <DropdownMenuSubContent>
                                                                     {client?.isVatRegistered ? allVatTypes.map(vat => (
@@ -2262,6 +2265,7 @@ const ReviewedTab = React.forwardRef<
     const [selectedCorrections, setSelectedCorrections] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [searchAccountTerm, setSearchAccountTerm] = useState('');
+    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
 
 
     type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
@@ -2296,6 +2300,12 @@ const ReviewedTab = React.forwardRef<
             where('status', 'in', ['reviewed', 'allocated']),
         ];
 
+        if (activeSubTab === 'expenses') {
+            constraints.push(where('amount', '<', 0));
+        } else {
+             constraints.push(where('amount', '>=', 0));
+        }
+
         if (dateRange?.from) {
             constraints.push(where('date', '>=', dateRange.from.toISOString()));
         }
@@ -2311,7 +2321,7 @@ const ReviewedTab = React.forwardRef<
         }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, sortField, sortDirection, dateRange]);
+    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection, dateRange]);
 
 
     const {
@@ -2323,7 +2333,7 @@ const ReviewedTab = React.forwardRef<
         canGoPrev,
         currentPage,
         refetch
-    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: 1000 });
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
 
      useEffect(() => {
         const handleSearch = async () => {
@@ -2338,6 +2348,11 @@ const ReviewedTab = React.forwardRef<
                 where('bankAccountId', '==', bankAccountId),
                 where('status', 'in', ['reviewed', 'allocated']),
             ];
+             if (activeSubTab === 'expenses') {
+                searchConstraints.push(where('amount', '<', 0));
+            } else {
+                 searchConstraints.push(where('amount', '>=', 0));
+            }
 
             const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
 
@@ -2363,11 +2378,17 @@ const ReviewedTab = React.forwardRef<
         }, 500);
 
         return () => clearTimeout(debounce);
-    }, [searchTerm, client, bankAccountId, toast]);
+    }, [searchTerm, client, bankAccountId, activeSubTab, toast]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
     }));
+
+     useEffect(() => {
+        refetch();
+        setSearchTerm('');
+        setSearchResults(null);
+    }, [activeSubTab, refetch]);
     
     useEffect(() => {
         const fetchAll = async () => {
@@ -2578,27 +2599,34 @@ const ReviewedTab = React.forwardRef<
         if (!client || !bankAccountId) return;
         toast({ title: "Analyzing Transactions...", description: "Checking for allocation inconsistencies." });
     
-        const q = query(
+        let q = query(
             collection(db, 'aiAccountantClients', client.uid!, 'transactions'),
             where('bankAccountId', '==', bankAccountId),
             where('status', 'in', ['reviewed', 'allocated'])
         );
+        if (activeSubTab === 'expenses') {
+            q = query(q, where('amount', '<', 0));
+        } else {
+            q = query(q, where('amount', '>=', 0));
+        }
+
         const snapshot = await getDocs(q);
         const allReviewed = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
     
         const getGroupKey = (description: string): string => {
             const lowerDesc = description.toLowerCase();
             const commonKeywords = ['shell', 'engen', 'pnp', 'pick n pay', 'checkers', 'shoprite', 'woolworths', 'clicks', 'dischem'];
-            const foundKeyword = commonKeywords.find(kw => lowerDesc.includes(kw));
-            if (foundKeyword) return foundKeyword;
             
-            // Fallback for descriptions without a major keyword
-            const words = lowerDesc.replace(/[^a-z\s]/g, '').split(/\s+/);
-            const significantWords = words.filter(w => w.length > 3 && !['cheque', 'card', 'purchase', 'payment', 'debit', 'order', 'eft', 'from'].includes(w));
+            for (const keyword of commonKeywords) {
+                if (lowerDesc.includes(keyword)) {
+                    return keyword;
+                }
+            }
             
-            if(significantWords.length > 0) return significantWords[0];
-            
-            return lowerDesc.slice(0, 15); // a less reliable fallback
+            const words = lowerDesc.replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 3 && !['cheque', 'card', 'purchase', 'payment', 'debit', 'order', 'eft', 'from'].includes(w));
+            const significantWord = words.find(w => allReviewed.filter(tx => tx.description.toLowerCase().includes(w)).length > 1);
+
+            return significantWord || lowerDesc.slice(0, 15);
         };
 
         const groups: { [key: string]: ImportedTransaction[] } = {};
@@ -2624,7 +2652,7 @@ const ReviewedTab = React.forwardRef<
             });
             
             if (Object.keys(allocationCounts).length > 1) {
-                const [mostCommonKey, _] = Object.entries(allocationCounts).reduce((a, b) => a[1] > b[1] ? a : b);
+                const [mostCommonKey] = Object.entries(allocationCounts).reduce((a, b) => a[1] > b[1] ? a : b);
                 const [correctAccountId, correctVatType] = mostCommonKey.split('_');
     
                 group.forEach(tx => {
@@ -2701,13 +2729,13 @@ const ReviewedTab = React.forwardRef<
 
     return (
         <Card>
-             <CreateGeneralAccountDialog 
+            <CreateGeneralAccountDialog 
                 client={client}
                 onAccountCreated={onAccountCreated}
                 open={isCreateGeneralAccountOpen}
                 onOpenChange={setIsCreateGeneralAccountOpen}
-             />
-             <Dialog open={isConsistencyCheckOpen} onOpenChange={setIsConsistencyCheckOpen}>
+            />
+            <Dialog open={isConsistencyCheckOpen} onOpenChange={setIsConsistencyCheckOpen}>
                 <DialogContent className="sm:max-w-4xl">
                      <DialogHeader>
                         <DialogTitle>Allocation Consistency Review</DialogTitle>
@@ -2789,11 +2817,17 @@ const ReviewedTab = React.forwardRef<
                         </Button>
                     </DialogFooter>
                 </DialogContent>
-             </Dialog>
-            <CardHeader className="p-4 border-b">
-                 <div className="flex items-center justify-between gap-4">
+            </Dialog>
+            <CardHeader className="p-0 border-b">
+                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                        <TabsTrigger value="expenses">Reviewed Expenses</TabsTrigger>
+                        <TabsTrigger value="income">Reviewed Income</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+                <div className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                         <DropdownMenu>
+                        <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" disabled={selectedTransactions.length === 0}>
                                     Actions <MoreHorizontal className="ml-2 h-4 w-4"/>
@@ -2803,7 +2837,7 @@ const ReviewedTab = React.forwardRef<
                                 <DropdownMenuSub>
                                     <DropdownMenuSubTrigger>Reallocate Selected</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent className="p-0">
-                                         <Command>
+                                        <Command>
                                             <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
                                             <CommandList>
                                                 <ScrollArea className="h-72">
@@ -2815,7 +2849,7 @@ const ReviewedTab = React.forwardRef<
                                                         </DropdownMenuItem>
                                                     ))}
                                                 </CommandGroup>
-                                                 <CommandGroup heading="Accounts">
+                                                    <CommandGroup heading="Accounts">
                                                     {uniqueChartOfAccounts.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
                                                             <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
@@ -2829,7 +2863,7 @@ const ReviewedTab = React.forwardRef<
                                                                         No VAT
                                                                     </DropdownMenuItem>
                                                                 )}
-                             </DropdownMenuSubContent>
+                                                            </DropdownMenuSubContent>
                                                         </DropdownMenuSub>
                                                     ))}
                                                 </CommandGroup>
@@ -2848,9 +2882,7 @@ const ReviewedTab = React.forwardRef<
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
-                                            </AlertDialogDescription>
+                                            <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -3740,3 +3772,6 @@ export default function BankTransactionsPage() {
 
     
 
+
+
+    
