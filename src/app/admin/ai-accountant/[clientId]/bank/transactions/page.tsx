@@ -1946,7 +1946,7 @@ const NewTransactionsTab = React.forwardRef<
                 </Tabs>
                  <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                         <DropdownMenu>
+                        <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" disabled={selectedTransactions.length === 0}>
                                     Actions <MoreHorizontal className="ml-2 h-4 w-4"/>
@@ -1956,37 +1956,37 @@ const NewTransactionsTab = React.forwardRef<
                                 <DropdownMenuSub>
                                     <DropdownMenuSubTrigger>Allocate Selected</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent className="p-0">
-                                         <Command>
+                                        <Command>
                                             <CommandInput placeholder="Search..." autoFocus />
                                             <CommandList>
                                                 <ScrollArea className="h-72">
-                                                <CommandEmpty>No results found.</CommandEmpty>
-                                                 <CommandItem onSelect={() => { setIsCreateGeneralAccountOpen(true); }} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-                                                <CommandGroup heading="Customers">
-                                                    {customers.map(c => (
-                                                        <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                            {c.name}
-                                                        </CommandItem>
-                                                    ))}
-                                                </CommandGroup>
-                                                 <CommandGroup heading="Accounts">
-                                                    {client?.chartOfAccounts?.map(acc => (
-                                                        <DropdownMenuSub key={acc.id}>
-                                                            <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
-                                                            <DropdownMenuSubContent>
-                                                                {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                                        {vat.label}
-                                                                    </DropdownMenuItem>
-                                                                )) : (
-                                                                    <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                                        No VAT
-                                                                    </DropdownMenuItem>
-                                                                )}
-                             </DropdownMenuSubContent>
-                                                        </DropdownMenuSub>
-                                                    ))}
-                                                </CommandGroup>
+                                                    <CommandEmpty>No results found.</CommandEmpty>
+                                                    <CommandItem onSelect={() => { setIsCreateGeneralAccountOpen(true); }} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                    <CommandGroup heading="Customers">
+                                                        {customers.map(c => (
+                                                            <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                                {c.name}
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                    <CommandGroup heading="Accounts">
+                                                        {client?.chartOfAccounts?.map(acc => (
+                                                            <DropdownMenuSub key={acc.id}>
+                                                                <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                                                <DropdownMenuSubContent>
+                                                                    {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                                        <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                                            {vat.label}
+                                                                        </DropdownMenuItem>
+                                                                    )) : (
+                                                                        <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                                            No VAT
+                                                                        </DropdownMenuItem>
+                                                                    )}
+                                                                </DropdownMenuSubContent>
+                                                            </DropdownMenuSub>
+                                                        ))}
+                                                    </CommandGroup>
                                                 </ScrollArea>
                                             </CommandList>
                                         </Command>
@@ -2461,7 +2461,7 @@ const ReviewedTab = React.forwardRef<
     
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
             
-            refetch(); // This will refetch data based on current pagination/filters
+            refetch();
     
             setChanges({});
             setSelectedTransactions([]);
@@ -3672,5 +3672,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-    
