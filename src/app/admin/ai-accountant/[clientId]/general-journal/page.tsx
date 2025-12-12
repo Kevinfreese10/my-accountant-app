@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit } from 'lucide-react';
+import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown } from 'lucide-react';
 import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -26,6 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 
 const db = getFirestore(firebaseApp);
@@ -326,7 +327,52 @@ export default function GeneralJournalsPage() {
                                 {fields.map((field, index) => (
                                    <tr key={field.id}>
                                         <td className="px-2 py-1 whitespace-nowrap">
-                                            <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8"><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{generalAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>)}</SelectContent></Select></FormItem> )}/>
+                                             <FormField
+                                                control={form.control}
+                                                name={`lines.${index}.accountId`}
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                        <FormControl>
+                                                            <Button
+                                                            variant="outline"
+                                                            role="combobox"
+                                                            className="w-full justify-between h-8 text-xs"
+                                                            >
+                                                            {field.value
+                                                                ? generalAccounts.find(
+                                                                    (acc) => acc.id === field.value
+                                                                )?.description
+                                                                : "Select account..."}
+                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                            </Button>
+                                                        </FormControl>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                            <Command>
+                                                                <CommandInput placeholder="Search account..." />
+                                                                <CommandList>
+                                                                    <CommandEmpty>No account found.</CommandEmpty>
+                                                                    {generalAccounts.map((acc) => (
+                                                                        <CommandItem
+                                                                            value={`${acc.accountNumber} ${acc.description}`}
+                                                                            key={acc.id}
+                                                                            onSelect={() => {
+                                                                                form.setValue(`lines.${index}.accountId`, acc.id)
+                                                                            }}
+                                                                        >
+                                                                            {acc.accountNumber} - {acc.description}
+                                                                        </CommandItem>
+                                                                    ))}
+                                                                </CommandList>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                                />
                                         </td>
                                         <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
                                         <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.debit`} render={({ field }) => ( <Input type="number" step="0.01" className="h-8" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} /> )}/></td>
@@ -507,3 +553,4 @@ export default function GeneralJournalsPage() {
     </Dialog>
     );
 }
+
