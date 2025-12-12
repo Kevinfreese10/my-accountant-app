@@ -1259,12 +1259,19 @@ const NewTransactionsTab = React.forwardRef<
              constraints.push(where('amount', '>=', 0));
         }
         
-        let finalSortDirection: 'asc' | 'desc' = sortDirection;
-        if (activeSubTab === 'expenses' && sortField === 'amount') {
-            finalSortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        // This is a complex sort that Firestore doesn't support directly with the < filter.
+        // We will sort client-side for these fields.
+        if (sortField !== 'description') {
+            let finalSortDirection: 'asc' | 'desc' = sortDirection;
+             // Firestore sorts negative numbers in reverse for 'asc'
+            if (activeSubTab === 'expenses' && sortField === 'amount') {
+                finalSortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            }
+            constraints.push(orderBy(sortField, finalSortDirection));
+        } else {
+            // Default sort when sorting by description (which happens client-side)
+            constraints.push(orderBy('date', 'desc'));
         }
-    
-        constraints.push(orderBy(sortField, finalSortDirection));
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
     }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
@@ -1286,19 +1293,19 @@ const NewTransactionsTab = React.forwardRef<
             setSearchResults(null);
             return;
         }
-            if (!client?.uid || !bankAccountId) return;
+        if (!client?.uid || !bankAccountId) return;
 
         setIsSearching(true);
         let searchConstraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'new'),
         ];
-            if (activeSubTab === 'expenses') {
+        if (activeSubTab === 'expenses') {
             searchConstraints.push(where('amount', '<', 0));
         } else {
             searchConstraints.push(where('amount', '>=', 0));
         }
-            const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
+        const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
 
         try {
             const snapshot = await getDocs(q);
@@ -1326,7 +1333,9 @@ const NewTransactionsTab = React.forwardRef<
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
-                const snapshot = await getDocs(baseQuery);
+                // Remove limit constraint for fetching all
+                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
+                const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -1346,9 +1355,17 @@ const NewTransactionsTab = React.forwardRef<
 
 
     const transactions = useMemo(() => {
-        if (showAll) return allTransactions;
-        return searchResults !== null ? searchResults : paginatedDocuments;
-    }, [showAll, allTransactions, searchResults, paginatedDocuments]);
+        let docs = showAll ? allTransactions : (searchResults !== null ? searchResults : paginatedDocuments);
+        
+        // Manual sort for description
+        if (sortField === 'description') {
+            docs.sort((a, b) => {
+                const comparison = a.description.localeCompare(b.description);
+                return sortDirection === 'asc' ? comparison : -comparison;
+            });
+        }
+        return docs;
+    }, [showAll, allTransactions, searchResults, paginatedDocuments, sortField, sortDirection]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -2182,6 +2199,9 @@ const ReviewedTab = React.forwardRef<
     const [isSearching, setIsSearching] = useState(false);
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchAccountTerm, setSearchAccountTerm] = useState('');
+    const [showAll, setShowAll] = useState(false);
+    const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
+    const [isFetchingAll, setIsFetchingAll] = useState(false);
 
     type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
     type SortDirection = 'asc' | 'desc';
@@ -2243,7 +2263,7 @@ const ReviewedTab = React.forwardRef<
         canGoPrev,
         currentPage,
         refetch
-    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: 1000 });
 
      useEffect(() => {
         const handleSearch = async () => {
@@ -2298,6 +2318,30 @@ const ReviewedTab = React.forwardRef<
         refetch,
     }));
     
+    useEffect(() => {
+        const fetchAll = async () => {
+            if (!reviewedTransactionsQuery) return;
+            setIsFetchingAll(true);
+            try {
+                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
+                const snapshot = await getDocs(unlimitedQuery);
+                const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+                setAllTransactions(allDocs);
+            } catch (error) {
+                console.error("Error fetching all transactions:", error);
+                toast({ title: 'Error', description: 'Could not fetch all transactions.', variant: 'destructive' });
+            } finally {
+                setIsFetchingAll(false);
+            }
+        };
+
+        if (showAll) {
+            fetchAll();
+        } else {
+            setAllTransactions([]);
+        }
+    }, [showAll, reviewedTransactionsQuery, toast]);
+
     const getAllocationDescription = (tx: ImportedTransaction) => {
         const changedTx = changes[tx.id];
         const allocatedTo = changedTx?.allocatedTo || tx.allocatedTo;
@@ -2460,7 +2504,7 @@ const ReviewedTab = React.forwardRef<
     };
     
     const documents = useMemo(() => {
-        let docs = searchResults !== null ? searchResults : paginatedDocuments;
+        let docs = showAll ? allTransactions : (searchResults !== null ? searchResults : paginatedDocuments);
 
         if (!sortField) return docs;
         
@@ -2487,7 +2531,7 @@ const ReviewedTab = React.forwardRef<
             return 0;
         });
 
-    }, [searchResults, paginatedDocuments, sortField, sortDirection]);
+    }, [searchResults, paginatedDocuments, sortField, sortDirection, showAll, allTransactions]);
 
     return (
         <Card>
@@ -2628,7 +2672,7 @@ const ReviewedTab = React.forwardRef<
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading || isSearching ? (
+                            {isLoading || isSearching || isFetchingAll ? (
                                 <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                             ) : documents.length === 0 ? (
                                 <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
@@ -2700,31 +2744,36 @@ const ReviewedTab = React.forwardRef<
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Save Changes
                 </Button>
-                {(!searchTerm && !searchAmount) && (
-                    <div className="flex items-center space-x-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={goToPreviousPage}
-                            disabled={!canGoPrev || isLoading}
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                            Previous
-                        </Button>
-                        <span className="text-sm font-medium">
-                            Page {currentPage}
-                        </span>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={goToNextPage}
-                            disabled={!canGoNext || isLoading}
-                        >
-                            Next
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                    </div>
-                )}
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
+                        {showAll ? 'Show Paginated' : 'Show All'}
+                    </Button>
+                    {(!searchTerm && !searchAmount && !showAll) && (
+                        <div className="flex items-center space-x-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={goToPreviousPage}
+                                disabled={!canGoPrev || isLoading}
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                                Previous
+                            </Button>
+                            <span className="text-sm font-medium">
+                                Page {currentPage}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={goToNextPage}
+                                disabled={!canGoNext || isLoading}
+                            >
+                                Next
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
+                </div>
             </CardFooter>
         </Card>
     );
@@ -2743,6 +2792,9 @@ const ForReviewTab = React.forwardRef<
     const [isDownloading, setIsDownloading] = useState(false);
     const [isInconsistentGroups, setIsInconsistentGroups] = useState<any[]>([]);
     const [isConsistencyCheckOpen, setIsConsistencyCheckOpen] = useState(false);
+    const [showAll, setShowAll] = useState(false);
+    const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
+    const [isFetchingAll, setIsFetchingAll] = useState(false);
     
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
@@ -2793,9 +2845,18 @@ const ForReviewTab = React.forwardRef<
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewTransactionsQuery, pageSize: PAGE_SIZE });
 
      const transactions = useMemo(() => {
-      if (!searchTerm) return documents;
-      return documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [documents, searchTerm]);
+        let docs = showAll ? allTransactions : (searchTerm ? documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase())) : documents);
+        
+        // Manual sort for description if needed
+        if (sortField === 'description') {
+            docs.sort((a, b) => {
+                const comparison = a.description.localeCompare(b.description);
+                return sortDirection === 'asc' ? comparison : -comparison;
+            });
+        }
+        
+        return docs;
+    }, [documents, searchTerm, showAll, allTransactions, sortField, sortDirection]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -2805,6 +2866,30 @@ const ForReviewTab = React.forwardRef<
         refetch();
     }, [activeSubTab, refetch]);
     
+    useEffect(() => {
+        const fetchAll = async () => {
+            if (!reviewTransactionsQuery) return;
+            setIsFetchingAll(true);
+            try {
+                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
+                const snapshot = await getDocs(unlimitedQuery);
+                const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+                setAllTransactions(allDocs);
+            } catch (error) {
+                console.error("Error fetching all transactions:", error);
+                toast({ title: 'Error', description: 'Could not fetch all transactions.', variant: 'destructive' });
+            } finally {
+                setIsFetchingAll(false);
+            }
+        };
+
+        if (showAll) {
+            fetchAll();
+        } else {
+            setAllTransactions([]);
+        }
+    }, [showAll, reviewTransactionsQuery, toast]);
+
     const handleBulkAction = async (action: 'approve' | 'reject') => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
 
@@ -3058,7 +3143,7 @@ const ForReviewTab = React.forwardRef<
                         <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
                             <RotateCcw className="mr-2 h-4 w-4" />Reject Selected
                         </Button>
-                        <Button variant="secondary" onClick={handleConsistencyCheck} disabled={isLoading || transactions.length === 0}>
+                        <Button variant="secondary" onClick={handleConsistencyCheck} disabled={isLoading || documents.length === 0}>
                             <CheckCheck className="mr-2 h-4 w-4" />Review Consistency
                         </Button>
                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
@@ -3099,7 +3184,7 @@ const ForReviewTab = React.forwardRef<
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading ? (
+                            {isLoading || isFetchingAll ? (
                                 <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                             ) : transactions.length === 0 ? (
                                 <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No transactions are pending review.</TableCell></TableRow>
@@ -3129,29 +3214,36 @@ const ForReviewTab = React.forwardRef<
                 </div>
             </CardContent>
             <CardFooter className="flex items-center justify-center p-4">
-                <div className="flex items-center space-x-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToPreviousPage}
-                        disabled={!canGoPrev || isLoading}
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                        Previous
+                 <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
+                        {showAll ? 'Show Paginated' : 'Show All'}
                     </Button>
-                    <span className="text-sm font-medium">
-                        Page {currentPage}
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToNextPage}
-                        disabled={!canGoNext || isLoading}
-                    >
-                        Next
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
+                    {!searchTerm && !showAll && (
+                        <div className="flex items-center space-x-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={goToPreviousPage}
+                                disabled={!canGoPrev || isLoading}
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                                Previous
+                            </Button>
+                            <span className="text-sm font-medium">
+                                Page {currentPage}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={goToNextPage}
+                                disabled={!canGoNext || isLoading}
+                            >
+                                Next
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
+                 </div>
             </CardFooter>
         </Card>
     );
@@ -3242,6 +3334,13 @@ export default function BankTransactionsPage() {
         });
         return () => unsubscribe();
     }, [clientId]);
+
+    useEffect(() => {
+        const accountIdFromQuery = searchParams.get('accountId');
+        if (accountIdFromQuery && bankAccounts.some(acc => acc.id === accountIdFromQuery)) {
+            setSelectedAccountId(accountIdFromQuery);
+        }
+    }, [searchParams, bankAccounts]);
 
 
     const unallocatedCount = useMemo(() => {
@@ -3469,4 +3568,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
