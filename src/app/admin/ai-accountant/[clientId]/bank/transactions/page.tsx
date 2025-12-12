@@ -1261,12 +1261,15 @@ const NewTransactionsTab = React.forwardRef<
         let finalSortField = sortField;
         let finalSortDirection: 'asc' | 'desc' = sortDirection;
 
-        if (activeSubTab === 'expenses' && sortField === 'amount') {
-            finalSortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        // Firestore limitation: inequality filters must be on the first orderBy field.
+        // If sorting by something other than amount, we still need amount inequality first.
+        if (sortField !== 'amount') {
+             constraints.push(orderBy('amount', activeSubTab === 'expenses' ? 'asc' : 'desc'));
+             constraints.push(orderBy(finalSortField, finalSortDirection));
+        } else {
+             constraints.push(orderBy('amount', finalSortDirection));
         }
         
-        constraints.push(orderBy(finalSortField, finalSortDirection));
-
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
     }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
 
@@ -1327,6 +1330,7 @@ const NewTransactionsTab = React.forwardRef<
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
+                // Remove limit constraint for fetching all
                 const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
@@ -2249,7 +2253,6 @@ const ReviewedTab = React.forwardRef<
 
     const {
         documents: paginatedDocuments,
-        setDocuments: setPaginatedDocuments,
         isLoading,
         goToNextPage,
         goToPreviousPage,
@@ -2434,17 +2437,7 @@ const ReviewedTab = React.forwardRef<
     
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
             
-            const updateLocalState = (docs: ImportedTransaction[]) => 
-                docs.map(tx => {
-                    const change = changesToSave[tx.id];
-                    return change ? { ...tx, ...change } : tx;
-                });
-
-            if (searchResults !== null) {
-                setSearchResults(prev => updateLocalState(prev || []));
-            } else {
-                setPaginatedDocuments(prevDocs => updateLocalState(prevDocs));
-            }
+            refetch(); // Refetch the data to show changes
 
             setChanges({});
             setSelectedTransactions([]);
@@ -2531,7 +2524,7 @@ const ReviewedTab = React.forwardRef<
         toast({ title: "Analyzing Transactions...", description: "Checking for allocation inconsistencies." });
 
         const q = query(
-            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+            collection(db, 'aiAccountantClients', client.uid!, 'transactions'),
             where('bankAccountId', '==', bankAccountId),
             where('status', 'in', ['reviewed', 'allocated'])
         );
@@ -2591,7 +2584,7 @@ const ReviewedTab = React.forwardRef<
             selectedCorrections.forEach(txId => {
                 const inconsistency = inconsistencies.find(inc => inc.id === txId);
                 if (inconsistency) {
-                    const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.update(txRef, {
                         allocatedTo: { value: inconsistency.suggestedAccountId, type: 'account' },
                         vatType: inconsistency.suggestedVatType,
@@ -2969,10 +2962,11 @@ const ForReviewTab = React.forwardRef<
             constraints.push(where('amount', '>=', 0));
         }
 
-        if(constraints.some(c => c.type === 'where' && (c as any)._op === '<')) {
-            constraints.push(orderBy('amount', sortDirection === 'asc' ? 'desc' : 'asc'));
-        } else {
+        if(sortField !== 'amount') {
+             constraints.push(orderBy('amount', activeSubTab === 'expenses' ? 'asc' : 'desc'));
              constraints.push(orderBy(sortField, sortDirection));
+        } else {
+             constraints.push(orderBy('amount', sortDirection));
         }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
