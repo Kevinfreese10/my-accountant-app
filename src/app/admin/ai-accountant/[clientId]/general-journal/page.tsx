@@ -11,8 +11,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown } from 'lucide-react';
-import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
+import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown, PlusCircle } from 'lucide-react';
+import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -58,6 +58,76 @@ const formatPrice = (price: number | undefined) => {
     return new Intl.NumberFormat('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
 };
 
+const generalAccountFormSchema = z.object({
+  accountNumber: z.string().min(1, "Account number is required."),
+  description: z.string().min(3, "Description is required."),
+  section: z.enum(['Income Statement', 'Balance Sheet']),
+});
+
+function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChange }: { client: User | null; onAccountCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void }) {
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    const form = useForm<z.infer<typeof generalAccountFormSchema>>({
+        resolver: zodResolver(generalAccountFormSchema),
+        defaultValues: { accountNumber: '', description: '', section: 'Income Statement' },
+    });
+
+    const handleCreateAccount = async (values: z.infer<typeof generalAccountFormSchema>) => {
+        if (!client || !client.uid) return;
+        
+        const existingAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === values.accountNumber);
+        if (existingAccount) {
+            form.setError('accountNumber', { message: 'This account number already exists.' });
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const newAccount: ChartOfAccount = {
+                id: values.accountNumber,
+                accountNumber: values.accountNumber,
+                description: values.description,
+                section: values.section,
+            };
+
+            const clientRef = doc(db, 'aiAccountantClients', client.uid);
+            await setDoc(clientRef, { chartOfAccounts: arrayUnion(newAccount) }, { merge: true });
+            
+            toast({ title: 'Account Created', description: `Account "${values.description}" has been added.` });
+            onAccountCreated();
+            form.reset();
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Error creating general account:", error);
+            toast({ title: 'Error', description: 'Could not create the account.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New General Ledger Account</DialogTitle>
+                    <DialogDescription>Add a new account to this client's chart of accounts.</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
+                        <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g., 3000-058" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g., Office Flowers" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                            <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create Account</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function GeneralJournalsPage() {
     const params = useParams();
     const searchParams = useSearchParams();
@@ -67,6 +137,7 @@ export default function GeneralJournalsPage() {
     const [allJournals, setAllJournals] = useState<AllocatedTransaction[]>([]);
     const [viewingJournal, setViewingJournal] = useState<AllocatedTransaction[] | null>(null);
     const [editingJournalRef, setEditingJournalRef] = useState<string | null>(null);
+    const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const { toast } = useToast();
 
     const form = useForm<JournalFormValues>({
@@ -294,6 +365,7 @@ export default function GeneralJournalsPage() {
     return (
       <Dialog onOpenChange={(open) => !open && setViewingJournal(null)}>
       <div className="space-y-8">
+        <CreateGeneralAccountDialog client={client} onAccountCreated={fetchClientAndJournals} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen} />
         <Card>
             <CardHeader>
                 <div className="flex justify-between items-center">
@@ -354,15 +426,16 @@ export default function GeneralJournalsPage() {
                                                                 <CommandInput placeholder="Search account..." />
                                                                 <CommandList>
                                                                     <CommandEmpty>No account found.</CommandEmpty>
+                                                                    <CommandItem onSelect={() => setIsCreateAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
                                                                     {generalAccounts.map((acc) => (
                                                                         <CommandItem
-                                                                            value={`${acc.accountNumber} ${acc.description}`}
+                                                                            value={acc.description}
                                                                             key={acc.id}
                                                                             onSelect={() => {
                                                                                 form.setValue(`lines.${index}.accountId`, acc.id)
                                                                             }}
                                                                         >
-                                                                            {acc.accountNumber} - {acc.description}
+                                                                            {acc.description}
                                                                         </CommandItem>
                                                                     ))}
                                                                 </CommandList>
