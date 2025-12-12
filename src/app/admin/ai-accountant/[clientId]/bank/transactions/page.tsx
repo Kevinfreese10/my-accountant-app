@@ -1259,20 +1259,17 @@ const NewTransactionsTab = React.forwardRef<
              constraints.push(where('amount', '>=', 0));
         }
         
-        // This is a complex sort that Firestore doesn't support directly with the < filter.
-        // We will sort client-side for these fields.
-        if (sortField !== 'description') {
-            let finalSortDirection: 'asc' | 'desc' = sortDirection;
-             // Firestore sorts negative numbers in reverse for 'asc'
-            if (activeSubTab === 'expenses' && sortField === 'amount') {
-                finalSortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-            }
-            constraints.push(orderBy(sortField, finalSortDirection));
-        } else {
-            // Default sort when sorting by description (which happens client-side)
-            constraints.push(orderBy('date', 'desc'));
+        // Let's create a consistent base sort order.
+        let finalSortField = sortField;
+        let finalSortDirection: 'asc' | 'desc' = sortDirection;
+
+        // Special handling for amount in expenses tab. Firestore sorts negative numbers ascending from -1, -2, etc.
+        if (activeSubTab === 'expenses' && sortField === 'amount') {
+            finalSortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
         }
         
+        constraints.push(orderBy(finalSortField, finalSortDirection));
+
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
     }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
 
@@ -1333,7 +1330,7 @@ const NewTransactionsTab = React.forwardRef<
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
-                // Remove limit constraint for fetching all
+                // Correctly use the baseQuery to build the unlimited query
                 const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
@@ -1357,7 +1354,7 @@ const NewTransactionsTab = React.forwardRef<
     const transactions = useMemo(() => {
         let docs = showAll ? allTransactions : (searchResults !== null ? searchResults : paginatedDocuments);
         
-        // Manual sort for description
+        // Only do client-side sort if the field is one that Firestore doesn't sort well with other constraints
         if (sortField === 'description') {
             docs.sort((a, b) => {
                 const comparison = a.description.localeCompare(b.description);
@@ -2790,8 +2787,6 @@ const ForReviewTab = React.forwardRef<
     const [searchTerm, setSearchTerm] = useState('');
     const [isApprovingAll, setIsApprovingAll] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
-    const [isInconsistentGroups, setIsInconsistentGroups] = useState<any[]>([]);
-    const [isConsistencyCheckOpen, setIsConsistencyCheckOpen] = useState(false);
     const [showAll, setShowAll] = useState(false);
     const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
     const [isFetchingAll, setIsFetchingAll] = useState(false);
@@ -2982,49 +2977,6 @@ const ForReviewTab = React.forwardRef<
             setIsApprovingAll(false);
         }
     };
-    
-    const handleConsistencyCheck = () => {
-        if (!client) return;
-        
-        const normalizeDescription = (desc: string) => {
-            return desc.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
-        };
-
-        const groups: { [key: string]: ImportedTransaction[] } = {};
-        documents.forEach(tx => {
-            const key = normalizeDescription(tx.description);
-            if (!groups[key]) {
-                groups[key] = [];
-            }
-            groups[key].push(tx);
-        });
-
-        const inconsistencies: any[] = [];
-        for (const key in groups) {
-            const group = groups[key];
-            if (group.length > 1) {
-                const firstAllocation = group[0].allocatedTo?.value;
-                const firstVatType = group[0].vatType;
-                
-                const isConsistent = group.every(tx => 
-                    tx.allocatedTo?.value === firstAllocation && tx.vatType === firstVatType
-                );
-                
-                if (!isConsistent) {
-                    const uniqueAllocations = [...new Set(group.map(tx => `${client.chartOfAccounts?.find(a => a.id === tx.allocatedTo?.value)?.description} (${tx.vatType})`))];
-                    inconsistencies.push({
-                        description: group[0].description, // Show original description
-                        count: group.length,
-                        allocations: uniqueAllocations,
-                    });
-                }
-            }
-        }
-        
-        setIsInconsistentGroups(inconsistencies);
-        setIsConsistencyCheckOpen(true);
-    };
-
 
     const getAllocationDescription = (tx: ImportedTransaction) => {
         if (!tx.allocatedTo) return 'N/A';
@@ -3092,38 +3044,6 @@ const ForReviewTab = React.forwardRef<
 
     return (
         <Card>
-            <Dialog open={isConsistencyCheckOpen} onOpenChange={setIsConsistencyCheckOpen}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Allocation Consistency Review</DialogTitle>
-                        <DialogDescription>
-                            The following groups of similar transactions have inconsistent allocations. Please review and correct them in the "Reviewed" tab before approving.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="max-h-[60vh] overflow-y-auto mt-4 space-y-4">
-                        {isInconsistentGroups.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                                <CheckCheck className="h-8 w-8 mx-auto mb-2 text-green-500"/>
-                                <p>No inconsistencies found!</p>
-                            </div>
-                        ) : (
-                            isInconsistentGroups.map((group, index) => (
-                                <Alert key={index} variant="destructive">
-                                    <AlertTitle>Inconsistent Group: "{group.description}" ({group.count} transactions)</AlertTitle>
-                                    <AlertDescription>
-                                        <ul className="list-disc pl-5 mt-2">
-                                            {group.allocations.map((alloc: string, i: number) => <li key={i}>{alloc}</li>)}
-                                        </ul>
-                                    </AlertDescription>
-                                </Alert>
-                            ))
-                        )}
-                    </div>
-                    <DialogFooter>
-                        <Button onClick={() => setIsConsistencyCheckOpen(false)}>Close</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
              <CardHeader className="p-0 border-b">
                  <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
@@ -3142,9 +3062,6 @@ const ForReviewTab = React.forwardRef<
                         </Button>
                         <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
                             <RotateCcw className="mr-2 h-4 w-4" />Reject Selected
-                        </Button>
-                        <Button variant="secondary" onClick={handleConsistencyCheck} disabled={isLoading || documents.length === 0}>
-                            <CheckCheck className="mr-2 h-4 w-4" />Review Consistency
                         </Button>
                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
                             {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
