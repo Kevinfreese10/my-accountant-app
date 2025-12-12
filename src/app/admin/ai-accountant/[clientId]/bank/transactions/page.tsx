@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -1210,7 +1211,6 @@ const NewTransactionsTab = React.forwardRef<
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
-    const [searchAccountTerm, setSearchAccountTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
@@ -1220,8 +1220,8 @@ const NewTransactionsTab = React.forwardRef<
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
-    const [isConfidenceDialogOpen, setIsConfidenceDialogOpen] = useState(false);
     const [isAiSelectedDialogOpen, setIsAiSelectedDialogOpen] = useState(false);
+    const [isAiAllDialogOpen, setIsAiAllDialogOpen] = useState(false);
     const [aiConfidenceThreshold, setAiConfidenceThreshold] = useState(70);
     const [isSaving, setIsSaving] = useState(false);
     const [showAll, setShowAll] = useState(false);
@@ -1666,7 +1666,7 @@ const NewTransactionsTab = React.forwardRef<
             toast({ id: toastId, title: "Error", description: "An error occurred during the AI allocation process.", variant: "destructive" });
         } finally {
             setIsAiAllocating(false);
-            setIsConfidenceDialogOpen(false);
+            setIsAiAllDialogOpen(false);
             refetch();
         }
     };
@@ -1908,7 +1908,7 @@ const NewTransactionsTab = React.forwardRef<
                 onOpenChange={setIsCreateGeneralAccountOpen}
              />
 
-            <Dialog open={isConfidenceDialogOpen} onOpenChange={setIsConfidenceDialogOpen}>
+            <Dialog open={isAiAllDialogOpen} onOpenChange={setIsAiAllDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>AI Bulk Allocation</DialogTitle>
@@ -1930,7 +1930,7 @@ const NewTransactionsTab = React.forwardRef<
                         />
                     </div>
                     <DialogFooter>
-                        <Button type="button" variant="ghost" onClick={() => setIsConfidenceDialogOpen(false)}>Cancel</Button>
+                        <Button type="button" variant="ghost" onClick={() => setIsAiAllDialogOpen(false)}>Cancel</Button>
                         <Button type="button" onClick={() => handleAiAllocateAllExpenses(aiConfidenceThreshold)} disabled={isAiAllocating}>
                             {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                             Start Allocation
@@ -2059,7 +2059,7 @@ const NewTransactionsTab = React.forwardRef<
                         </DropdownMenu>
 
                         {activeSubTab === 'expenses' && (
-                            <Button variant="outline" onClick={() => setIsConfidenceDialogOpen(true)} disabled={isAiAllocating || isLoading || transactions.length === 0}>
+                            <Button variant="outline" onClick={() => setIsAiAllDialogOpen(true)} disabled={isAiAllocating || isLoading || transactions.length === 0}>
                                 {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
                                 AI Allocate All
                             </Button>
@@ -2256,7 +2256,6 @@ const ReviewedTab = React.forwardRef<
     const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
-    const [searchAccountTerm, setSearchAccountTerm] = useState('');
     const [showAll, setShowAll] = useState(false);
     const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
     const [isFetchingAll, setIsFetchingAll] = useState(false);
@@ -2264,6 +2263,8 @@ const ReviewedTab = React.forwardRef<
     const [inconsistencies, setInconsistencies] = useState<any[]>([]);
     const [selectedCorrections, setSelectedCorrections] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [searchAccountTerm, setSearchAccountTerm] = useState('');
+
 
     type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
     type SortDirection = 'asc' | 'desc';
@@ -2578,7 +2579,7 @@ const ReviewedTab = React.forwardRef<
     const handleReviewConsistency = async () => {
         if (!client || !bankAccountId) return;
         toast({ title: "Analyzing Transactions...", description: "Checking for allocation inconsistencies." });
-
+    
         const q = query(
             collection(db, 'aiAccountantClients', client.uid!, 'transactions'),
             where('bankAccountId', '==', bankAccountId),
@@ -2586,31 +2587,42 @@ const ReviewedTab = React.forwardRef<
         );
         const snapshot = await getDocs(q);
         const allReviewed = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+    
+        const getGroupKey = (description: string): string => {
+            const lowerDesc = description.toLowerCase();
+            const commonKeywords = ['shell', 'engen', 'pnp', 'pick n pay', 'checkers', 'shoprite', 'woolworths', 'clicks', 'dischem'];
+            const foundKeyword = commonKeywords.find(kw => lowerDesc.includes(kw));
+            if (foundKeyword) return foundKeyword;
+            
+            const words = lowerDesc.replace(/[^a-z\s]/g, '').split(/\s+/);
+            const significantWords = words.filter(w => w.length > 3 && !['cheque', 'card', 'purchase', 'payment', 'debit', 'order'].includes(w));
+            return significantWords.slice(0, 2).join(' ') || lowerDesc;
+        };
 
         const groups: { [key: string]: ImportedTransaction[] } = {};
         allReviewed.forEach(tx => {
-            const key = tx.description.replace(/[^a-zA-Z\s]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const key = getGroupKey(tx.description);
             if (!groups[key]) groups[key] = [];
             groups[key].push(tx);
         });
-
+    
         const foundInconsistencies: any[] = [];
-
+    
         Object.values(groups).forEach(group => {
             if (group.length < 2) return;
-
+    
             const allocationCounts: { [key: string]: number } = {};
             group.forEach(tx => {
-                if (tx.allocatedTo?.value) { // Only consider allocated transactions
+                if (tx.allocatedTo?.value) {
                     const key = `${tx.allocatedTo.value}_${tx.vatType || 'no_vat'}`;
                     allocationCounts[key] = (allocationCounts[key] || 0) + 1;
                 }
             });
             
-            if (Object.keys(allocationCounts).length > 1) { // Inconsistency found
+            if (Object.keys(allocationCounts).length > 1) {
                 const [mostCommonKey, _] = Object.entries(allocationCounts).reduce((a, b) => a[1] > b[1] ? a : b);
                 const [correctAccountId, correctVatType] = mostCommonKey.split('_');
-
+    
                 group.forEach(tx => {
                     const currentAllocationId = tx.allocatedTo?.value;
                     const currentVatType = tx.vatType || 'no_vat';
@@ -2626,7 +2638,7 @@ const ReviewedTab = React.forwardRef<
                 });
             }
         });
-
+    
         setInconsistencies(foundInconsistencies);
         setSelectedCorrections(foundInconsistencies.map(inc => inc.id));
         setIsConsistencyCheckOpen(true);
@@ -2634,6 +2646,7 @@ const ReviewedTab = React.forwardRef<
             toast({ title: 'No Inconsistencies Found!', description: 'All your allocations look consistent.' });
         }
     };
+
     
     const handleApplyCorrections = async () => {
         if (!client || selectedCorrections.length === 0) return;
