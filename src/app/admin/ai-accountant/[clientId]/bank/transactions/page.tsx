@@ -46,7 +46,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { requestMissingStatements } from '@/app/actions';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { DateRangePicker, type DateRange } from '@/components/ui/date-range-picker';
 
 
 const PAGE_SIZE = 50;
@@ -2897,7 +2897,9 @@ const ReviewedTab = React.forwardRef<
                                                     <CommandGroup heading="Accounts">
                                                     {uniqueChartOfAccounts.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
-                                                            <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubTrigger>
+                                                                <span>{acc.description}</span>
+                                                            </DropdownMenuSubTrigger>
                                                             <DropdownMenuSubContent>
                                                                 {client?.isVatRegistered ? allVatTypes.map(vat => (
                                                                     <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
