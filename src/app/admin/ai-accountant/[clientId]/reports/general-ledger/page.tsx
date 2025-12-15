@@ -327,6 +327,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                         <p className="text-sm text-muted-foreground">Choose a new account and VAT type.</p>
                                     </div>
                                     <div className="grid gap-2">
+                                        <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId} className="w-full mb-2">Apply Reallocation</Button>
                                         <Label>New Account</Label>
                                          <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, accountId: val, vatType: prev?.vatType || 'no_vat'}))}>
                                             <SelectTrigger><SelectValue placeholder="Select account..."/></SelectTrigger>
@@ -344,7 +345,6 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                             <SelectTrigger><SelectValue placeholder="Select VAT type..."/></SelectTrigger>
                                             <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
                                         </Select>
-                                         <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId} className="w-full mt-2">Apply Reallocation</Button>
                                     </div>
                                 </div>
                             </PopoverContent>
@@ -713,5 +713,7 @@ export default function GeneralLedgerPage() {
         </div>
     );
 }
+
+    
 
     
