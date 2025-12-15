@@ -357,7 +357,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                             <PopoverTrigger asChild>
                                 <Button>Reallocate {selectedTxIds.length} Selected</Button>
                             </PopoverTrigger>
-                             <PopoverContent className="w-80">
+                            <PopoverContent className="w-80">
                                 <div className="grid gap-4">
                                     <div className="space-y-2">
                                         <h4 className="font-medium leading-none">Reallocate Transactions</h4>
@@ -693,3 +693,4 @@ export default function GeneralLedgerPage() {
         </div>
     );
 }
+
