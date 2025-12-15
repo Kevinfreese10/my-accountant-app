@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -23,9 +24,9 @@ import { useToast } from '@/hooks/use-toast';
 const db = getFirestore(firebaseApp);
 
 const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
+    return new Intl.NumberFormat('en-GB', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(price);
 };
 

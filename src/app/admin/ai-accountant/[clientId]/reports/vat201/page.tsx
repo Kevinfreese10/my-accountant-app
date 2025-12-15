@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -9,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { User, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Calculator } from "lucide-react";
+import { Loader2, Download, Eye, Calculator } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { format, startOfMonth, endOfMonth, subMonths, getMonth, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -20,7 +21,7 @@ import { Separator } from '@/components/ui/separator';
 const db = getFirestore(firebaseApp);
 
 const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
+    return new Intl.NumberFormat('en-GB', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(price);
@@ -275,4 +276,3 @@ export default function Vat201ReportPage() {
         </Card>
     );
 }
-

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from "react";
@@ -53,8 +54,8 @@ const formSchema = z.object({
 type JournalFormValues = z.infer<typeof formSchema>;
 
 const formatPrice = (price: number | undefined) => {
-    if (price === undefined || price === null || isNaN(price) || price === 0) return '';
-    return new Intl.NumberFormat('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
+    if (price === undefined || price === null || isNaN(price)) return '0.00';
+    return new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
 };
 
 const generalAccountFormSchema = z.object({

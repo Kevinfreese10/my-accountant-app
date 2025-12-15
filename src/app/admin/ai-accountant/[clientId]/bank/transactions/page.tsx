@@ -53,7 +53,7 @@ const PAGE_SIZE = 50;
 const BATCH_SIZE = 400; // Firestore batch limit is 500
 
 const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
+    return new Intl.NumberFormat('en-GB', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(price);
@@ -854,7 +854,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                                 </div>
                                 <div className="space-y-1 p-3 rounded-lg bg-muted">
                                     <p className="text-sm text-muted-foreground">New Potential Balance</p>
-                                    <p className="text-lg font-bold">{new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(newBalance)}</p>
+                                    <p className="text-lg font-bold">{new Intl.NumberFormat('en-GB', { style: 'decimal', minimumFractionDigits: 2 }).format(newBalance)}</p>
                                 </div>
                             </div>
                         </div>

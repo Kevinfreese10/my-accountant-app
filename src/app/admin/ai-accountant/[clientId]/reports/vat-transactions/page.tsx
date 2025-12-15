@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from "react"
@@ -21,10 +22,8 @@ import { allVatTypes } from "@/lib/vat-types";
 const db = getFirestore(firebaseApp);
 
 const formatPrice = (price: number) => {
-    if (price === 0) return 'R 0.00';
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
+    if (price === 0) return '0.00';
+    return new Intl.NumberFormat('en-GB', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(price);
@@ -102,7 +101,7 @@ function VatTransactionsReport({ client, transactions, dateRange }: { client: Us
                 const cell = worksheet[key];
                 if (cell.v !== null && typeof cell.v === 'number') {
                     cell.t = 'n';
-                    cell.z = 'R #,##0.00';
+                    cell.z = '#,##0.00';
                 }
             }
         });
@@ -251,4 +250,3 @@ export default function VatTransactionsPage() {
         </Card>
     );
 }
-

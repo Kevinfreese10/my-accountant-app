@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -21,9 +22,9 @@ import * as XLSX from 'xlsx';
 const db = getFirestore(firebaseApp);
 
 const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
+    return new Intl.NumberFormat('en-GB', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(price);
 };
 
@@ -101,7 +102,7 @@ function CustomerLedgerReport({
                 const cell = worksheet[key];
                 if (cell.v !== null && typeof cell.v === 'number') {
                     cell.t = 'n';
-                    cell.z = 'R #,##0.00';
+                    cell.z = '#,##0.00';
                 }
             }
         });

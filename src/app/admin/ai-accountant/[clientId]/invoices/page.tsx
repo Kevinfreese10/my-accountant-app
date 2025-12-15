@@ -52,7 +52,7 @@ const invoiceFormSchema = z.object({
 
 type InvoiceFormValues = z.infer<typeof invoiceFormSchema>;
 
-const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
+const formatPrice = (price: number) => new Intl.NumberFormat('en-GB', { style: 'decimal', minimumFractionDigits: 2 }).format(price);
 
 // A new component to calculate and display totals
 function InvoiceTotals({ control, isVatRegistered }: { control: any, isVatRegistered: boolean | undefined }) {
