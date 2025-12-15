@@ -1521,6 +1521,7 @@ const NewTransactionsTab = React.forwardRef<
     
     const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
         if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
+        setIsAiAllDialogOpen(false);
         setIsAiAllocating(true);
         const toastId = toast({ title: "Step 1: Building Knowledge Base...", description: "Analyzing reviewed transactions.", duration: Infinity }).id;
     
@@ -1602,6 +1603,12 @@ const NewTransactionsTab = React.forwardRef<
                 }
             });
     
+            if (batchCount > 0) {
+                await batch.commit();
+                batch = writeBatch(db);
+                batchCount = 0;
+            }
+
             toast({ id: toastId, title: `Step 3: Applying Learned Rules...`, description: `${learnedRulesApplied} transactions allocated based on your history.` });
     
             // Step 4: Second pass with AI for remaining transactions
@@ -1616,6 +1623,7 @@ const NewTransactionsTab = React.forwardRef<
                     groups[key].push(tx);
                 });
     
+                let aiAppliedCount = 0;
                 for (const key in groups) {
                     const group = groups[key];
                     const representativeTx = group[0];
@@ -1642,22 +1650,23 @@ const NewTransactionsTab = React.forwardRef<
                                     allocatedAt: new Date(),
                                 });
                                 batchCount++;
+                                aiAppliedCount++;
                             });
                         }
                     } catch (error) {
                         console.error(`AI allocation failed for group ${key}:`, error);
                     }
                 }
-            }
-    
-            if (batchCount > 0) {
-                await batch.commit();
+                 if (batchCount > 0) {
+                    await batch.commit();
+                }
+                 toast({ id: toastId, title: `Step 4: AI Processing Complete`, description: `${aiAppliedCount} more transactions allocated by AI.` });
             }
     
             dismiss(toastId);
             toast({
                 title: "AI Bulk Allocation Complete!",
-                description: `A total of ${learnedRulesApplied + (batchCount > 0 ? batchCount : 0)} transactions were allocated.`
+                description: `Process finished. Check the 'Pending Review' tab.`
             });
     
         } catch (error) {
@@ -1665,7 +1674,6 @@ const NewTransactionsTab = React.forwardRef<
             toast({ id: toastId, title: "Error", description: "An error occurred during the AI allocation process.", variant: "destructive" });
         } finally {
             setIsAiAllocating(false);
-            setIsAiAllDialogOpen(false);
             refetch();
         }
     };
@@ -1673,7 +1681,11 @@ const NewTransactionsTab = React.forwardRef<
     const handleAiIncomeAllocate = async (confidenceThreshold: number) => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
-        toast({ title: "AI is allocating...", description: `Processing ${selectedTransactions.length} income transactions.` });
+        const toastId = toast({
+            title: "AI is allocating...",
+            description: `Processing ${selectedTransactions.length} income transaction(s). Please wait.`,
+            duration: Infinity,
+        }).id;
         
         const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
         const customersWithInvoices = customers.map(c => ({
@@ -1683,11 +1695,18 @@ const NewTransactionsTab = React.forwardRef<
         }));
 
         let successCount = 0;
-        const allUpdatePromises: Promise<void>[] = [];
-        let batch = writeBatch(db);
-        let batchCount = 0;
+        let processedCount = 0;
 
         for (const tx of transactionsToAllocate) {
+            processedCount++;
+             dismiss(toastId);
+            toast({
+                id: toastId,
+                title: `AI Allocation: ${processedCount}/${transactionsToAllocate.length}`,
+                description: `Processing: ${tx.description}`,
+                duration: Infinity,
+            });
+
             try {
                 const result = await suggestIncomeAllocation({
                     description: tx.description,
@@ -1695,46 +1714,35 @@ const NewTransactionsTab = React.forwardRef<
                 });
 
                 if (result.customerId && result.confidence >= confidenceThreshold) {
-                    if (batchCount >= BATCH_SIZE) {
-                        allUpdatePromises.push(batch.commit());
-                        batch = writeBatch(db);
-                        batchCount = 0;
-                    }
                     const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
-                    batch.update(transactionRef, {
+                    await updateDoc(transactionRef, {
                         status: 'review', 
                         allocatedTo: { value: result.customerId, type: 'customer' },
                         vatType: 'no_vat',
                         allocatedAt: new Date(),
                     });
-                    batchCount++;
                     successCount++;
                 }
             } catch (error) {
                 console.error(`AI allocation failed for tx ${tx.id}:`, error);
+                toast({
+                    title: `Processing Failed for Tx ${processedCount}`,
+                    description: 'The AI could not allocate this transaction.',
+                    variant: 'destructive',
+                 });
             }
         }
         
-        if (batchCount > 0) {
-            allUpdatePromises.push(batch.commit());
-        }
-
-        try {
-            await Promise.all(allUpdatePromises);
-            if(successCount > 0) {
-              toast({ title: "AI Allocation Complete", description: `${successCount} out of ${selectedTransactions.length} transactions were confidently allocated for review.` });
-            } else {
-               toast({ title: "AI Allocation", description: `The AI could not confidently allocate any of the selected transactions.`, variant: 'destructive'});
-            }
-            setSelectedTransactions([]);
-            refetch();
-        } catch (error) {
-            console.error("Error committing AI allocations:", error);
-            toast({ title: "AI Allocation Failed", description: "An error occurred while saving the allocations.", variant: "destructive" });
-        } finally {
-            setIsAiAllocating(false);
-            setIsAiSelectedDialogOpen(false);
-        }
+         dismiss(toastId);
+        toast({
+            title: "AI Allocation Complete",
+            description: `${successCount} out of ${transactionsToAllocate.length} transactions were confidently allocated for review.`
+        });
+            
+        setSelectedTransactions([]);
+        refetch();
+        setIsAiAllocating(false);
+        setIsAiSelectedDialogOpen(false);
     };
 
 
@@ -1912,7 +1920,7 @@ const NewTransactionsTab = React.forwardRef<
                     <DialogHeader>
                         <DialogTitle>AI Bulk Allocation</DialogTitle>
                         <DialogDescription>
-                            This process will attempt to allocate all new expenses. It first learns from your previously reviewed transactions, then uses AI for the rest. Set the minimum confidence level the AI must have to make an allocation.
+                             This process will attempt to allocate all new expenses. It first learns from your previously reviewed transactions, then uses AI for the rest. Set the minimum confidence level the AI must have to make an allocation.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="py-4 space-y-4">
@@ -1994,43 +2002,43 @@ const NewTransactionsTab = React.forwardRef<
                                 <DropdownMenuSub>
                                     <DropdownMenuSubTrigger>Manual Allocate</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent className="p-0">
-                                         <Command>
+                                        <Command>
                                             <CommandInput placeholder="Search..." autoFocus />
                                             <CommandList>
                                                 <ScrollArea className="h-72">
-                                                    <CommandEmpty>No results found.</CommandEmpty>
-                                                    <CommandGroup>
-                                                        <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                <CommandEmpty>No results found.</CommandEmpty>
+                                                <CommandGroup>
+                                                    <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                </CommandGroup>
+                                                {activeSubTab === 'income' && customers.length > 0 && (
+                                                    <CommandGroup heading="Customers">
+                                                    {customers.map(c => (
+                                                        <CommandItem key={c.id} value={c.name} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                        {c.name}
+                                                        </CommandItem>
+                                                    ))}
                                                     </CommandGroup>
-                                                    {activeSubTab === 'income' && customers.length > 0 && (
-                                                        <CommandGroup heading="Customers">
-                                                            {customers.map(c => (
-                                                                <CommandItem key={c.id} value={c.name} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                                    {c.name}
-                                                                </CommandItem>
-                                                            ))}
-                                                        </CommandGroup>
-                                                    )}
-                                                    <CommandGroup heading="Accounts">
-                                                        {client?.chartOfAccounts?.map(acc => (
-                                                            <DropdownMenuSub key={acc.id}>
-                                                                <DropdownMenuSubTrigger asChild>
-                                                                    <CommandItem value={acc.description} onSelect={(e) => e.preventDefault()}>{acc.description}</CommandItem>
-                                                                </DropdownMenuSubTrigger>
-                                                                <DropdownMenuSubContent>
-                                                                    {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                                        <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                                            {vat.label}
-                                                                        </DropdownMenuItem>
-                                                                    )) : (
-                                                                        <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                                            No VAT
-                                                                        </DropdownMenuItem>
-                                                                    )}
-                                                                </DropdownMenuSubContent>
-                                                            </DropdownMenuSub>
-                                                        ))}
-                                                    </CommandGroup>
+                                                )}
+                                                <CommandGroup heading="Accounts">
+                                                    {client?.chartOfAccounts?.map(acc => (
+                                                        <DropdownMenuSub key={acc.id}>
+                                                            <DropdownMenuSubTrigger asChild>
+                                                                <CommandItem value={acc.description} onSelect={(e) => e.preventDefault()}>{acc.description}</CommandItem>
+                                                            </DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubContent>
+                                                                {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                                        {vat.label}
+                                                                    </DropdownMenuItem>
+                                                                )) : (
+                                                                    <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                                        No VAT
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                            </DropdownMenuSubContent>
+                                                        </DropdownMenuSub>
+                                                    ))}
+                                                </CommandGroup>
                                                 </ScrollArea>
                                             </CommandList>
                                         </Command>
@@ -2597,8 +2605,9 @@ const ReviewedTab = React.forwardRef<
     
     const handleReviewConsistency = async () => {
         if (!client || !bankAccountId) return;
+        setIsConsistencyCheckOpen(false);
         toast({ title: "Analyzing Transactions...", description: "Checking for allocation inconsistencies." });
-    
+
         let q = query(
             collection(db, 'aiAccountantClients', client.uid!, 'transactions'),
             where('bankAccountId', '==', bankAccountId),
@@ -2612,10 +2621,10 @@ const ReviewedTab = React.forwardRef<
 
         const snapshot = await getDocs(q);
         const allReviewed = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
-    
+        
         const getGroupKey = (description: string): string => {
             const lowerDesc = description.toLowerCase();
-            const commonKeywords = ['shell', 'engen', 'pnp', 'pick n pay', 'checkers', 'shoprite', 'woolworths', 'clicks', 'dischem'];
+            const commonKeywords = ['shell', 'engen', 'pnp', 'pick n pay', 'checkers', 'shoprite', 'woolworths', 'clicks', 'dischem', 'bp', 'total', 'sasol'];
             
             for (const keyword of commonKeywords) {
                 if (lowerDesc.includes(keyword)) {
@@ -2623,31 +2632,35 @@ const ReviewedTab = React.forwardRef<
                 }
             }
             
-            // Fallback to finding most significant repeating word
-            const words = lowerDesc.replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 3 && !['cheque', 'card', 'purchase', 'payment', 'debit', 'order', 'eft', 'from'].includes(w));
-            const wordCounts = words.reduce((acc, word) => {
-                acc[word] = (acc[word] || 0) + 1;
-                return acc;
-            }, {} as {[key: string]: number});
+            const words = lowerDesc.replace(/[^a-z\s]/g, '').split(/\s+/);
+            const significantWords = words.filter(w => w.length > 3 && !['cheque', 'card', 'purchase', 'payment', 'debit', 'order', 'eft', 'from', 'pty', 'ltd'].includes(w));
+            
+            if (significantWords.length > 0) {
+                 const wordCounts = significantWords.reduce((acc, word) => {
+                    acc[word] = (acc[word] || 0) + 1;
+                    return acc;
+                }, {} as {[key: string]: number});
 
-            // Find the most significant word that appears in multiple transactions
-            let mostSignificantWord = '';
-            let maxCount = 0;
+                let mostSignificantWord = '';
+                let maxCount = 0;
 
-            for (const word of words) {
-                 const totalOccurrences = allReviewed.filter(tx => tx.description.toLowerCase().includes(word)).length;
-                 if (totalOccurrences > maxCount && totalOccurrences > 1) {
-                     maxCount = totalOccurrences;
-                     mostSignificantWord = word;
-                 }
+                for (const word of significantWords) {
+                    const totalOccurrences = allReviewed.filter(tx => tx.description.toLowerCase().includes(word)).length;
+                    if (totalOccurrences > maxCount && totalOccurrences > 1) {
+                        maxCount = totalOccurrences;
+                        mostSignificantWord = word;
+                    }
+                }
+                if (mostSignificantWord) return mostSignificantWord;
             }
             
-            return mostSignificantWord || lowerDesc.slice(0, 15);
+            return lowerDesc.slice(0, 15);
         };
+
 
         const groups: { [key: string]: ImportedTransaction[] } = {};
         allReviewed.forEach(tx => {
-            if(tx.allocatedTo?.type === 'account') { // Only check account allocations
+            if(tx.allocatedTo?.type === 'account') {
                 const key = getGroupKey(tx.description);
                 if (!groups[key]) groups[key] = [];
                 groups[key].push(tx);
@@ -2655,8 +2668,14 @@ const ReviewedTab = React.forwardRef<
         });
     
         const foundInconsistencies: any[] = [];
-    
-        Object.values(groups).forEach(group => {
+        const hardRules: {[key: string]: string} = {
+            'shell': '3000-033', // Fuel
+            'bp': '3000-033', // Fuel
+            'engen': '3000-033', // Fuel
+            'total': '3000-033', // Fuel
+        };
+
+        Object.entries(groups).forEach(([groupKey, group]) => {
             if (group.length < 2) return;
     
             const allocationCounts: { [key: string]: number } = {};
@@ -2667,34 +2686,44 @@ const ReviewedTab = React.forwardRef<
                 }
             });
             
-            if (Object.keys(allocationCounts).length > 1) {
-                const [mostCommonKey] = Object.entries(allocationCounts).reduce((a, b) => a[1] > b[1] ? a : b);
-                const [correctAccountId, correctVatType] = mostCommonKey.split('_');
+            const [mostCommonKey] = Object.entries(allocationCounts).reduce((a, b) => a[1] > b[1] ? a : b);
+            const [correctAccountId, correctVatType] = mostCommonKey.split('_');
     
-                group.forEach(tx => {
-                    const currentAllocationId = tx.allocatedTo?.value;
-                    const currentVatType = tx.vatType || 'no_vat';
-                    const isConsistent = currentAllocationId === correctAccountId && currentVatType === correctVatType;
-                    
-                    if (!isConsistent && currentAllocationId) {
-                        foundInconsistencies.push({
-                            ...tx,
-                            suggestedAccountId: correctAccountId,
-                            suggestedVatType: correctVatType,
-                        });
-                    }
-                });
-            }
+            group.forEach(tx => {
+                const currentAllocationId = tx.allocatedTo?.value;
+                const currentVatType = tx.vatType || 'no_vat';
+                let isConsistent = currentAllocationId === correctAccountId && currentVatType === correctVatType;
+                
+                // Hard Override Rule Check
+                const hardRuleAccountId = hardRules[groupKey];
+                if (hardRuleAccountId && currentAllocationId !== hardRuleAccountId) {
+                     foundInconsistencies.push({
+                        ...tx,
+                        groupKey,
+                        suggestedAccountId: hardRuleAccountId,
+                        suggestedVatType: 'standard_rated_purchases',
+                        reason: `Critical: Merchant rule violation (should be Fuel).`
+                    });
+                } else if (!isConsistent && currentAllocationId) {
+                    foundInconsistencies.push({
+                        ...tx,
+                        groupKey,
+                        suggestedAccountId: correctAccountId,
+                        suggestedVatType: correctVatType,
+                        reason: `Inconsistent with other '${groupKey}' transactions.`
+                    });
+                }
+            });
         });
     
         setInconsistencies(foundInconsistencies);
-        setSelectedCorrections(foundInconsistencies.map(inc => inc.id));
-        setIsConsistencyCheckOpen(true);
-         if (foundInconsistencies.length === 0) {
+        if (foundInconsistencies.length > 0) {
+            setSelectedCorrections(foundInconsistencies.map(inc => inc.id));
+            setIsConsistencyCheckOpen(true);
+        } else {
             toast({ title: 'No Inconsistencies Found!', description: 'All your allocations look consistent.' });
         }
     };
-
     
     const handleApplyCorrections = async () => {
         if (!client || selectedCorrections.length === 0) return;
