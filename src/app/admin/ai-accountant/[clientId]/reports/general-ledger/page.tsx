@@ -126,26 +126,20 @@ function ReallocateDialog({ transaction, client, onSave, onOpenChange, open }: {
     );
 }
 
-function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, searchTerm, onReallocate, onDelete, onBulkReallocate }: { 
+function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, onReallocate, onDelete }: { 
     client: User, 
     transactions: (ImportedTransaction | AllocatedTransaction)[], 
     dateRange?: DateRange, 
     fromAccount?: string, 
-    toAccount?: string, 
-    searchTerm?: string,
+    toAccount?: string,
     onReallocate: (tx: any) => void, 
     onDelete: (journalRef: string) => void,
-    onBulkReallocate: (txIds: string[], accountId: string, vatType: string) => Promise<void>;
 }) {
-    
-    const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
-    
+        
     const filteredTransactions = useMemo(() => {
         let filtered = transactions;
         
-        if (searchTerm) {
-            filtered = filtered.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-        } else if (dateRange) {
+        if (dateRange) {
              if (dateRange.from) {
                 filtered = filtered.filter(tx => new Date(tx.date) >= dateRange.from!);
             }
@@ -155,7 +149,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
         }
         
         return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }, [transactions, dateRange, searchTerm]);
+    }, [transactions, dateRange]);
     
     const accountsToDisplay = useMemo(() => {
         let accounts = client.chartOfAccounts || [];
@@ -309,121 +303,10 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
         XLSX.writeFile(workbook, fileName);
     };
 
-    const SearchResultsView = () => {
-        const [reallocateTo, setReallocateTo] = useState<{accountId: string, vatType: string} | null>(null);
-        const [open, setOpen] = useState(false)
-
-        return (
-            <div>
-                 <div className="flex justify-between items-center p-2 bg-muted rounded-t-lg">
-                    <p className="text-sm font-semibold">{filteredTransactions.length} transaction(s) found for "{searchTerm}"</p>
-                    {selectedTxIds.length > 0 && (
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button size="sm">Reallocate {selectedTxIds.length} Selected</Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-80 p-4" align="end">
-                                 <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <h4 className="font-medium leading-none">Reallocate Transactions</h4>
-                                        <p className="text-sm text-muted-foreground">Choose a new account and VAT type.</p>
-                                    </div>
-                                    <div className="grid gap-4">
-                                         <div className="grid gap-2">
-                                            <Label>New Account</Label>
-                                            <Popover open={open} onOpenChange={setOpen}>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
-                                                        {reallocateTo?.accountId ? client.chartOfAccounts?.find(acc => acc.id === reallocateTo.accountId)?.description : "Select account..."}
-                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                                     <Command>
-                                                        <CommandInput placeholder="Search account..." />
-                                                        <CommandList>
-                                                        <CommandEmpty>No account found.</CommandEmpty>
-                                                        {client.chartOfAccounts?.map((acc) => (
-                                                            <CommandItem
-                                                                key={acc.id}
-                                                                value={acc.description}
-                                                                onSelect={() => {
-                                                                    setReallocateTo(prev => ({...prev!, accountId: acc.id}));
-                                                                    setOpen(false);
-                                                                }}
-                                                            >
-                                                            {acc.description}
-                                                            </CommandItem>
-                                                        ))}
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
-                                        </div>
-                                         <div className="grid gap-2">
-                                            <Label>New VAT Type</Label>
-                                            <Select onValueChange={(val) => setReallocateTo(prev => ({...prev!, vatType: val}))}>
-                                                <SelectTrigger><SelectValue placeholder="Select VAT type..."/></SelectTrigger>
-                                                <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
-                                            </Select>
-                                        </div>
-                                        <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId} className="w-full">
-                                            Apply Reallocation
-                                        </Button>
-                                    </div>
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                    )}
-                 </div>
-                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableCell className="w-12 p-2">
-                                <Checkbox
-                                    checked={selectedTxIds.length === filteredTransactions.length && filteredTransactions.length > 0}
-                                    onCheckedChange={(checked) => {
-                                        setSelectedTxIds(checked ? filteredTransactions.map(tx => tx.id) : []);
-                                    }}
-                                />
-                            </TableCell>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Account</TableHead>
-                            <TableHead>VAT</TableHead>
-                            <TableHead className="text-right">Amount</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredTransactions.map(tx => {
-                            const account = client.chartOfAccounts?.find(a => a.id === tx.allocatedTo?.value);
-                            return (
-                                <TableRow key={tx.id}>
-                                    <TableCell className="p-2"><Checkbox checked={selectedTxIds.includes(tx.id)} onCheckedChange={(checked) => setSelectedTxIds(prev => checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id))} /></TableCell>
-                                    <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                    <TableCell>{tx.description}</TableCell>
-                                    <TableCell>{account?.description || 'N/A'}</TableCell>
-                                    <TableCell>{tx.vatType || 'N/A'}</TableCell>
-                                    <TableCell className="text-right">{formatPrice(tx.amount)}</TableCell>
-                                </TableRow>
-                            );
-                        })}
-                    </TableBody>
-                </Table>
-                 <DialogFooter className="mt-4 gap-2 flex justify-start">
-                     <Button variant="outline" onClick={handleDownloadExcel}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Download Excel
-                    </Button>
-                </DialogFooter>
-            </div>
-        )
-    }
-
     return (
         <>
             <div className="max-h-[70vh] overflow-y-auto space-y-6">
-                {searchTerm ? <SearchResultsView /> : groupedTransactions.map(group => (
+                {groupedTransactions.map(group => (
                     <div key={group.account.id}>
                         <h3 className="font-bold text-lg mb-2">{group.account.accountNumber} - {group.account.description}</h3>
                         <Table>
@@ -513,7 +396,6 @@ export default function GeneralLedgerPage() {
     const [isReallocateOpen, setIsReallocateOpen] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
     const { toast } = useToast();
-    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (accountIdFromQuery) {
@@ -599,29 +481,7 @@ export default function GeneralLedgerPage() {
       }
     };
 
-    const handleBulkReallocate = async (txIds: string[], accountId: string, vatType: string) => {
-        if (!client || txIds.length === 0) return;
-        toast({title: 'Bulk Reallocation Started', description: `Reallocating ${txIds.length} transactions.`});
-        try {
-            const batch = writeBatch(db);
-            txIds.forEach(id => {
-                const txRef = doc(db, 'aiAccountantClients', client.id!, 'transactions', id);
-                batch.update(txRef, {
-                    'allocatedTo.value': accountId,
-                    'vatType': vatType,
-                });
-            });
-            await batch.commit();
-            toast({title: 'Bulk Reallocation Successful'});
-            setIsReportOpen(false); // Close dialog on success
-        } catch (error) {
-            console.error("Error during bulk reallocation:", error);
-            toast({title: 'Bulk Reallocation Failed', variant: 'destructive'});
-        }
-    }
-
     const getReportDateString = () => {
-        if (searchTerm) return `for transactions matching "${searchTerm}"`;
         if (!dateRange || (!dateRange.from && !dateRange.to)) {
             return `as at ${format(new Date(), "dd MMMM yyyy")}`;
         }
@@ -645,7 +505,7 @@ export default function GeneralLedgerPage() {
                         <div>
                             <CardTitle>General Ledger Report</CardTitle>
                             <CardDescription>
-                                Filter and view the general ledger for a specific period, or search for transactions by description.
+                                Filter and view the general ledger for a specific period.
                             </CardDescription>
                         </div>
                         <Button asChild variant="outline">
@@ -679,18 +539,7 @@ export default function GeneralLedgerPage() {
                                 </Select>
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-[150px_1fr] items-center gap-4">
-                            <Label>Search Description</Label>
-                            <div className="relative">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input 
-                                    placeholder="Search transaction descriptions..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-8"
-                                />
-                            </div>
-                        </div>
+                        
                         <div className="flex justify-start pt-4">
                              {isLoading ? (
                                 <Loader2 className="animate-spin" />
@@ -712,10 +561,8 @@ export default function GeneralLedgerPage() {
                                             dateRange={dateRange} 
                                             fromAccount={fromAccount} 
                                             toAccount={toAccount}
-                                            searchTerm={searchTerm}
                                             onReallocate={handleReallocateClick}
                                             onDelete={handleDeleteJournal}
-                                            onBulkReallocate={handleBulkReallocate}
                                         />
                                     </DialogContent>
                                 </Dialog>
@@ -738,7 +585,3 @@ export default function GeneralLedgerPage() {
         </div>
     );
 }
-
-    
-
-    

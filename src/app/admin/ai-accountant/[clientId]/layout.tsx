@@ -127,6 +127,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/profit-and-loss`}>Profit & Loss</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/trial-balance`}>Trial Balance</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/general-ledger`}>General Ledger</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/transaction-search`}>Transaction Search</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/gl-recon`}>GL Recon</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/age-analysis`}>Age Analysis</Link></MenubarItem>
                         <MenubarSeparator />
