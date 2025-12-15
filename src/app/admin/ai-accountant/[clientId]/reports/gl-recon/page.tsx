@@ -8,12 +8,14 @@ import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, where, orderBy, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Scale } from "lucide-react";
+import { Loader2, Download, Eye, Scale, CheckCircle } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { format } from 'date-fns';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import * as XLSX from 'xlsx';
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 
 
 const db = getFirestore(firebaseApp);
@@ -28,23 +30,56 @@ const formatPrice = (price: number) => {
 
 function AccountLedgerView({ transactions, account }: { transactions: (ImportedTransaction | AllocatedTransaction)[], account: ChartOfAccount }) {
     
+    const [hideMatched, setHideMatched] = useState(true);
+
     const ledgerEntries = useMemo(() => {
-        let runningBalance = 0;
-        return transactions
+        const processedTransactions = transactions
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .map(tx => {
-                const amount = tx.allocatedTo?.value === account.id ? tx.amount : -tx.amount;
-                runningBalance += amount;
-                return {
-                    ...tx,
-                    displayAmount: amount,
-                    balance: runningBalance,
-                };
-            });
+            .map(tx => ({
+                ...tx,
+                displayAmount: tx.allocatedTo?.value === account.id ? tx.amount : -tx.amount,
+                matched: false, // Add a matched flag
+            }));
+
+        const debits = processedTransactions.filter(tx => tx.displayAmount > 0);
+        const credits = processedTransactions.filter(tx => tx.displayAmount < 0);
+        
+        const creditMatches = new Array(credits.length).fill(false);
+
+        for (const debit of debits) {
+            for (let i = 0; i < credits.length; i++) {
+                if (!creditMatches[i] && Math.abs(debit.displayAmount + credits[i].displayAmount) < 0.01) {
+                    debit.matched = true;
+                    credits[i].matched = true;
+                    creditMatches[i] = true;
+                    break; 
+                }
+            }
+        }
+        
+        const allLedgerEntries = [...debits, ...credits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        let runningBalance = 0;
+        return allLedgerEntries.map(entry => {
+            runningBalance += entry.displayAmount;
+            return {
+                ...entry,
+                balance: runningBalance,
+            };
+        });
+
     }, [transactions, account]);
+    
+    const visibleEntries = useMemo(() => {
+        if (hideMatched) {
+            return ledgerEntries.filter(e => !e.matched);
+        }
+        return ledgerEntries;
+    }, [ledgerEntries, hideMatched]);
+
 
     const handleDownloadExcel = () => {
-        const dataToExport = ledgerEntries.map(tx => ({
+        const dataToExport = visibleEntries.map(tx => ({
             'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
             'Reference': tx.reference,
             'Description': tx.description,
@@ -53,14 +88,14 @@ function AccountLedgerView({ transactions, account }: { transactions: (ImportedT
             'Balance': tx.balance,
         }));
         
+        const totalDebit = visibleEntries.reduce((sum, tx) => sum + (tx.displayAmount > 0 ? tx.displayAmount : 0), 0);
+        const totalCredit = visibleEntries.reduce((sum, tx) => sum + (tx.displayAmount < 0 ? -tx.displayAmount : 0), 0);
+
+        XLSX.utils.sheet_add_aoa(dataToExport, [['', '', 'Totals', totalDebit, totalCredit, '']], { origin: -1 });
+
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         worksheet['!cols'] = [{ wch: 12 }, { wch: 20 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
         
-        const totalDebit = ledgerEntries.reduce((sum, tx) => sum + (tx.displayAmount > 0 ? tx.displayAmount : 0), 0);
-        const totalCredit = ledgerEntries.reduce((sum, tx) => sum + (tx.displayAmount < 0 ? -tx.displayAmount : 0), 0);
-
-        XLSX.utils.sheet_add_aoa(worksheet, [['', '', 'Totals', totalDebit, totalCredit, '']], { origin: -1 });
-
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, account.description);
         XLSX.writeFile(workbook, `Ledger-${account.accountNumber}.xlsx`);
@@ -79,11 +114,13 @@ function AccountLedgerView({ transactions, account }: { transactions: (ImportedT
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Ledger for: {account.description}</CardTitle>
-                 <Button onClick={handleDownloadExcel} size="sm" variant="outline" className="ml-auto">
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Excel
-                </Button>
+                <div className="flex justify-between items-center">
+                    <CardTitle>Ledger for: {account.description}</CardTitle>
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="hide-matched" checked={hideMatched} onCheckedChange={(checked) => setHideMatched(checked as boolean)} />
+                        <Label htmlFor="hide-matched" className="text-sm font-medium">Hide Matched Transactions</Label>
+                    </div>
+                </div>
             </CardHeader>
             <CardContent>
                 <Table>
@@ -98,9 +135,14 @@ function AccountLedgerView({ transactions, account }: { transactions: (ImportedT
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {ledgerEntries.map(tx => (
-                            <TableRow key={tx.id}>
-                                <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                        {visibleEntries.map((tx, index) => (
+                            <TableRow key={tx.id + index} className={cn(tx.matched && 'text-muted-foreground line-through')}>
+                                <TableCell>
+                                    <div className="flex items-center gap-2">
+                                        {tx.matched && <CheckCircle className="h-4 w-4 text-green-500" />}
+                                        {format(new Date(tx.date), 'dd/MM/yyyy')}
+                                    </div>
+                                </TableCell>
                                 <TableCell>{tx.reference}</TableCell>
                                 <TableCell>{tx.description}</TableCell>
                                 <TableCell className="text-right font-mono">{tx.displayAmount > 0 ? formatPrice(tx.displayAmount) : ''}</TableCell>
@@ -111,12 +153,18 @@ function AccountLedgerView({ transactions, account }: { transactions: (ImportedT
                     </TableBody>
                     <TableFooter>
                         <TableRow>
-                            <TableCell colSpan={3} className="font-bold">Closing Balance</TableCell>
-                            <TableCell colSpan={3} className="text-right font-bold font-mono">{formatPrice(ledgerEntries[ledgerEntries.length-1]?.balance || 0)}</TableCell>
+                            <TableCell colSpan={5} className="font-bold">Closing Balance</TableCell>
+                            <TableCell className="text-right font-bold font-mono">{formatPrice(visibleEntries[visibleEntries.length-1]?.balance || 0)}</TableCell>
                         </TableRow>
                     </TableFooter>
                 </Table>
             </CardContent>
+             <CardFooter>
+                 <Button onClick={handleDownloadExcel} size="sm" variant="outline">
+                    <Download className="mr-2 h-4 w-4" />
+                    Download as Excel
+                </Button>
+            </CardFooter>
         </Card>
     );
 }
@@ -221,6 +269,5 @@ export default function GeneralLedgerReconPage() {
         </div>
     );
 }
-    
 
     
