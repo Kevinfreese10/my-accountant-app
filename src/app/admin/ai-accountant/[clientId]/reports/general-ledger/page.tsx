@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Edit, Trash2, Search, Link as LinkIcon } from "lucide-react";
+import { Loader2, Download, Eye, Edit, Trash2, Search, Link as LinkIcon, Scale } from "lucide-react";
 import { useParams, useSearchParams } from 'next/navigation';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
@@ -313,7 +313,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
         
         return (
             <div>
-                 <div className="flex justify-between items-center p-2">
+                <div className="flex justify-between items-center p-2 bg-muted rounded-t-lg">
                     <p className="text-sm font-semibold">{filteredTransactions.length} transaction(s) found for "{searchTerm}"</p>
                     {selectedTxIds.length > 0 && (
                         <Popover>
@@ -328,7 +328,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                     </div>
                                     <div className="grid gap-2">
                                         <Label>New Account</Label>
-                                        <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, accountId: val, vatType: prev?.vatType || 'no_vat'}))}>
+                                         <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, accountId: val, vatType: prev?.vatType || 'no_vat'}))}>
                                             <SelectTrigger><SelectValue placeholder="Select account..."/></SelectTrigger>
                                             <SelectContent>
                                                 <Command>
@@ -344,7 +344,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                             <SelectTrigger><SelectValue placeholder="Select VAT type..."/></SelectTrigger>
                                             <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
                                         </Select>
-                                        <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId} className="mt-2">Apply Reallocation</Button>
+                                         <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId} className="w-full mt-2">Apply Reallocation</Button>
                                     </div>
                                 </div>
                             </PopoverContent>
@@ -713,3 +713,5 @@ export default function GeneralLedgerPage() {
         </div>
     );
 }
+
+    
