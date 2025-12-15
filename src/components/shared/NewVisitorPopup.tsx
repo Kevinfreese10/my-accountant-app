@@ -43,7 +43,7 @@ export default function NewVisitorPopup() {
   if (!isOpen) return null;
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+    <AlertDialog open={isOpen} onOpenChange={handleClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="text-2xl">Welcome to My Accountant</AlertDialogTitle>
