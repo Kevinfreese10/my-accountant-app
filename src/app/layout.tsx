@@ -10,7 +10,6 @@ import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import Script from 'next/script';
 
-
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.myacc.co.za'),
   title: {
