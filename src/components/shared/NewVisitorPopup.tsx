@@ -21,11 +21,13 @@ export default function NewVisitorPopup() {
   const router = useRouter();
 
   useEffect(() => {
-    // This code runs only on the client
-    // const timer = setTimeout(() => {
-    //     setIsOpen(true);
-    // }, 500); // Shortened delay for immediate viewing
-    // return () => clearTimeout(timer);
+    const hasSeenPopup = localStorage.getItem(POPUP_STORAGE_KEY);
+    if (!hasSeenPopup) {
+      const timer = setTimeout(() => {
+        setIsOpen(true);
+      }, 3000); // Show popup after 3 seconds
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const handleClose = () => {
