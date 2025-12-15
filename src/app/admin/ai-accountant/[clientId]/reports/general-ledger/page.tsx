@@ -347,7 +347,11 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                         })}
                     </TableBody>
                 </Table>
-                 <DialogFooter className="mt-4 gap-2">
+                 <DialogFooter className="mt-4 gap-2 flex justify-between">
+                     <Button variant="outline" onClick={handleDownloadExcel}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Excel
+                    </Button>
                     {selectedTxIds.length > 0 && (
                         <Popover>
                             <PopoverTrigger asChild>
@@ -689,4 +693,3 @@ export default function GeneralLedgerPage() {
         </div>
     );
 }
-
