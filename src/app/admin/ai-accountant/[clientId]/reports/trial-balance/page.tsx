@@ -339,7 +339,7 @@ export default function TrialBalancePage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
                          <div className="space-y-2">
                             <Label className="font-semibold">Primary Period</Label>
                             <DateRangePicker onDateChange={setDateRange} financialYearEnd={client?.yearEnd} />
