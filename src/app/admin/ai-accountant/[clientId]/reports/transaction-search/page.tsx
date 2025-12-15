@@ -1,25 +1,30 @@
 
 'use client';
-
-import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Loader2, Search, Edit, Trash2, PlusCircle, ChevronsUpDown } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { useState, useEffect, useMemo } from "react";
+import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, getDocs, query, where, updateDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useParams } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
-import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from '@/lib/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Loader2, Download, Eye, Edit, Trash2, Search, Link as LinkIcon, Scale, ChevronsUpDown } from "lucide-react";
+import { useParams, useSearchParams } from 'next/navigation';
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRange } from "react-day-picker";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
+import { format } from 'date-fns';
+import * as XLSX from 'xlsx';
+import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { allVatTypes } from "@/lib/vat-types";
+import Link from "next/link";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from "@/components/ui/command";
@@ -37,12 +42,6 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-const reallocateSchema = z.object({
-  accountId: z.string().min(1, "Please select an account."),
-  vatType: z.string().min(1, "Please select a VAT type."),
-});
-
-
 function SearchResultsView({ 
     results, 
     client, 
@@ -52,12 +51,17 @@ function SearchResultsView({
 }: { 
     results: (ImportedTransaction | AllocatedTransaction)[], 
     client: User, 
-    onReallocate: (txIds: string[], values: z.infer<typeof reallocateSchema>) => void,
+    onReallocate: (txIds: string[], values: { accountId: string, vatType: VatType }) => void,
     selectedTransactions: string[],
     onSelectionChange: (id: string, checked: boolean) => void
 }) {
     const [reallocateTo, setReallocateTo] = useState<{accountId: string, vatType: VatType} | null>(null);
     const [open, setOpen] = useState(false)
+
+    const getAllocationDescription = (tx: ImportedTransaction | AllocatedTransaction) => {
+        if (!tx.allocatedTo?.value) return <Badge variant="outline">Unallocated</Badge>;
+        return client.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo?.value)?.description || 'Unknown';
+    };
 
     return (
         <div>
@@ -125,6 +129,7 @@ function SearchResultsView({
                             /></TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>Description</TableHead>
+                            <TableHead>Allocated To</TableHead>
                             <TableHead>Bank Account</TableHead>
                             <TableHead>Reference</TableHead>
                             <TableHead>Status</TableHead>
@@ -137,9 +142,10 @@ function SearchResultsView({
                                 <TableCell><Checkbox checked={selectedTransactions.includes(tx.id)} onCheckedChange={(checked) => onSelectionChange(tx.id, !!checked)} /></TableCell>
                                 <TableCell>{new Date(tx.date).toLocaleDateString('en-ZA')}</TableCell>
                                 <TableCell>{tx.description}</TableCell>
+                                <TableCell>{getAllocationDescription(tx)}</TableCell>
                                 <TableCell>{client.chartOfAccounts?.find(acc => acc.id === tx.bankAccountId)?.description}</TableCell>
                                 <TableCell>{tx.reference}</TableCell>
-                                <TableCell><Badge variant={tx.status === 'allocated' ? 'success' : 'secondary'}>{tx.status}</Badge></TableCell>
+                                <TableCell><Badge variant={tx.status === 'allocated' ? 'success' : tx.status === 'new' ? 'secondary' : 'default'}>{tx.status}</Badge></TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                             </TableRow>
                         ))}
@@ -175,7 +181,7 @@ export default function TransactionSearchPage() {
 
             const transQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'));
             const transSnap = await getDocs(transQuery);
-            setTransactions(transSnap.docs.map(d => ({ id: d.id, ...d.data() }) as (ImportedTransaction | AllocatedTransaction)));
+            setTransactions(transSnap.docs.map(d => ({ id: d.id, ...d.data() } as (ImportedTransaction | AllocatedTransaction))));
 
         } catch (e) {
             toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
@@ -209,7 +215,7 @@ export default function TransactionSearchPage() {
         });
     };
 
-    const handleReallocate = async (txIds: string[], values: z.infer<typeof reallocateSchema>) => {
+    const handleReallocate = async (txIds: string[], values: { accountId: string, vatType: VatType }) => {
         if (!client) return;
         
         const batch = writeBatch(db);
@@ -252,7 +258,7 @@ export default function TransactionSearchPage() {
                  <div className="flex w-full max-w-sm items-center space-x-2">
                     <Input 
                         type="text" 
-                        placeholder="Enter search term (e.g. 'Telkom')" 
+                        placeholder="Enter search term (e.g., 'Telkom')" 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
