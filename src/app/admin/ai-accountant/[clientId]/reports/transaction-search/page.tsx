@@ -13,7 +13,7 @@ import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -23,6 +23,9 @@ import { allVatTypes } from "@/lib/vat-types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+
 
 const db = getFirestore(firebaseApp);
 
@@ -172,7 +175,7 @@ export default function TransactionSearchPage() {
 
             const transQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'));
             const transSnap = await getDocs(transQuery);
-            setTransactions(transSnap.docs.map(d => ({ id: d.id, ...d.data() }) as (ImportedTransaction | AllocatedTransaction))));
+            setTransactions(transSnap.docs.map(d => ({ id: d.id, ...d.data() }) as (ImportedTransaction | AllocatedTransaction)));
 
         } catch (e) {
             toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
