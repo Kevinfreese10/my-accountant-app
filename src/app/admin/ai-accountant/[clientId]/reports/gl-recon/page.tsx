@@ -5,17 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
-import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
-import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs } from 'firebase/firestore';
+import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction } from "@/lib/types";
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, where, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Edit, Trash2, Search, FileWarning, Scale } from "lucide-react";
-import { useParams, useSearchParams } from 'next/navigation';
+import { Loader2, Download, Eye, Scale } from "lucide-react";
+import { useParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { format } from 'date-fns';
-import { useToast } from "@/hooks/use-toast";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from "@/components/ui/command";
-import { Badge } from "@/components/ui/badge";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import * as XLSX from 'xlsx';
 
 
 const db = getFirestore(firebaseApp);
@@ -28,97 +26,98 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-function UnbalancedTransactionsView({ transactions, accounts }: { transactions: (ImportedTransaction | AllocatedTransaction)[], accounts: ChartOfAccount[] }) {
+function AccountLedgerView({ transactions, account }: { transactions: (ImportedTransaction | AllocatedTransaction)[], account: ChartOfAccount }) {
     
-    const unbalancedGroups = useMemo(() => {
-        const groups: { [key: string]: { debit: number, credit: number, transactions: any[] } } = {};
+    const ledgerEntries = useMemo(() => {
+        let runningBalance = 0;
+        return transactions
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .map(tx => {
+                const amount = tx.allocatedTo?.value === account.id ? tx.amount : -tx.amount;
+                runningBalance += amount;
+                return {
+                    ...tx,
+                    displayAmount: amount,
+                    balance: runningBalance,
+                };
+            });
+    }, [transactions, account]);
 
-        transactions.forEach(tx => {
-            const ref = tx.reference;
-            if (!ref) return;
+    const handleDownloadExcel = () => {
+        const dataToExport = ledgerEntries.map(tx => ({
+            'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
+            'Reference': tx.reference,
+            'Description': tx.description,
+            'Debit': tx.displayAmount > 0 ? tx.displayAmount : '',
+            'Credit': tx.displayAmount < 0 ? -tx.displayAmount : '',
+            'Balance': tx.balance,
+        }));
+        
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        worksheet['!cols'] = [{ wch: 12 }, { wch: 20 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+        
+        const totalDebit = ledgerEntries.reduce((sum, tx) => sum + (tx.displayAmount > 0 ? tx.displayAmount : 0), 0);
+        const totalCredit = ledgerEntries.reduce((sum, tx) => sum + (tx.displayAmount < 0 ? -tx.displayAmount : 0), 0);
 
-            if (!groups[ref]) {
-                groups[ref] = { debit: 0, credit: 0, transactions: [] };
-            }
-            
-            const account = accounts.find(a => a.id === tx.allocatedTo?.value);
+        XLSX.utils.sheet_add_aoa(worksheet, [['', '', 'Totals', totalDebit, totalCredit, '']], { origin: -1 });
 
-            const txDetail = {
-                id: tx.id,
-                date: tx.date,
-                description: tx.description,
-                accountName: account?.description || 'Unknown',
-                amount: tx.amount,
-            };
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, account.description);
+        XLSX.writeFile(workbook, `Ledger-${account.accountNumber}.xlsx`);
+    };
 
-            if (tx.amount > 0) {
-                groups[ref].debit += tx.amount;
-            } else {
-                groups[ref].credit += -tx.amount;
-            }
-            groups[ref].transactions.push(txDetail);
-        });
-
-        return Object.entries(groups)
-            .filter(([ref, group]) => Math.abs(group.debit - group.credit) >= 0.01)
-            .sort((a,b) => b[1].transactions[0].date.localeCompare(a[1].transactions[0].date));
-
-    }, [transactions, accounts]);
-
-    if (unbalancedGroups.length === 0) {
+    if (ledgerEntries.length === 0) {
         return (
              <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground border-2 border-dashed rounded-lg p-4">
                 <Scale className="h-10 w-10 mb-4" />
-                <p className="font-semibold">No Imbalances Found</p>
-                <p className="text-sm mt-2">All transaction groups in this account are balanced.</p>
+                <p className="font-semibold">No Transactions Found</p>
+                <p className="text-sm mt-2">There are no transactions for this account in the selected period.</p>
               </div>
         )
     }
 
     return (
-        <div className="space-y-6">
-            {unbalancedGroups.map(([ref, group]) => (
-                <Card key={ref}>
-                    <CardHeader>
-                        <CardTitle className="flex justify-between items-center">
-                            <span>Reference: {ref}</span>
-                            <Badge variant="destructive">Imbalance: {formatPrice(group.debit - group.credit)}</Badge>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                         <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Description</TableHead>
-                                    <TableHead>Account</TableHead>
-                                    <TableHead className="text-right">Debit</TableHead>
-                                    <TableHead className="text-right">Credit</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {group.transactions.map(tx => (
-                                    <TableRow key={tx.id}>
-                                        <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                        <TableCell>{tx.description}</TableCell>
-                                        <TableCell>{tx.accountName}</TableCell>
-                                        <TableCell className="text-right font-mono">{tx.amount > 0 ? formatPrice(tx.amount) : ''}</TableCell>
-                                        <TableCell className="text-right font-mono">{tx.amount < 0 ? formatPrice(-tx.amount) : ''}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                             <TableFooter>
-                                <TableRow>
-                                    <TableCell colSpan={3} className="font-bold">Totals</TableCell>
-                                    <TableCell className="text-right font-bold font-mono">{formatPrice(group.debit)}</TableCell>
-                                    <TableCell className="text-right font-bold font-mono">{formatPrice(group.credit)}</TableCell>
-                                </TableRow>
-                             </TableFooter>
-                        </Table>
-                    </CardContent>
-                </Card>
-            ))}
-        </div>
+        <Card>
+            <CardHeader>
+                <CardTitle>Ledger for: {account.description}</CardTitle>
+                 <Button onClick={handleDownloadExcel} size="sm" variant="outline" className="ml-auto">
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Excel
+                </Button>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead className="text-right">Debit</TableHead>
+                            <TableHead className="text-right">Credit</TableHead>
+                            <TableHead className="text-right">Balance</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {ledgerEntries.map(tx => (
+                            <TableRow key={tx.id}>
+                                <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                <TableCell>{tx.reference}</TableCell>
+                                <TableCell>{tx.description}</TableCell>
+                                <TableCell className="text-right font-mono">{tx.displayAmount > 0 ? formatPrice(tx.displayAmount) : ''}</TableCell>
+                                <TableCell className="text-right font-mono">{tx.displayAmount < 0 ? formatPrice(-tx.displayAmount) : ''}</TableCell>
+                                <TableCell className="text-right font-mono">{formatPrice(tx.balance)}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                    <TableFooter>
+                        <TableRow>
+                            <TableCell colSpan={3} className="font-bold">Closing Balance</TableCell>
+                            <TableCell colSpan={3} className="text-right font-bold font-mono">{formatPrice(ledgerEntries[ledgerEntries.length-1]?.balance || 0)}</TableCell>
+                        </TableRow>
+                    </TableFooter>
+                </Table>
+            </CardContent>
+        </Card>
     );
 }
 
@@ -128,6 +127,7 @@ export default function GeneralLedgerReconPage() {
     const [client, setClient] = useState<User | null>(null);
     const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isFetchingTransactions, setIsFetchingTransactions] = useState(false);
     const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
     const [isReportVisible, setIsReportVisible] = useState(false);
     
@@ -150,25 +150,33 @@ export default function GeneralLedgerReconPage() {
         fetchInitialData();
     }, [clientId]);
 
-    const accountTransactions = useMemo(() => {
-        if (!selectedAccountId) return [];
-        return transactions.filter(tx => tx.allocatedTo?.value === selectedAccountId);
-    }, [transactions, selectedAccountId]);
-    
     const accounts = useMemo(() => client?.chartOfAccounts?.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)) || [], [client]);
+    const selectedAccount = useMemo(() => accounts.find(acc => acc.id === selectedAccountId), [accounts, selectedAccountId]);
     
     const handleViewReport = () => {
         if(!selectedAccountId) return;
         
-        setIsLoading(true);
-         const transUnsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('allocatedTo.value', '==', selectedAccountId)), snapshot => {
-            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
-            setTransactions(fetched);
-            setIsReportVisible(true);
-            setIsLoading(false);
-        });
+        setIsFetchingTransactions(true);
+        setIsReportVisible(false); // Hide old report while fetching
+
+        const bankTxQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('bankAccountId', '==', selectedAccountId));
+        const allocatedTxQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('allocatedTo.value', '==', selectedAccountId));
         
-        return () => transUnsubscribe();
+        Promise.all([getDocs(bankTxQuery), getDocs(allocatedTxQuery)])
+            .then(([bankSnap, allocatedSnap]) => {
+                const combined = new Map<string, ImportedTransaction | AllocatedTransaction>();
+                bankSnap.forEach(doc => combined.set(doc.id, { id: doc.id, ...doc.data() } as ImportedTransaction));
+                allocatedSnap.forEach(doc => combined.set(doc.id, { id: doc.id, ...doc.data() } as AllocatedTransaction));
+                
+                setTransactions(Array.from(combined.values()));
+                setIsReportVisible(true);
+            })
+            .catch(error => {
+                console.error("Error fetching transactions for reconciliation:", error);
+            })
+            .finally(() => {
+                setIsFetchingTransactions(false);
+            });
     }
     
     return (
@@ -176,7 +184,7 @@ export default function GeneralLedgerReconPage() {
              <Card>
                 <CardHeader>
                     <CardTitle>General Ledger Reconciliation</CardTitle>
-                    <CardDescription>Select an account to view and reconcile transactions, highlighting any imbalances.</CardDescription>
+                    <CardDescription>Select an account to view its transaction ledger and running balance.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div className="flex flex-col sm:flex-row items-end gap-4">
@@ -199,17 +207,19 @@ export default function GeneralLedgerReconPage() {
                                     </SelectContent>
                                 </Select>
                         </div>
-                        <Button onClick={handleViewReport} disabled={isLoading || !selectedAccountId}>
-                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4"/>}
-                            View Reconciliation
+                        <Button onClick={handleViewReport} disabled={isFetchingTransactions || !selectedAccountId}>
+                            {isFetchingTransactions ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4"/>}
+                            View Ledger
                         </Button>
                     </div>
                 </CardContent>
             </Card>
 
-            {isReportVisible && (
-                <UnbalancedTransactionsView transactions={transactions} accounts={accounts} />
+            {isReportVisible && selectedAccount && (
+                <AccountLedgerView transactions={transactions} account={selectedAccount} />
             )}
         </div>
     );
 }
+
+    
