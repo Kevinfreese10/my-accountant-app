@@ -311,11 +311,11 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
     const SearchResultsView = () => {
         const [reallocateTo, setReallocateTo] = useState<{accountId: string, vatType: string} | null>(null);
-        const [open, setOpen] = React.useState(false)
+        const [open, setOpen] = useState(false)
 
         return (
             <div>
-                <div className="flex justify-between items-center p-2 bg-muted rounded-t-lg">
+                 <div className="flex justify-between items-center p-2 bg-muted rounded-t-lg">
                     <p className="text-sm font-semibold">{filteredTransactions.length} transaction(s) found for "{searchTerm}"</p>
                     {selectedTxIds.length > 0 && (
                         <Popover>
@@ -329,9 +329,6 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                         <p className="text-sm text-muted-foreground">Choose a new account and VAT type.</p>
                                     </div>
                                     <div className="grid gap-4">
-                                        <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId} className="w-full">
-                                            Apply Reallocation
-                                        </Button>
                                          <div className="grid gap-2">
                                             <Label>New Account</Label>
                                             <Popover open={open} onOpenChange={setOpen}>
@@ -370,6 +367,9 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                                 <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
                                             </Select>
                                         </div>
+                                        <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId} className="w-full">
+                                            Apply Reallocation
+                                        </Button>
                                     </div>
                                 </div>
                             </PopoverContent>
