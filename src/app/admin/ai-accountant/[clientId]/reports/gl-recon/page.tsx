@@ -15,6 +15,8 @@ import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from "@/components/ui/command";
+import { Badge } from "@/components/ui/badge";
+
 
 const db = getFirestore(firebaseApp);
 
