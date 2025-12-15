@@ -208,7 +208,8 @@ export default function GeneralJournalsPage() {
             const journalsQuery = query(
                 collection(db, 'aiAccountantClients', clientId, 'transactions'),
                 where('bankAccountId', '==', 'JOURNAL'),
-                orderBy('date', 'desc')
+                orderBy('date', 'desc'),
+                orderBy('reference', 'asc') // Add secondary sort
             );
             const journalsSnapshot = await getDocs(journalsQuery);
             const journals = journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction);
@@ -232,6 +233,7 @@ export default function GeneralJournalsPage() {
         
         try {
             const batch = writeBatch(db);
+            const journalTimestamp = Timestamp.now(); // Use a single timestamp for the whole journal
 
             // If we are editing, delete the old journal entries first
             if(editingJournalRef) {
@@ -256,7 +258,7 @@ export default function GeneralJournalsPage() {
                         allocatedTo: { value: line.accountId, type: 'account' },
                         vatType: 'no_vat',
                         status: 'allocated',
-                        allocatedAt: new Date(),
+                        allocatedAt: journalTimestamp, // Use the same timestamp for all lines in this journal
                     });
                 }
             });
@@ -302,10 +304,15 @@ export default function GeneralJournalsPage() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     
-    const handleDeleteJournal = async (journalReference: string) => {
+    const handleDeleteJournal = async (journalReference: string, journalDate: string) => {
       if (!client) return;
       
-      const q = query(collection(db, "aiAccountantClients", client.id, "transactions"), where("reference", "==", journalReference));
+      const q = query(
+          collection(db, "aiAccountantClients", client.id, "transactions"), 
+          where("reference", "==", journalReference),
+          where("allocatedAt", "==", Timestamp.fromDate(new Date(journalDate)))
+        );
+
       const journalsToDeleteSnapshot = await getDocs(q);
 
       if (journalsToDeleteSnapshot.empty) {
@@ -336,10 +343,14 @@ export default function GeneralJournalsPage() {
             if (tx.allocatedTo?.value !== customerControlAccount &&
                 tx.allocatedTo?.value !== supplierControlAccount &&
                 !tx.reference.startsWith('TAX-')) {
-                if (!grouped.has(tx.reference)) {
-                    grouped.set(tx.reference, []);
+                
+                // Create a unique key for each batch using reference and exact timestamp
+                const uniqueKey = `${tx.reference}-${tx.allocatedAt.seconds}-${tx.allocatedAt.nanoseconds}`;
+
+                if (!grouped.has(uniqueKey)) {
+                    grouped.set(uniqueKey, []);
                 }
-                grouped.get(tx.reference)?.push(tx);
+                grouped.get(uniqueKey)?.push(tx);
             }
         });
         return grouped;
@@ -349,10 +360,11 @@ export default function GeneralJournalsPage() {
         const grouped = new Map<string, AllocatedTransaction[]>();
         allJournals.forEach(tx => {
             if (tx.reference.startsWith('TAX-')) {
-                if (!grouped.has(tx.reference)) {
-                    grouped.set(tx.reference, []);
+                 const uniqueKey = `${tx.reference}-${tx.allocatedAt.seconds}-${tx.allocatedAt.nanoseconds}`;
+                if (!grouped.has(uniqueKey)) {
+                    grouped.set(uniqueKey, []);
                 }
-                grouped.get(tx.reference)?.push(tx);
+                grouped.get(uniqueKey)?.push(tx);
             }
         });
         return grouped;
@@ -503,10 +515,13 @@ export default function GeneralJournalsPage() {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            Array.from(groupedTaxJournals.entries()).map(([ref, entries]) => (
-                                <TableRow key={ref}>
+                            Array.from(groupedTaxJournals.values()).map((entries) => {
+                                const journalRef = entries[0].reference;
+                                const journalDate = entries[0].allocatedAt.toDate().toISOString();
+                                return (
+                                <TableRow key={`${journalRef}-${journalDate}`}>
                                     <TableCell>{format(new Date(entries[0].date), 'dd/MM/yyyy')}</TableCell>
-                                    <TableCell>{ref}</TableCell>
+                                    <TableCell>{journalRef}</TableCell>
                                     <TableCell className="text-right">
                                          <DialogTrigger asChild>
                                             <Button variant="ghost" size="icon" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
@@ -518,17 +533,17 @@ export default function GeneralJournalsPage() {
                                             <AlertDialogContent>
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                    <AlertDialogDescription>This action will delete the entire journal entry ({ref}). This cannot be undone.</AlertDialogDescription>
+                                                    <AlertDialogDescription>This action will delete the entire journal entry ({journalRef}). This cannot be undone.</AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteJournal(ref)}>Delete</AlertDialogAction>
+                                                    <AlertDialogAction onClick={() => handleDeleteJournal(journalRef, journalDate)}>Delete</AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
                                         </AlertDialog>
                                     </TableCell>
                                 </TableRow>
-                            ))
+                            )})
                         )}
                     </TableBody>
                 </Table>
@@ -552,10 +567,13 @@ export default function GeneralJournalsPage() {
                         {Array.from(groupedGeneralJournals.entries()).length === 0 ? (
                             <TableRow><TableCell colSpan={3} className="text-center h-24 text-muted-foreground">No general journals have been posted yet.</TableCell></TableRow>
                         ) : (
-                            Array.from(groupedGeneralJournals.entries()).map(([ref, entries]) => (
-                                <TableRow key={ref}>
+                            Array.from(groupedGeneralJournals.values()).map((entries) => {
+                                const journalRef = entries[0].reference;
+                                const journalDate = entries[0].allocatedAt.toDate().toISOString();
+                                return (
+                                <TableRow key={`${journalRef}-${journalDate}`}>
                                     <TableCell>{format(new Date(entries[0].date), 'dd/MM/yyyy')}</TableCell>
-                                    <TableCell>{ref}</TableCell>
+                                    <TableCell>{journalRef}</TableCell>
                                     <TableCell className="text-right">
                                         <DialogTrigger asChild>
                                             <Button variant="ghost" size="icon" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
@@ -568,17 +586,17 @@ export default function GeneralJournalsPage() {
                                             <AlertDialogContent>
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                    <AlertDialogDescription>This action will delete the entire journal entry ({ref}). This cannot be undone.</AlertDialogDescription>
+                                                    <AlertDialogDescription>This action will delete the entire journal entry ({journalRef}). This cannot be undone.</AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteJournal(ref)}>Delete</AlertDialogAction>
+                                                    <AlertDialogAction onClick={() => handleDeleteJournal(journalRef, journalDate)}>Delete</AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
                                         </AlertDialog>
                                     </TableCell>
                                 </TableRow>
-                            ))
+                            )})
                         )}
                     </TableBody>
                 </Table>
