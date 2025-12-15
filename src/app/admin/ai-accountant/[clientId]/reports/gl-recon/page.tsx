@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, where, orderBy, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Scale, CheckCircle } from "lucide-react";
+import { Loader2, Download, Eye, Scale, CheckCircle, ChevronsUpDown } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { format } from 'date-fns';
@@ -16,6 +16,7 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@
 import * as XLSX from 'xlsx';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 
 const db = getFirestore(firebaseApp);
@@ -178,6 +179,7 @@ export default function GeneralLedgerReconPage() {
     const [isFetchingTransactions, setIsFetchingTransactions] = useState(false);
     const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
     const [isReportVisible, setIsReportVisible] = useState(false);
+    const [open, setOpen] = useState(false);
     
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -238,22 +240,41 @@ export default function GeneralLedgerReconPage() {
                      <div className="flex flex-col sm:flex-row items-end gap-4">
                          <div className="grid gap-1.5 flex-grow">
                              <Label>Account to Reconcile</Label>
-                                <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-                                    <SelectTrigger><SelectValue placeholder="Select an account..." /></SelectTrigger>
-                                    <SelectContent>
+                                 <Popover open={open} onOpenChange={setOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            aria-expanded={open}
+                                            className="w-full justify-between"
+                                        >
+                                            {selectedAccountId
+                                                ? accounts.find((acc) => acc.id === selectedAccountId)?.description
+                                                : "Select an account..."}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                         <Command>
                                             <CommandInput placeholder="Search account..." />
                                             <CommandList>
                                                 <CommandEmpty>No account found.</CommandEmpty>
                                                 {accounts.map(acc => (
-                                                     <CommandItem key={acc.id} onSelect={() => setSelectedAccountId(acc.id)}>
+                                                     <CommandItem
+                                                        key={acc.id}
+                                                        value={`${acc.accountNumber} - ${acc.description}`}
+                                                        onSelect={() => {
+                                                            setSelectedAccountId(acc.id)
+                                                            setOpen(false)
+                                                        }}
+                                                    >
                                                         {acc.accountNumber} - {acc.description}
                                                      </CommandItem>
                                                 ))}
                                             </CommandList>
                                         </Command>
-                                    </SelectContent>
-                                </Select>
+                                    </PopoverContent>
+                                </Popover>
                         </div>
                         <Button onClick={handleViewReport} disabled={isFetchingTransactions || !selectedAccountId}>
                             {isFetchingTransactions ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4"/>}
@@ -269,5 +290,3 @@ export default function GeneralLedgerReconPage() {
         </div>
     );
 }
-
-    
