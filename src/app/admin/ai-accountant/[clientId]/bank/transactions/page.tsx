@@ -955,7 +955,7 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
                 return parts.length > 1 ? parseInt(parts[1], 10) : 0;
             });
 
-            const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+            const nextNumber = existingBankAccounts.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
             const newAccountNumber = `8400-${String(nextNumber).padStart(3, '0')}`;
 
             const newAccount: ChartOfAccount = {
@@ -3816,3 +3816,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
