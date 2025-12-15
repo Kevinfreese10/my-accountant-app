@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Edit, Trash2 } from "lucide-react";
+import { Loader2, Download, Eye, Edit, Trash2, Search } from "lucide-react";
 import { useParams, useSearchParams } from 'next/navigation';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
@@ -24,6 +24,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { allVatTypes } from "@/lib/vat-types";
 import Link from "next/link";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from "@/components/ui/command";
 
 
 const db = getFirestore(firebaseApp);
@@ -121,20 +125,36 @@ function ReallocateDialog({ transaction, client, onSave, onOpenChange, open }: {
     );
 }
 
-function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, onReallocate, onDelete }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange, fromAccount?: string, toAccount?: string, onReallocate: (tx: any) => void, onDelete: (journalRef: string) => void }) {
+function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, searchTerm, onReallocate, onDelete, onBulkReallocate }: { 
+    client: User, 
+    transactions: (ImportedTransaction | AllocatedTransaction)[], 
+    dateRange?: DateRange, 
+    fromAccount?: string, 
+    toAccount?: string, 
+    searchTerm?: string,
+    onReallocate: (tx: any) => void, 
+    onDelete: (journalRef: string) => void,
+    onBulkReallocate: (txIds: string[], accountId: string, vatType: string) => Promise<void>;
+}) {
+    
+    const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
     
     const filteredTransactions = useMemo(() => {
-        if (!dateRange) return transactions;
-        
         let filtered = transactions;
-        if (dateRange.from) {
-            filtered = filtered.filter(tx => new Date(tx.date) >= dateRange.from!);
+        
+        if (searchTerm) {
+            filtered = filtered.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        } else if (dateRange) {
+             if (dateRange.from) {
+                filtered = filtered.filter(tx => new Date(tx.date) >= dateRange.from!);
+            }
+            if (dateRange.to) {
+                filtered = filtered.filter(tx => new Date(tx.date) <= dateRange.to!);
+            }
         }
-        if (dateRange.to) {
-            filtered = filtered.filter(tx => new Date(tx.date) <= dateRange.to!);
-        }
+        
         return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }, [transactions, dateRange]);
+    }, [transactions, dateRange, searchTerm]);
     
     const accountsToDisplay = useMemo(() => {
         let accounts = client.chartOfAccounts || [];
@@ -288,10 +308,83 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
         XLSX.writeFile(workbook, fileName);
     };
 
+    const SearchResultsView = () => {
+        const [reallocateTo, setReallocateTo] = useState<{accountId: string, vatType: string} | null>(null);
+
+        return (
+            <div>
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableCell className="w-12 p-2">
+                                <Checkbox
+                                    checked={selectedTxIds.length === filteredTransactions.length && filteredTransactions.length > 0}
+                                    onCheckedChange={(checked) => {
+                                        setSelectedTxIds(checked ? filteredTransactions.map(tx => tx.id) : []);
+                                    }}
+                                />
+                            </TableCell>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Account</TableHead>
+                            <TableHead>VAT</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredTransactions.map(tx => {
+                            const account = client.chartOfAccounts?.find(a => a.id === tx.allocatedTo?.value);
+                            return (
+                                <TableRow key={tx.id}>
+                                    <TableCell className="p-2"><Checkbox checked={selectedTxIds.includes(tx.id)} onCheckedChange={(checked) => setSelectedTxIds(prev => checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id))} /></TableCell>
+                                    <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                    <TableCell>{tx.description}</TableCell>
+                                    <TableCell>{account?.description || 'N/A'}</TableCell>
+                                    <TableCell>{tx.vatType || 'N/A'}</TableCell>
+                                    <TableCell className="text-right">{formatPrice(tx.amount)}</TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+                 <DialogFooter className="mt-4 gap-2">
+                    {selectedTxIds.length > 0 && (
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button>Reallocate {selectedTxIds.length} Selected</Button>
+                            </PopoverTrigger>
+                             <PopoverContent className="w-80">
+                                <div className="grid gap-4">
+                                    <div className="space-y-2">
+                                        <h4 className="font-medium leading-none">Reallocate Transactions</h4>
+                                        <p className="text-sm text-muted-foreground">Choose a new account and VAT type.</p>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>New Account</Label>
+                                         <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, accountId: val, vatType: prev?.vatType || 'no_vat'}))}>
+                                            <SelectTrigger><SelectValue placeholder="Select account..."/></SelectTrigger>
+                                            <SelectContent><Command><CommandInput placeholder="Search..."/><CommandList>{client.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setReallocateTo(prev => ({...prev, accountId: acc.id, vatType: prev?.vatType || 'no_vat'}))}><SelectItem value={acc.id}>{acc.description}</SelectItem></CommandItem>)}</CommandList></Command></SelectContent>
+                                        </Select>
+                                        <Label>New VAT Type</Label>
+                                        <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, vatType: val, accountId: prev?.accountId || ''}))}>
+                                            <SelectTrigger><SelectValue placeholder="Select VAT type..."/></SelectTrigger>
+                                            <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                        <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId}>Apply Reallocation</Button>
+                                    </div>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    )}
+                </DialogFooter>
+            </div>
+        )
+    }
+
     return (
         <>
             <div className="max-h-[70vh] overflow-y-auto space-y-6">
-                {groupedTransactions.map(group => (
+                {searchTerm ? <SearchResultsView /> : groupedTransactions.map(group => (
                     <div key={group.account.id}>
                         <h3 className="font-bold text-lg mb-2">{group.account.accountNumber} - {group.account.description}</h3>
                         <Table>
@@ -381,6 +474,7 @@ export default function GeneralLedgerPage() {
     const [isReallocateOpen, setIsReallocateOpen] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
     const { toast } = useToast();
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (accountIdFromQuery) {
@@ -429,7 +523,7 @@ export default function GeneralLedgerPage() {
     const handleSaveReallocation = async (txId: string, values: z.infer<typeof reallocateSchema>) => {
         if(!client) return;
         try {
-            const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+            const txRef = doc(db, 'aiAccountantClients', client.id!, 'transactions', txId);
             await updateDoc(txRef, {
                 'allocatedTo.value': values.accountId,
                 vatType: values.vatType,
@@ -466,7 +560,29 @@ export default function GeneralLedgerPage() {
       }
     };
 
+    const handleBulkReallocate = async (txIds: string[], accountId: string, vatType: string) => {
+        if (!client || txIds.length === 0) return;
+        toast({title: 'Bulk Reallocation Started', description: `Reallocating ${txIds.length} transactions.`});
+        try {
+            const batch = writeBatch(db);
+            txIds.forEach(id => {
+                const txRef = doc(db, 'aiAccountantClients', client.id!, 'transactions', id);
+                batch.update(txRef, {
+                    'allocatedTo.value': accountId,
+                    'vatType': vatType,
+                });
+            });
+            await batch.commit();
+            toast({title: 'Bulk Reallocation Successful'});
+            setIsReportOpen(false); // Close dialog on success
+        } catch (error) {
+            console.error("Error during bulk reallocation:", error);
+            toast({title: 'Bulk Reallocation Failed', variant: 'destructive'});
+        }
+    }
+
     const getReportDateString = () => {
+        if (searchTerm) return `for transactions matching "${searchTerm}"`;
         if (!dateRange || (!dateRange.from && !dateRange.to)) {
             return `as at ${format(new Date(), "dd MMMM yyyy")}`;
         }
@@ -488,7 +604,7 @@ export default function GeneralLedgerPage() {
                 <CardHeader>
                     <CardTitle>General Ledger Report</CardTitle>
                     <CardDescription>
-                        Filter and view the general ledger for a specific period.
+                        Filter and view the general ledger for a specific period, or search for transactions by description.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -514,6 +630,18 @@ export default function GeneralLedgerPage() {
                                 </Select>
                             </div>
                         </div>
+                        <div className="grid grid-cols-1 md:grid-cols-[150px_1fr] items-center gap-4">
+                            <Label>Search Description</Label>
+                            <div className="relative">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                    placeholder="Search transaction descriptions..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-8"
+                                />
+                            </div>
+                        </div>
                         <div className="flex justify-start pt-4">
                              {isLoading ? (
                                 <Loader2 className="animate-spin" />
@@ -535,8 +663,10 @@ export default function GeneralLedgerPage() {
                                             dateRange={dateRange} 
                                             fromAccount={fromAccount} 
                                             toAccount={toAccount}
+                                            searchTerm={searchTerm}
                                             onReallocate={handleReallocateClick}
                                             onDelete={handleDeleteJournal}
+                                            onBulkReallocate={handleBulkReallocate}
                                         />
                                     </DialogContent>
                                 </Dialog>
@@ -559,3 +689,4 @@ export default function GeneralLedgerPage() {
         </div>
     );
 }
+
