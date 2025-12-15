@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction } from "@/lib/types";
-import { getFirestore, doc, getDoc, collection, query, onSnapshot, where, orderBy } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, where, orderBy, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye, Scale } from "lucide-react";
 import { useParams } from 'next/navigation';
@@ -221,5 +221,6 @@ export default function GeneralLedgerReconPage() {
         </div>
     );
 }
+    
 
     
