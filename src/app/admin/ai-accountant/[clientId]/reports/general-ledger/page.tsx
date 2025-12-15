@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Edit, Trash2, Search, Link as LinkIcon, Scale } from "lucide-react";
+import { Loader2, Download, Eye, Edit, Trash2, Search, Link as LinkIcon, Scale, ChevronsUpDown } from "lucide-react";
 import { useParams, useSearchParams } from 'next/navigation';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
@@ -23,11 +23,12 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { allVatTypes } from "@/lib/vat-types";
 import Link from "next/link";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 
 const db = getFirestore(firebaseApp);
@@ -310,7 +311,8 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
     const SearchResultsView = () => {
         const [reallocateTo, setReallocateTo] = useState<{accountId: string, vatType: string} | null>(null);
-        
+        const [open, setOpen] = React.useState(false)
+
         return (
             <div>
                 <div className="flex justify-between items-center p-2 bg-muted rounded-t-lg">
@@ -320,31 +322,54 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                             <PopoverTrigger asChild>
                                 <Button size="sm">Reallocate {selectedTxIds.length} Selected</Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-80">
-                                <div className="grid gap-4">
+                            <PopoverContent className="w-80 p-4" align="end">
+                                 <div className="space-y-4">
                                     <div className="space-y-2">
                                         <h4 className="font-medium leading-none">Reallocate Transactions</h4>
                                         <p className="text-sm text-muted-foreground">Choose a new account and VAT type.</p>
                                     </div>
-                                    <div className="grid gap-2">
-                                        <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId} className="w-full mb-2">Apply Reallocation</Button>
-                                        <Label>New Account</Label>
-                                         <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, accountId: val, vatType: prev?.vatType || 'no_vat'}))}>
-                                            <SelectTrigger><SelectValue placeholder="Select account..."/></SelectTrigger>
-                                            <SelectContent>
-                                                <Command>
-                                                    <CommandInput placeholder="Search..." />
-                                                    <CommandList>
-                                                        {client.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setReallocateTo(prev => ({...prev, accountId: acc.id, vatType: prev?.vatType || 'no_vat'}))}>{acc.description}</CommandItem>)}
-                                                    </CommandList>
-                                                </Command>
-                                            </SelectContent>
-                                        </Select>
-                                        <Label>New VAT Type</Label>
-                                        <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, vatType: val, accountId: prev?.accountId || ''}))}>
-                                            <SelectTrigger><SelectValue placeholder="Select VAT type..."/></SelectTrigger>
-                                            <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
-                                        </Select>
+                                    <div className="grid gap-4">
+                                        <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId} className="w-full">
+                                            Apply Reallocation
+                                        </Button>
+                                         <div className="grid gap-2">
+                                            <Label>New Account</Label>
+                                            <Popover open={open} onOpenChange={setOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
+                                                        {reallocateTo?.accountId ? client.chartOfAccounts?.find(acc => acc.id === reallocateTo.accountId)?.description : "Select account..."}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                     <Command>
+                                                        <CommandInput placeholder="Search account..." />
+                                                        <CommandList>
+                                                        <CommandEmpty>No account found.</CommandEmpty>
+                                                        {client.chartOfAccounts?.map((acc) => (
+                                                            <CommandItem
+                                                                key={acc.id}
+                                                                value={acc.description}
+                                                                onSelect={() => {
+                                                                    setReallocateTo(prev => ({...prev!, accountId: acc.id}));
+                                                                    setOpen(false);
+                                                                }}
+                                                            >
+                                                            {acc.description}
+                                                            </CommandItem>
+                                                        ))}
+                                                        </CommandList>
+                                                    </Command>
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+                                         <div className="grid gap-2">
+                                            <Label>New VAT Type</Label>
+                                            <Select onValueChange={(val) => setReallocateTo(prev => ({...prev!, vatType: val}))}>
+                                                <SelectTrigger><SelectValue placeholder="Select VAT type..."/></SelectTrigger>
+                                                <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
                                 </div>
                             </PopoverContent>
