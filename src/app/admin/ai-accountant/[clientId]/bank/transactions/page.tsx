@@ -1227,6 +1227,7 @@ const NewTransactionsTab = React.forwardRef<
     const [showAll, setShowAll] = useState(false);
     const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
     const [isFetchingAll, setIsFetchingAll] = useState(false);
+    const [manualAllocateOpen, setManualAllocateOpen] = useState(false);
 
 
     type SortField = 'date' | 'description' | 'amount';
@@ -1999,51 +2000,66 @@ const NewTransactionsTab = React.forwardRef<
                                 <DropdownMenuItem onSelect={() => setIsAiSelectedDialogOpen(true)}>
                                     <Sparkles className="mr-2 h-4 w-4" /> AI Allocate Selected
                                 </DropdownMenuItem>
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Manual Allocate</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent className="p-0">
+                                
+                                <Popover open={manualAllocateOpen} onOpenChange={setManualAllocateOpen}>
+                                    <PopoverTrigger asChild>
+                                        <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50">
+                                            Manual Allocate
+                                            <ChevronRight className="ml-auto h-4 w-4" />
+                                        </div>
+                                    </PopoverTrigger>
+                                    <PopoverContent side="right" align="start" className="p-0">
                                         <Command>
                                             <CommandInput placeholder="Search..." autoFocus />
                                             <CommandList>
                                                 <ScrollArea className="h-72">
-                                                <CommandEmpty>No results found.</CommandEmpty>
-                                                <CommandGroup>
-                                                    <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-                                                </CommandGroup>
-                                                {activeSubTab === 'income' && customers.length > 0 && (
-                                                    <CommandGroup heading="Customers">
-                                                    {customers.map(c => (
-                                                        <CommandItem key={c.id} value={c.name} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                        {c.name}
-                                                        </CommandItem>
-                                                    ))}
+                                                    <CommandEmpty>No results found.</CommandEmpty>
+                                                    <CommandGroup>
+                                                        <CommandItem onSelect={() => { setIsCreateGeneralAccountOpen(true); setManualAllocateOpen(false); }} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
                                                     </CommandGroup>
-                                                )}
-                                                <CommandGroup heading="Accounts">
-                                                    {client?.chartOfAccounts?.map(acc => (
-                                                        <DropdownMenuSub key={acc.id}>
-                                                            <DropdownMenuSubTrigger asChild>
-                                                                <CommandItem value={acc.description} onSelect={(e) => e.preventDefault()}><span>{acc.description}</span></CommandItem>
-                                                            </DropdownMenuSubTrigger>
-                                                            <DropdownMenuSubContent>
-                                                                {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                                        {vat.label}
-                                                                    </DropdownMenuItem>
-                                                                )) : (
-                                                                    <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                                        No VAT
-                                                                    </DropdownMenuItem>
-                                                                )}
-                                                            </DropdownMenuSubContent>
-                                                        </DropdownMenuSub>
-                                                    ))}
-                                                </CommandGroup>
+                                                    {activeSubTab === 'income' && customers.length > 0 && (
+                                                        <CommandGroup heading="Customers">
+                                                            {customers.map(c => (
+                                                                <CommandItem key={c.id} value={c.name} onSelect={() => { handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat'); setManualAllocateOpen(false); }}>
+                                                                    {c.name}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                    )}
+                                                    <CommandGroup heading="Accounts">
+                                                        {client?.chartOfAccounts?.map(acc => (
+                                                            <Popover key={acc.id}>
+                                                                <PopoverTrigger asChild>
+                                                                    <CommandItem value={acc.description} onSelect={(e) => e.preventDefault()} className="flex justify-between">
+                                                                        <span>{acc.description}</span>
+                                                                        <ChevronRight className="h-4 w-4" />
+                                                                    </CommandItem>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent side="right" align="start">
+                                                                     {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                                        <div key={vat.name}
+                                                                            onClick={() => { handleBulkAllocate({value: acc.id, type: 'account'}, vat.name); setManualAllocateOpen(false); }}
+                                                                            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                                                        >
+                                                                            {vat.label}
+                                                                        </div>
+                                                                    )) : (
+                                                                        <div onClick={() => { handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat'); setManualAllocateOpen(false); }}
+                                                                            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                                                        >
+                                                                            No VAT
+                                                                        </div>
+                                                                    )}
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                        ))}
+                                                    </CommandGroup>
                                                 </ScrollArea>
                                             </CommandList>
                                         </Command>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
+                                    </PopoverContent>
+                                </Popover>
+
                                 <DropdownMenuSeparator />
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
