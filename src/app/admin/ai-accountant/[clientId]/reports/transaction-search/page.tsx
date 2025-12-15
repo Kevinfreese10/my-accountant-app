@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
-import { getFirestore, doc, getDoc, collection, getDocs, query, where, updateDoc, writeBatch } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, where, updateDoc, writeBatch, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye, Edit, Trash2, Search, Link as LinkIcon, Scale, ChevronsUpDown } from "lucide-react";
 import { useParams, useSearchParams } from 'next/navigation';
