@@ -38,7 +38,6 @@ const reallocateSchema = z.object({
 });
 
 const formatPrice = (price: number) => {
-    if (price === 0) return '';
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
@@ -291,7 +290,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
         worksheet['!cols'] = [{ wch: 12 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
         
         Object.keys(worksheet).forEach(key => {
-            if (key.startsWith('C') || key.startsWith('D') || key.startsWith('E')) {
+            if (/[C-E]\d+/.test(key)) {
                 const cell = worksheet[key];
                 if (cell.v !== null && typeof cell.v === 'number') {
                     cell.t = 'n';
@@ -313,6 +312,36 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
         return (
             <div>
+                 <div className="flex justify-end p-2">
+                    {selectedTxIds.length > 0 && (
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button>Reallocate {selectedTxIds.length} Selected</Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80">
+                                <div className="grid gap-4">
+                                    <div className="space-y-2">
+                                        <h4 className="font-medium leading-none">Reallocate Transactions</h4>
+                                        <p className="text-sm text-muted-foreground">Choose a new account and VAT type.</p>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId}>Apply Reallocation</Button>
+                                        <Label>New Account</Label>
+                                         <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, accountId: val, vatType: prev?.vatType || 'no_vat'}))}>
+                                            <SelectTrigger><SelectValue placeholder="Select account..."/></SelectTrigger>
+                                            <SelectContent><Command><CommandInput placeholder="Search..."/><CommandList>{client.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setReallocateTo(prev => ({...prev, accountId: acc.id, vatType: prev?.vatType || 'no_vat'}))}><SelectItem value={acc.id}>{acc.description}</SelectItem></CommandItem>)}</CommandList></Command></SelectContent>
+                                        </Select>
+                                        <Label>New VAT Type</Label>
+                                        <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, vatType: val, accountId: prev?.accountId || ''}))}>
+                                            <SelectTrigger><SelectValue placeholder="Select VAT type..."/></SelectTrigger>
+                                            <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    )}
+                 </div>
                  <Table>
                     <TableHeader>
                         <TableRow>
@@ -347,39 +376,11 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                         })}
                     </TableBody>
                 </Table>
-                 <DialogFooter className="mt-4 gap-2 flex justify-between">
+                 <DialogFooter className="mt-4 gap-2 flex justify-start">
                      <Button variant="outline" onClick={handleDownloadExcel}>
                         <Download className="mr-2 h-4 w-4" />
                         Download Excel
                     </Button>
-                    {selectedTxIds.length > 0 && (
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button>Reallocate {selectedTxIds.length} Selected</Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-80">
-                                <div className="grid gap-4">
-                                    <div className="space-y-2">
-                                        <h4 className="font-medium leading-none">Reallocate Transactions</h4>
-                                        <p className="text-sm text-muted-foreground">Choose a new account and VAT type.</p>
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label>New Account</Label>
-                                         <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, accountId: val, vatType: prev?.vatType || 'no_vat'}))}>
-                                            <SelectTrigger><SelectValue placeholder="Select account..."/></SelectTrigger>
-                                            <SelectContent><Command><CommandInput placeholder="Search..."/><CommandList>{client.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setReallocateTo(prev => ({...prev, accountId: acc.id, vatType: prev?.vatType || 'no_vat'}))}><SelectItem value={acc.id}>{acc.description}</SelectItem></CommandItem>)}</CommandList></Command></SelectContent>
-                                        </Select>
-                                        <Label>New VAT Type</Label>
-                                        <Select onValueChange={(val) => setReallocateTo(prev => ({...prev, vatType: val, accountId: prev?.accountId || ''}))}>
-                                            <SelectTrigger><SelectValue placeholder="Select VAT type..."/></SelectTrigger>
-                                            <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
-                                        </Select>
-                                        <Button onClick={() => onBulkReallocate(selectedTxIds, reallocateTo!.accountId, reallocateTo!.vatType)} disabled={!reallocateTo || !reallocateTo.accountId}>Apply Reallocation</Button>
-                                    </div>
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                    )}
                 </DialogFooter>
             </div>
         )
@@ -693,4 +694,3 @@ export default function GeneralLedgerPage() {
         </div>
     );
 }
-

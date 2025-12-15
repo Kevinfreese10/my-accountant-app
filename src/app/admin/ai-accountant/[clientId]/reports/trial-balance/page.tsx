@@ -37,7 +37,6 @@ import Link from "next/link";
 const db = getFirestore(firebaseApp);
 
 const formatPrice = (price: number) => {
-    if (price === 0) return '';
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
@@ -215,18 +214,14 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
                                 <TableRow key={item.id}>
                                     <TableCell>{item.accountNumber} - {item.description}</TableCell>
                                     <TableCell className="text-right font-mono">
-                                        {debitAmount > 0 ? (
-                                            <Link href={`/admin/ai-accountant/${client.id}/reports/general-ledger?accountId=${item.id}`} className="hover:underline text-blue-600">
-                                                {formatPrice(debitAmount)}
-                                            </Link>
-                                        ) : ''}
+                                        <Link href={`/admin/ai-accountant/${client.id}/reports/general-ledger?accountId=${item.id}`} className="hover:underline text-blue-600">
+                                            {formatPrice(debitAmount)}
+                                        </Link>
                                     </TableCell>
                                     <TableCell className="text-right font-mono">
-                                        {creditAmount > 0 ? (
-                                             <Link href={`/admin/ai-accountant/${client.id}/reports/general-ledger?accountId=${item.id}`} className="hover:underline text-blue-600">
-                                                {formatPrice(creditAmount)}
-                                            </Link>
-                                        ) : ''}
+                                         <Link href={`/admin/ai-accountant/${client.id}/reports/general-ledger?accountId=${item.id}`} className="hover:underline text-blue-600">
+                                            {formatPrice(creditAmount)}
+                                        </Link>
                                     </TableCell>
                                 </TableRow>
                             )
