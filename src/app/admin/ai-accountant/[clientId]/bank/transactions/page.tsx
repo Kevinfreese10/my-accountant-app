@@ -2023,7 +2023,7 @@ const NewTransactionsTab = React.forwardRef<
                                                     {client?.chartOfAccounts?.map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
                                                             <DropdownMenuSubTrigger asChild>
-                                                                <CommandItem value={acc.description} onSelect={(e) => e.preventDefault()}>{acc.description}</CommandItem>
+                                                                <CommandItem value={acc.description} onSelect={(e) => e.preventDefault()}><span>{acc.description}</span></CommandItem>
                                                             </DropdownMenuSubTrigger>
                                                             <DropdownMenuSubContent>
                                                                 {client?.isVatRegistered ? allVatTypes.map(vat => (
@@ -2897,7 +2897,7 @@ const ReviewedTab = React.forwardRef<
                                                     <CommandGroup heading="Accounts">
                                                     {uniqueChartOfAccounts.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
-                                                            <DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubTrigger asChild>
                                                                 <span>{acc.description}</span>
                                                             </DropdownMenuSubTrigger>
                                                             <DropdownMenuSubContent>
