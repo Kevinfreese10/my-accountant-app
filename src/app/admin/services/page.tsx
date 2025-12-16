@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Loader2, Clock, Copy, Info } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, Clock, Copy, Info, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
@@ -227,12 +227,39 @@ export default function AdminServicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredServices.map(service => (
+              {filteredServices.map(service => {
+                const missingSchemaFields: string[] = [];
+                if (!service.title) missingSchemaFields.push('Title');
+                if (!service.description) missingSchemaFields.push('Description');
+                if (!service.longDescription) missingSchemaFields.push('Long Description');
+                if (!service.price || service.price <= 0) missingSchemaFields.push('Price');
+                if (!service.imageUrl) missingSchemaFields.push('Image URL');
+
+                return (
                 <TableRow key={service.id}>
                    <TableCell>
                       <Image src={service.imageUrl} alt={service.title} width={40} height={40} className="rounded-md object-cover" />
                   </TableCell>
-                  <TableCell className="font-medium">{service.title}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <span>{service.title}</span>
+                      {missingSchemaFields.length > 0 && (
+                          <TooltipProvider>
+                              <Tooltip>
+                                  <TooltipTrigger>
+                                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                      <p className="font-semibold">Missing Schema Info:</p>
+                                      <ul className="list-disc pl-4 text-xs">
+                                          {missingSchemaFields.map(field => <li key={field}>{field}</li>)}
+                                      </ul>
+                                  </TooltipContent>
+                              </Tooltip>
+                          </TooltipProvider>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                       {service.informationToProvide && service.informationToProvide.length > 0 ? (
                         <TooltipProvider>
@@ -323,7 +350,7 @@ export default function AdminServicesPage() {
                     </Dialog>
                   </TableCell>
                 </TableRow>
-              ))}
+              )})}
             </TableBody>
           </Table>
           )}
