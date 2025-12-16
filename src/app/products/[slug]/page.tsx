@@ -126,23 +126,6 @@ export default async function ProductDetailPage({ params }: Props) {
         }
       }
     },
-    aggregateRating: {
-        '@type': 'AggregateRating',
-        ratingValue: '5',
-        reviewCount: '1'
-    },
-    review: {
-        '@type': 'Review',
-        reviewRating: {
-          '@type': 'Rating',
-          ratingValue: '5'
-        },
-        author: {
-          '@type': 'Person',
-          name: 'Satisfied Client'
-        },
-        reviewBody: 'Excellent and fast service. Highly recommended!'
-      },
   };
 
   return (
