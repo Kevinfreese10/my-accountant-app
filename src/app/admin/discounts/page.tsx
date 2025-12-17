@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DiscountCode } from '@/lib/types';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, serverTimestamp, query, orderBy, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -76,7 +75,16 @@ export default function AdminDiscountsPage() {
     try {
         const q = query(collection(db, "discounts"), orderBy("createdAt", "desc"));
         const querySnapshot = await getDocs(q);
-        const fetchedDiscounts = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as DiscountCode));
+        const fetchedDiscounts = querySnapshot.docs.map(docSnap => {
+            const docData = docSnap.data();
+            const createdAt = docData.createdAt;
+            return { 
+                ...docData, 
+                id: docSnap.id,
+                createdAt: createdAt instanceof Timestamp ? createdAt.toDate().toISOString() : createdAt,
+                usedAt: docData.usedAt instanceof Timestamp ? docData.usedAt.toDate().toISOString() : docData.usedAt,
+            } as DiscountCode;
+        });
         setDiscounts(fetchedDiscounts);
     } catch (error) {
         console.error("Error fetching discounts:", error);
@@ -132,10 +140,12 @@ export default function AdminDiscountsPage() {
 
   const formatDate = (timestamp: any): string => {
     if (!timestamp) return 'N/A';
-    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
-        return format(timestamp.toDate(), 'dd/MM/yyyy, HH:mm');
+    // The timestamp should be a string now, so we can parse it
+    try {
+        return format(new Date(timestamp), 'dd/MM/yyyy, HH:mm');
+    } catch {
+        return 'Invalid Date';
     }
-    return format(new Date(timestamp), 'dd/MM/yyyy, HH:mm');
   };
 
   return (
