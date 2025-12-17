@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -71,7 +70,7 @@ export default function OutsourcedOrdersPage() {
           return {
             ...data,
             id: doc.id,
-            date: data.date.toDate(),
+            date: data.date.toDate().toISOString(),
           } as Order;
         });
         
@@ -123,7 +122,7 @@ export default function OutsourcedOrdersPage() {
         <CardHeader>
           <CardTitle>Order History</CardTitle>
           <CardDescription>
-            These are the orders you have outsourced to My Accountant for fulfillment.
+            These are the orders you have sent to My Accountant for fulfillment.
           </CardDescription>
         </CardHeader>
         <CardContent>

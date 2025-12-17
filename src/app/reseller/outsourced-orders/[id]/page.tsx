@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -58,8 +57,8 @@ export default function ResellerOutsourcedOrderDetailsPage() {
           const fetchedOrder = {
             ...data,
             id: docSnap.id,
-            date: data.date.toDate(),
-            notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
+            date: data.date.toDate().toISOString(),
+            notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate().toISOString()})),
           } as Order;
           setOrder(fetchedOrder);
           
@@ -134,7 +133,7 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                     <CardHeader>
                         <CardTitle>Order {order.id}</CardTitle>
                         <CardDescription>
-                        Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                        Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
                         </CardDescription>
                     </CardHeader>
                     <CardContent>

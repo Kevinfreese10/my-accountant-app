@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -109,7 +108,7 @@ export default function ResellerOrdersPage() {
           return {
             ...data,
             id: doc.id,
-            date: data.date.toDate(),
+            date: data.date.toDate().toISOString(),
           } as Order;
         });
         
@@ -145,7 +144,7 @@ export default function ResellerOrdersPage() {
     if (user) {
         fetchOrdersAndStaff();
     }
-  }, [user]);
+  }, [user, toast]);
 
     const handleOutsource = async (orderToOutsource: Order) => {
         if (!user) return;

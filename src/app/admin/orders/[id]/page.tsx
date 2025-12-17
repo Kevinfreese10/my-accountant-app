@@ -84,7 +84,7 @@ function BackendSummaryModal({ order }: { order: Order }) {
                     Status: <Badge variant={log.status === 'Success' ? 'success' : 'destructive'}>{log.status}</Badge>
                   </span>
                    <span className="text-xs font-normal text-muted-foreground">
-                    {log.receivedAt ? format(log.receivedAt.toDate(), 'dd/MM/yyyy, HH:mm:ss') : 'N/A'}
+                    {log.receivedAt ? format(new Date(log.receivedAt), 'dd/MM/yyyy, HH:mm:ss') : 'N/A'}
                   </span>
                 </CardTitle>
                 <CardDescription className="pt-2">{log.message}</CardDescription>
@@ -261,13 +261,13 @@ export default function AdminOrderDetailsPage() {
         
         if (docSnap.exists()) {
           const data = docSnap.data();
-          let fetchedOrder = {
+          let fetchedOrder: Order = {
             ...data,
             id: docSnap.id,
-            date: data.date.toDate(),
-            notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
-            documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt.toDate()})),
-            itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt.toDate() })),
+            date: data.date?.toDate ? data.date.toDate().toISOString() : new Date().toISOString(),
+            notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate().toISOString() : new Date().toISOString()})),
+            documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt?.toDate ? doc.uploadedAt.toDate().toISOString() : new Date().toISOString()})),
+            itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt?.toDate ? log.receivedAt.toDate().toISOString() : new Date().toISOString() })),
           } as Order;
           
           if (fetchedOrder.resellerId && !fetchedOrder.endCustomerEmail) {
@@ -529,7 +529,7 @@ export default function AdminOrderDetailsPage() {
   }
   
   const isOutsourced = !!order.resellerId;
-  const resellerDetails = isOutsourced ? allStaff.find(s => s.uid === order.resellerId) : null;
+  const resellerDetails = isOutsourced ? allStaff.find(u => u.uid === order.resellerId) : null;
   const contactIsClient = isOutsourced && order.documentContact === 'client';
   
   const contactName = contactIsClient ? order.endCustomerName : (isOutsourced ? resellerDetails?.companyName || resellerDetails?.name : order.customerName);

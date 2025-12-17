@@ -101,9 +101,12 @@ export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: Docume
                     Hi {order.customerName},
                 </Text>
                 <Text style={paragraph}>
-                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some
-                    information from you. A consultant will be in touch with you shortly to request the relevant information.
+                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, please log in to your dashboard to securely upload the required documents.
                 </Text>
+                
+                <Button style={button} href={`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${order.id}`}>
+                    Go to My Order
+                </Button>
                 
                 <Hr style={hr} />
                 

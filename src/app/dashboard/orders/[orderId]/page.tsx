@@ -81,9 +81,9 @@ export default function ClientOrderDetailsPage() {
           setOrder({
             ...data,
             id: docSnap.id,
-            date: data.date.toDate(),
-            notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
-            documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt.toDate()})),
+            date: data.date?.toDate ? data.date.toDate().toISOString() : new Date().toISOString(),
+            notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate().toISOString() : new Date().toISOString()})),
+            documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt?.toDate ? doc.uploadedAt.toDate().toISOString() : new Date().toISOString()})),
           } as Order);
         } else {
           notFound();

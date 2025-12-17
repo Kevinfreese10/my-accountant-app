@@ -32,7 +32,7 @@ export default function DashboardPage() {
                     return {
                         ...data,
                         id: doc.id,
-                        date: data.date.toDate(),
+                        date: data.date.toDate().toISOString(),
                     } as Order;
                 });
                 setOrders(fetchedOrders);
@@ -96,7 +96,7 @@ export default function DashboardPage() {
                                 {orders.map(order => (
                                     <TableRow key={order.id}>
                                         <TableCell className="font-medium">{order.id}</TableCell>
-                                        <TableCell>{format(order.date, 'dd MMMM yyyy')}</TableCell>
+                                        <TableCell>{format(new Date(order.date), 'dd MMMM yyyy')}</TableCell>
                                         <TableCell>
                                             <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
                                         </TableCell>

@@ -33,7 +33,11 @@ export default function PaymentSuccessPage() {
 
             const unsubscribe = onSnapshot(orderRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    const orderData = { ...docSnap.data(), id: docSnap.id } as Order;
+                    const orderData = { 
+                        ...docSnap.data(), 
+                        id: docSnap.id,
+                        date: docSnap.data().date.toDate().toISOString()
+                    } as Order;
                     setOrder(orderData);
                     
                     if (orderData.status === 'Processing' || orderData.status === 'Completed') {
@@ -124,7 +128,7 @@ export default function PaymentSuccessPage() {
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Order Date:</span>
-                                <span>{new Date(order.date.seconds * 1000).toLocaleDateString()}</span>
+                                <span>{new Date(order.date).toLocaleDateString()}</span>
                             </div>
                             <Separator />
                             {order.items.map((item, index) => (

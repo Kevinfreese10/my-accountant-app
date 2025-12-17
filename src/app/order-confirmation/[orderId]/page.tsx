@@ -33,7 +33,12 @@ export default function OrderConfirmationPage() {
                 const orderRef = doc(db, 'orders', orderId);
                 const orderSnap = await getDoc(orderRef);
                 if (orderSnap.exists()) {
-                    setOrder({ ...orderSnap.data(), id: orderSnap.id } as Order);
+                    const data = orderSnap.data();
+                    setOrder({ 
+                        ...data, 
+                        id: orderSnap.id,
+                        date: data.date.toDate().toISOString()
+                    } as Order);
                 } else {
                     notFound();
                 }
