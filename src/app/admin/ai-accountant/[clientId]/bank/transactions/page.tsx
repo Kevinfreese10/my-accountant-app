@@ -43,7 +43,6 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandG
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths, isSameMonth, addDays, differenceInDays, isAfter, subDays, startOfDay, endOfDay } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { requestMissingStatements } from '@/app/actions';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
 import { DateRangePicker, type DateRange } from '@/components/ui/date-range-picker';
@@ -112,16 +111,14 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         const selectedFiles = e.target.files;
         if (selectedFiles && selectedFiles.length > 0) {
             const newFiles = Array.from(selectedFiles);
+            let updatedFiles;
             if (append) {
-                // Combine and remove duplicates based on file name
                 const combined = [...files, ...newFiles];
-                const uniqueFiles = combined.filter((file, index, self) =>
+                updatedFiles = combined.filter((file, index, self) =>
                     index === self.findIndex((f) => f.name === file.name)
                 );
-                setFiles(uniqueFiles);
             } else {
-                setFiles(newFiles);
-                // Reset states for a new upload batch
+                updatedFiles = newFiles;
                 setPeriodAnalysis([]);
                 setMissingPeriods([]);
                 setExtractedTransactions([]);
@@ -130,11 +127,12 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 setPotentialAllocations(0);
                 setEditableOpeningBalance(0);
             }
+            setFiles(updatedFiles);
         }
     };
     
     useEffect(() => {
-        if (files.length > 0 && !isAnalyzing && periodAnalysis.length === 0) {
+        if (files.length > 0) {
             handlePeriodAnalysis();
         }
     }, [files]);
@@ -397,24 +395,6 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         }
     };
     
-    const handleRequestStatements = async () => {
-        if (!client || !client.email || missingPeriods.length === 0) {
-            toast({ title: "Cannot Send Request", description: "Client email or missing periods are not defined.", variant: "destructive"});
-            return;
-        }
-        toast({ title: "Sending Request...", description: `Emailing ${client.name} for missing statements.` });
-        try {
-            await requestMissingStatements({
-                clientName: client.name,
-                clientEmail: client.email,
-                missingPeriods: missingPeriods,
-            });
-            toast({ title: "Request Sent!", description: "An email has been sent to the client."});
-        } catch (error) {
-            console.error("Error sending missing statement request:", error);
-            toast({ title: "Request Failed", description: "Could not send the email.", variant: "destructive"});
-        }
-    }
     
     const importPreviewTransactions = useMemo(() => {
         let preview: { date: string, description: string, amount: number }[] = [];
@@ -510,7 +490,6 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                                                         multiple
                                                     />
                                                     <Button variant="secondary" size="sm" onClick={() => missingFileInputRef.current?.click()}><Upload className="mr-2 h-4 w-4"/> Upload Missing</Button>
-                                                    <Button variant="outline" size="sm" onClick={handleRequestStatements}><Mail className="mr-2 h-4 w-4"/> Request from Client</Button>
                                                  </div>
                                             </div>
                                         </Alert>
@@ -3832,4 +3811,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-

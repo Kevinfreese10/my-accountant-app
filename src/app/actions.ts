@@ -10,22 +10,11 @@ import { render } from '@react-email/components';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import { format } from 'date-fns';
-import MissingStatementRequestEmail from '@/components/emails/MissingStatementRequestEmail';
 import ClientDocumentUploadEmail from '@/components/emails/ClientDocumentUploadEmail';
 import DocumentReviewEmail from '@/components/emails/DocumentReviewEmail';
 
 const db = getFirestore(firebaseApp);
 
-
-export async function requestMissingStatements({ clientName, clientEmail, missingPeriods }: { clientName: string, clientEmail: string, missingPeriods: string[] }) {
-    const emailHtml = render(MissingStatementRequestEmail({ clientName: clientName, missingPeriods: missingPeriods }));
-    
-    await sendEmail({
-        to: clientEmail,
-        subject: 'Action Required: Missing Bank Statements',
-        html: emailHtml,
-    });
-}
 
 export async function notifyStaffOfDocumentUpload({ orderId, clientName, assignedStaffName, assignedStaffEmail }: { orderId: string, clientName: string, assignedStaffName: string, assignedStaffEmail: string }) {
     const emailHtml = render(
