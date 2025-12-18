@@ -24,6 +24,7 @@ const ExtractStatementPeriodOutputSchema = z.object({
   endDate: z.string().describe("The end date of the statement period in 'YYYY-MM-DD' format."),
   openingBalance: z.number().describe("The opening balance from the statement."),
   closingBalance: z.number().describe("The closing balance from the statement."),
+  balanceConfidence: z.number().min(0).max(100).describe("A confidence score (0-100) on the accuracy of the extracted opening and closing balances. If the balances are not clearly labeled or are ambiguous, this score should be lower."),
 });
 export type ExtractStatementPeriodOutput = z.infer<typeof ExtractStatementPeriodOutputSchema>;
 
@@ -39,13 +40,14 @@ const prompt = ai.definePrompt({
   output: { schema: ExtractStatementPeriodOutputSchema },
   prompt: `You are an OCR agent. Your only task is to find the start date, end date, opening balance, and closing balance of the provided bank statement document.
   
-  The start date is usually the first transaction date.
-  The end date is usually the last transaction date.
+  The start date is usually the first transaction date or a clearly labeled 'Statement From' date.
+  The end date is usually the last transaction date or a clearly labeled 'Statement To' date.
   The opening balance is the balance at the beginning of the statement period.
   The closing balance is the balance at the end of the statement period.
   
   Format the dates as YYYY-MM-DD.
   Return balances as numbers, without currency symbols or commas.
+  Provide a confidence score for the balances. If they are clearly labeled "Opening Balance" and "Closing Balance" and are unambiguous, the score should be high (90-100). If the labels are different (e.g., "Balance Brought Forward") or hard to distinguish, the score should be lower.
 
   Analyze the following document:
   {{media url=statementPdf}}

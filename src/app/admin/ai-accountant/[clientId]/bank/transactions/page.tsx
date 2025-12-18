@@ -71,6 +71,7 @@ type PeriodAnalysisResult = {
     endDate: string;
     openingBalance: number;
     closingBalance: number;
+    balanceConfidence: number;
 };
 
 function UploadStatementDialog({ client, bankAccountId, existingTransactions, onImportComplete, globalRules, currentBalance }: { client: User | null, bankAccountId: string, existingTransactions: ImportedTransaction[], onImportComplete: () => void, globalRules: AllocationRule[], currentBalance: number }) {
@@ -114,11 +115,12 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             let updatedFiles;
             if (append) {
                 const combined = [...files, ...newFiles];
+                // Deduplicate files by name
                 updatedFiles = combined.filter((file, index, self) =>
                     index === self.findIndex((f) => f.name === file.name)
                 );
             } else {
-                updatedFiles = newFiles;
+                // If not appending, reset everything
                 setPeriodAnalysis([]);
                 setMissingPeriods([]);
                 setExtractedTransactions([]);
@@ -126,6 +128,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
                 setImportStartDate('');
                 setPotentialAllocations(0);
                 setEditableOpeningBalance(0);
+                updatedFiles = newFiles;
             }
             setFiles(updatedFiles);
         }
@@ -202,31 +205,45 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
         setIsExtracting(true);
         toast({ title: 'Extracting Transactions...', description: `The AI is now reading all transaction data from ${filesToProcess.length} file(s).` });
         
-        const allTransactions: ExtractedTransaction[] = [];
-        await Promise.all(filesToProcess.map(file => new Promise<void>((resolve) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = async () => {
-                const dataUrl = reader.result as string;
-                try {
-                    const result = await extractStatementData({ statementPdf: dataUrl });
-                    if (result && result.transactions && result.transactions.length > 0) {
-                        allTransactions.push(...result.transactions);
+        let allTransactions: ExtractedTransaction[] = [];
+        for (const file of filesToProcess) {
+            await new Promise<void>((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = async () => {
+                    const dataUrl = reader.result as string;
+                    try {
+                        const result = await extractStatementData({ statementPdf: dataUrl });
+                        if (result && result.transactions && result.transactions.length > 0) {
+                            allTransactions.push(...result.transactions);
+                        }
+                    } catch (error) {
+                        console.error(`Transaction extraction error for ${file.name}:`, error);
+                         toast({ title: `Extraction Error for ${file.name}`, variant: 'destructive' });
+                    } finally {
+                        resolve();
                     }
-                } catch (error) {
-                    console.error(`Transaction extraction error for ${file.name}:`, error);
-                } finally {
-                    resolve();
-                }
-            };
-             reader.onerror = () => {
-                 toast({ title: `File Error for ${file.name}`, description: 'Could not read the selected file.', variant: 'destructive' });
-                 resolve();
-            };
-        })));
+                };
+                 reader.onerror = () => {
+                     toast({ title: `File Error for ${file.name}`, description: 'Could not read the selected file.', variant: 'destructive' });
+                     resolve();
+                };
+            });
+        }
         
         if (allTransactions.length > 0) {
-            const sortedTransactions = allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            // Deduplicate transactions from multiple files before sorting
+            const uniqueSignatures = new Set<string>();
+            const uniqueTransactions = allTransactions.filter(tx => {
+                const signature = `${format(new Date(tx.date), 'yyyy-MM-dd')}_${tx.description}_${tx.amount.toFixed(2)}`;
+                if (uniqueSignatures.has(signature)) {
+                    return false;
+                }
+                uniqueSignatures.add(signature);
+                return true;
+            });
+            
+            const sortedTransactions = uniqueTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
             setExtractedTransactions(sortedTransactions);
             
@@ -314,7 +331,7 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
             // Add Opening Balance if the account is currently empty
             if (Math.abs(currentBalance) < 0.01 && periodAnalysis.length > 0) {
                  const openingBalanceDate = subDays(startOfDay(new Date(periodAnalysis[0].startDate)), 1);
-                 const openingBalanceValue = periodAnalysis[0].openingBalance;
+                 const openingBalanceValue = editableOpeningBalance;
 
                  if (openingBalanceValue !== 0) {
                      const dateString = openingBalanceDate.toISOString().split('T')[0].replace(/-/g, '');
@@ -398,15 +415,15 @@ function UploadStatementDialog({ client, bankAccountId, existingTransactions, on
     
     const importPreviewTransactions = useMemo(() => {
         let preview: { date: string, description: string, amount: number }[] = [];
-        if (Math.abs(currentBalance) < 0.01 && periodAnalysis.length > 0 && periodAnalysis[0].openingBalance !== 0) {
+        if (Math.abs(currentBalance) < 0.01 && periodAnalysis.length > 0 && editableOpeningBalance !== 0) {
             preview.push({
                 date: format(subDays(startOfDay(new Date(periodAnalysis[0].startDate)), 1), 'yyyy-MM-dd'),
                 description: 'Opening Balance',
-                amount: periodAnalysis[0].openingBalance,
+                amount: editableOpeningBalance,
             });
         }
         return [...preview, ...transactionsToImport];
-    }, [currentBalance, periodAnalysis, transactionsToImport]);
+    }, [currentBalance, periodAnalysis, transactionsToImport, editableOpeningBalance]);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
