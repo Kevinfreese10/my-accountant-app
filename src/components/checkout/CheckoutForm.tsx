@@ -24,6 +24,7 @@ import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { render } from '@react-email/components';
 import { nanoid } from 'nanoid';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import HolidayClosureDialog from './HolidayClosureDialog';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -44,6 +45,7 @@ export default function CheckoutForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number; percentage: number; } | null>(null);
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
+  const [isClosureDialogOpen, setIsClosureDialogOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -96,6 +98,11 @@ export default function CheckoutForm() {
   const finalTotal = appliedDiscount ? cartTotal - appliedDiscount.amount : cartTotal;
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsClosureDialogOpen(true);
+  }
+
+  async function handleConfirmSubmit() {
+    const values = form.getValues();
     setIsLoading(true);
     toast({
       title: 'Placing Your Order...',
@@ -107,14 +114,12 @@ export default function CheckoutForm() {
         let isNewUser = !currentUser;
         let generatedPassword: string | null = null;
         
-        // If it's a guest, check if the user exists. If not, create them.
         if (!currentUser) {
             const usersRef = collection(db, 'users');
             const q = query(usersRef, where('email', '==', values.email_address));
             const querySnapshot = await getDocs(q);
 
             if (querySnapshot.empty) {
-                // New user - create them in Auth and Firestore
                 generatedPassword = nanoid(8);
                 const userCredential = await createUserWithEmailAndPassword(auth, values.email_address, generatedPassword);
                 userId = userCredential.user.uid;
@@ -130,9 +135,8 @@ export default function CheckoutForm() {
                 };
                 await setDoc(doc(db, 'users', userId), newUser);
             } else {
-                // Existing user, just get their ID
                 userId = querySnapshot.docs[0].id;
-                isNewUser = false; // Not a new user after all
+                isNewUser = false;
             }
         }
 
@@ -182,7 +186,6 @@ export default function CheckoutForm() {
           html: emailHtml,
       });
 
-      // Instead of redirecting, submit to PayFast
       submitToPayFast(orderData);
 
     } catch (error: any) {
@@ -236,6 +239,12 @@ export default function CheckoutForm() {
 
   return (
     <>
+      <HolidayClosureDialog
+        open={isClosureDialogOpen}
+        onOpenChange={setIsClosureDialogOpen}
+        onConfirm={handleConfirmSubmit}
+        trigger={<div />}
+      />
       <Card>
         <CardHeader>
           <CardTitle>Billing Details</CardTitle>
