@@ -91,7 +91,6 @@ export default function ClientForm({
             contactPerson: client?.contactPerson || '',
             email: client?.email || '',
             
-            // Non-AI Accountant fields
             yearEnd: client?.yearEnd || undefined,
             isVatRegistered: client?.isVatRegistered || false,
             vatNumber: (client as any)?.vatNumber || '',
@@ -99,7 +98,6 @@ export default function ClientForm({
             cellNumber: client?.contactNumber || '',
             status: client?.status || 'Active',
             
-            // Invoicing fields
             enableInvoicing: client?.enableInvoicing || false,
             address: {
                 street: client?.address?.street || '',
@@ -156,9 +154,8 @@ export default function ClientForm({
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         const finalValues = {
             ...values,
-            // If it's an AI client and email is blank, generate a placeholder. Otherwise use provided email.
             email: (isAIClient && !values.email) 
-                ? `${values.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@my-company.ai`
+                ? `${values.name.toLowerCase().replace(/[^a-z0-9]/g, '')}${Date.now()}@my-company.ai`
                 : values.email,
         }
         onSubmit(finalValues);
@@ -201,13 +198,6 @@ export default function ClientForm({
                             <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                         </FormItem>
                     )} />
-
-                    {isVatRegistered && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                             <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        </div>
-                    )}
                 </div>
                 
                 <Separator />
@@ -223,6 +213,12 @@ export default function ClientForm({
 
                     {enableInvoicing && (
                         <div className="space-y-4 pt-4 border-t">
+                            {isVatRegistered && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                </div>
+                            )}
                              <FormItem>
                                 <FormLabel>Company Logo</FormLabel>
                                 <div className="flex items-center gap-4">
