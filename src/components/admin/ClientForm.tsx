@@ -107,7 +107,7 @@ export default function ClientForm({
                 zip: client?.address?.zip || '',
             },
             logoUrl: client?.logoUrl || '',
-            nextInvoiceNumber: client?.nextInvoiceNumber || 9000,
+            nextInvoiceNumber: client?.nextInvoiceNumber || 1,
             bankingDetails: {
                 bankName: client?.bankingDetails?.bankName || '',
                 accountHolder: client?.bankingDetails?.accountHolder || '',
