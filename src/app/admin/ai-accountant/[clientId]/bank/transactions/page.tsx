@@ -1993,10 +1993,6 @@ const NewTransactionsTab = React.forwardRef<
                                 </Button>
                             </DropdownMenuTrigger>
                              <DropdownMenuContent>
-                                <DropdownMenuItem onSelect={() => setIsAiSelectedDialogOpen(true)}>
-                                    <Sparkles className="mr-2 h-4 w-4" /> AI Allocate Selected
-                                </DropdownMenuItem>
-                                
                                 <Popover open={manualAllocateOpen} onOpenChange={setManualAllocateOpen}>
                                     <PopoverTrigger asChild>
                                         <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50">
@@ -2026,7 +2022,7 @@ const NewTransactionsTab = React.forwardRef<
                                                         {client?.chartOfAccounts?.map(acc => (
                                                             <Popover key={acc.id}>
                                                                 <PopoverTrigger asChild>
-                                                                    <CommandItem value={acc.description} onSelect={(e) => e.preventDefault()} className="flex justify-between">
+                                                                    <CommandItem value={acc.description} className="flex justify-between">
                                                                         <span>{acc.description}</span>
                                                                         <ChevronRight className="h-4 w-4" />
                                                                     </CommandItem>
@@ -2080,9 +2076,19 @@ const NewTransactionsTab = React.forwardRef<
                         </DropdownMenu>
 
                         {activeSubTab === 'expenses' && (
+                            <>
+                            <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                                <Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
+                            </Button>
                             <Button variant="outline" onClick={() => setIsAiAllDialogOpen(true)} disabled={isAiAllocating || isLoading || transactions.length === 0}>
                                 {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
                                 AI Allocate All
+                            </Button>
+                            </>
+                        )}
+                        {activeSubTab === 'income' && (
+                             <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                                <Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
                             </Button>
                         )}
                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
