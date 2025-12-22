@@ -451,7 +451,6 @@ export default function AIAccountantClientsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Client</TableHead>
-                <TableHead>Email</TableHead>
                 <TableHead>Created By</TableHead>
                 <TableHead>VAT Registered</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -468,7 +467,6 @@ export default function AIAccountantClientsPage() {
                             {client.contactPerson && <p className="text-xs text-muted-foreground">{client.contactPerson}</p>}
                         </div>
                     </TableCell>
-                    <TableCell>{client.email}</TableCell>
                     <TableCell>{getCreatorName(client.createdBy || '')}</TableCell>
                     <TableCell>
                         {client.isVatRegistered ? (
