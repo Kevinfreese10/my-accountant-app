@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
+import { Separator } from '../ui/separator';
+import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import MediaLibrary from './MediaLibrary';
@@ -35,8 +35,8 @@ const vatCategories: { value: 'A' | 'B' | 'C'; label: string }[] = [
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client/Company name is required.'),
-  contactPerson: z.string().min(2, 'Contact person name is required.'),
-  email: z.string().email('A valid email address is required.'),
+  contactPerson: z.string().optional(),
+  email: z.string().email('A valid email address is required.').optional().or(z.literal('')),
   
   // Fields for non-AI clients
   yearEnd: z.string().optional(),
@@ -156,7 +156,10 @@ export default function ClientForm({
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         const finalValues = {
             ...values,
-            email: values.email || `${values.name.toLowerCase().replace(/\s/g, '.')}@myacc.co.za`,
+            // If it's an AI client and email is blank, generate a placeholder. Otherwise use provided email.
+            email: (isAIClient && !values.email) 
+                ? `${values.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@my-company.ai`
+                : values.email,
         }
         onSubmit(finalValues);
     };
@@ -167,9 +170,13 @@ export default function ClientForm({
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Customer Details</h3>
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Customer / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="e.g. 0821234567" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    {!isAIClient && (
+                         <>
+                            <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="e.g. 0821234567" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                         </>
+                    )}
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
 
