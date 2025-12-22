@@ -1991,40 +1991,50 @@ const NewTransactionsTab = React.forwardRef<
                                     Manual Allocate <ChevronsUpDown className="ml-2 h-4 w-4"/>
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-56">
-                                <DropdownMenuGroup>
-                                    <DropdownMenuItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</DropdownMenuItem>
-                                </DropdownMenuGroup>
-                                <DropdownMenuSeparator />
-                                {activeSubTab === 'income' && customers.length > 0 && (
-                                     <DropdownMenuGroup>
-                                        <Label className="px-2 text-xs text-muted-foreground">Customers</Label>
-                                        {customers.map(c => (
-                                            <DropdownMenuItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                {c.name}
-                                            </DropdownMenuItem>
+                            <DropdownMenuContent className="w-64">
+                               <Command>
+                                 <CommandInput placeholder="Search accounts..." />
+                                 <ScrollArea className="h-72">
+                                 <CommandList>
+                                    <CommandEmpty>No results found.</CommandEmpty>
+                                    <CommandGroup>
+                                        <CommandItem onSelect={() => {setIsCreateGeneralAccountOpen(true);}} className="text-primary cursor-pointer">
+                                            <PlusCircle className="mr-2 h-4 w-4"/>Create new account...
+                                        </CommandItem>
+                                    </CommandGroup>
+                                    <DropdownMenuSeparator />
+                                    {activeSubTab === 'income' && customers.length > 0 && (
+                                        <CommandGroup heading="Customers">
+                                            {customers.map(c => (
+                                                <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                    {c.name}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    )}
+                                    <CommandGroup heading="Accounts">
+                                        {client?.chartOfAccounts?.map(acc => (
+                                            <DropdownMenuSub key={acc.id}>
+                                                <DropdownMenuSubTrigger asChild>
+                                                    <CommandItem onSelect={(e) => e.preventDefault()}>{acc.description}</CommandItem>
+                                                </DropdownMenuSubTrigger>
+                                                <DropdownMenuSubContent>
+                                                    {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                        <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                            {vat.label}
+                                                        </DropdownMenuItem>
+                                                    )) : (
+                                                        <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                            No VAT
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </DropdownMenuSubContent>
+                                            </DropdownMenuSub>
                                         ))}
-                                    </DropdownMenuGroup>
-                                )}
-                                 <DropdownMenuGroup>
-                                    <Label className="px-2 text-xs text-muted-foreground">Accounts</Label>
-                                    {client?.chartOfAccounts?.map(acc => (
-                                        <DropdownMenuSub key={acc.id}>
-                                            <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
-                                            <DropdownMenuSubContent>
-                                                {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                        {vat.label}
-                                                    </DropdownMenuItem>
-                                                )) : (
-                                                    <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                        No VAT
-                                                    </DropdownMenuItem>
-                                                )}
-                                            </DropdownMenuSubContent>
-                                        </DropdownMenuSub>
-                                    ))}
-                                </DropdownMenuGroup>
+                                    </CommandGroup>
+                                 </CommandList>
+                                 </ScrollArea>
+                               </Command>
                             </DropdownMenuContent>
                         </DropdownMenu>
                         <DropdownMenu>
