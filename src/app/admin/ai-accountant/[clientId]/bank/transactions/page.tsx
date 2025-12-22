@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice } from '@/lib/types';
@@ -1985,13 +1985,13 @@ const NewTransactionsTab = React.forwardRef<
                 </Tabs>
                  <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                        <DropdownMenu>
+                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" disabled={selectedTransactions.length === 0}>
                                     Manual Allocate <ChevronsUpDown className="ml-2 h-4 w-4"/>
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-64">
+                            <DropdownMenuContent className="w-64 p-0">
                                <Command>
                                  <CommandInput placeholder="Search accounts..." />
                                  <ScrollArea className="h-72">
@@ -2015,8 +2015,10 @@ const NewTransactionsTab = React.forwardRef<
                                     <CommandGroup heading="Accounts">
                                         {client?.chartOfAccounts?.map(acc => (
                                             <DropdownMenuSub key={acc.id}>
-                                                <DropdownMenuSubTrigger asChild>
-                                                    <CommandItem onSelect={(e) => e.preventDefault()}>{acc.description}</CommandItem>
+                                                <DropdownMenuSubTrigger>
+                                                    <CommandItem onSelect={(e) => e.preventDefault()} className="w-full">
+                                                        <span>{acc.description}</span>
+                                                    </CommandItem>
                                                 </DropdownMenuSubTrigger>
                                                 <DropdownMenuSubContent>
                                                     {client?.isVatRegistered ? allVatTypes.map(vat => (
@@ -2066,7 +2068,7 @@ const NewTransactionsTab = React.forwardRef<
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                         <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0}>
                             <Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
                         </Button>
                         {activeSubTab === 'expenses' && (
