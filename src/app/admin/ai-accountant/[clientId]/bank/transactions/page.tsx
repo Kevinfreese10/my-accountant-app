@@ -21,12 +21,12 @@ import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, 
 import { db } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator, DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
@@ -1223,7 +1223,6 @@ const NewTransactionsTab = React.forwardRef<
     const [showAll, setShowAll] = useState(false);
     const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
     const [isFetchingAll, setIsFetchingAll] = useState(false);
-    const [manualAllocateOpen, setManualAllocateOpen] = useState(false);
 
 
     type SortField = 'date' | 'description' | 'amount';
@@ -1986,69 +1985,55 @@ const NewTransactionsTab = React.forwardRef<
                 </Tabs>
                  <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                        <DropdownMenu open={manualAllocateOpen} onOpenChange={setManualAllocateOpen}>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                    Manual Allocate <ChevronsUpDown className="ml-2 h-4 w-4"/>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-56">
+                                <DropdownMenuGroup>
+                                    <DropdownMenuItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</DropdownMenuItem>
+                                </DropdownMenuGroup>
+                                <DropdownMenuSeparator />
+                                {activeSubTab === 'income' && customers.length > 0 && (
+                                     <DropdownMenuGroup>
+                                        <Label className="px-2 text-xs text-muted-foreground">Customers</Label>
+                                        {customers.map(c => (
+                                            <DropdownMenuItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                {c.name}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuGroup>
+                                )}
+                                 <DropdownMenuGroup>
+                                    <Label className="px-2 text-xs text-muted-foreground">Accounts</Label>
+                                    {client?.chartOfAccounts?.map(acc => (
+                                        <DropdownMenuSub key={acc.id}>
+                                            <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                            <DropdownMenuSubContent>
+                                                {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                        {vat.label}
+                                                    </DropdownMenuItem>
+                                                )) : (
+                                                    <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                        No VAT
+                                                    </DropdownMenuItem>
+                                                )}
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuSub>
+                                    ))}
+                                </DropdownMenuGroup>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" disabled={selectedTransactions.length === 0}>
                                     Actions <MoreHorizontal className="ml-2 h-4 w-4"/>
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>
-                                        Manual Allocate
-                                    </DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent className="p-0">
-                                        <Command>
-                                            <CommandInput placeholder="Search..." autoFocus />
-                                            <CommandList>
-                                                <ScrollArea className="h-72">
-                                                    <CommandEmpty>No results found.</CommandEmpty>
-                                                    <CommandGroup>
-                                                        <CommandItem onSelect={() => { setIsCreateGeneralAccountOpen(true); setManualAllocateOpen(false); }} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-                                                    </CommandGroup>
-                                                    {activeSubTab === 'income' && customers.length > 0 && (
-                                                        <CommandGroup heading="Customers">
-                                                            {customers.map(c => (
-                                                                <CommandItem key={c.id} value={c.name} onSelect={() => { handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat'); setManualAllocateOpen(false); }}>
-                                                                    {c.name}
-                                                                </CommandItem>
-                                                            ))}
-                                                        </CommandGroup>
-                                                    )}
-                                                    <CommandGroup heading="Accounts">
-                                                        {client?.chartOfAccounts?.map(acc => (
-                                                            <Popover key={acc.id}>
-                                                                <PopoverTrigger asChild>
-                                                                    <CommandItem value={acc.description} className="flex justify-between">
-                                                                        <span>{acc.description}</span>
-                                                                        <ChevronRight className="h-4 w-4" />
-                                                                    </CommandItem>
-                                                                </PopoverTrigger>
-                                                                <PopoverContent side="right" align="start" className="p-0 w-auto">
-                                                                     {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                                        <div key={vat.name}
-                                                                            onClick={() => { handleBulkAllocate({value: acc.id, type: 'account'}, vat.name); setManualAllocateOpen(false); }}
-                                                                            className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
-                                                                        >
-                                                                            {vat.label}
-                                                                        </div>
-                                                                    )) : (
-                                                                        <div onClick={() => { handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat'); setManualAllocateOpen(false); }}
-                                                                            className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
-                                                                        >
-                                                                            No VAT
-                                                                        </div>
-                                                                    )}
-                                                                </PopoverContent>
-                                                            </Popover>
-                                                        ))}
-                                                    </CommandGroup>
-                                                </ScrollArea>
-                                            </CommandList>
-                                        </Command>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
-                                <DropdownMenuSeparator />
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
@@ -2583,8 +2568,6 @@ const ReviewedTab = React.forwardRef<
     const documents = useMemo(() => {
         let docs = showAll ? allTransactions : (searchResults !== null ? searchResults : paginatedDocuments);
 
-        if (!sortField) return docs;
-        
         return [...docs].sort((a, b) => {
             let aVal: any;
             let bVal: any;
@@ -2598,6 +2581,10 @@ const ReviewedTab = React.forwardRef<
                     aVal = a.vatType || '';
                     bVal = b.vatType || '';
                     break;
+                case 'date':
+                    aVal = new Date(a.date);
+                    bVal = new Date(b.date);
+                    break;
                 default:
                     aVal = a[sortField];
                     bVal = b[sortField];
@@ -2608,7 +2595,7 @@ const ReviewedTab = React.forwardRef<
             return 0;
         });
 
-    }, [searchResults, paginatedDocuments, sortField, sortDirection, showAll, allTransactions]);
+    }, [searchResults, paginatedDocuments, sortField, sortDirection, showAll, allTransactions, changes]);
     
     const handleReviewConsistency = async () => {
         if (!client || !bankAccountId) return;
