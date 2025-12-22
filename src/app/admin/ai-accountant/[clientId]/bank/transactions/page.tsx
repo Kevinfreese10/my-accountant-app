@@ -1986,21 +1986,18 @@ const NewTransactionsTab = React.forwardRef<
                 </Tabs>
                  <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                        <DropdownMenu>
+                        <DropdownMenu open={manualAllocateOpen} onOpenChange={setManualAllocateOpen}>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" disabled={selectedTransactions.length === 0}>
                                     Actions <MoreHorizontal className="ml-2 h-4 w-4"/>
                                 </Button>
                             </DropdownMenuTrigger>
-                             <DropdownMenuContent>
-                                <Popover open={manualAllocateOpen} onOpenChange={setManualAllocateOpen}>
-                                    <PopoverTrigger asChild>
-                                        <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50">
-                                            Manual Allocate
-                                            <ChevronRight className="ml-auto h-4 w-4" />
-                                        </div>
-                                    </PopoverTrigger>
-                                    <PopoverContent side="right" align="start" className="p-0">
+                            <DropdownMenuContent>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>
+                                        Manual Allocate
+                                    </DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent className="p-0">
                                         <Command>
                                             <CommandInput placeholder="Search..." autoFocus />
                                             <CommandList>
@@ -2027,17 +2024,17 @@ const NewTransactionsTab = React.forwardRef<
                                                                         <ChevronRight className="h-4 w-4" />
                                                                     </CommandItem>
                                                                 </PopoverTrigger>
-                                                                <PopoverContent side="right" align="start">
+                                                                <PopoverContent side="right" align="start" className="p-0 w-auto">
                                                                      {client?.isVatRegistered ? allVatTypes.map(vat => (
                                                                         <div key={vat.name}
                                                                             onClick={() => { handleBulkAllocate({value: acc.id, type: 'account'}, vat.name); setManualAllocateOpen(false); }}
-                                                                            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                                                            className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
                                                                         >
                                                                             {vat.label}
                                                                         </div>
                                                                     )) : (
                                                                         <div onClick={() => { handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat'); setManualAllocateOpen(false); }}
-                                                                            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                                                            className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
                                                                         >
                                                                             No VAT
                                                                         </div>
@@ -2049,9 +2046,8 @@ const NewTransactionsTab = React.forwardRef<
                                                 </ScrollArea>
                                             </CommandList>
                                         </Command>
-                                    </PopoverContent>
-                                </Popover>
-
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
                                 <DropdownMenuSeparator />
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -2075,20 +2071,13 @@ const NewTransactionsTab = React.forwardRef<
                             </DropdownMenuContent>
                         </DropdownMenu>
 
+                        <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                            <Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
+                        </Button>
                         {activeSubTab === 'expenses' && (
-                            <>
-                            <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0}>
-                                <Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
-                            </Button>
                             <Button variant="outline" onClick={() => setIsAiAllDialogOpen(true)} disabled={isAiAllocating || isLoading || transactions.length === 0}>
                                 {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
                                 AI Allocate All
-                            </Button>
-                            </>
-                        )}
-                        {activeSubTab === 'income' && (
-                             <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0}>
-                                <Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
                             </Button>
                         )}
                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
