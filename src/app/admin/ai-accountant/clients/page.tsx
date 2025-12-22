@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as XLSX from 'xlsx';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { format } from 'date-fns';
 
 
 const db = getFirestore(firebaseApp);
@@ -434,6 +435,26 @@ export default function AIAccountantClientsPage() {
         toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive'});
     }
   };
+  
+    const formatYearEnd = (yearEnd: any): string => {
+        if (!yearEnd) return 'N/A';
+        if (typeof yearEnd === 'string') {
+          return yearEnd;
+        }
+        if (yearEnd.toDate && typeof yearEnd.toDate === 'function') {
+          const date = yearEnd.toDate();
+          return format(date, 'MMMM');
+        }
+        try {
+            const d = new Date(yearEnd);
+            if (!isNaN(d.getTime())) {
+                 return format(d, 'MMMM');
+            }
+        } catch (e) {
+            // fall through
+        }
+        return 'Invalid Date';
+    };
 
 
   const renderClientTable = (clients: User[], title: string, allowDelete: boolean, isArchived: boolean = false) => {
@@ -452,6 +473,7 @@ export default function AIAccountantClientsPage() {
               <TableRow>
                 <TableHead>Client</TableHead>
                 <TableHead>Created By</TableHead>
+                <TableHead>Year End</TableHead>
                 <TableHead>VAT Registered</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -464,10 +486,10 @@ export default function AIAccountantClientsPage() {
                     <TableCell className="font-medium">
                         <div>
                             <span>{client.name}</span>
-                            {client.contactPerson && <p className="text-xs text-muted-foreground">{client.contactPerson}</p>}
                         </div>
                     </TableCell>
                     <TableCell>{getCreatorName(client.createdBy || '')}</TableCell>
+                    <TableCell>{formatYearEnd(client.yearEnd)}</TableCell>
                     <TableCell>
                         {client.isVatRegistered ? (
                             <Badge variant="success">Yes</Badge>
@@ -609,3 +631,5 @@ export default function AIAccountantClientsPage() {
     </div>
   );
 }
+
+    
