@@ -46,24 +46,6 @@ const formSchema = z.object({
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses).optional(),
   
-  // Invoicing fields
-  enableInvoicing: z.boolean().default(false),
-  address: z.object({
-      street: z.string().optional(),
-      suburb: z.string().optional(),
-      city: z.string().optional(),
-      country: z.string().optional(),
-      zip: z.string().optional(),
-  }).optional(),
-  logoUrl: z.string().url().optional().or(z.literal('')),
-  nextInvoiceNumber: z.preprocess(val => Number(val) || 1, z.number().min(1)),
-  bankingDetails: z.object({
-      bankName: z.string().optional(),
-      accountHolder: z.string().optional(),
-      accountNumber: z.string().optional(),
-      branchCode: z.string().optional(),
-  }).optional(),
-  
   // AI Accountant Profile Toggle
   createAIProfile: z.boolean().default(false),
 });
@@ -81,7 +63,6 @@ export default function ClientForm({
 }) {
     const { user } = useAuth();
     const { toast } = useToast();
-    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
     
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -98,58 +79,11 @@ export default function ClientForm({
             cellNumber: client?.contactNumber || '',
             status: client?.status || 'Active',
             
-            enableInvoicing: client?.enableInvoicing || false,
-            address: {
-                street: client?.address?.street || '',
-                suburb: client?.address?.suburb || '',
-                city: client?.address?.city || '',
-                country: client?.address?.country || '',
-                zip: client?.address?.zip || '',
-            },
-            logoUrl: client?.logoUrl || '',
-            nextInvoiceNumber: client?.nextInvoiceNumber || 1,
-            bankingDetails: {
-                bankName: client?.bankingDetails?.bankName || '',
-                accountHolder: client?.bankingDetails?.accountHolder || '',
-                accountNumber: client?.bankingDetails?.accountNumber || '',
-                branchCode: client?.bankingDetails?.branchCode || '',
-            },
             createAIProfile: isAIClient || client?.hasNumeraProfile || false,
         },
     });
 
     const isVatRegistered = form.watch('isVatRegistered');
-    const enableInvoicing = form.watch('enableInvoicing');
-    const currentLogoUrl = form.watch('logoUrl');
-
-    const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file || !user) return;
-
-        setIsUploadingLogo(true);
-        toast({ title: 'Uploading Logo...', description: 'Please wait.' });
-
-        const storageRef = ref(storage, `logos/${user.uid}/${Date.now()}-${file.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
-
-        uploadTask.on('state_changed', 
-            (snapshot) => {
-                // Can be used to show progress
-            },
-            (error) => {
-                console.error("Logo upload error:", error);
-                toast({ title: "Upload Failed", description: "Could not upload the logo.", variant: "destructive" });
-                setIsUploadingLogo(false);
-            },
-            () => {
-                getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-                    form.setValue('logoUrl', downloadURL);
-                    toast({ title: "Upload Successful", description: "Logo has been uploaded." });
-                    setIsUploadingLogo(false);
-                });
-            }
-        );
-    };
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         const finalValues = {
@@ -203,56 +137,6 @@ export default function ClientForm({
                     )}
                 </div>
                 
-                <Separator />
-                 <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Invoicing Setup</h3>
-                    <p className="text-sm text-muted-foreground">Only complete this section if you want to generate invoices from this company profile.</p>
-                     <FormField control={form.control} name="enableInvoicing" render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                            <div className="space-y-0.5"><FormLabel>Enable Invoicing</FormLabel><FormDescription>Allow invoices to be generated for this client.</FormDescription></div>
-                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                        </FormItem>
-                    )} />
-
-                    {enableInvoicing && (
-                        <div className="space-y-4 pt-4 border-t">
-                            {isVatRegistered && (
-                                <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            )}
-                             <FormItem>
-                                <FormLabel>Company Logo</FormLabel>
-                                <div className="flex items-center gap-4">
-                                    <div className="relative h-24 w-24 flex-shrink-0 border rounded-md overflow-hidden bg-muted">
-                                        {isUploadingLogo ? (
-                                            <div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin"/></div>
-                                        ) : currentLogoUrl ? (
-                                            <Image src={currentLogoUrl} alt="Company logo" fill className="object-contain p-2"/>
-                                        ) : null}
-                                    </div>
-                                    <FormControl><Input type="file" accept="image/*" onChange={handleLogoUpload} className="max-w-xs" /></FormControl>
-                                </div>
-                                <FormMessage />
-                             </FormItem>
-                            <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input placeholder="e.g., 123 Main Street" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel>Suburb</FormLabel><FormControl><Input placeholder="e.g., Sandton" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel>City</FormLabel><FormControl><Input placeholder="e.g., Johannesburg" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="address.country" render={({ field }) => ( <FormItem><FormLabel>Country</FormLabel><FormControl><Input placeholder="e.g., South Africa" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel>Postal Code</FormLabel><FormControl><Input placeholder="e.g., 2196" {...field} /></FormControl><FormMessage /></FormItem>)} />
-
-                             <FormField control={form.control} name="nextInvoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Next Invoice Number</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                             
-                             <h4 className="font-medium text-base pt-2">Banking Details for Invoices</h4>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-
                 <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save Client</Button>
