@@ -2579,35 +2579,9 @@ const ReviewedTab = React.forwardRef<
     
     const documents = useMemo(() => {
         let docs = showAll ? allTransactions : (searchResults !== null ? searchResults : paginatedDocuments);
-
-        return [...docs].sort((a, b) => {
-            let aVal: any;
-            let bVal: any;
-            
-            switch (sortField) {
-                case 'allocatedTo':
-                    aVal = getAllocationDescription(a);
-                    bVal = getAllocationDescription(b);
-                    break;
-                case 'vatType':
-                    aVal = a.vatType || '';
-                    bVal = b.vatType || '';
-                    break;
-                case 'date':
-                    aVal = new Date(a.date);
-                    bVal = new Date(b.date);
-                    break;
-                default:
-                    aVal = a[sortField];
-                    bVal = b[sortField];
-            }
-
-            if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-            if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-            return 0;
-        });
-
-    }, [searchResults, paginatedDocuments, sortField, sortDirection, showAll, allTransactions, changes]);
+        
+        return docs;
+    }, [searchResults, paginatedDocuments, showAll, allTransactions, changes]);
     
     const handleReviewConsistency = async () => {
         if (!client || !bankAccountId) return;
