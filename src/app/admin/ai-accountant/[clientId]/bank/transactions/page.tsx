@@ -3516,14 +3516,14 @@ export default function BankTransactionsPage() {
 
                 setBankAccounts(cashbookAccounts);
                 
-                const accountIdFromQuery = searchParams.get('accountId');
-
-                if (accountIdFromQuery && cashbookAccounts.some(acc => acc.id === accountIdFromQuery)) {
-                    setSelectedAccountId(accountIdFromQuery);
-                } else if (cashbookAccounts.length > 0 && !selectedAccountId) {
-                    setSelectedAccountId(cashbookAccounts[0].id);
-                } else if (cashbookAccounts.length === 0) {
-                    setSelectedAccountId(null);
+                // Only set the selected account from query or default on initial load
+                if (selectedAccountId === null) {
+                    const accountIdFromQuery = searchParams.get('accountId');
+                    if (accountIdFromQuery && cashbookAccounts.some(acc => acc.id === accountIdFromQuery)) {
+                        setSelectedAccountId(accountIdFromQuery);
+                    } else if (cashbookAccounts.length > 0) {
+                        setSelectedAccountId(cashbookAccounts[0].id);
+                    }
                 }
             } else {
                 toast({ title: 'Error', description: 'Client not found.', variant: 'destructive' });
@@ -3562,13 +3562,6 @@ export default function BankTransactionsPage() {
         });
         return () => unsubscribe();
     }, [clientId]);
-
-    useEffect(() => {
-        const accountIdFromQuery = searchParams.get('accountId');
-        if (accountIdFromQuery && bankAccounts.some(acc => acc.id === accountIdFromQuery)) {
-            setSelectedAccountId(accountIdFromQuery);
-        }
-    }, [searchParams, bankAccounts]);
 
 
     const unallocatedCount = useMemo(() => {
@@ -3796,3 +3789,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
