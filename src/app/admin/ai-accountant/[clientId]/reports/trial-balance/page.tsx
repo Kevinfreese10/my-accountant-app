@@ -35,6 +35,7 @@ import * as XLSX from 'xlsx';
 import Link from "next/link";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 
 const db = getFirestore(firebaseApp);
 
@@ -136,56 +137,73 @@ function calculateBalances(client: User, transactions: (ImportedTransaction | Al
 function TrialBalanceReport({ client, transactions, dateRange, comparativeDateRange }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange, comparativeDateRange?: DateRange }) {
     
     const primaryBalances = useMemo(() => calculateBalances(client, transactions, dateRange), [client, transactions, dateRange]);
-    const comparativeBalances = useMemo(() => calculateBalances(client, transactions, comparativeDateRange), [client, transactions, comparativeDateRange]);
+    const showComparison = !!comparativeDateRange;
+    const comparativeBalances = useMemo(() => {
+        return showComparison ? calculateBalances(client, transactions, comparativeDateRange) : new Map<string, number>();
+    }, [client, transactions, comparativeDateRange, showComparison]);
     
     const trialBalanceData = useMemo(() => {
         return client.chartOfAccounts
           ?.map(account => ({
               ...account,
               balance: primaryBalances.get(account.id) || 0,
-              comparativeBalance: comparativeBalances.get(account.id) || 0,
+              comparativeBalance: showComparison ? (comparativeBalances.get(account.id) || 0) : 0,
           }))
-          .filter(account => Math.abs(account.balance) >= 0.01 || Math.abs(account.comparativeBalance) >= 0.01) // Only show accounts with activity in either period
+          .filter(account => Math.abs(account.balance) >= 0.01 || (showComparison && Math.abs(account.comparativeBalance) >= 0.01))
           .sort((a, b) => a.accountNumber.localeCompare(b.accountNumber));
-    }, [client.chartOfAccounts, primaryBalances, comparativeBalances]);
+    }, [client.chartOfAccounts, primaryBalances, comparativeBalances, showComparison]);
 
     const totals = useMemo(() => {
         let primaryDebit = 0, primaryCredit = 0, compDebit = 0, compCredit = 0;
         trialBalanceData?.forEach(item => {
             if (item.balance > 0) primaryDebit += item.balance;
             else primaryCredit += -item.balance;
-            if (item.comparativeBalance > 0) compDebit += item.comparativeBalance;
-            else compCredit += -item.comparativeBalance;
+            if (showComparison) {
+                if (item.comparativeBalance > 0) compDebit += item.comparativeBalance;
+                else compCredit += -item.comparativeBalance;
+            }
         });
         return { primaryDebit, primaryCredit, compDebit, compCredit };
-    }, [trialBalanceData]);
+    }, [trialBalanceData, showComparison]);
 
     const handleDownloadExcel = () => {
-        const dataToExport = trialBalanceData?.map(item => ({
-            'Account Number': item.accountNumber,
-            'Account Description': item.description,
-            'Debit': item.balance > 0 ? item.balance : 0,
-            'Credit': item.balance < 0 ? -item.balance : 0,
-            'Comp. Debit': item.comparativeBalance > 0 ? item.comparativeBalance : 0,
-            'Comp. Credit': item.comparativeBalance < 0 ? -item.comparativeBalance : 0,
-        }));
+        const dataToExport = trialBalanceData?.map(item => {
+            const row: any = {
+                'Account Number': item.accountNumber,
+                'Account Description': item.description,
+                'Debit': item.balance > 0 ? item.balance : 0,
+                'Credit': item.balance < 0 ? -item.balance : 0,
+            };
+            if (showComparison) {
+                row['Comp. Debit'] = item.comparativeBalance > 0 ? item.comparativeBalance : 0;
+                row['Comp. Credit'] = item.comparativeBalance < 0 ? -item.comparativeBalance : 0;
+            }
+            return row;
+        });
 
         if (!dataToExport) return;
         
-        dataToExport.push({
+        const totalsRow: any = {
             'Account Number': 'Totals',
             'Account Description': '',
             'Debit': totals.primaryDebit,
             'Credit': totals.primaryCredit,
-            'Comp. Debit': totals.compDebit,
-            'Comp. Credit': totals.compCredit
-        });
+        };
+         if (showComparison) {
+            totalsRow['Comp. Debit'] = totals.compDebit;
+            totalsRow['Comp. Credit'] = totals.compCredit;
+        }
+        dataToExport.push(totalsRow);
 
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        worksheet['!cols'] = [{ wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+        worksheet['!cols'] = [
+            { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 },
+            ...(showComparison ? [{ wch: 15 }, { wch: 15 }] : [])
+        ];
         
         Object.keys(worksheet).forEach(key => {
-             if (/[C-F]\d+/.test(key)) {
+             const columns = showComparison ? /[C-F]\d+/ : /[C-D]\d+/;
+             if (columns.test(key)) {
                 const cell = worksheet[key];
                 if (cell.v !== null && typeof cell.v === 'number') {
                     cell.t = 'n';
@@ -211,8 +229,12 @@ function TrialBalanceReport({ client, transactions, dateRange, comparativeDateRa
                             <TableHead className="w-[350px]">Account</TableHead>
                             <TableHead className="text-right">Debit</TableHead>
                             <TableHead className="text-right">Credit</TableHead>
-                            <TableHead className="text-right">Comp. Debit</TableHead>
-                            <TableHead className="text-right">Comp. Credit</TableHead>
+                            {showComparison && (
+                                <>
+                                <TableHead className="text-right">Comp. Debit</TableHead>
+                                <TableHead className="text-right">Comp. Credit</TableHead>
+                                </>
+                            )}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -238,8 +260,12 @@ function TrialBalanceReport({ client, transactions, dateRange, comparativeDateRa
                                             {formatPrice(creditAmount)}
                                         </Link>
                                     </TableCell>
-                                    <TableCell className="text-right font-mono bg-muted/50">{formatPrice(compDebitAmount)}</TableCell>
-                                    <TableCell className="text-right font-mono bg-muted/50">{formatPrice(compCreditAmount)}</TableCell>
+                                    {showComparison && (
+                                        <>
+                                        <TableCell className="text-right font-mono bg-muted/50">{formatPrice(compDebitAmount)}</TableCell>
+                                        <TableCell className="text-right font-mono bg-muted/50">{formatPrice(compCreditAmount)}</TableCell>
+                                        </>
+                                    )}
                                 </TableRow>
                             )
                         })}
@@ -249,8 +275,12 @@ function TrialBalanceReport({ client, transactions, dateRange, comparativeDateRa
                             <TableCell className="font-bold">Totals</TableCell>
                             <TableCell className="text-right font-bold font-mono">{formatPrice(totals.primaryDebit)}</TableCell>
                             <TableCell className="text-right font-bold font-mono">{formatPrice(totals.primaryCredit)}</TableCell>
-                            <TableCell className="text-right font-bold font-mono bg-muted/50">{formatPrice(totals.compDebit)}</TableCell>
-                            <TableCell className="text-right font-bold font-mono bg-muted/50">{formatPrice(totals.compCredit)}</TableCell>
+                             {showComparison && (
+                                <>
+                                <TableCell className="text-right font-bold font-mono bg-muted/50">{formatPrice(totals.compDebit)}</TableCell>
+                                <TableCell className="text-right font-bold font-mono bg-muted/50">{formatPrice(totals.compCredit)}</TableCell>
+                                </>
+                            )}
                         </TableRow>
                     </TableFooter>
                 </Table>
@@ -274,6 +304,7 @@ export default function TrialBalancePage() {
     const [isLoading, setIsLoading] = useState(true);
     const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
     const [comparativeDateRange, setComparativeDateRange] = React.useState<DateRange | undefined>(undefined);
+    const [showComparison, setShowComparison] = useState(false);
     
     useEffect(() => {
         if (!clientId) return;
@@ -301,7 +332,7 @@ export default function TrialBalancePage() {
         
         fetchClient();
         return () => unsubscribe();
-    }, [clientId]);
+    }, [clientId, isLoading]);
     
     const getReportDateString = () => {
         if (!dateRange || (!dateRange.from && !dateRange.to)) {
@@ -320,7 +351,7 @@ export default function TrialBalancePage() {
     }
 
     const getComparativeDateString = () => {
-        if (!comparativeDateRange || (!comparativeDateRange.from && !comparativeDateRange.to)) {
+        if (!showComparison || !comparativeDateRange || (!comparativeDateRange.from && !comparativeDateRange.to)) {
             return `no comparison period`;
         }
         if (comparativeDateRange.from && comparativeDateRange.to) {
@@ -345,8 +376,13 @@ export default function TrialBalancePage() {
                             <DateRangePicker onDateChange={setDateRange} financialYearEnd={client?.yearEnd} />
                          </div>
                          <div className="space-y-2">
-                            <Label className="font-semibold">Comparison Period</Label>
-                             <DateRangePicker onDateChange={setComparativeDateRange} financialYearEnd={client?.yearEnd} />
+                            <div className="flex items-center space-x-2">
+                                <Switch id="show-comparison" checked={showComparison} onCheckedChange={setShowComparison}/>
+                                <Label htmlFor="show-comparison" className="font-semibold">Comparison Period</Label>
+                            </div>
+                            {showComparison && (
+                                <DateRangePicker onDateChange={setComparativeDateRange} financialYearEnd={client?.yearEnd} />
+                            )}
                          </div>
                      </div>
                      <Separator />
@@ -364,7 +400,12 @@ export default function TrialBalancePage() {
                                         Trial Balance {getReportDateString()} <br/> <span className="font-semibold">{getComparativeDateString()}</span>
                                     </DialogDescription>
                                 </DialogHeader>
-                                <TrialBalanceReport client={client} transactions={transactions} dateRange={dateRange} comparativeDateRange={comparativeDateRange} />
+                                <TrialBalanceReport 
+                                    client={client} 
+                                    transactions={transactions} 
+                                    dateRange={dateRange} 
+                                    comparativeDateRange={showComparison ? comparativeDateRange : undefined}
+                                />
                             </DialogContent>
                         </Dialog>
                     ) : (
