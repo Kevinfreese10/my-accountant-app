@@ -1068,6 +1068,7 @@ const NewTransactionsTab = React.forwardRef<
                     const representativeTx = group[0];
             
                     try {
+                        toast({ id: toastId, title: `Analyzing group...`, description: `"${representativeTx.description}"` });
                         const result = await suggestTransactionAllocation({
                             description: representativeTx.description,
                             chartOfAccounts: chartOfAccountsJson,
