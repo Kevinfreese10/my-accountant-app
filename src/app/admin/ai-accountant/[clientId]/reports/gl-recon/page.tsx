@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
+import { allVatTypes } from "@/lib/vat-types";
 
 
 const db = getFirestore(firebaseApp);
@@ -407,5 +408,3 @@ export default function GeneralLedgerReconPage() {
         </div>
     );
 }
-
-    
