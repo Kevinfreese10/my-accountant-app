@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
-import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction } from "@/lib/types";
-import { getFirestore, doc, getDoc, collection, query, onSnapshot, where, orderBy, getDocs } from 'firebase/firestore';
+import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, where, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye, Scale, CheckCircle, ChevronsUpDown } from "lucide-react";
 import { useParams } from 'next/navigation';
@@ -17,6 +17,7 @@ import * as XLSX from 'xlsx';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useToast } from "@/hooks/use-toast";
 
 
 const db = getFirestore(firebaseApp);
@@ -29,9 +30,17 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-function AccountLedgerView({ transactions, account }: { transactions: (ImportedTransaction | AllocatedTransaction)[], account: ChartOfAccount }) {
+function AccountLedgerView({ transactions, account, client, onReallocate }: { 
+    transactions: (ImportedTransaction | AllocatedTransaction)[], 
+    account: ChartOfAccount,
+    client: User,
+    onReallocate: (txIds: string[], values: { accountId: string, vatType: VatType }) => void,
+}) {
     
     const [hideMatched, setHideMatched] = useState(true);
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    const [reallocateTo, setReallocateTo] = useState<{accountId: string, vatType: VatType} | null>(null);
+    const [open, setOpen] = useState(false)
 
     const ledgerEntries = useMemo(() => {
         const processedTransactions = transactions
@@ -77,7 +86,20 @@ function AccountLedgerView({ transactions, account }: { transactions: (ImportedT
         }
         return ledgerEntries;
     }, [ledgerEntries, hideMatched]);
+    
+    useEffect(() => {
+        setSelectedTransactions([]);
+    }, [visibleEntries]);
 
+    const handleSelectionChange = (id: string, checked: boolean) => {
+        setSelectedTransactions(prev => {
+            if (checked) {
+                return [...prev, id];
+            } else {
+                return prev.filter(txId => txId !== id);
+            }
+        });
+    };
 
     const handleDownloadExcel = () => {
         const dataToExport = visibleEntries.map(tx => ({
@@ -124,9 +146,68 @@ function AccountLedgerView({ transactions, account }: { transactions: (ImportedT
                 </div>
             </CardHeader>
             <CardContent>
+                 {selectedTransactions.length > 0 && (
+                    <div className="flex items-center gap-2 mb-4 p-2 bg-muted rounded-lg">
+                        <p className="text-sm font-semibold">{selectedTransactions.length} selected</p>
+                         <Popover open={open} onOpenChange={setOpen}>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" role="combobox" aria-expanded={open} className="w-[200px] justify-between h-8">
+                                    {reallocateTo ? client.chartOfAccounts?.find(acc => acc.id === reallocateTo.accountId)?.description : "Reallocate to..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[200px] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search account..." />
+                                    <CommandList>
+                                    <CommandEmpty>No account found.</CommandEmpty>
+                                        {client.chartOfAccounts?.map((account) => (
+                                        <CommandItem
+                                            key={account.id}
+                                            value={account.description}
+                                            onSelect={() => {
+                                                setReallocateTo({accountId: account.id, vatType: 'no_vat'})
+                                                setOpen(false)
+                                            }}
+                                        >
+                                            {account.description}
+                                        </CommandItem>
+                                        ))}
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+                         <Select
+                            value={reallocateTo?.vatType || 'no_vat'}
+                            onValueChange={(value) => reallocateTo && setReallocateTo({...reallocateTo, vatType: value as VatType})}
+                            disabled={!reallocateTo}
+                        >
+                            <SelectTrigger className="w-[180px] h-8"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <Button 
+                            size="sm"
+                            onClick={() => {
+                                if (reallocateTo) {
+                                    onReallocate(selectedTransactions, reallocateTo);
+                                    setSelectedTransactions([]);
+                                }
+                            }}
+                            disabled={!reallocateTo}
+                        >
+                            Apply
+                        </Button>
+                    </div>
+                )}
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-12"><Checkbox 
+                                checked={selectedTransactions.length > 0 && selectedTransactions.length === visibleEntries.length}
+                                onCheckedChange={(checked) => setSelectedTransactions(checked ? visibleEntries.map(e => e.id) : [])}
+                            /></TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>Reference</TableHead>
                             <TableHead>Description</TableHead>
@@ -136,8 +217,9 @@ function AccountLedgerView({ transactions, account }: { transactions: (ImportedT
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {visibleEntries.map((tx, index) => (
-                            <TableRow key={tx.id + index} className={cn(tx.matched && 'text-muted-foreground line-through')}>
+                        {visibleEntries.map((tx) => (
+                            <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && 'selected'} className={cn(tx.matched && 'text-muted-foreground line-through')}>
+                                <TableCell><Checkbox checked={selectedTransactions.includes(tx.id)} onCheckedChange={(checked) => handleSelectionChange(tx.id, !!checked)} /></TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-2">
                                         {tx.matched && <CheckCircle className="h-4 w-4 text-green-500" />}
@@ -154,7 +236,7 @@ function AccountLedgerView({ transactions, account }: { transactions: (ImportedT
                     </TableBody>
                     <TableFooter>
                         <TableRow>
-                            <TableCell colSpan={5} className="font-bold">Closing Balance</TableCell>
+                            <TableCell colSpan={6} className="font-bold">Closing Balance</TableCell>
                             <TableCell className="text-right font-bold font-mono">{formatPrice(visibleEntries[visibleEntries.length-1]?.balance || 0)}</TableCell>
                         </TableRow>
                     </TableFooter>
@@ -180,24 +262,27 @@ export default function GeneralLedgerReconPage() {
     const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
     const [isReportVisible, setIsReportVisible] = useState(false);
     const [open, setOpen] = useState(false);
+    const { toast } = useToast();
+    
+    const fetchAllData = async () => {
+        if (!clientId) return;
+        setIsLoading(true);
+        try {
+            const clientRef = doc(db, 'aiAccountantClients', clientId);
+            const clientSnap = await getDoc(clientRef);
+            if (clientSnap.exists()) {
+                const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
+                setClient(clientData);
+            }
+        } catch (error) {
+            console.error("Error fetching client data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }
     
     useEffect(() => {
-        const fetchInitialData = async () => {
-            if (!clientId) return;
-            setIsLoading(true);
-            try {
-                const clientRef = doc(db, 'aiAccountantClients', clientId);
-                const clientSnap = await getDoc(clientRef);
-                if (clientSnap.exists()) {
-                    setClient({ id: clientSnap.id, ...clientSnap.data() } as User);
-                }
-            } catch (e) {
-                console.error("Error fetching client data:", e);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchInitialData();
+        fetchAllData();
     }, [clientId]);
 
     const accounts = useMemo(() => client?.chartOfAccounts?.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)) || [], [client]);
@@ -228,6 +313,33 @@ export default function GeneralLedgerReconPage() {
                 setIsFetchingTransactions(false);
             });
     }
+
+    const handleReallocate = async (txIds: string[], values: { accountId: string, vatType: VatType }) => {
+        if (!client) return;
+        
+        const batch = writeBatch(db);
+        txIds.forEach(id => {
+            const txData = transactions.find(t => t.id === id);
+            if(txData && txData.bankAccountId !== 'JOURNAL') { // Don't reallocate journal entries
+                const docRef = doc(db, 'aiAccountantClients', client.id, 'transactions', id);
+                batch.update(docRef, {
+                    'allocatedTo.value': values.accountId,
+                    'allocatedTo.type': 'account',
+                    'vatType': values.vatType,
+                    'status': 'allocated'
+                });
+            }
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Reallocation Successful', description: `${txIds.length} transactions have been updated.`});
+            // Re-fetch transactions for the current view
+            handleViewReport();
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not reallocate transactions.', variant: 'destructive'});
+        }
+    };
     
     return (
         <div className="space-y-6">
@@ -284,9 +396,16 @@ export default function GeneralLedgerReconPage() {
                 </CardContent>
             </Card>
 
-            {isReportVisible && selectedAccount && (
-                <AccountLedgerView transactions={transactions} account={selectedAccount} />
+            {isReportVisible && selectedAccount && client && (
+                <AccountLedgerView 
+                    transactions={transactions} 
+                    account={selectedAccount} 
+                    client={client}
+                    onReallocate={handleReallocate}
+                />
             )}
         </div>
     );
 }
+
+    

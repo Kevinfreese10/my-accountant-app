@@ -11,3 +11,5 @@ export const allVatTypes: { name: VatType, label: string, category: 'Output Tax'
     { name: 'exempt_purchases', label: 'Exempt purchases', category: 'Input Tax' },
     { name: 'no_vat', label: 'No VAT', category: 'Other' },
 ];
+
+    
