@@ -1718,7 +1718,7 @@ const ReviewedTab = React.forwardRef<
     const [inconsistencies, setInconsistencies] = useState<any[]>([]);
     const [selectedCorrections, setSelectedCorrections] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [searchAccountTerm, setSearchAccountTerm] = useState('');
+    const [accountFilter, setAccountFilter] = useState('all');
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
 
 
@@ -1842,6 +1842,7 @@ const ReviewedTab = React.forwardRef<
         refetch();
         setSearchTerm('');
         setSearchResults(null);
+        setAccountFilter('all');
     }, [activeSubTab, refetch]);
     
     useEffect(() => {
@@ -1868,6 +1869,20 @@ const ReviewedTab = React.forwardRef<
             setAllTransactions([]);
         }
     }, [showAll, reviewedTransactionsQuery, toast]);
+    
+    const displayedDocuments = useMemo(() => {
+        let docs = showAll ? allTransactions : (searchResults !== null ? searchResults : paginatedDocuments);
+        if (accountFilter !== 'all') {
+            docs = docs.filter(doc => doc.allocatedTo?.value === accountFilter);
+        }
+        return docs;
+    }, [showAll, allTransactions, searchResults, paginatedDocuments, accountFilter]);
+
+    const accountsWithTransactions = useMemo(() => {
+        if (!displayedDocuments || !uniqueChartOfAccounts) return [];
+        const accountIdsInDocs = new Set(displayedDocuments.map(tx => tx.allocatedTo?.value));
+        return uniqueChartOfAccounts.filter(acc => accountIdsInDocs.has(acc.id));
+    }, [displayedDocuments, uniqueChartOfAccounts]);
 
     const getAllocationDescription = (tx: ImportedTransaction) => {
         const changedTx = changes[tx.id];
@@ -2015,11 +2030,6 @@ const ReviewedTab = React.forwardRef<
         }
     };
     
-    const documents = useMemo(() => {
-        let docs = showAll ? allTransactions : (searchResults !== null ? searchResults : paginatedDocuments);
-        
-        return docs;
-    }, [searchResults, paginatedDocuments, showAll, allTransactions, changes]);
     
     const handleReviewConsistency = async () => {
         if (!client || !bankAccountId) return;
@@ -2288,66 +2298,9 @@ const ReviewedTab = React.forwardRef<
                         <TabsTrigger value="income">Reviewed Income</TabsTrigger>
                     </TabsList>
                 </Tabs>
-                <div className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" disabled={selectedTransactions.length === 0}>Reallocate Selected <ChevronsUpDown className="ml-2 h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="p-0">
-                                <Command>
-                                    <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
-                                    <CommandList>
-                                        <ScrollArea className="h-72">
-                                            <CommandEmpty>No results found.</CommandEmpty>
-                                            <CommandGroup heading="Customers">
-                                                {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
-                                                    <DropdownMenuItem key={c.id} onSelect={() => handleBulkReallocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                        {c.name}
-                                                    </DropdownMenuItem>
-                                                ))}
-                                            </CommandGroup>
-                                            <CommandGroup heading="Accounts">
-                                                {uniqueChartOfAccounts.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
-                                                    <DropdownMenuSub key={acc.id}>
-                                                        <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
-                                                        <DropdownMenuSubContent>
-                                                            {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                                    {vat.label}
-                                                                </DropdownMenuItem>
-                                                            )) : (
-                                                                <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                                    No VAT
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                        </DropdownMenuSubContent>
-                                                    </DropdownMenuSub>
-                                                ))}
-                                            </CommandGroup>
-                                        </ScrollArea>
-                                    </CommandList>
-                                </Command>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-
-                         <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                 <Button variant="destructive" disabled={selectedTransactions.length === 0}>Delete Selected</Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-
-                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
                             {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Download Excel
                         </Button>
@@ -2371,16 +2324,27 @@ const ReviewedTab = React.forwardRef<
                             </AlertDialogContent>
                         </AlertDialog>
                     </div>
-                     <div className="flex items-center gap-2">
+                     <div className="flex items-center gap-2 flex-wrap justify-end">
                         <DateRangePicker onDateChange={setDateRange} />
-                        <div className="relative">
+                        <Select value={accountFilter} onValueChange={setAccountFilter}>
+                            <SelectTrigger className="w-full md:w-[200px]">
+                                <SelectValue placeholder="Filter by account..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Accounts</SelectItem>
+                                {accountsWithTransactions.map(acc => (
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <div className="relative w-full md:w-auto">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
                                 type="search"
                                 placeholder="Search descriptions..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-8 w-48"
+                                className="pl-8 w-full md:w-48"
                             />
                         </div>
                      </div>
@@ -2393,9 +2357,9 @@ const ReviewedTab = React.forwardRef<
                             <TableRow>
                                 <TableCell className="w-12 p-2">
                                      <Checkbox
-                                        checked={documents.length > 0 && selectedTransactions.length === documents.length}
+                                        checked={displayedDocuments.length > 0 && selectedTransactions.length === displayedDocuments.length}
                                         onCheckedChange={(checked) => {
-                                            setSelectedTransactions(checked ? documents.map(tx => tx.id) : []);
+                                            setSelectedTransactions(checked ? displayedDocuments.map(tx => tx.id) : []);
                                         }}
                                     />
                                 </TableCell>
@@ -2409,10 +2373,10 @@ const ReviewedTab = React.forwardRef<
                         <TableBody>
                             {isLoading || isSearching || isFetchingAll ? (
                                 <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
-                            ) : documents.length === 0 ? (
+                            ) : displayedDocuments.length === 0 ? (
                                 <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
                             ) : (
-                                documents.map(tx => (
+                                displayedDocuments.map(tx => (
                                     <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
                                         <TableCell className="p-2">
                                             <Checkbox
@@ -2475,10 +2439,68 @@ const ReviewedTab = React.forwardRef<
                 </div>
             </CardContent>
              <CardFooter className="flex items-center justify-between p-4">
-                 <Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
-                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Save Changes
-                </Button>
+                 <div className="flex items-center gap-2">
+                    <Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Save Changes
+                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" disabled={selectedTransactions.length === 0}><span className="hidden sm:inline">Reallocate Selected</span><span className="sm:hidden">Reallocate</span><ChevronsUpDown className="ml-2 h-4 w-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="p-0">
+                            <Command>
+                                <CommandInput placeholder="Search..." />
+                                <CommandList>
+                                    <ScrollArea className="h-72">
+                                        <CommandEmpty>No results found.</CommandEmpty>
+                                        <CommandGroup heading="Customers">
+                                            {customers.map(c => (
+                                                <DropdownMenuItem key={c.id} onSelect={() => handleBulkReallocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                    {c.name}
+                                                </DropdownMenuItem>
+                                            ))}
+                                        </CommandGroup>
+                                        <CommandGroup heading="Accounts">
+                                            {uniqueChartOfAccounts.map(acc => (
+                                                <DropdownMenuSub key={acc.id}>
+                                                    <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                                    <DropdownMenuSubContent>
+                                                        {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                            <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                                {vat.label}
+                                                            </DropdownMenuItem>
+                                                        )) : (
+                                                            <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                                No VAT
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                    </DropdownMenuSubContent>
+                                                </DropdownMenuSub>
+                                            ))}
+                                        </CommandGroup>
+                                    </ScrollArea>
+                                </CommandList>
+                            </Command>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={selectedTransactions.length === 0}>Delete</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                 </div>
                 <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
                         {showAll ? 'Show Paginated' : 'Show All'}
@@ -3006,7 +3028,7 @@ export default function BankTransactionsPage() {
         return allTransactions
             .filter(tx => tx.bankAccountId === selectedAccount.id)
             .reduce((sum, tx) => sum + tx.amount, 0);
-    }, [allTransactions, selectedAccount]);
+    }, [allTransactions, selectedAccountId]);
     
     const handleDeleteBankAccount = async () => {
         if (!client || !client.uid || !selectedAccountId) return;
@@ -3216,3 +3238,5 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
+    
