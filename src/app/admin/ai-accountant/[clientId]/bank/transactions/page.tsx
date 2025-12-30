@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown, ChevronRight as ChevronRightIcon, MoreHorizontal } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice } from '@/lib/types';
@@ -21,7 +21,6 @@ import { db } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator, DropdownMenuGroup } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1942,29 +1941,25 @@ const ReviewedTab = React.forwardRef<
 
 
     const handleSaveChanges = async (changesToSave: typeof changes, transactionIds: string[]) => {
-        if (!client || transactionIds.length === 0) return;
+        if (!client || !client.uid || transactionIds.length === 0) return;
         setIsSaving(true);
         toast({ title: 'Saving changes...', description: 'Please wait.' });
     
         try {
-            for (let i = 0; i < transactionIds.length; i += BATCH_SIZE) {
-                const batch = writeBatch(db);
-                const chunkIds = transactionIds.slice(i, i + BATCH_SIZE);
-    
-                chunkIds.forEach(txId => {
-                    const changeData = changesToSave[txId];
-                    if (changeData) {
-                       const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                        const updateData: { [key: string]: any } = {};
-                        if (changeData.allocatedTo) updateData.allocatedTo = changeData.allocatedTo;
-                        if (changeData.vatType) updateData.vatType = changeData.vatType;
-                        if (Object.keys(updateData).length > 0) {
-                            batch.update(txRef, updateData);
-                        }
+            const batch = writeBatch(db);
+            transactionIds.forEach(txId => {
+                const changeData = changesToSave[txId];
+                if (changeData) {
+                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+                    const updateData: { [key: string]: any } = {};
+                    if (changeData.allocatedTo) updateData.allocatedTo = changeData.allocatedTo;
+                    if (changeData.vatType) updateData.vatType = changeData.vatType;
+                    if (Object.keys(updateData).length > 0) {
+                        batch.update(txRef, updateData);
                     }
-                });
-                await batch.commit();
-            }
+                }
+            });
+            await batch.commit();
     
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
             
@@ -2297,73 +2292,61 @@ const ReviewedTab = React.forwardRef<
                     <div className="flex items-center gap-2">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
-                                    Actions <MoreHorizontal className="ml-2 h-4 w-4"/>
-                                </Button>
+                                <Button variant="outline" disabled={selectedTransactions.length === 0}>Reallocate Selected <ChevronsUpDown className="ml-2 h-4 w-4" /></Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Reallocate Selected</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent className="p-0">
-                                        <Command>
-                                            <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
-                                            <CommandList>
-                                                <ScrollArea className="h-72">
-                                                <CommandEmpty>No results found.</CommandEmpty>
-                                                <CommandGroup heading="Customers">
-                                                    {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
-                                                        <DropdownMenuItem key={c.id} onSelect={() => handleBulkReallocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                            {c.name}
-                                                        </DropdownMenuItem>
-                                                    ))}
-                                                </CommandGroup>
-                                                    <CommandGroup heading="Accounts">
-                                                    {uniqueChartOfAccounts.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
-                                                        <DropdownMenuSub key={acc.id}>
-                                                            <DropdownMenuSubTrigger asChild>
-                                                                <CommandItem onSelect={(e) => e.preventDefault()} className="w-full">
-                                                                    <span>{acc.description}</span>
-                                                                </CommandItem>
-                                                            </DropdownMenuSubTrigger>
-                                                            <DropdownMenuSubContent>
-                                                                {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                                        {vat.label}
-                                                                    </DropdownMenuItem>
-                                                                )) : (
-                                                                    <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                                        No VAT
-                                                                    </DropdownMenuItem>
-                                                                )}
-                                                            </DropdownMenuSubContent>
-                                                        </DropdownMenuSub>
-                                                    ))}
-                                                </CommandGroup>
-                                                </ScrollArea>
-                                            </CommandList>
-                                        </Command>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
-                                <DropdownMenuSeparator />
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                            Delete Selected
-                                        </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                            <DropdownMenuContent className="p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
+                                    <CommandList>
+                                        <ScrollArea className="h-72">
+                                            <CommandEmpty>No results found.</CommandEmpty>
+                                            <CommandGroup heading="Customers">
+                                                {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
+                                                    <DropdownMenuItem key={c.id} onSelect={() => handleBulkReallocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                        {c.name}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </CommandGroup>
+                                            <CommandGroup heading="Accounts">
+                                                {uniqueChartOfAccounts.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
+                                                    <DropdownMenuSub key={acc.id}>
+                                                        <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                                        <DropdownMenuSubContent>
+                                                            {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                                    {vat.label}
+                                                                </DropdownMenuItem>
+                                                            )) : (
+                                                                <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                                    No VAT
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                        </DropdownMenuSubContent>
+                                                    </DropdownMenuSub>
+                                                ))}
+                                            </CommandGroup>
+                                        </ScrollArea>
+                                    </CommandList>
+                                </Command>
                             </DropdownMenuContent>
                         </DropdownMenu>
+
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                 <Button variant="destructive" disabled={selectedTransactions.length === 0}>Delete Selected</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+
                          <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
                             {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Download Excel
