@@ -236,30 +236,30 @@ export default function Vat201ReportPage() {
 
             const transactionDetails = {
                 ...tx,
-                inclusiveAmount: Math.abs(inclusiveAmount),
-                exclusiveAmount: Math.abs(exclusiveAmount),
-                vatAmount: Math.abs(inclusiveAmount - exclusiveAmount),
+                inclusiveAmount: inclusiveAmount,
+                exclusiveAmount: exclusiveAmount,
+                vatAmount: inclusiveAmount - exclusiveAmount,
             };
 
             switch (tx.vatType) {
                 case 'standard_rated_sales': 
-                    totalStandardSales += Math.abs(inclusiveAmount); // Use inclusive for field 1
+                    totalStandardSales += inclusiveAmount; // Field 1 must be inclusive. Negative amount for refund will decrease total.
                     standardSalesTxs.push(transactionDetails);
                     break;
                 case 'zero_rated_sales': 
-                    totalZeroSales += Math.abs(exclusiveAmount);
+                    totalZeroSales += exclusiveAmount;
                     zeroSalesTxs.push(transactionDetails);
                     break;
                 case 'exempt_sales': 
-                    totalExemptSales += Math.abs(exclusiveAmount); 
+                    totalExemptSales += exclusiveAmount; 
                     exemptSalesTxs.push(transactionDetails);
                     break;
                 case 'capital_goods_purchases': 
-                    totalCapitalPurchases += Math.abs(exclusiveAmount);
+                    totalCapitalPurchases += exclusiveAmount;
                     capitalPurchasesTxs.push(transactionDetails);
                     break;
                 case 'standard_rated_purchases': 
-                    totalOtherPurchases += Math.abs(exclusiveAmount);
+                    totalOtherPurchases += exclusiveAmount;
                     otherPurchasesTxs.push(transactionDetails);
                     break;
             }
