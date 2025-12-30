@@ -228,27 +228,29 @@ export default function Vat201ReportPage() {
             const isStandardRate = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
             const vatRate = isStandardRate ? 0.15 : 0;
             
-            let exclusiveAmount, inclusiveAmount;
+            let exclusiveAmount, inclusiveAmount, vatAmount;
 
             if (isJournal) {
                 exclusiveAmount = tx.amount;
                 inclusiveAmount = isStandardRate ? tx.amount * (1 + vatRate) : tx.amount;
+                vatAmount = inclusiveAmount - exclusiveAmount;
             } else {
                 inclusiveAmount = tx.amount;
                 exclusiveAmount = isStandardRate ? inclusiveAmount / (1 + vatRate) : inclusiveAmount;
+                vatAmount = inclusiveAmount - exclusiveAmount;
             }
-
+            
             const transactionDetails = {
                 ...tx,
                 inclusiveAmount: inclusiveAmount,
                 exclusiveAmount: exclusiveAmount,
-                vatAmount: inclusiveAmount - exclusiveAmount,
+                vatAmount: vatAmount,
             };
 
             switch (tx.vatType) {
                 case 'standard_rated_sales': 
                     totalStandardSales += inclusiveAmount;
-                    outputVat += transactionDetails.vatAmount;
+                    outputVat += vatAmount;
                     standardSalesTxs.push(transactionDetails);
                     break;
                 case 'zero_rated_sales': 
@@ -272,8 +274,9 @@ export default function Vat201ReportPage() {
 
         const inputVatCapital = totalCapitalPurchases * 0.15;
         const inputVatOther = totalOtherPurchases * 0.15;
-        const totalInputVat = inputVatCapital + inputVatOther;
+        const totalInputVat = Math.abs(inputVatCapital + inputVatOther);
         const vatPayable = outputVat - totalInputVat;
+
 
         return {
             field1: { value: totalStandardSales, txs: standardSalesTxs },
@@ -445,7 +448,3 @@ export default function Vat201ReportPage() {
         </Card>
     );
 }
-
-    
-
-    
