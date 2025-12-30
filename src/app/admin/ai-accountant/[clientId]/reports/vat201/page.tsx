@@ -1,12 +1,13 @@
 
 'use client';
 
+import * as React from "react"
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { User, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
+import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye, Calculator } from "lucide-react";
@@ -16,15 +17,19 @@ import * as XLSX from 'xlsx';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import Image from "next/image";
 
 const db = getFirestore(firebaseApp);
 
 const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-GB', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+    if (price === 0) return 'R 0.00';
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
     }).format(price);
 };
 
@@ -80,61 +85,119 @@ const generateVatPeriods = (vatCategory: 'A' | 'B' | 'C' | undefined) => {
     return periods;
 };
 
-const VAT201Field = ({ field, label, value, isVat = false, transactions, client }: { field: string, label: string, value: number, isVat?: boolean, transactions: (ImportedTransaction | AllocatedTransaction)[], client: User | null }) => {
-    const [isOpen, setIsOpen] = useState(false);
-
+function TransactionDrilldownDialog({ transactions, client, label }: { transactions: any[], client: User | null, label: string }) {
+    if (!client) return null;
+  
     const getAccountDescription = (accountId?: string) => {
-        if (!accountId || !client?.chartOfAccounts) return 'N/A';
-        return client.chartOfAccounts.find(acc => acc.id === accountId)?.description || accountId;
-    }
-
+      if (!accountId) return 'N/A';
+      return client.chartOfAccounts?.find(acc => acc.id === accountId)?.description || accountId;
+    };
+  
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Transactions for: {label}</DialogTitle>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Allocated To</TableHead>
+                <TableHead className="text-right">Exclusive</TableHead>
+                <TableHead className="text-right">VAT</TableHead>
+                <TableHead className="text-right">Total (Incl.)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {transactions.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="text-center">No transactions</TableCell></TableRow>
+              ) : (
+                transactions.map((tx, i) => (
+                  <TableRow key={i}>
+                    <TableCell>{tx.date ? format(new Date(tx.date), 'dd/MM/yyyy') : 'N/A'}</TableCell>
+                    <TableCell>{tx.description}</TableCell>
+                    <TableCell>{getAccountDescription(tx.allocatedTo?.value)}</TableCell>
+                    <TableCell className="text-right font-mono">{formatPrice(tx.exclusiveAmount || 0)}</TableCell>
+                    <TableCell className="text-right font-mono">{formatPrice(tx.vatAmount || 0)}</TableCell>
+                    <TableCell className="text-right font-mono">{formatPrice(tx.inclusiveAmount || 0)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </DialogContent>
+    );
+  }
+  
+
+const VAT201Field = ({ field, label, value, isVat = false, transactions, client }: { field: string, label: string, value: number, isVat?: boolean, transactions: any[], client: User | null }) => {
+    
+    return (
+        <Dialog>
             <div className="flex items-center justify-between p-3 border-b">
                 <div className="flex items-center gap-4">
                     <div className="font-mono text-sm bg-muted text-muted-foreground w-8 h-8 flex items-center justify-center rounded-md">{field}</div>
                     <Label htmlFor={`field-${field}`} className="font-normal">{label}</Label>
                 </div>
-                <DialogTrigger asChild>
+                 <DialogTrigger asChild>
                     <Button variant="link" className={`h-auto p-0 font-mono text-base ${isVat ? 'font-bold' : ''}`}>
                         {formatPrice(value)}
                     </Button>
                 </DialogTrigger>
             </div>
-             <DialogContent className="max-w-3xl">
-                <DialogHeader>
-                    <DialogTitle>Transactions for: {label}</DialogTitle>
-                </DialogHeader>
-                <div className="max-h-[60vh] overflow-y-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead>Allocated To</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {transactions.length === 0 ? (
-                                <TableRow><TableCell colSpan={4} className="text-center">No transactions</TableCell></TableRow>
-                            ) : (
-                                transactions.map((tx, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell>{tx.date ? format(new Date(tx.date), 'dd/MM/yyyy') : 'N/A'}</TableCell>
-                                        <TableCell>{tx.description}</TableCell>
-                                        <TableCell>{getAccountDescription(tx.allocatedTo?.value)}</TableCell>
-                                        <TableCell className="text-right">{formatPrice(tx.amount)}</TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </DialogContent>
+            <TransactionDrilldownDialog transactions={transactions} client={client} label={label}/>
         </Dialog>
     );
 }
+
+const VAT201PDF = React.forwardRef<HTMLDivElement, { vatData: any, client: User | null, periodLabel: string }>(({ vatData, client, periodLabel }, ref) => {
+    if (!vatData || !client) return null;
+    return (
+      <div ref={ref} className="p-8 bg-white text-black">
+        <header className="text-center mb-8">
+            <Image src="/logo.png" alt="My Accountant Logo" width={120} height={40} className="mx-auto mb-4"/>
+            <h1 className="text-2xl font-bold">VAT201 Declaration</h1>
+            <p className="text-sm text-gray-600">{client.companyName || client.name}</p>
+            <p className="text-sm text-gray-600">VAT Number: {client.vatNumber || 'N/A'}</p>
+            <p className="text-sm text-gray-600">Period: {periodLabel}</p>
+        </header>
+
+        <section className="border-t border-b py-4">
+            <h2 className="font-bold text-lg mb-2">Output Tax</h2>
+            <div className="grid grid-cols-3 gap-x-4 gap-y-2">
+                <span className="col-span-2">1. Total value of standard-rated supplies</span><span className="text-right">{formatPrice(vatData.field1.value)}</span>
+                <span className="col-span-2">1A. VAT on standard-rated supplies</span><span className="text-right font-semibold">{formatPrice(vatData.field1A.value)}</span>
+                <span className="col-span-2">2. Value of zero-rated supplies</span><span className="text-right">{formatPrice(vatData.field2.value)}</span>
+                <span className="col-span-2">3. Value of exempt supplies</span><span className="text-right">{formatPrice(vatData.field3.value)}</span>
+                <span className="col-span-2">4. Adjustments</span><span className="text-right">{formatPrice(vatData.field4.value)}</span>
+            </div>
+        </section>
+        <section className="border-b py-4">
+            <h2 className="font-bold text-lg mb-2">Input Tax</h2>
+            <div className="grid grid-cols-3 gap-x-4 gap-y-2">
+                <span className="col-span-2">14. Value of capital goods</span><span className="text-right">{formatPrice(vatData.field14.value)}</span>
+                <span className="col-span-2">14A. VAT on capital goods</span><span className="text-right font-semibold">{formatPrice(vatData.field14A.value)}</span>
+                <span className="col-span-2">15. Value of other goods & services</span><span className="text-right">{formatPrice(vatData.field15.value)}</span>
+                <span className="col-span-2">15A. VAT on other goods & services</span><span className="text-right font-semibold">{formatPrice(vatData.field15A.value)}</span>
+                <span className="col-span-2">16. Adjustments</span><span className="text-right">{formatPrice(vatData.field16.value)}</span>
+            </div>
+        </section>
+        <section className="py-4">
+            <h2 className="font-bold text-lg mb-2">Calculation</h2>
+            <div className="grid grid-cols-3 gap-x-4 gap-y-2">
+                <span className="col-span-2">18. Total Output Tax</span><span className="text-right font-semibold">{formatPrice(vatData.totalOutput.value)}</span>
+                <span className="col-span-2">19. Total Input Tax</span><span className="text-right font-semibold">{formatPrice(vatData.totalInput.value)}</span>
+                <span className="col-span-2 font-bold text-xl mt-2">{vatData.vatPayable.value >= 0 ? 'VAT PAYABLE' : 'VAT REFUNDABLE'}</span><span className="text-right font-bold text-xl mt-2">{formatPrice(Math.abs(vatData.vatPayable.value))}</span>
+            </div>
+        </section>
+      </div>
+    );
+});
+VAT201PDF.displayName = 'VAT201PDF';
+
 
 export default function Vat201ReportPage() {
     const params = useParams();
@@ -144,6 +207,8 @@ export default function Vat201ReportPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [vatPeriods, setVatPeriods] = useState<{ label: string; from: Date; to: Date; }[]>([]);
     const [selectedPeriod, setSelectedPeriod] = useState<string | undefined>();
+    const pdfRef = React.useRef<HTMLDivElement>(null);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -201,51 +266,52 @@ export default function Vat201ReportPage() {
             return txDate >= fromDate && txDate <= toDate && tx.status === 'allocated';
         });
         
-        let totalStandardSales = 0, totalZeroSales = 0, totalExemptSales = 0;
-        let totalCapitalPurchases = 0, totalOtherPurchases = 0;
+        let totalStandardSales = 0;
+        let totalZeroSales = 0;
+        let totalExemptSales = 0;
+        let totalCapitalPurchases = 0;
+        let totalOtherPurchases = 0;
         
-        let standardSalesTxs: (ImportedTransaction | AllocatedTransaction)[] = [];
-        let zeroSalesTxs: (ImportedTransaction | AllocatedTransaction)[] = [];
-        let exemptSalesTxs: (ImportedTransaction | AllocatedTransaction)[] = [];
-        let capitalPurchasesTxs: (ImportedTransaction | AllocatedTransaction)[] = [];
-        let otherPurchasesTxs: (ImportedTransaction | AllocatedTransaction)[] = [];
+        let standardSalesTxs: any[] = [], zeroSalesTxs: any[] = [], exemptSalesTxs: any[] = [], capitalPurchasesTxs: any[] = [], otherPurchasesTxs: any[] = [];
 
         vatTransactions.forEach(tx => {
             const isJournal = tx.bankAccountId === 'JOURNAL';
-            let exclusiveAmount = 0;
+            const isStandardRate = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+            let exclusiveAmount = isStandardRate ? tx.amount / 1.15 : tx.amount;
             let inclusiveAmount = tx.amount;
-
-            if(isJournal) {
-                const isStandardRate = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
-                exclusiveAmount = tx.amount;
-                if (isStandardRate) {
-                    inclusiveAmount = exclusiveAmount * 1.15;
-                }
-            } else {
-                 const isStandardRate = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'standard_rated_sales' || tx.vatType === 'capital_goods_purchases';
-                 exclusiveAmount = isStandardRate ? tx.amount / 1.15 : tx.amount;
-            }
             
+            if (isJournal) {
+                inclusiveAmount = isStandardRate ? tx.amount * 1.15 : tx.amount;
+                exclusiveAmount = tx.amount;
+            }
+
+            const transactionDetails = {
+                ...tx,
+                inclusiveAmount: Math.abs(inclusiveAmount),
+                exclusiveAmount: Math.abs(exclusiveAmount),
+                vatAmount: Math.abs(inclusiveAmount - exclusiveAmount),
+            };
+
             switch (tx.vatType) {
                 case 'standard_rated_sales': 
                     totalStandardSales += -inclusiveAmount;
-                    standardSalesTxs.push({ ...tx, amount: -tx.amount });
+                    standardSalesTxs.push(transactionDetails);
                     break;
                 case 'zero_rated_sales': 
                     totalZeroSales += -exclusiveAmount;
-                    zeroSalesTxs.push({ ...tx, amount: -tx.amount });
+                    zeroSalesTxs.push(transactionDetails);
                     break;
                 case 'exempt_sales': 
                     totalExemptSales += -exclusiveAmount; 
-                    exemptSalesTxs.push({ ...tx, amount: -tx.amount });
+                    exemptSalesTxs.push(transactionDetails);
                     break;
                 case 'capital_goods_purchases': 
                     totalCapitalPurchases += exclusiveAmount;
-                    capitalPurchasesTxs.push(tx);
+                    capitalPurchasesTxs.push(transactionDetails);
                     break;
                 case 'standard_rated_purchases': 
                     totalOtherPurchases += exclusiveAmount;
-                    otherPurchasesTxs.push(tx);
+                    otherPurchasesTxs.push(transactionDetails);
                     break;
             }
         });
@@ -271,7 +337,20 @@ export default function Vat201ReportPage() {
             totalInput: { value: totalInputVat, txs: [...capitalPurchasesTxs, ...otherPurchasesTxs] },
             vatPayable: { value: vatPayable, txs: [] },
         };
-    }, [transactions, parsedPeriod, client]);
+    }, [transactions, parsedPeriod]);
+
+    const handleDownloadPDF = async () => {
+        if (!pdfRef.current) return;
+        setIsDownloading(true);
+        const canvas = await html2canvas(pdfRef.current, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`VAT201-${client?.name}-${parsedPeriod.label.replace('/', '-')}.pdf`);
+        setIsDownloading(false);
+    };
 
     return (
         <Card>
@@ -299,8 +378,8 @@ export default function Vat201ReportPage() {
                         </div>
                         
                         {vatData && client && (
+                            <>
                             <div className="space-y-8 pt-4">
-                                
                                 <div className="border rounded-lg">
                                     <div className="p-4 bg-muted/50 rounded-t-lg">
                                         <h3 className="font-semibold">1. Output Tax (Sales)</h3>
@@ -337,8 +416,17 @@ export default function Vat201ReportPage() {
                                         <Input value={formatPrice(Math.abs(vatData.vatPayable.value))} readOnly className="w-40 text-right font-mono font-bold" />
                                     </div>
                                 </div>
-                                
                             </div>
+                            <CardFooter>
+                                <Button onClick={handleDownloadPDF} disabled={isDownloading}>
+                                    {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4" />}
+                                    Download PDF
+                                </Button>
+                            </CardFooter>
+                             <div className="hidden">
+                                <VAT201PDF ref={pdfRef} vatData={vatData} client={client} periodLabel={parsedPeriod?.label || ''} />
+                            </div>
+                            </>
                         )}
 
                     </div>
