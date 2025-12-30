@@ -1767,9 +1767,6 @@ const ReviewedTab = React.forwardRef<
             constraints.push(where('date', '<=', dateRange.to.toISOString()));
         }
 
-        // Account filter is handled client-side for simplicity with pagination for now.
-        // For a more robust solution, this should be added to the query.
-
         const sortableFields: SortField[] = ['date', 'description', 'amount'];
         if (sortableFields.includes(sortField)) {
             constraints.push(orderBy(sortField, sortDirection));
@@ -1806,23 +1803,25 @@ const ReviewedTab = React.forwardRef<
             }
 
             setIsSearching(true);
-            let searchConstraints: QueryConstraint[] = [
-                where('bankAccountId', '==', bankAccountId),
-                where('status', 'in', ['reviewed', 'allocated']),
-            ];
-             if (activeSubTab === 'expenses') {
-                searchConstraints.push(where('amount', '<', 0));
-            } else {
-                 searchConstraints.push(where('amount', '>=', 0));
-            }
-             if (hasFilter) {
-                searchConstraints.push(where('allocatedTo.value', '==', accountFilter));
-            }
-
-            const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
-
             try {
-                const snapshot = await getDocs(q);
+                let baseConstraints: QueryConstraint[] = [
+                    where('bankAccountId', '==', bankAccountId),
+                    where('status', 'in', ['reviewed', 'allocated']),
+                ];
+                if (activeSubTab === 'expenses') {
+                    baseConstraints.push(where('amount', '<', 0));
+                } else {
+                    baseConstraints.push(where('amount', '>=', 0));
+                }
+                
+                let finalQuery;
+                if (hasFilter) {
+                    finalQuery = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...baseConstraints, where('allocatedTo.value', '==', accountFilter));
+                } else {
+                    finalQuery = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...baseConstraints);
+                }
+
+                const snapshot = await getDocs(finalQuery);
                 let allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
 
                 if (hasSearch) {
@@ -1844,6 +1843,7 @@ const ReviewedTab = React.forwardRef<
 
         return () => clearTimeout(debounce);
     }, [searchTerm, accountFilter, client, bankAccountId, activeSubTab, toast, refetch]);
+
 
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -1958,22 +1958,7 @@ const ReviewedTab = React.forwardRef<
             console.error(error);
         }
     };
-
-    const handleBulkReallocate = async (allocation: { value: string, type: 'account' | 'customer' | 'supplier' }, vatType: VatType) => {
-        if (!client || !client.uid || selectedTransactions.length === 0) return;
-        
-        const changesToSave: { [key: string]: Partial<ImportedTransaction> } = {};
-        selectedTransactions.forEach(txId => {
-            changesToSave[txId] = {
-                allocatedTo: allocation,
-                vatType: client.isVatRegistered ? vatType : 'no_vat',
-            };
-        });
-
-        await handleSaveChanges(changesToSave, selectedTransactions);
-    };
-
-
+    
     const handleSaveChanges = async (changesToSave: typeof changes, transactionIds: string[]) => {
         if (!client || !client.uid || transactionIds.length === 0) return;
         setIsSaving(true);
@@ -2236,6 +2221,19 @@ const ReviewedTab = React.forwardRef<
         );
     };
 
+    const handleBulkReallocate = (allocation: { value: string; type: "account" | "customer" | "supplier"; }, vatType: "standard_rated_sales" | "zero_rated_sales" | "exempt_sales" | "standard_rated_purchases" | "capital_goods_purchases" | "zero_rated_purchases" | "exempt_purchases" | "no_vat") => {
+      const changesToSave: { [key: string]: Partial<ImportedTransaction> } = {};
+        selectedTransactions.forEach(txId => {
+            changesToSave[txId] = {
+                allocatedTo: allocation,
+                vatType: client?.isVatRegistered ? vatType : 'no_vat',
+            };
+        });
+
+        handleSaveChanges(changesToSave, selectedTransactions);
+    };
+
+
     return (
         <Card>
             <CreateGeneralAccountDialog 
@@ -2480,12 +2478,35 @@ const ReviewedTab = React.forwardRef<
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Save Changes
                     </Button>
-                     <Button variant="outline" onClick={() => handleBulkReallocate({value: 'account:3000-022'}, 'standard_rated_purchases')}>
-                       Reallocate
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                Reallocate Selected <ChevronsUpDown className="ml-2 h-4 w-4"/>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-64">
+                            {client?.chartOfAccounts?.map(acc => (
+                                <DropdownMenuSub key={acc.id}>
+                                    <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        {client.isVatRegistered ? allVatTypes.map(vat => (
+                                            <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                {vat.label}
+                                            </DropdownMenuItem>
+                                        )) : (
+                                            <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                No VAT
+                                            </DropdownMenuItem>
+                                        )}
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="destructive" disabled={selectedTransactions.length === 0}>Delete</Button>
+                            <Button variant="destructive" disabled={selectedTransactions.length === 0}>Delete Selected</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
