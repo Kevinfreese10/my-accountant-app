@@ -2303,9 +2303,7 @@ const ReviewedTab = React.forwardRef<
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>
-                                      <span>Reallocate Selected</span>
-                                    </DropdownMenuSubTrigger>
+                                    <DropdownMenuSubTrigger>Reallocate Selected</DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent className="p-0">
                                         <Command>
                                             <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
@@ -2323,7 +2321,9 @@ const ReviewedTab = React.forwardRef<
                                                     {uniqueChartOfAccounts.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
                                                             <DropdownMenuSubTrigger asChild>
-                                                                <span>{acc.description}</span>
+                                                                <CommandItem onSelect={(e) => e.preventDefault()} className="w-full">
+                                                                    <span>{acc.description}</span>
+                                                                </CommandItem>
                                                             </DropdownMenuSubTrigger>
                                                             <DropdownMenuSubContent>
                                                                 {client?.isVatRegistered ? allVatTypes.map(vat => (
@@ -3229,7 +3229,7 @@ export default function BankTransactionsPage() {
                 </TabsContent>
             </Tabs>
             {client && <CreateAccountDialog client={client} onAccountCreated={fetchClientAndRelatedData} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen}/>}
-            {client && selectedAccount && <EditAccountDialog client={client} account={selectedAccount} onAccountUpdated={fetchClientAndRelatedData} open={isEditAccountOpen} onOpenChange={setIsEditOpen}/>}
+            {client && selectedAccount && <EditAccountDialog client={client} account={selectedAccount} onAccountUpdated={fetchClientAndRelatedData} open={isEditAccountOpen} onOpenChange={setIsEditAccountOpen}/>}
         </div>
     );
 }
