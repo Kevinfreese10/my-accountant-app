@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -2304,7 +2303,9 @@ const ReviewedTab = React.forwardRef<
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Reallocate Selected</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubTrigger>
+                                      <span>Reallocate Selected</span>
+                                    </DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent className="p-0">
                                         <Command>
                                             <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
@@ -3228,7 +3229,7 @@ export default function BankTransactionsPage() {
                 </TabsContent>
             </Tabs>
             {client && <CreateAccountDialog client={client} onAccountCreated={fetchClientAndRelatedData} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen}/>}
-            {client && selectedAccount && <EditAccountDialog client={client} account={selectedAccount} onAccountUpdated={fetchClientAndRelatedData} open={isEditAccountOpen} onOpenChange={setIsEditAccountOpen}/>}
+            {client && selectedAccount && <EditAccountDialog client={client} account={selectedAccount} onAccountUpdated={fetchClientAndRelatedData} open={isEditAccountOpen} onOpenChange={setIsEditOpen}/>}
         </div>
     );
 }
