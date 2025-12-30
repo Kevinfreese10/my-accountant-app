@@ -1,5 +1,5 @@
 
-'use client';
+      'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -1767,6 +1767,9 @@ const ReviewedTab = React.forwardRef<
             constraints.push(where('date', '<=', dateRange.to.toISOString()));
         }
 
+        // Account filter is handled client-side for simplicity with pagination for now.
+        // For a more robust solution, this should be added to the query.
+
         const sortableFields: SortField[] = ['date', 'description', 'amount'];
         if (sortableFields.includes(sortField)) {
             constraints.push(orderBy(sortField, sortDirection));
@@ -1788,17 +1791,22 @@ const ReviewedTab = React.forwardRef<
         currentPage,
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
-
-     useEffect(() => {
-        const handleSearch = async () => {
-            if (!searchTerm.trim()) {
-                setSearchResults(null);
-                return;
-            }
+    
+    useEffect(() => {
+        const handleSearchAndFilter = async () => {
             if (!client?.uid || !bankAccountId) return;
             
+            const hasSearch = searchTerm.trim().length > 0;
+            const hasFilter = accountFilter !== 'all';
+
+            if (!hasSearch && !hasFilter) {
+                setSearchResults(null);
+                refetch();
+                return;
+            }
+
             setIsSearching(true);
-            const searchConstraints: QueryConstraint[] = [
+            let searchConstraints: QueryConstraint[] = [
                 where('bankAccountId', '==', bankAccountId),
                 where('status', 'in', ['reviewed', 'allocated']),
             ];
@@ -1807,6 +1815,9 @@ const ReviewedTab = React.forwardRef<
             } else {
                  searchConstraints.push(where('amount', '>=', 0));
             }
+             if (hasFilter) {
+                searchConstraints.push(where('allocatedTo.value', '==', accountFilter));
+            }
 
             const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
 
@@ -1814,35 +1825,35 @@ const ReviewedTab = React.forwardRef<
                 const snapshot = await getDocs(q);
                 let allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
 
-                if (searchTerm.trim()) {
+                if (hasSearch) {
                     allDocs = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
                 }
                 
                 setSearchResults(allDocs);
             } catch (error) {
-                console.error("Error during search:", error);
-                toast({ title: "Search Error", variant: "destructive" });
+                console.error("Error during search/filter:", error);
+                toast({ title: "Search/Filter Error", variant: "destructive" });
             } finally {
                 setIsSearching(false);
             }
         };
 
         const debounce = setTimeout(() => {
-            handleSearch();
+            handleSearchAndFilter();
         }, 500);
 
         return () => clearTimeout(debounce);
-    }, [searchTerm, client, bankAccountId, activeSubTab, toast]);
-    
+    }, [searchTerm, accountFilter, client, bankAccountId, activeSubTab, toast, refetch]);
+
     React.useImperativeHandle(ref, () => ({
         refetch,
     }));
 
      useEffect(() => {
-        refetch();
         setSearchTerm('');
         setSearchResults(null);
         setAccountFilter('all');
+        refetch();
     }, [activeSubTab, refetch]);
     
     useEffect(() => {
@@ -1871,18 +1882,28 @@ const ReviewedTab = React.forwardRef<
     }, [showAll, reviewedTransactionsQuery, toast]);
     
     const displayedDocuments = useMemo(() => {
-        let docs = showAll ? allTransactions : (searchResults !== null ? searchResults : paginatedDocuments);
-        if (accountFilter !== 'all') {
-            docs = docs.filter(doc => doc.allocatedTo?.value === accountFilter);
+        if (searchResults !== null) {
+            return searchResults;
         }
-        return docs;
-    }, [showAll, allTransactions, searchResults, paginatedDocuments, accountFilter]);
+        if (showAll) {
+            return allTransactions;
+        }
+        return paginatedDocuments;
+    }, [showAll, allTransactions, searchResults, paginatedDocuments]);
 
     const accountsWithTransactions = useMemo(() => {
-        if (!displayedDocuments || !uniqueChartOfAccounts) return [];
-        const accountIdsInDocs = new Set(displayedDocuments.map(tx => tx.allocatedTo?.value));
-        return uniqueChartOfAccounts.filter(acc => accountIdsInDocs.has(acc.id));
-    }, [displayedDocuments, uniqueChartOfAccounts]);
+        if (!client || !client.chartOfAccounts) return [];
+
+        const getAccounts = (transactions: ImportedTransaction[]) => {
+            const accountIdsInDocs = new Set(transactions.map(tx => tx.allocatedTo?.value));
+            return uniqueChartOfAccounts.filter(acc => accountIdsInDocs.has(acc.id));
+        }
+
+        if (searchResults !== null) return getAccounts(searchResults);
+        if (showAll) return getAccounts(allTransactions);
+        return getAccounts(paginatedDocuments);
+
+    }, [paginatedDocuments, searchResults, allTransactions, showAll, uniqueChartOfAccounts, client]);
 
     const getAllocationDescription = (tx: ImportedTransaction) => {
         const changedTx = changes[tx.id];
@@ -1940,18 +1961,16 @@ const ReviewedTab = React.forwardRef<
 
     const handleBulkReallocate = async (allocation: { value: string, type: 'account' | 'customer' | 'supplier' }, vatType: VatType) => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
-        toast({ title: "Reallocating...", description: `Reallocating ${selectedTransactions.length} transactions.` });
-
-        const newChanges: { [key: string]: Partial<ImportedTransaction> } = {};
+        
+        const changesToSave: { [key: string]: Partial<ImportedTransaction> } = {};
         selectedTransactions.forEach(txId => {
-            newChanges[txId] = {
+            changesToSave[txId] = {
                 allocatedTo: allocation,
                 vatType: client.isVatRegistered ? vatType : 'no_vat',
             };
         });
 
-        await handleSaveChanges(newChanges, selectedTransactions);
-        setSelectedTransactions([]);
+        await handleSaveChanges(changesToSave, selectedTransactions);
     };
 
 
@@ -1978,11 +1997,28 @@ const ReviewedTab = React.forwardRef<
     
             toast({ title: 'Success!', description: 'Your changes have been saved.' });
             
-            refetch();
-    
             setChanges({});
             setSelectedTransactions([]);
             
+             if(searchTerm.trim() || accountFilter !== 'all') {
+                const hasSearch = searchTerm.trim().length > 0;
+                const hasFilter = accountFilter !== 'all';
+                let searchConstraints: QueryConstraint[] = [ where('bankAccountId', '==', bankAccountId!), where('status', 'in', ['reviewed', 'allocated']), ];
+                if (activeSubTab === 'expenses') { searchConstraints.push(where('amount', '<', 0)); } else { searchConstraints.push(where('amount', '>=', 0)); }
+                if (hasFilter) { searchConstraints.push(where('allocatedTo.value', '==', accountFilter)); }
+
+                const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
+                const snapshot = await getDocs(q);
+                let allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
+
+                if (hasSearch) {
+                    allDocs = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+                }
+                setSearchResults(allDocs);
+            } else {
+                refetch();
+            }
+
         } catch (error) {
             console.error('Error saving changes:', error);
             toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
@@ -2444,47 +2480,9 @@ const ReviewedTab = React.forwardRef<
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Save Changes
                     </Button>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="outline" disabled={selectedTransactions.length === 0}><span className="hidden sm:inline">Reallocate Selected</span><span className="sm:hidden">Reallocate</span><ChevronsUpDown className="ml-2 h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="p-0">
-                            <Command>
-                                <CommandInput placeholder="Search..." />
-                                <CommandList>
-                                    <ScrollArea className="h-72">
-                                        <CommandEmpty>No results found.</CommandEmpty>
-                                        <CommandGroup heading="Customers">
-                                            {customers.map(c => (
-                                                <DropdownMenuItem key={c.id} onSelect={() => handleBulkReallocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                    {c.name}
-                                                </DropdownMenuItem>
-                                            ))}
-                                        </CommandGroup>
-                                        <CommandGroup heading="Accounts">
-                                            {uniqueChartOfAccounts.map(acc => (
-                                                <DropdownMenuSub key={acc.id}>
-                                                    <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
-                                                    <DropdownMenuSubContent>
-                                                        {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                            <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                                {vat.label}
-                                                            </DropdownMenuItem>
-                                                        )) : (
-                                                            <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                                No VAT
-                                                            </DropdownMenuItem>
-                                                        )}
-                                                    </DropdownMenuSubContent>
-                                                </DropdownMenuSub>
-                                            ))}
-                                        </CommandGroup>
-                                    </ScrollArea>
-                                </CommandList>
-                            </Command>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-
+                     <Button variant="outline" onClick={() => handleBulkReallocate({value: 'account:3000-022'}, 'standard_rated_purchases')}>
+                       Reallocate
+                    </Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" disabled={selectedTransactions.length === 0}>Delete</Button>
@@ -2502,33 +2500,37 @@ const ReviewedTab = React.forwardRef<
                     </AlertDialog>
                  </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
-                        {showAll ? 'Show Paginated' : 'Show All'}
-                    </Button>
-                    {!searchTerm && !showAll && (
-                        <div className="flex items-center space-x-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={goToPreviousPage}
-                                disabled={!canGoPrev || isLoading}
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                                Previous
-                            </Button>
-                            <span className="text-sm font-medium">
-                                Page {currentPage}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={goToNextPage}
-                                disabled={!canGoNext || isLoading}
-                            >
-                                Next
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        </div>
+                    {!(searchTerm.trim() || accountFilter !== 'all') && (
+                        <>
+                        <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
+                            {showAll ? 'Show Paginated' : 'Show All'}
+                        </Button>
+                        {!showAll && (
+                            <div className="flex items-center space-x-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={goToPreviousPage}
+                                    disabled={!canGoPrev || isLoading}
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                    Previous
+                                </Button>
+                                <span className="text-sm font-medium">
+                                    Page {currentPage}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={goToNextPage}
+                                    disabled={!canGoNext || isLoading}
+                                >
+                                    Next
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
+                        </>
                     )}
                 </div>
             </CardFooter>
