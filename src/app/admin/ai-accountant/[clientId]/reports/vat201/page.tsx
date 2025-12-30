@@ -14,14 +14,6 @@ import { Loader2, Download, Eye, Calculator } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
 import { format, startOfMonth, endOfMonth, subMonths, getMonth, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-import Image from "next/image";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 
@@ -96,7 +88,7 @@ function TransactionDrilldown({ transactions, client }: { transactions: any[], c
       return client.chartOfAccounts?.find(acc => acc.id === accountId)?.description || accountId;
     };
 
-    const sortedTransactions = [...transactions].sort((a, b) => Math.abs(b.vatAmount) - Math.abs(a.vatAmount));
+    const sortedTransactions = [...transactions].sort((a, b) => b.vatAmount - a.vatAmount);
   
     return (
         <div className="p-4 bg-muted/50">
@@ -130,8 +122,8 @@ function TransactionDrilldown({ transactions, client }: { transactions: any[], c
           </Table>
         </div>
     );
-  }
-  
+}
+
 const VAT201Field = ({ field, label, value, isVat = false, children }: { field: string, label: string, value: number, isVat?: boolean, children: React.ReactNode }) => {
     return (
         <AccordionItem value={`item-${field}`}>
@@ -151,52 +143,6 @@ const VAT201Field = ({ field, label, value, isVat = false, children }: { field: 
     );
 }
 
-const VAT201PDF = React.forwardRef<HTMLDivElement, { vatData: any, client: User | null, periodLabel: string }>(({ vatData, client, periodLabel }, ref) => {
-  if (!vatData || !client) return null;
-  return (
-    <div ref={ref} className="p-8 bg-white text-black">
-      <header className="text-center mb-8">
-          <Image src="https://storage.googleapis.com/aai-web-samples/my-accountant-logo.png" alt="My Accountant Logo" width={120} height={40} className="mx-auto mb-4"/>
-          <h1 className="text-2xl font-bold">VAT201 Declaration</h1>
-          <p className="text-sm text-gray-600">{client.companyName || client.name}</p>
-          <p className="text-sm text-gray-600">VAT Number: {client.vatNumber || 'N/A'}</p>
-          <p className="text-sm text-gray-600">Period: {periodLabel}</p>
-      </header>
-
-      <section className="border-t border-b py-4">
-          <h2 className="font-bold text-lg mb-2">Output Tax</h2>
-          <div className="grid grid-cols-3 gap-x-4 gap-y-2">
-              <span className="col-span-2">1. Total value of standard-rated supplies</span><span className="text-right">{formatPrice(vatData.field1.value)}</span>
-              <span className="col-span-2">1A. VAT on standard-rated supplies</span><span className="text-right font-semibold">{formatPrice(vatData.field1A.value)}</span>
-              <span className="col-span-2">2. Value of zero-rated supplies</span><span className="text-right">{formatPrice(vatData.field2.value)}</span>
-              <span className="col-span-2">3. Value of exempt supplies</span><span className="text-right">{formatPrice(vatData.field3.value)}</span>
-              <span className="col-span-2">4. Adjustments</span><span className="text-right">{formatPrice(vatData.field4.value)}</span>
-          </div>
-      </section>
-      <section className="border-b py-4">
-          <h2 className="font-bold text-lg mb-2">Input Tax</h2>
-          <div className="grid grid-cols-3 gap-x-4 gap-y-2">
-              <span className="col-span-2">14. Value of capital goods</span><span className="text-right">{formatPrice(vatData.field14.value)}</span>
-              <span className="col-span-2">14A. VAT on capital goods</span><span className="text-right font-semibold">{formatPrice(vatData.field14A.value)}</span>
-              <span className="col-span-2">15. Value of other goods & services</span><span className="text-right">{formatPrice(vatData.field15.value)}</span>
-              <span className="col-span-2">15A. VAT on other goods & services</span><span className="text-right font-semibold">{formatPrice(vatData.field15A.value)}</span>
-              <span className="col-span-2">16. Adjustments</span><span className="text-right">{formatPrice(vatData.field16.value)}</span>
-          </div>
-      </section>
-      <section className="py-4">
-          <h2 className="font-bold text-lg mb-2">Calculation</h2>
-          <div className="grid grid-cols-3 gap-x-4 gap-y-2">
-              <span className="col-span-2">18. Total Output Tax</span><span className="text-right font-semibold">{formatPrice(vatData.totalOutput.value)}</span>
-              <span className="col-span-2">19. Total Input Tax</span><span className="text-right font-semibold">{formatPrice(vatData.totalInput.value)}</span>
-              <span className="col-span-2 font-bold text-xl mt-2">{vatData.vatPayable.value >= 0 ? 'VAT PAYABLE' : 'VAT REFUNDABLE'}</span><span className="text-right font-bold text-xl mt-2">{formatPrice(Math.abs(vatData.vatPayable.value))}</span>
-          </div>
-      </section>
-    </div>
-  );
-});
-VAT201PDF.displayName = 'VAT201PDF';
-
-
 export default function Vat201ReportPage() {
     const params = useParams();
     const router = useRouter();
@@ -207,8 +153,6 @@ export default function Vat201ReportPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [vatPeriods, setVatPeriods] = useState<{ label: string; from: Date; to: Date; }[]>([]);
     const [selectedPeriod, setSelectedPeriod] = useState<string | undefined>();
-    const pdfRef = React.useRef<HTMLDivElement>(null);
-    const [isDownloading, setIsDownloading] = useState(false);
     const { toast } = useToast();
     
     useEffect(() => {
@@ -391,19 +335,6 @@ export default function Vat201ReportPage() {
         XLSX.writeFile(wb, `VAT201-Report-${client.name.replace(/\s/g, '_')}.xlsx`);
     };
 
-    const handleDownloadPDF = async () => {
-        if (!pdfRef.current) return;
-        setIsDownloading(true);
-        const canvas = await html2canvas(pdfRef.current, { scale: 2 });
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`VAT201-${client?.name}-${parsedPeriod.label.replace('/', '-')}.pdf`);
-        setIsDownloading(false);
-    };
-
     return (
         <Card>
             <CardHeader>
@@ -500,14 +431,7 @@ export default function Vat201ReportPage() {
                                     <Download className="mr-2 h-4 w-4" />
                                     Download Excel
                                 </Button>
-                                <Button onClick={handleDownloadPDF} disabled={isDownloading}>
-                                    {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4" />}
-                                    Download PDF
-                                </Button>
                             </CardFooter>
-                             <div className="hidden">
-                                <VAT201PDF ref={pdfRef} vatData={vatData} client={client} periodLabel={parsedPeriod?.label || ''} />
-                            </div>
                             </>
                         )}
 
