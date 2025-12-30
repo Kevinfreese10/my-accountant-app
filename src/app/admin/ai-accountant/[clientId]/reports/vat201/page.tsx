@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from '@/lib/types';
-import { getFirestore, doc, getDoc, collection, query, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, writeBatch, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye, Calculator } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
@@ -16,7 +16,8 @@ import { format, startOfMonth, endOfMonth, subMonths, getMonth, parseISO } from 
 import * as XLSX from 'xlsx';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterComponent } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 
 const db = getFirestore(firebaseApp);
 
@@ -25,6 +26,8 @@ const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(price);
 };
 
@@ -44,7 +47,6 @@ const generateVatPeriods = (vatCategory: 'A' | 'B' | 'C' | undefined) => {
         }
     } else { // Bi-Monthly
         const isCatA = vatCategory === 'A'; // Odd months: Jan, Mar, etc.
-        let currentMonth = getMonth(now);
         
         for (let i = 0; i < 6; i++) {
              const periodEndDate = endOfMonth(subMonths(now, i * 2));
@@ -88,7 +90,7 @@ function TransactionDrilldown({ transactions, client }: { transactions: any[], c
       return client.chartOfAccounts?.find(acc => acc.id === accountId)?.description || accountId;
     };
 
-    const sortedTransactions = [...transactions].sort((a, b) => b.vatAmount - a.vatAmount);
+    const sortedTransactions = [...transactions].sort((a, b) => Math.abs(b.vatAmount) - Math.abs(a.vatAmount));
   
     return (
         <div className="p-4 bg-muted/50">
@@ -291,10 +293,9 @@ export default function Vat201ReportPage() {
 
         const wb = XLSX.utils.book_new();
 
-        // Summary Sheet
         const summaryData = [
             { Field: 'VAT201 Summary', Value: '' },
-            { Field: '1. Standard-rated supplies', Value: vatData.field1.value },
+            { Field: '1. Standard-rated supplies (Incl. VAT)', Value: vatData.field1.value },
             { Field: '1A. VAT on standard-rated supplies', Value: vatData.field1A.value },
             { Field: '2. Zero-rated supplies', Value: vatData.field2.value },
             { Field: '3. Exempt supplies', Value: vatData.field3.value },
@@ -313,7 +314,6 @@ export default function Vat201ReportPage() {
         const summarySheet = XLSX.utils.json_to_sheet(summaryData, { skipHeader: true });
         XLSX.utils.book_append_sheet(wb, summarySheet, 'VAT201 Summary');
 
-        // Transaction Sheets
         const createSheet = (title: string, transactions: any[]) => {
             if (transactions.length === 0) return;
             const data = transactions.map(tx => ({
@@ -368,7 +368,7 @@ export default function Vat201ReportPage() {
                                         <div className="p-4 bg-muted/50 rounded-t-lg">
                                             <h3 className="font-semibold">1. Output Tax (Sales)</h3>
                                         </div>
-                                        <VAT201Field field="1" label="Total value of standard-rated supplies" value={vatData.field1.value}>
+                                        <VAT201Field field="1" label="Total value of standard-rated supplies (Incl. VAT)" value={vatData.field1.value}>
                                             <TransactionDrilldown transactions={vatData.field1.txs} client={client} />
                                         </VAT201Field>
                                         <VAT201Field field="1A" label="VAT on standard-rated supplies" value={vatData.field1A.value} isVat>
