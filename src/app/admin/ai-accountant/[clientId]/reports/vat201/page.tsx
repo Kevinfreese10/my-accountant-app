@@ -219,19 +219,23 @@ export default function Vat201ReportPage() {
         let totalCapitalPurchases = 0;
         let totalOtherPurchases = 0;
         
+        let outputVat = 0;
+        
         let standardSalesTxs: any[] = [], zeroSalesTxs: any[] = [], exemptSalesTxs: any[] = [], capitalPurchasesTxs: any[] = [], otherPurchasesTxs: any[] = [];
 
         vatTransactions.forEach(tx => {
             const isJournal = tx.bankAccountId === 'JOURNAL';
             const isStandardRate = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+            const vatRate = isStandardRate ? 0.15 : 0;
+            
             let exclusiveAmount, inclusiveAmount;
 
             if (isJournal) {
                 exclusiveAmount = tx.amount;
-                inclusiveAmount = isStandardRate ? tx.amount * 1.15 : tx.amount;
+                inclusiveAmount = isStandardRate ? tx.amount * (1 + vatRate) : tx.amount;
             } else {
                 inclusiveAmount = tx.amount;
-                exclusiveAmount = isStandardRate ? tx.amount / 1.15 : tx.amount;
+                exclusiveAmount = isStandardRate ? inclusiveAmount / (1 + vatRate) : inclusiveAmount;
             }
 
             const transactionDetails = {
@@ -243,7 +247,8 @@ export default function Vat201ReportPage() {
 
             switch (tx.vatType) {
                 case 'standard_rated_sales': 
-                    totalStandardSales += inclusiveAmount; // Field 1 must be inclusive. Negative amount for refund will decrease total.
+                    totalStandardSales += inclusiveAmount;
+                    outputVat += transactionDetails.vatAmount;
                     standardSalesTxs.push(transactionDetails);
                     break;
                 case 'zero_rated_sales': 
@@ -265,7 +270,6 @@ export default function Vat201ReportPage() {
             }
         });
 
-        const outputVat = totalStandardSales / 1.15 * 0.15;
         const inputVatCapital = totalCapitalPurchases * 0.15;
         const inputVatOther = totalOtherPurchases * 0.15;
         const totalInputVat = inputVatCapital + inputVatOther;
@@ -441,5 +445,7 @@ export default function Vat201ReportPage() {
         </Card>
     );
 }
+
+    
 
     
