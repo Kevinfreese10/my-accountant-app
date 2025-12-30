@@ -7,11 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from "@/lib/types";
+import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from '@/lib/types';
 import { getFirestore, doc, getDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye, Calculator } from "lucide-react";
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { format, startOfMonth, endOfMonth, subMonths, getMonth, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,8 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import Image from "next/image";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useToast } from "@/hooks/use-toast";
+
 
 const db = getFirestore(firebaseApp);
 
@@ -86,13 +88,15 @@ const generateVatPeriods = (vatCategory: 'A' | 'B' | 'C' | undefined) => {
     return periods;
 };
 
-function TransactionDrilldown({ transactions, client, label }: { transactions: any[], client: User | null, label: string }) {
+function TransactionDrilldown({ transactions, client }: { transactions: any[], client: User | null }) {
     if (!client) return null;
   
     const getAccountDescription = (accountId?: string) => {
       if (!accountId) return 'N/A';
       return client.chartOfAccounts?.find(acc => acc.id === accountId)?.description || accountId;
     };
+
+    const sortedTransactions = [...transactions].sort((a, b) => Math.abs(b.vatAmount) - Math.abs(a.vatAmount));
   
     return (
         <div className="p-4 bg-muted/50">
@@ -108,10 +112,10 @@ function TransactionDrilldown({ transactions, client, label }: { transactions: a
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transactions.length === 0 ? (
+              {sortedTransactions.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center">No transactions</TableCell></TableRow>
               ) : (
-                transactions.map((tx, i) => (
+                sortedTransactions.map((tx, i) => (
                   <TableRow key={i}>
                     <TableCell>{tx.date ? format(new Date(tx.date), 'dd/MM/yyyy') : 'N/A'}</TableCell>
                     <TableCell>{tx.description}</TableCell>
@@ -128,7 +132,6 @@ function TransactionDrilldown({ transactions, client, label }: { transactions: a
     );
   }
   
-
 const VAT201Field = ({ field, label, value, isVat = false, children }: { field: string, label: string, value: number, isVat?: boolean, children: React.ReactNode }) => {
     return (
         <AccordionItem value={`item-${field}`}>
@@ -149,54 +152,56 @@ const VAT201Field = ({ field, label, value, isVat = false, children }: { field: 
 }
 
 const VAT201PDF = React.forwardRef<HTMLDivElement, { vatData: any, client: User | null, periodLabel: string }>(({ vatData, client, periodLabel }, ref) => {
-    if (!vatData || !client) return null;
-    return (
-      <div ref={ref} className="p-8 bg-white text-black">
-        <header className="text-center mb-8">
-            <Image src="/logo.png" alt="My Accountant Logo" width={120} height={40} className="mx-auto mb-4"/>
-            <h1 className="text-2xl font-bold">VAT201 Declaration</h1>
-            <p className="text-sm text-gray-600">{client.companyName || client.name}</p>
-            <p className="text-sm text-gray-600">VAT Number: {client.vatNumber || 'N/A'}</p>
-            <p className="text-sm text-gray-600">Period: {periodLabel}</p>
-        </header>
+  if (!vatData || !client) return null;
+  return (
+    <div ref={ref} className="p-8 bg-white text-black">
+      <header className="text-center mb-8">
+          <Image src="https://storage.googleapis.com/aai-web-samples/my-accountant-logo.png" alt="My Accountant Logo" width={120} height={40} className="mx-auto mb-4"/>
+          <h1 className="text-2xl font-bold">VAT201 Declaration</h1>
+          <p className="text-sm text-gray-600">{client.companyName || client.name}</p>
+          <p className="text-sm text-gray-600">VAT Number: {client.vatNumber || 'N/A'}</p>
+          <p className="text-sm text-gray-600">Period: {periodLabel}</p>
+      </header>
 
-        <section className="border-t border-b py-4">
-            <h2 className="font-bold text-lg mb-2">Output Tax</h2>
-            <div className="grid grid-cols-3 gap-x-4 gap-y-2">
-                <span className="col-span-2">1. Total value of standard-rated supplies</span><span className="text-right">{formatPrice(vatData.field1.value)}</span>
-                <span className="col-span-2">1A. VAT on standard-rated supplies</span><span className="text-right font-semibold">{formatPrice(vatData.field1A.value)}</span>
-                <span className="col-span-2">2. Value of zero-rated supplies</span><span className="text-right">{formatPrice(vatData.field2.value)}</span>
-                <span className="col-span-2">3. Value of exempt supplies</span><span className="text-right">{formatPrice(vatData.field3.value)}</span>
-                <span className="col-span-2">4. Adjustments</span><span className="text-right">{formatPrice(vatData.field4.value)}</span>
-            </div>
-        </section>
-        <section className="border-b py-4">
-            <h2 className="font-bold text-lg mb-2">Input Tax</h2>
-            <div className="grid grid-cols-3 gap-x-4 gap-y-2">
-                <span className="col-span-2">14. Value of capital goods</span><span className="text-right">{formatPrice(vatData.field14.value)}</span>
-                <span className="col-span-2">14A. VAT on capital goods</span><span className="text-right font-semibold">{formatPrice(vatData.field14A.value)}</span>
-                <span className="col-span-2">15. Value of other goods & services</span><span className="text-right">{formatPrice(vatData.field15.value)}</span>
-                <span className="col-span-2">15A. VAT on other goods & services</span><span className="text-right font-semibold">{formatPrice(vatData.field15A.value)}</span>
-                <span className="col-span-2">16. Adjustments</span><span className="text-right">{formatPrice(vatData.field16.value)}</span>
-            </div>
-        </section>
-        <section className="py-4">
-            <h2 className="font-bold text-lg mb-2">Calculation</h2>
-            <div className="grid grid-cols-3 gap-x-4 gap-y-2">
-                <span className="col-span-2">18. Total Output Tax</span><span className="text-right font-semibold">{formatPrice(vatData.totalOutput.value)}</span>
-                <span className="col-span-2">19. Total Input Tax</span><span className="text-right font-semibold">{formatPrice(vatData.totalInput.value)}</span>
-                <span className="col-span-2 font-bold text-xl mt-2">{vatData.vatPayable.value >= 0 ? 'VAT PAYABLE' : 'VAT REFUNDABLE'}</span><span className="text-right font-bold text-xl mt-2">{formatPrice(Math.abs(vatData.vatPayable.value))}</span>
-            </div>
-        </section>
-      </div>
-    );
+      <section className="border-t border-b py-4">
+          <h2 className="font-bold text-lg mb-2">Output Tax</h2>
+          <div className="grid grid-cols-3 gap-x-4 gap-y-2">
+              <span className="col-span-2">1. Total value of standard-rated supplies</span><span className="text-right">{formatPrice(vatData.field1.value)}</span>
+              <span className="col-span-2">1A. VAT on standard-rated supplies</span><span className="text-right font-semibold">{formatPrice(vatData.field1A.value)}</span>
+              <span className="col-span-2">2. Value of zero-rated supplies</span><span className="text-right">{formatPrice(vatData.field2.value)}</span>
+              <span className="col-span-2">3. Value of exempt supplies</span><span className="text-right">{formatPrice(vatData.field3.value)}</span>
+              <span className="col-span-2">4. Adjustments</span><span className="text-right">{formatPrice(vatData.field4.value)}</span>
+          </div>
+      </section>
+      <section className="border-b py-4">
+          <h2 className="font-bold text-lg mb-2">Input Tax</h2>
+          <div className="grid grid-cols-3 gap-x-4 gap-y-2">
+              <span className="col-span-2">14. Value of capital goods</span><span className="text-right">{formatPrice(vatData.field14.value)}</span>
+              <span className="col-span-2">14A. VAT on capital goods</span><span className="text-right font-semibold">{formatPrice(vatData.field14A.value)}</span>
+              <span className="col-span-2">15. Value of other goods & services</span><span className="text-right">{formatPrice(vatData.field15.value)}</span>
+              <span className="col-span-2">15A. VAT on other goods & services</span><span className="text-right font-semibold">{formatPrice(vatData.field15A.value)}</span>
+              <span className="col-span-2">16. Adjustments</span><span className="text-right">{formatPrice(vatData.field16.value)}</span>
+          </div>
+      </section>
+      <section className="py-4">
+          <h2 className="font-bold text-lg mb-2">Calculation</h2>
+          <div className="grid grid-cols-3 gap-x-4 gap-y-2">
+              <span className="col-span-2">18. Total Output Tax</span><span className="text-right font-semibold">{formatPrice(vatData.totalOutput.value)}</span>
+              <span className="col-span-2">19. Total Input Tax</span><span className="text-right font-semibold">{formatPrice(vatData.totalInput.value)}</span>
+              <span className="col-span-2 font-bold text-xl mt-2">{vatData.vatPayable.value >= 0 ? 'VAT PAYABLE' : 'VAT REFUNDABLE'}</span><span className="text-right font-bold text-xl mt-2">{formatPrice(Math.abs(vatData.vatPayable.value))}</span>
+          </div>
+      </section>
+    </div>
+  );
 });
 VAT201PDF.displayName = 'VAT201PDF';
 
 
 export default function Vat201ReportPage() {
     const params = useParams();
+    const router = useRouter();
     const clientId = params.clientId as string;
+
     const [client, setClient] = useState<User | null>(null);
     const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -204,7 +209,8 @@ export default function Vat201ReportPage() {
     const [selectedPeriod, setSelectedPeriod] = useState<string | undefined>();
     const pdfRef = React.useRef<HTMLDivElement>(null);
     const [isDownloading, setIsDownloading] = useState(false);
-
+    const { toast } = useToast();
+    
     useEffect(() => {
         const fetchInitialData = async () => {
             if (!clientId) return;
@@ -291,29 +297,29 @@ export default function Vat201ReportPage() {
 
             switch (tx.vatType) {
                 case 'standard_rated_sales': 
-                    totalStandardSales += -inclusiveAmount; // Use inclusive amount for field 1
+                    totalStandardSales += Math.abs(inclusiveAmount); // Use inclusive for field 1
                     standardSalesTxs.push(transactionDetails);
                     break;
                 case 'zero_rated_sales': 
-                    totalZeroSales += -exclusiveAmount;
+                    totalZeroSales += Math.abs(exclusiveAmount);
                     zeroSalesTxs.push(transactionDetails);
                     break;
                 case 'exempt_sales': 
-                    totalExemptSales += -exclusiveAmount; 
+                    totalExemptSales += Math.abs(exclusiveAmount); 
                     exemptSalesTxs.push(transactionDetails);
                     break;
                 case 'capital_goods_purchases': 
-                    totalCapitalPurchases += exclusiveAmount;
+                    totalCapitalPurchases += Math.abs(exclusiveAmount);
                     capitalPurchasesTxs.push(transactionDetails);
                     break;
                 case 'standard_rated_purchases': 
-                    totalOtherPurchases += exclusiveAmount;
+                    totalOtherPurchases += Math.abs(exclusiveAmount);
                     otherPurchasesTxs.push(transactionDetails);
                     break;
             }
         });
 
-        const outputVat = (totalStandardSales / 1.15) * 0.15;
+        const outputVat = totalStandardSales / 1.15 * 0.15;
         const inputVatCapital = totalCapitalPurchases * 0.15;
         const inputVatOther = totalOtherPurchases * 0.15;
         const totalInputVat = inputVatCapital + inputVatOther;
@@ -335,6 +341,55 @@ export default function Vat201ReportPage() {
             vatPayable: { value: vatPayable, txs: [] },
         };
     }, [transactions, parsedPeriod]);
+
+    const handleDownloadExcel = () => {
+        if (!vatData || !client) return;
+
+        const wb = XLSX.utils.book_new();
+
+        // Summary Sheet
+        const summaryData = [
+            { Field: 'VAT201 Summary', Value: '' },
+            { Field: '1. Standard-rated supplies', Value: vatData.field1.value },
+            { Field: '1A. VAT on standard-rated supplies', Value: vatData.field1A.value },
+            { Field: '2. Zero-rated supplies', Value: vatData.field2.value },
+            { Field: '3. Exempt supplies', Value: vatData.field3.value },
+            { Field: '4. Adjustments', Value: vatData.field4.value },
+            { Field: 'Total Output Tax', Value: vatData.totalOutput.value },
+            {},
+            { Field: '14. Capital goods', Value: vatData.field14.value },
+            { Field: '14A. VAT on capital goods', Value: vatData.field14A.value },
+            { Field: '15. Other goods & services', Value: vatData.field15.value },
+            { Field: '15A. VAT on other goods & services', Value: vatData.field15A.value },
+            { Field: '16. Adjustments', Value: vatData.field16.value },
+            { Field: 'Total Input Tax', Value: vatData.totalInput.value },
+            {},
+            { Field: 'VAT Payable / (Refundable)', Value: vatData.vatPayable.value },
+        ];
+        const summarySheet = XLSX.utils.json_to_sheet(summaryData, { skipHeader: true });
+        XLSX.utils.book_append_sheet(wb, summarySheet, 'VAT201 Summary');
+
+        // Transaction Sheets
+        const createSheet = (title: string, transactions: any[]) => {
+            if (transactions.length === 0) return;
+            const data = transactions.map(tx => ({
+                Date: tx.date ? format(new Date(tx.date), 'dd/MM/yyyy') : 'N/A',
+                Description: tx.description,
+                'Allocated To': client.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo?.value)?.description || 'N/A',
+                'Exclusive': tx.exclusiveAmount,
+                'VAT': tx.vatAmount,
+                'Inclusive': tx.inclusiveAmount,
+            }));
+            const sheet = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, sheet, title);
+        };
+        
+        createSheet('Standard Sales', vatData.field1.txs);
+        createSheet('Capital Purchases', vatData.field14.txs);
+        createSheet('Other Purchases', vatData.field15.txs);
+
+        XLSX.writeFile(wb, `VAT201-Report-${client.name.replace(/\s/g, '_')}.xlsx`);
+    };
 
     const handleDownloadPDF = async () => {
         if (!pdfRef.current) return;
@@ -382,20 +437,20 @@ export default function Vat201ReportPage() {
                                         <div className="p-4 bg-muted/50 rounded-t-lg">
                                             <h3 className="font-semibold">1. Output Tax (Sales)</h3>
                                         </div>
-                                        <VAT201Field client={client} field="1" label="Total value of standard-rated supplies" value={vatData.field1.value} transactions={vatData.field1.txs}>
-                                            <TransactionDrilldown transactions={vatData.field1.txs} client={client} label="Standard-Rated Supplies" />
+                                        <VAT201Field field="1" label="Total value of standard-rated supplies" value={vatData.field1.value}>
+                                            <TransactionDrilldown transactions={vatData.field1.txs} client={client} />
                                         </VAT201Field>
-                                        <VAT201Field client={client} field="1A" label="VAT on standard-rated supplies" value={vatData.field1A.value} transactions={vatData.field1A.txs} isVat>
-                                            <TransactionDrilldown transactions={vatData.field1A.txs} client={client} label="VAT on Standard-Rated Supplies" />
+                                        <VAT201Field field="1A" label="VAT on standard-rated supplies" value={vatData.field1A.value} isVat>
+                                            <TransactionDrilldown transactions={vatData.field1A.txs} client={client} />
                                         </VAT201Field>
-                                        <VAT201Field client={client} field="2" label="Value of zero-rated supplies" value={vatData.field2.value} transactions={vatData.field2.txs}>
-                                            <TransactionDrilldown transactions={vatData.field2.txs} client={client} label="Zero-Rated Supplies" />
+                                        <VAT201Field field="2" label="Value of zero-rated supplies" value={vatData.field2.value}>
+                                            <TransactionDrilldown transactions={vatData.field2.txs} client={client} />
                                         </VAT201Field>
-                                        <VAT201Field client={client} field="3" label="Value of exempt supplies" value={vatData.field3.value} transactions={vatData.field3.txs}>
-                                            <TransactionDrilldown transactions={vatData.field3.txs} client={client} label="Exempt Supplies" />
+                                        <VAT201Field field="3" label="Value of exempt supplies" value={vatData.field3.value}>
+                                            <TransactionDrilldown transactions={vatData.field3.txs} client={client} />
                                         </VAT201Field>
-                                        <VAT201Field client={client} field="4" label="Adjustments (e.g. recoupments)" value={vatData.field4.value} transactions={vatData.field4.txs}>
-                                            <TransactionDrilldown transactions={vatData.field4.txs} client={client} label="Adjustments" />
+                                        <VAT201Field field="4" label="Adjustments (e.g. recoupments)" value={vatData.field4.value}>
+                                            <TransactionDrilldown transactions={vatData.field4.txs} client={client} />
                                         </VAT201Field>
                                     </div>
                                     
@@ -403,20 +458,20 @@ export default function Vat201ReportPage() {
                                         <div className="p-4 bg-muted/50 rounded-t-lg">
                                             <h3 className="font-semibold">2. Input Tax (Purchases)</h3>
                                         </div>
-                                        <VAT201Field client={client} field="14" label="Value of capital goods" value={vatData.field14.value} transactions={vatData.field14.txs}>
-                                             <TransactionDrilldown transactions={vatData.field14.txs} client={client} label="Capital Goods" />
+                                        <VAT201Field field="14" label="Value of capital goods" value={vatData.field14.value}>
+                                             <TransactionDrilldown transactions={vatData.field14.txs} client={client} />
                                         </VAT201Field>
-                                        <VAT201Field client={client} field="14A" label="VAT on capital goods" value={vatData.field14A.value} transactions={vatData.field14A.txs} isVat>
-                                             <TransactionDrilldown transactions={vatData.field14A.txs} client={client} label="VAT on Capital Goods" />
+                                        <VAT201Field field="14A" label="VAT on capital goods" value={vatData.field14A.value} isVat>
+                                             <TransactionDrilldown transactions={vatData.field14A.txs} client={client} />
                                         </VAT201Field>
-                                        <VAT201Field client={client} field="15" label="Value of other goods & services" value={vatData.field15.value} transactions={vatData.field15.txs}>
-                                            <TransactionDrilldown transactions={vatData.field15.txs} client={client} label="Other Goods & Services" />
+                                        <VAT201Field field="15" label="Value of other goods & services" value={vatData.field15.value}>
+                                            <TransactionDrilldown transactions={vatData.field15.txs} client={client} />
                                         </VAT201Field>
-                                        <VAT201Field client={client} field="15A" label="VAT on other goods & services" value={vatData.field15A.value} transactions={vatData.field15A.txs} isVat>
-                                            <TransactionDrilldown transactions={vatData.field15A.txs} client={client} label="VAT on Other Goods & Services" />
+                                        <VAT201Field field="15A" label="VAT on other goods & services" value={vatData.field15A.value} isVat>
+                                            <TransactionDrilldown transactions={vatData.field15A.txs} client={client} />
                                         </VAT201Field>
-                                        <VAT201Field client={client} field="16" label="Adjustments" value={vatData.field16.value} transactions={vatData.field16.txs}>
-                                             <TransactionDrilldown transactions={vatData.field16.txs} client={client} label="Adjustments" />
+                                        <VAT201Field field="16" label="Adjustments" value={vatData.field16.value}>
+                                             <TransactionDrilldown transactions={vatData.field16.txs} client={client} />
                                         </VAT201Field>
                                     </div>
 
@@ -424,11 +479,11 @@ export default function Vat201ReportPage() {
                                         <div className="p-4 bg-muted/50 rounded-t-lg">
                                             <h3 className="font-semibold">3. VAT Payable / Refund Calculation</h3>
                                         </div>
-                                        <VAT201Field client={client} field="18" label="Total Output Tax" value={vatData.totalOutput.value} transactions={vatData.totalOutput.txs} isVat>
-                                            <TransactionDrilldown transactions={vatData.totalOutput.txs} client={client} label="Total Output Tax" />
+                                        <VAT201Field field="18" label="Total Output Tax" value={vatData.totalOutput.value} isVat>
+                                            <TransactionDrilldown transactions={vatData.totalOutput.txs} client={client} />
                                         </VAT201Field>
-                                        <VAT201Field client={client} field="19" label="Total Input Tax" value={vatData.totalInput.value} transactions={vatData.totalInput.txs} isVat>
-                                            <TransactionDrilldown transactions={vatData.totalInput.txs} client={client} label="Total Input Tax" />
+                                        <VAT201Field field="19" label="Total Input Tax" value={vatData.totalInput.value} isVat>
+                                            <TransactionDrilldown transactions={vatData.totalInput.txs} client={client} />
                                         </VAT201Field>
                                         <div className={`flex items-center justify-between p-3 ${vatData.vatPayable.value >= 0 ? 'bg-destructive/10' : 'bg-green-500/10'}`}>
                                             <div className="flex items-center gap-4">
@@ -440,7 +495,11 @@ export default function Vat201ReportPage() {
                                     </div>
                                 </Accordion>
                             </div>
-                            <CardFooter>
+                            <CardFooter className="gap-2">
+                                 <Button onClick={handleDownloadExcel} variant="outline">
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Download Excel
+                                </Button>
                                 <Button onClick={handleDownloadPDF} disabled={isDownloading}>
                                     {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4" />}
                                     Download PDF
