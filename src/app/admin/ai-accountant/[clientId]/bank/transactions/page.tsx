@@ -2268,7 +2268,7 @@ const ReviewedTab = React.forwardRef<
                         <DropdownMenuContent className="w-64">
                             {client?.chartOfAccounts?.map(acc => (
                                 <DropdownMenuSub key={acc.id}>
-                                    <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubTrigger><span>{acc.description}</span></DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent>
                                         {client.isVatRegistered ? allVatTypes.map(vat => (
                                             <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
@@ -3048,7 +3048,7 @@ export default function BankTransactionsPage() {
 }
 
 const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData }: { client: User | null; bankAccountId: string | null; chartOfAccounts: ChartOfAccount[], fetchClientData: () => void; }) => {
-    const { toast } = useToast();
+    const { toast, dismiss } = useToast();
     const [isProcessing, setIsProcessing] = useState(false);
     
     const baseQuery = useMemo(() => {
@@ -3085,7 +3085,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
                 return acc;
-            }, {} as Record<string, ImportedTransaction[]>);
+            }, {} as Record<string, (ImportedTransaction & {extractedSupplier?: string})[]>);
             
             toast({ id: toastId, title: `Step 2/3: Grouping Transactions...`, description: `Created ${Object.keys(groupedBySupplier).length} groups.` });
             
@@ -3141,7 +3141,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             }
             
             await Promise.all(allUpdatePromises);
-            toast.dismiss(toastId);
+            dismiss(toastId);
             toast({ title: 'AI Workflow Complete!', description: 'Transactions have been moved to "Pending Review" or back to "New".' });
 
         } catch (error) {
