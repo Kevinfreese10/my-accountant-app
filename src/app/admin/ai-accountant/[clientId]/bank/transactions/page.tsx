@@ -14,7 +14,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown, ChevronRight as ChevronRightIcon, MoreHorizontal } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -167,7 +167,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
         toast({ title: "Importing...", description: "Processing your file and applying rules."});
 
         try {
-            const allRules = [...(client.allocationRules || []), ...globalRules];
+            const allRules = [...(client?.allocationRules || []), ...globalRules];
 
             const allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
             const dailyCounters: { [key: string]: number } = {};
@@ -2137,6 +2137,10 @@ const ReviewedTab = React.forwardRef<
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
+                         <Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Save Changes
+                        </Button>
                     </div>
                      <div className="flex items-center gap-2 flex-wrap justify-end">
                         <DateRangePicker onDateChange={setDateRange} />
@@ -2254,10 +2258,6 @@ const ReviewedTab = React.forwardRef<
             </CardContent>
              <CardFooter className="flex items-center justify-between p-4">
                  <div className="flex items-center gap-2">
-                    <Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Save Changes
-                    </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" disabled={selectedTransactions.length === 0}>
@@ -3049,6 +3049,7 @@ export default function BankTransactionsPage() {
 const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData }: { client: User | null; bankAccountId: string | null; chartOfAccounts: ChartOfAccount[], fetchClientData: () => void; }) => {
     const { toast, dismiss } = useToast();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [groupSuggestions, setGroupSuggestions] = useState<Record<string, AIAllocationResult>>({});
     
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -3074,6 +3075,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
         try {
             // Step 1: Extract supplier names
+            dismiss(toastId);
             toast({ id: toastId, title: "Step 1/3: Extracting Suppliers...", description: "AI is cleaning up descriptions." });
             const transactionsWithSuppliers = await Promise.all(transactionsToProcess.map(async (tx) => {
                 try {
@@ -3092,6 +3094,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 return acc;
             }, {} as Record<string, (ImportedTransaction & {extractedSupplier?: string})[]>);
             
+            dismiss(toastId);
             toast({ id: toastId, title: `Step 2/3: Grouping Transactions...`, description: `Created ${Object.keys(groupedBySupplier).length} groups.` });
             
             // Step 3: Allocate each group
@@ -3103,6 +3106,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 const group = groupedBySupplier[supplier];
                 const representativeTx = group[0];
                 
+                dismiss(toastId);
                 toast({ id: toastId, title: `Step 3/3: Allocating Groups (${++processedCount}/${Object.keys(groupedBySupplier).length})`, description: `Analyzing: ${supplier}` });
 
                 try {
@@ -3156,23 +3160,36 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             if (!groups[key]) groups[key] = [];
             groups[key].push(tx);
         });
+        
+        // Initialize suggestions based on the first item in each group
+        const initialSuggestions: Record<string, AIAllocationResult> = {};
+        Object.entries(groups).forEach(([key, group]) => {
+            if (group[0] && group[0].aiAllocationResult) {
+                initialSuggestions[key] = group[0].aiAllocationResult;
+            }
+        });
+        setGroupSuggestions(initialSuggestions);
+
         return Object.entries(groups).sort((a,b) => a[0].localeCompare(b[0]));
     }, [transactions]);
     
-    const handleApprove = async (txIds: string[]) => {
+    const handleApprove = async (txIds: string[], supplierKey: string) => {
         if (!client || txIds.length === 0) return;
+        const suggestion = groupSuggestions[supplierKey];
+        if(!suggestion) {
+            toast({ title: 'Error', description: 'No allocation suggested for this group.', variant: 'destructive'});
+            return;
+        }
+
         const batch = writeBatch(db);
         txIds.forEach(id => {
-            const tx = transactions.find(t => t.id === id);
-            if (tx && tx.aiAllocationResult) {
-                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', id);
-                batch.update(txRef, {
-                    status: 'allocated',
-                    allocatedTo: { value: tx.aiAllocationResult.accountId, type: 'account'},
-                    vatType: tx.aiAllocationResult.vatType,
-                    allocatedAt: new Date(),
-                });
-            }
+            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', id);
+            batch.update(txRef, {
+                status: 'allocated',
+                allocatedTo: { value: suggestion.accountId, type: 'account'},
+                vatType: suggestion.vatType,
+                allocatedAt: new Date(),
+            });
         });
         await batch.commit();
         toast({ title: 'Approved!', description: `${txIds.length} transactions moved to Reviewed.`});
@@ -3193,6 +3210,16 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         toast({ title: 'Rejected', description: `${txIds.length} transactions moved back to New.`});
         refetch();
     };
+
+    const handleGroupSuggestionChange = (supplierKey: string, field: 'accountId' | 'vatType', value: string) => {
+        setGroupSuggestions(prev => ({
+            ...prev,
+            [supplierKey]: {
+                ...(prev[supplierKey] || { confidence: 0, accountId: '', vatType: 'no_vat' }),
+                [field]: value
+            }
+        }))
+    }
 
     return (
         <Card>
@@ -3218,27 +3245,33 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 ) : (
                     <div className="space-y-4 max-h-[70vh] overflow-y-auto">
                         {groupedForReview.map(([supplier, txs]) => {
-                             const suggestion = txs[0].aiAllocationResult;
-                             const account = suggestion ? chartOfAccounts.find(acc => acc.id === suggestion.accountId) : null;
-                             const vatType = suggestion ? allVatTypes.find(vt => vt.name === suggestion.vatType) : null;
-
+                             const suggestion = groupSuggestions[supplier];
                              return (
                                 <div key={supplier} className="border rounded-lg">
-                                    <div className="p-3 bg-muted/50 flex justify-between items-center">
-                                        <div>
+                                    <div className="p-3 bg-muted/50 flex justify-between items-center flex-wrap gap-4">
+                                        <div className="flex-grow">
                                             <h3 className="font-bold">{supplier} <span className="text-sm font-normal text-muted-foreground">({txs.length} items)</span></h3>
-                                             {suggestion && account && vatType ? (
-                                                <p className="text-sm text-primary flex items-center gap-2">
-                                                    <Sparkles className="h-4 w-4"/> Suggested: {account.description} ({vatType.label})
-                                                    <span className="text-xs text-muted-foreground">(Confidence: {suggestion.confidence}%)</span>
-                                                </p>
-                                            ) : (
-                                                <p className="text-sm text-destructive">AI could not suggest an allocation.</p>
-                                            )}
+                                            <div className="text-xs text-muted-foreground">
+                                                Original AI Confidence: {suggestion?.confidence ? `${suggestion.confidence}%` : 'N/A'}
+                                            </div>
+                                        </div>
+                                         <div className="flex items-center gap-2">
+                                            <Select value={suggestion?.accountId} onValueChange={(value) => handleGroupSuggestionChange(supplier, 'accountId', value)}>
+                                                <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Select Account..."/></SelectTrigger>
+                                                <SelectContent>
+                                                    {chartOfAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                            <Select value={suggestion?.vatType} onValueChange={(value) => handleGroupSuggestionChange(supplier, 'vatType', value as VatType)}>
+                                                <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="Select VAT..."/></SelectTrigger>
+                                                <SelectContent>
+                                                    {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
                                         </div>
                                         <div className="flex gap-2">
                                             <Button size="sm" variant="destructive" onClick={() => handleReject(txs.map(t => t.id))}>Reject Group</Button>
-                                            <Button size="sm" onClick={() => handleApprove(txs.map(t => t.id))} disabled={!suggestion}>Approve Group</Button>
+                                            <Button size="sm" onClick={() => handleApprove(txs.map(t => t.id), supplier)} disabled={!suggestion}>Approve Group</Button>
                                         </div>
                                     </div>
                                     <div className="p-2">
@@ -3264,4 +3297,5 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         </Card>
     )
 }
+    
     
