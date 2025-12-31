@@ -35,6 +35,7 @@ import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-all
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { extractStatementPeriod } from '@/ai/flows/extract-statement-period';
 import { suggestIncomeAllocation } from '@/ai/flows/suggest-income-allocation';
+import { extractSupplierName } from '@/ai/flows/extract-supplier-name';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from '@/components/ui/command';
@@ -894,61 +895,16 @@ const NewTransactionsTab = React.forwardRef<
     const handleAiExpenseAllocate = async (confidenceThreshold: number) => {
         if (!client || !client.uid || !client.chartOfAccounts || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
-        const toastId = toast({
-            title: "AI is allocating...",
-            description: `Processing ${selectedTransactions.length} transaction(s). Please wait.`,
-            duration: Infinity,
-        }).id;
-        
-        const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
-        const totalToProcess = transactionsToAllocate.length;
-        const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
-        
-        let successCount = 0;
-        let processedCount = 0;
+        toast({ title: "Preparing AI Workflow...", description: "Moving transactions to the AI workflow tab."});
 
-        for (const tx of transactionsToAllocate) {
-            processedCount++;
-            dismiss(toastId);
-            toast({
-                id: toastId,
-                title: `AI Allocation: ${processedCount}/${totalToProcess}`,
-                description: `Processing: ${tx.description}`,
-                duration: Infinity,
-            });
-
-            try {
-                const result = await suggestTransactionAllocation({
-                    description: tx.description,
-                    chartOfAccounts: chartOfAccountsJson,
-                    isVatRegistered: client.isVatRegistered || false,
-                });
-
-                if (result.accountId && result.confidence >= confidenceThreshold) {
-                    const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
-                    await updateDoc(transactionRef, {
-                        status: 'review',
-                        allocatedTo: { value: result.accountId, type: 'account' },
-                        vatType: client.isVatRegistered ? result.vatType : 'no_vat',
-                        allocatedAt: new Date(),
-                    });
-                    successCount++;
-                }
-            } catch (error) {
-                console.error(`AI allocation failed for tx ${tx.id}:`, error);
-                 toast({
-                    title: `Processing Failed for Tx ${processedCount}`,
-                    description: 'The AI could not allocate this transaction.',
-                    variant: 'destructive',
-                 });
-            }
-        }
-        
-        dismiss(toastId);
-        toast({
-            title: "AI Allocation Complete",
-            description: `${successCount} out of ${totalToProcess} transactions were confidently allocated for review.`
+        const batch = writeBatch(db);
+        selectedTransactions.forEach(txId => {
+            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+            batch.update(txRef, { status: 'ai_processing' });
         });
+        await batch.commit();
+
+        toast({ title: "Transactions Moved", description: "Processing will begin in the AI Workflow tab."});
         
         setSelectedTransactions([]);
         refetch();
@@ -957,225 +913,50 @@ const NewTransactionsTab = React.forwardRef<
     };
     
     const handleAiAllocateAllExpenses = async (confidenceThreshold: number) => {
-        if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
+       if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
         setIsAiAllDialogOpen(false);
         setIsAiAllocating(true);
-        const toastId = toast({ title: "Step 1: Building Knowledge Base...", description: "Analyzing reviewed transactions.", duration: Infinity }).id;
-    
-        try {
-            // Step 1: Build knowledge base from reviewed transactions
-            const reviewedQuery = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('bankAccountId', '==', bankAccountId),
-                where('status', 'in', ['reviewed', 'allocated'])
-            );
-            const reviewedSnapshot = await getDocs(reviewedQuery);
-            const knowledgeBase: { [key: string]: { [key: string]: number } } = {};
-            
-            reviewedSnapshot.forEach(doc => {
-                const tx = doc.data() as AllocatedTransaction;
-                if (!tx.allocatedTo || tx.bankAccountId === 'JOURNAL') return;
-                
-                const key = tx.description.replace(/\d+/g, '').trim().toLowerCase();
-                const allocationKey = `${tx.allocatedTo.value}-${tx.vatType}`;
-                
-                if (!knowledgeBase[key]) knowledgeBase[key] = {};
-                knowledgeBase[key][allocationKey] = (knowledgeBase[key][allocationKey] || 0) + 1;
-            });
-    
-            // Simplify knowledge base to most common allocation for each description key
-            const learnedRules: { [key: string]: { accountId: string; vatType: VatType } } = {};
-            for (const key in knowledgeBase) {
-                const allocations = knowledgeBase[key];
-                if (Object.keys(allocations).length === 0) continue;
-                const mostCommon = Object.entries(allocations).reduce((a, b) => a[1] > b[1] ? a : b);
-                const [accountId, vatType] = mostCommon[0].split('-');
-                learnedRules[key] = { accountId, vatType: vatType as VatType };
-            }
-    
-            toast({ id: toastId, title: "Step 2: Fetching New Transactions...", description: "Gathering all new expenses to process." });
-    
-            // Step 2: Fetch all new expense transactions
-            const newExpensesQuery = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'new'),
-                where('amount', '<', 0)
-            );
-            const newExpensesSnapshot = await getDocs(newExpensesQuery);
-            const allNewExpenseTransactions = newExpensesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
-    
-            if (allNewExpenseTransactions.length === 0) {
-                toast({ id: toastId, title: "No Transactions", description: "There are no new expenses to allocate." });
-                setIsAiAllocating(false);
-                return;
-            }
-    
-            // Step 3: First pass with learned rules
-            let transactionsToAiProcess: ImportedTransaction[] = [];
-            let batch = writeBatch(db);
-            let batchCount = 0;
-            let learnedRulesApplied = 0;
-    
-            allNewExpenseTransactions.forEach(tx => {
-                const key = tx.description.replace(/\d+/g, '').trim().toLowerCase();
-                if (learnedRules[key]) {
-                    const rule = learnedRules[key];
-                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                    batch.update(txRef, {
-                        status: 'review',
-                        allocatedTo: { value: rule.accountId, type: 'account' },
-                        vatType: client.isVatRegistered ? rule.vatType : 'no_vat',
-                        allocatedAt: new Date(),
-                    });
-                    batchCount++;
-                    learnedRulesApplied++;
-                    if (batchCount >= BATCH_SIZE) {
-                        batch.commit();
-                        batch = writeBatch(db);
-                        batchCount = 0;
-                    }
-                } else {
-                    transactionsToAiProcess.push(tx);
-                }
-            });
-    
-            if (batchCount > 0) {
-                await batch.commit();
-                batch = writeBatch(db);
-                batchCount = 0;
-            }
+        toast({ title: "Preparing AI Workflow...", description: "Moving transactions to the AI workflow tab."});
 
-            toast({ id: toastId, title: `Step 3: Applying Learned Rules...`, description: `${learnedRulesApplied} transactions allocated based on your history.` });
-    
-            // Step 4: Second pass with AI for remaining transactions
-            if (transactionsToAiProcess.length > 0) {
-                 toast({ id: toastId, title: `Step 4: AI Processing...`, description: `Using AI for the remaining ${transactionsToAiProcess.length} transactions.` });
-                const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
-                
-                const groups: { [key: string]: ImportedTransaction[] } = {};
-                transactionsToAiProcess.forEach(tx => {
-                    const key = tx.description.replace(/\d+/g, '').trim();
-                    if (!groups[key]) groups[key] = [];
-                    groups[key].push(tx);
-                });
-    
-                let aiAppliedCount = 0;
-                for (const key in groups) {
-                    const group = groups[key];
-                    const representativeTx = group[0];
-            
-                    try {
-                        toast({ id: toastId, title: `Analyzing group...`, description: `"${representativeTx.description}"` });
-                        const result = await suggestTransactionAllocation({
-                            description: representativeTx.description,
-                            chartOfAccounts: chartOfAccountsJson,
-                            isVatRegistered: client.isVatRegistered || false,
-                        });
-            
-                        if (result.accountId && result.confidence >= confidenceThreshold) {
-                            group.forEach(similarTx => {
-                                if (batchCount >= BATCH_SIZE) {
-                                    batch.commit();
-                                    batch = writeBatch(db);
-                                    batchCount = 0;
-                                }
-                                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', similarTx.id);
-                                batch.update(txRef, {
-                                    status: 'review',
-                                    allocatedTo: { value: result.accountId, type: 'account' },
-                                    vatType: client.isVatRegistered ? result.vatType : 'no_vat',
-                                    allocatedAt: new Date(),
-                                });
-                                batchCount++;
-                                aiAppliedCount++;
-                            });
-                        }
-                    } catch (error) {
-                        console.error(`AI allocation failed for group ${key}:`, error);
-                    }
-                }
-                 if (batchCount > 0) {
-                    await batch.commit();
-                }
-                 toast({ id: toastId, title: `Step 4: AI Processing Complete`, description: `${aiAppliedCount} more transactions allocated by AI.` });
-            }
-    
-            dismiss(toastId);
-            toast({
-                title: "AI Bulk Allocation Complete!",
-                description: `Process finished. Check the 'Pending Review' tab.`
-            });
-    
-        } catch (error) {
-            console.error("Error during AI bulk allocation:", error);
-            toast({ id: toastId, title: "Error", description: "An error occurred during the AI allocation process.", variant: "destructive" });
-        } finally {
+        const newExpensesQuery = query(
+            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+            where('bankAccountId', '==', bankAccountId),
+            where('status', '==', 'new'),
+            where('amount', '<', 0)
+        );
+        const newExpensesSnapshot = await getDocs(newExpensesQuery);
+        
+        if (newExpensesSnapshot.empty) {
+            toast({ title: "No new expenses to allocate." });
             setIsAiAllocating(false);
-            refetch();
+            return;
         }
+
+        const batch = writeBatch(db);
+        newExpensesSnapshot.docs.forEach(doc => {
+            batch.update(doc.ref, { status: 'ai_processing' });
+        });
+        await batch.commit();
+        
+        toast({ title: "Transactions Moved", description: "Processing will begin in the AI Workflow tab."});
+
+        setIsAiAllocating(false);
+        refetch();
     };
 
     const handleAiIncomeAllocate = async (confidenceThreshold: number) => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
-        const toastId = toast({
-            title: "AI is allocating...",
-            description: `Processing ${selectedTransactions.length} income transaction(s). Please wait.`,
-            duration: Infinity,
-        }).id;
+        toast({ title: "Preparing AI Workflow...", description: "Moving transactions to the AI workflow tab."});
         
-        const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
-        const customersWithInvoices = customers.map(c => ({
-            id: c.id,
-            name: c.name,
-            invoiceNumbers: invoices.filter(inv => inv.customerId === c.id).map(inv => inv.id),
-        }));
-
-        let successCount = 0;
-        let processedCount = 0;
-
-        for (const tx of transactionsToAllocate) {
-            processedCount++;
-             dismiss(toastId);
-            toast({
-                id: toastId,
-                title: `AI Allocation: ${processedCount}/${transactionsToAllocate.length}`,
-                description: `Processing: ${tx.description}`,
-                duration: Infinity,
-            });
-
-            try {
-                const result = await suggestIncomeAllocation({
-                    description: tx.description,
-                    customers: JSON.stringify(customersWithInvoices)
-                });
-
-                if (result.customerId && result.confidence >= confidenceThreshold) {
-                    const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
-                    await updateDoc(transactionRef, {
-                        status: 'review', 
-                        allocatedTo: { value: result.customerId, type: 'customer' },
-                        vatType: 'no_vat',
-                        allocatedAt: new Date(),
-                    });
-                    successCount++;
-                }
-            } catch (error) {
-                console.error(`AI allocation failed for tx ${tx.id}:`, error);
-                toast({
-                    title: `Processing Failed for Tx ${processedCount}`,
-                    description: 'The AI could not allocate this transaction.',
-                    variant: 'destructive',
-                 });
-            }
-        }
-        
-         dismiss(toastId);
-        toast({
-            title: "AI Allocation Complete",
-            description: `${successCount} out of ${transactionsToAllocate.length} transactions were confidently allocated for review.`
+        const batch = writeBatch(db);
+        selectedTransactions.forEach(txId => {
+            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+            batch.update(txRef, { status: 'ai_processing' });
         });
+        await batch.commit();
+
+        toast({ title: "Transactions Moved", description: "Processing will begin in the AI Workflow tab."});
             
         setSelectedTransactions([]);
         refetch();
@@ -2963,7 +2744,7 @@ export default function BankTransactionsPage() {
     const searchParams = useSearchParams();
     const clientId = params.clientId as string;
     const { toast } = useToast();
-    const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
+    const [activeTab, setActiveTab] = useState<'new' | 'review' | 'ai_workflow' | 'reviewed'>('new');
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
@@ -3222,6 +3003,7 @@ export default function BankTransactionsPage() {
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
                 <TabsList>
                     <TabsTrigger value="new">New Transactions</TabsTrigger>
+                    <TabsTrigger value="ai_workflow">AI Workflow</TabsTrigger>
                     <TabsTrigger value="review">Pending Review</TabsTrigger>
                     <TabsTrigger value="reviewed">Reviewed Transactions</TabsTrigger>
                 </TabsList>
@@ -3236,6 +3018,9 @@ export default function BankTransactionsPage() {
                         globalRules={globalRules}
                         onAccountCreated={fetchClientAndRelatedData}
                     />
+                </TabsContent>
+                <TabsContent value="ai_workflow" className="mt-0">
+                    <AIWorkflowTab client={client} bankAccountId={selectedAccountId} chartOfAccounts={client?.chartOfAccounts || []} fetchClientData={fetchClientAndRelatedData} />
                 </TabsContent>
                  <TabsContent value="review" className="mt-0">
                    <ForReviewTab 
@@ -3262,4 +3047,157 @@ export default function BankTransactionsPage() {
     );
 }
 
+const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData }: { client: User | null; bankAccountId: string | null; chartOfAccounts: ChartOfAccount[], fetchClientData: () => void; }) => {
+    const { toast } = useToast();
+    const [isProcessing, setIsProcessing] = useState(false);
+    
+    const baseQuery = useMemo(() => {
+        if (!client?.uid || !bankAccountId) return null;
+        return query(
+            collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
+            where('bankAccountId', '==', bankAccountId),
+            where('status', '==', 'ai_processing')
+        );
+    }, [client?.uid, bankAccountId]);
+
+    const { documents: transactions, isLoading, refetch } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: 500 });
+    
+    const handleProcessWorkflow = async () => {
+        if (!client || !client.uid || transactions.length === 0) return;
+        setIsProcessing(true);
+        const toastId = toast({ title: "Starting AI Workflow...", description: `Found ${transactions.length} transactions to process.`, duration: Infinity }).id;
+
+        try {
+            // Step 1: Extract supplier names
+            toast({ id: toastId, title: "Step 1/3: Extracting Suppliers...", description: "AI is cleaning up descriptions." });
+            const transactionsWithSuppliers = await Promise.all(transactions.map(async (tx) => {
+                try {
+                    const { supplier } = await extractSupplierName({ description: tx.description });
+                    return { ...tx, extractedSupplier: supplier };
+                } catch (e) {
+                    return { ...tx, extractedSupplier: tx.description.split(' ')[0].toUpperCase() }; // Fallback
+                }
+            }));
+            
+            // Step 2: Group by supplier
+            const groupedBySupplier = transactionsWithSuppliers.reduce((acc, tx) => {
+                const key = tx.extractedSupplier || 'UNKNOWN';
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(tx);
+                return acc;
+            }, {} as Record<string, ImportedTransaction[]>);
+            
+            toast({ id: toastId, title: `Step 2/3: Grouping Transactions...`, description: `Created ${Object.keys(groupedBySupplier).length} groups.` });
+            
+            // Step 3: Allocate each group
+            const chartOfAccountsJson = JSON.stringify(chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
+            const allUpdatePromises: Promise<any>[] = [];
+            let processedCount = 0;
+
+            for (const supplier in groupedBySupplier) {
+                const group = groupedBySupplier[supplier];
+                const representativeTx = group[0];
+                
+                toast({ id: toastId, title: `Step 3/3: Allocating Groups (${++processedCount}/${Object.keys(groupedBySupplier).length})`, description: `Analyzing: ${supplier}` });
+
+                try {
+                    const result = await suggestTransactionAllocation({
+                        description: representativeTx.description,
+                        chartOfAccounts: chartOfAccountsJson,
+                        isVatRegistered: client.isVatRegistered || false,
+                    });
+                    
+                    if (result.accountId && result.confidence > 0) { // Allocate even with low confidence for review
+                        const batch = writeBatch(db);
+                        group.forEach(tx => {
+                            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+                            batch.update(txRef, {
+                                status: 'review',
+                                extractedSupplier: supplier,
+                                allocatedTo: { value: result.accountId, type: 'account' },
+                                vatType: client.isVatRegistered ? result.vatType : 'no_vat',
+                                allocatedAt: new Date(),
+                            });
+                        });
+                        allUpdatePromises.push(batch.commit());
+                    } else {
+                        // If AI can't allocate, move back to 'new'
+                        const batch = writeBatch(db);
+                        group.forEach(tx => {
+                             const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+                             batch.update(txRef, { status: 'new', extractedSupplier: supplier });
+                        });
+                        allUpdatePromises.push(batch.commit());
+                    }
+                } catch (e) {
+                    console.error(`Error allocating group ${supplier}:`, e);
+                     const batch = writeBatch(db);
+                     group.forEach(tx => {
+                         const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+                         batch.update(txRef, { status: 'new', extractedSupplier: supplier });
+                     });
+                     allUpdatePromises.push(batch.commit());
+                }
+            }
+            
+            await Promise.all(allUpdatePromises);
+            toast.dismiss(toastId);
+            toast({ title: 'AI Workflow Complete!', description: 'Transactions have been moved to "Pending Review" or back to "New".' });
+
+        } catch (error) {
+            console.error("AI Workflow failed:", error);
+            toast({ id: toastId, title: 'Workflow Failed', description: 'An unexpected error occurred.', variant: 'destructive'});
+        } finally {
+            setIsProcessing(false);
+            refetch();
+            // Also need to refetch other tabs
+        }
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>AI Processing Workflow</CardTitle>
+                <CardDescription>Transactions moved here will be processed in batches by the AI to extract supplier information and suggest allocations.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                ) : transactions.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground">No transactions are currently in the AI workflow.</div>
+                ) : (
+                    <div>
+                        <div className="flex justify-between items-center mb-4 p-4 bg-muted rounded-lg">
+                            <p className="font-semibold">{transactions.length} transaction(s) ready for processing.</p>
+                            <Button onClick={handleProcessWorkflow} disabled={isProcessing}>
+                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                                {isProcessing ? 'Processing...' : 'Run AI Workflow'}
+                            </Button>
+                        </div>
+                        <div className="max-h-96 overflow-y-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {transactions.map(tx => (
+                                        <TableRow key={tx.id}>
+                                            <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                            <TableCell>{tx.description}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    )
+}
     

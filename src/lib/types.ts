@@ -303,12 +303,13 @@ export type ImportedTransaction = {
     description: string;
     amount: number;
     bankAccountId: string;
-    status: 'new' | 'allocated' | 'review' | 'reviewed';
+    status: 'new' | 'allocated' | 'review' | 'reviewed' | 'ai_processing';
     allocatedTo?: { // Optional for imported, required for allocated
         value: string;
         type: 'account' | 'customer' | 'supplier';
     };
     vatType?: VatType;
+    extractedSupplier?: string;
 };
 
 export type AllocatedTransaction = {
@@ -327,6 +328,7 @@ export type AllocatedTransaction = {
     vatAmount: number;
     status: 'allocated';
     allocatedAt: any; // Using `any` for Firestore Timestamp compatibility
+    extractedSupplier?: string;
 };
 
 export type ExtractedInvoice = {

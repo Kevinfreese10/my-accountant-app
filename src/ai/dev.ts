@@ -12,10 +12,12 @@ export * from '@/ai/flows/suggest-income-allocation';
 export * from '@/ai/flows/extract-statement-data';
 export * from '@/ai/flows/extract-statement-period';
 export * from '@/ai/flows/find-story-name';
+export * from '@/ai/flows/extract-supplier-name';
 
 
 
 
     
+
 
 
