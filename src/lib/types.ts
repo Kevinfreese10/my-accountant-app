@@ -295,6 +295,12 @@ export type Task = {
   tags?: string[];
 };
 
+export type AIAllocationResult = {
+  accountId: string;
+  vatType: VatType;
+  confidence: number;
+};
+
 export type ImportedTransaction = {
     id: string;
     clientId: string;
@@ -303,13 +309,14 @@ export type ImportedTransaction = {
     description: string;
     amount: number;
     bankAccountId: string;
-    status: 'new' | 'allocated' | 'review' | 'reviewed' | 'ai_processing';
+    status: 'new' | 'allocated' | 'review' | 'reviewed' | 'ai_processing' | 'ai_review';
     allocatedTo?: { // Optional for imported, required for allocated
         value: string;
         type: 'account' | 'customer' | 'supplier';
     };
     vatType?: VatType;
     extractedSupplier?: string;
+    aiAllocationResult?: AIAllocationResult | null;
 };
 
 export type AllocatedTransaction = {
@@ -402,5 +409,3 @@ export const FindStoryNameOutputSchema = z.object({
   storyName: z.string().optional().describe('The corresponding story name found in the knowledge base. Returns nothing if no match is found.'),
 });
 export type FindStoryNameOutput = z.infer<typeof FindStoryNameOutputSchema>;
-
-    

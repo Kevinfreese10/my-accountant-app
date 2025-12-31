@@ -1579,7 +1579,7 @@ const ReviewedTab = React.forwardRef<
 
             if (!hasSearch && !hasFilter) {
                 setSearchResults(null);
-                refetch();
+                refetch(); // This will refetch paginated data
                 return;
             }
 
@@ -2002,7 +2002,7 @@ const ReviewedTab = React.forwardRef<
         );
     };
 
-    const handleBulkReallocate = (allocation: { value: string; type: "account" | "customer" | "supplier"; }, vatType: "standard_rated_sales" | "zero_rated_sales" | "exempt_sales" | "standard_rated_purchases" | "capital_goods_purchases" | "zero_rated_purchases" | "exempt_purchases" | "no_vat") => {
+    const handleBulkReallocate = (allocation: { value: string; type: "account" | "customer" | "supplier"; }, vatType: VatType) => {
       const changesToSave: { [key: string]: Partial<ImportedTransaction> } = {};
         selectedTransactions.forEach(txId => {
             changesToSave[txId] = {
@@ -2010,7 +2010,6 @@ const ReviewedTab = React.forwardRef<
                 vatType: client?.isVatRegistered ? vatType : 'no_vat',
             };
         });
-
         handleSaveChanges(changesToSave, selectedTransactions);
     };
 
@@ -2262,7 +2261,7 @@ const ReviewedTab = React.forwardRef<
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" disabled={selectedTransactions.length === 0}>
-                                Reallocate Selected <ChevronsUpDown className="ml-2 h-4 w-4"/>
+                                <span>Reallocate Selected</span><ChevronsUpDown className="ml-2 h-4 w-4"/>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="w-64">
@@ -3056,7 +3055,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         return query(
             collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
             where('bankAccountId', '==', bankAccountId),
-            where('status', '==', 'ai_processing')
+            where('status', 'in', ['ai_processing', 'ai_review'])
         );
     }, [client?.uid, bankAccountId]);
 
@@ -3064,13 +3063,19 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     
     const handleProcessWorkflow = async () => {
         if (!client || !client.uid || transactions.length === 0) return;
+        const transactionsToProcess = transactions.filter(tx => tx.status === 'ai_processing');
+        if (transactionsToProcess.length === 0) {
+            toast({ title: 'No transactions to process.' });
+            return;
+        }
+
         setIsProcessing(true);
-        const toastId = toast({ title: "Starting AI Workflow...", description: `Found ${transactions.length} transactions to process.`, duration: Infinity }).id;
+        const toastId = toast({ title: "Starting AI Workflow...", description: `Found ${transactionsToProcess.length} transactions to process.`, duration: Infinity }).id;
 
         try {
             // Step 1: Extract supplier names
             toast({ id: toastId, title: "Step 1/3: Extracting Suppliers...", description: "AI is cleaning up descriptions." });
-            const transactionsWithSuppliers = await Promise.all(transactions.map(async (tx) => {
+            const transactionsWithSuppliers = await Promise.all(transactionsToProcess.map(async (tx) => {
                 try {
                     const { supplier } = await extractSupplierName({ description: tx.description });
                     return { ...tx, extractedSupplier: supplier };
@@ -3107,28 +3112,17 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                         isVatRegistered: client.isVatRegistered || false,
                     });
                     
-                    if (result.accountId && result.confidence > 0) { // Allocate even with low confidence for review
-                        const batch = writeBatch(db);
-                        group.forEach(tx => {
-                            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                            batch.update(txRef, {
-                                status: 'review',
-                                extractedSupplier: supplier,
-                                allocatedTo: { value: result.accountId, type: 'account' },
-                                vatType: client.isVatRegistered ? result.vatType : 'no_vat',
-                                allocatedAt: new Date(),
-                            });
+                    const batch = writeBatch(db);
+                    group.forEach(tx => {
+                        const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+                        batch.update(txRef, {
+                            status: 'ai_review',
+                            extractedSupplier: supplier,
+                            aiAllocationResult: result || null,
                         });
-                        allUpdatePromises.push(batch.commit());
-                    } else {
-                        // If AI can't allocate, move back to 'new'
-                        const batch = writeBatch(db);
-                        group.forEach(tx => {
-                             const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                             batch.update(txRef, { status: 'new', extractedSupplier: supplier });
-                        });
-                        allUpdatePromises.push(batch.commit());
-                    }
+                    });
+                    allUpdatePromises.push(batch.commit());
+
                 } catch (e) {
                     console.error(`Error allocating group ${supplier}:`, e);
                      const batch = writeBatch(db);
@@ -3142,58 +3136,128 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             
             await Promise.all(allUpdatePromises);
             dismiss(toastId);
-            toast({ title: 'AI Workflow Complete!', description: 'Transactions have been moved to "Pending Review" or back to "New".' });
+            toast({ title: 'AI Workflow Complete!', description: 'Review the suggestions below and approve or reject them.' });
 
         } catch (error) {
             console.error("AI Workflow failed:", error);
+            dismiss(toastId);
             toast({ id: toastId, title: 'Workflow Failed', description: 'An unexpected error occurred.', variant: 'destructive'});
         } finally {
             setIsProcessing(false);
             refetch();
-            // Also need to refetch other tabs
         }
     }
+
+    const groupedForReview = useMemo(() => {
+        const groups: { [key: string]: ImportedTransaction[] } = {};
+        const reviewable = transactions.filter(t => t.status === 'ai_review');
+        reviewable.forEach(tx => {
+            const key = tx.extractedSupplier || 'UNKNOWN';
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(tx);
+        });
+        return Object.entries(groups).sort((a,b) => a[0].localeCompare(b[0]));
+    }, [transactions]);
+    
+    const handleApprove = async (txIds: string[]) => {
+        if (!client || txIds.length === 0) return;
+        const batch = writeBatch(db);
+        txIds.forEach(id => {
+            const tx = transactions.find(t => t.id === id);
+            if (tx && tx.aiAllocationResult) {
+                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', id);
+                batch.update(txRef, {
+                    status: 'allocated',
+                    allocatedTo: { value: tx.aiAllocationResult.accountId, type: 'account'},
+                    vatType: tx.aiAllocationResult.vatType,
+                    allocatedAt: new Date(),
+                });
+            }
+        });
+        await batch.commit();
+        toast({ title: 'Approved!', description: `${txIds.length} transactions moved to Reviewed.`});
+        refetch();
+    };
+
+    const handleReject = async (txIds: string[]) => {
+         if (!client || txIds.length === 0) return;
+        const batch = writeBatch(db);
+        txIds.forEach(id => {
+            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', id);
+            batch.update(txRef, {
+                status: 'new',
+                aiAllocationResult: null,
+            });
+        });
+        await batch.commit();
+        toast({ title: 'Rejected', description: `${txIds.length} transactions moved back to New.`});
+        refetch();
+    };
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle>AI Processing Workflow</CardTitle>
-                <CardDescription>Transactions moved here will be processed in batches by the AI to extract supplier information and suggest allocations.</CardDescription>
+                <CardDescription>Transactions sent for AI allocation are processed here. You can review the AI's suggestions before approving.</CardDescription>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
                     <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                ) : transactions.length === 0 ? (
-                    <div className="text-center py-10 text-muted-foreground">No transactions are currently in the AI workflow.</div>
-                ) : (
+                ) : transactions.filter(tx => tx.status === 'ai_processing').length > 0 ? (
                     <div>
                         <div className="flex justify-between items-center mb-4 p-4 bg-muted rounded-lg">
-                            <p className="font-semibold">{transactions.length} transaction(s) ready for processing.</p>
+                            <p className="font-semibold">{transactions.filter(tx => tx.status === 'ai_processing').length} transaction(s) ready for processing.</p>
                             <Button onClick={handleProcessWorkflow} disabled={isProcessing}>
                                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                                 {isProcessing ? 'Processing...' : 'Run AI Workflow'}
                             </Button>
                         </div>
-                        <div className="max-h-96 overflow-y-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {transactions.map(tx => (
-                                        <TableRow key={tx.id}>
-                                            <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                            <TableCell>{tx.description}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
+                    </div>
+                ) : groupedForReview.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground">No transactions are currently in the AI workflow.</div>
+                ) : (
+                    <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+                        {groupedForReview.map(([supplier, txs]) => {
+                             const suggestion = txs[0].aiAllocationResult;
+                             const account = suggestion ? chartOfAccounts.find(acc => acc.id === suggestion.accountId) : null;
+                             const vatType = suggestion ? allVatTypes.find(vt => vt.name === suggestion.vatType) : null;
+
+                             return (
+                                <div key={supplier} className="border rounded-lg">
+                                    <div className="p-3 bg-muted/50 flex justify-between items-center">
+                                        <div>
+                                            <h3 className="font-bold">{supplier} <span className="text-sm font-normal text-muted-foreground">({txs.length} items)</span></h3>
+                                             {suggestion && account && vatType ? (
+                                                <p className="text-sm text-primary flex items-center gap-2">
+                                                    <Sparkles className="h-4 w-4"/> Suggested: {account.description} ({vatType.label})
+                                                    <span className="text-xs text-muted-foreground">(Confidence: {suggestion.confidence}%)</span>
+                                                </p>
+                                            ) : (
+                                                <p className="text-sm text-destructive">AI could not suggest an allocation.</p>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" variant="destructive" onClick={() => handleReject(txs.map(t => t.id))}>Reject Group</Button>
+                                            <Button size="sm" onClick={() => handleApprove(txs.map(t => t.id))} disabled={!suggestion}>Approve Group</Button>
+                                        </div>
+                                    </div>
+                                    <div className="p-2">
+                                         <Table>
+                                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                                            <TableBody>
+                                                {txs.map(tx => (
+                                                     <TableRow key={tx.id}>
+                                                        <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                                        <TableCell className="text-xs">{tx.description}</TableCell>
+                                                        <TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}</TableCell>
+                                                     </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+                             )
+                        })}
                     </div>
                 )}
             </CardContent>
