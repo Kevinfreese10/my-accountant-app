@@ -916,8 +916,7 @@ const NewTransactionsTab = React.forwardRef<
        if (!client || !client.uid || !client.chartOfAccounts || !bankAccountId) return;
         setIsAiAllDialogOpen(false);
         setIsAiAllocating(true);
-        toast({ title: "Preparing AI Workflow...", description: "Moving transactions to the AI workflow tab."});
-
+        
         const newExpensesQuery = query(
             collection(db, 'aiAccountantClients', client.uid, 'transactions'),
             where('bankAccountId', '==', bankAccountId),
@@ -931,6 +930,8 @@ const NewTransactionsTab = React.forwardRef<
             setIsAiAllocating(false);
             return;
         }
+
+        toast({ title: "Preparing AI Workflow...", description: `${newExpensesSnapshot.size} transactions moved to AI workflow.`});
 
         const batch = writeBatch(db);
         newExpensesSnapshot.docs.forEach(doc => {
@@ -973,7 +974,7 @@ const NewTransactionsTab = React.forwardRef<
                 const batch = writeBatch(db);
                 const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
                 chunk.forEach(txId => {
-                    const docRef = doc(db, 'aiAccountantClients', client!.uid, 'transactions', txId);
+                    const docRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
                     batch.delete(docRef);
                 });
                 await batch.commit();
@@ -1726,7 +1727,7 @@ const ReviewedTab = React.forwardRef<
                 const batch = writeBatch(db);
                 const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
                 chunk.forEach(txId => {
-                    const docRef = doc(db, 'aiAccountantClients', client!.uid, 'transactions', txId);
+                    const docRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
                     batch.delete(docRef);
                 });
                 await batch.commit();
@@ -3274,9 +3275,15 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                             <Button size="sm" onClick={() => handleApprove(txs.map(t => t.id), supplier)} disabled={!suggestion}>Approve Group</Button>
                                         </div>
                                     </div>
-                                    <div className="p-2">
+                                    <div>
                                          <Table>
-                                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="w-[120px]">Date</TableHead>
+                                                    <TableHead>Description</TableHead>
+                                                    <TableHead className="text-right w-[150px]">Amount</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
                                             <TableBody>
                                                 {txs.map(tx => (
                                                      <TableRow key={tx.id}>
@@ -3298,4 +3305,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     )
 }
     
+    
+
     
