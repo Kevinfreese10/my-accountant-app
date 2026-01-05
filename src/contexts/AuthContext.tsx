@@ -131,6 +131,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!values.password) return 'Password is required.';
 
     try {
+        const q = query(collection(db, "users"), where("email", "==", values.email));
+        const existingUserSnapshot = await getDocs(q);
+        if (!existingUserSnapshot.empty) {
+            return 'An account with this email already exists.';
+        }
+
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const firebaseUser = userCredential.user;
 
@@ -153,7 +159,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
         console.error("Error signing up:", error);
         if (error.code === 'auth/email-already-in-use') {
-            return 'An account with this email already exists.';
+            return 'An account with this email already exists in our authentication system, but not in our database. Please contact support.';
         }
         return 'An unexpected error occurred during signup.';
     }
