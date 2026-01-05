@@ -75,7 +75,6 @@ export default function AdminOrderDetailsPage() {
   const { toast } = useToast();
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const [allServices, setAllServices] = useState<Service[]>([]);
-  const [viewingBackendSummary, setViewingBackendSummary] = useState<Order | null>(null);
   const [isProofreading, setIsProofreading] = useState(false);
   
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
@@ -197,8 +196,8 @@ export default function AdminOrderDetailsPage() {
       type: 'note',
       subject: null,
       attachments: attachments.length > 0 ? attachments : null,
-      attachmentUrl: null, // Legacy field, ensure it is null
-      attachmentName: null, // Legacy field, ensure it is null
+      attachmentUrl: null, 
+      attachmentName: null, 
     };
 
     try {
@@ -234,31 +233,6 @@ export default function AdminOrderDetailsPage() {
       toast({ title: "Proofreading Failed", variant: "destructive" });
     } finally {
       setIsProofreading(false);
-    }
-  };
-
-  const addEmailToHistory = async (subject: string, message: string) => {
-    if (!currentUser || !order) return;
-
-     const emailNote: OrderNote = {
-      text: message,
-      subject: subject || null,
-      authorId: currentUser.uid,
-      date: Timestamp.now(),
-      type: 'email',
-      attachments: null,
-      attachmentUrl: null,
-      attachmentName: null,
-    };
-
-    try {
-      const orderRef = doc(db, 'orders', order.id);
-      await updateDoc(orderRef, {
-        notes: arrayUnion(emailNote),
-      });
-      await fetchOrderAndStaff();
-    } catch (error) {
-        console.error("Error logging email to history:", error);
     }
   };
 
@@ -342,10 +316,22 @@ export default function AdminOrderDetailsPage() {
                 resellerId: order.resellerId
             });
 
-            await addEmailToHistory(
-                `Feedback on Your Submitted Documents for Order #${order.originalOrderId || order.id}`,
-                `Sent 'Document Review Feedback' email to ${emailTo}.`
-            );
+             const emailNote: OrderNote = {
+                text: `Sent 'Document Review Feedback' email to ${emailTo}.`,
+                subject: `Feedback on Your Submitted Documents for Order #${order.originalOrderId || order.id}`,
+                authorId: currentUser?.uid || 'system',
+                date: Timestamp.now(),
+                type: 'email',
+                attachments: null,
+                attachmentUrl: null,
+                attachmentName: null,
+            };
+
+            const orderRef = doc(db, 'orders', order.id);
+            await updateDoc(orderRef, {
+                notes: arrayUnion(emailNote),
+            });
+            await fetchOrderAndStaff();
 
             toast({ title: "Feedback Sent!", description: "The client has been notified of the review outcome." });
         } catch(e) {
@@ -381,10 +367,8 @@ export default function AdminOrderDetailsPage() {
   const contactIsClient = isOutsourced && order.documentContact === 'client';
   
   const contactName = contactIsClient ? order.endCustomerName : (isOutsourced ? resellerDetails?.companyName || resellerDetails?.name : order.customerName);
-  const contactEmail = contactIsClient ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
-  const contactPhone = contactIsClient ? order.customerPhone : (isOutsourced ? resellerDetails?.contactNumber : order.customerPhone);
 
-  const generateNoteTemplate = (type: 'docs' | 'payment' | 'review') => {
+  const generateNoteTemplate = (type: 'docs' | 'payment' | 'review' | 'discount') => {
       let text = `Hi ${contactName},\n\n`;
       const orderId = order.originalOrderId || order.id;
 
@@ -394,6 +378,8 @@ export default function AdminOrderDetailsPage() {
           text += `This is a reminder to please upload the required documents for your order #${orderId} so that we can begin processing it.\n\n`;
       } else if (type === 'review') {
           text += `We hope you were happy with our service for order #${orderId}. If you have a moment, we would greatly appreciate it if you could leave us a review on Google.\n\n`;
+      } else if (type === 'discount') {
+          text += `As a token of our appreciation for your business, here is a 10% discount code for your next order: WELCOME10\n\n`;
       }
       text += 'Kind regards,\nThe My Accountant Team';
       noteForm.setValue('noteText', text);
@@ -476,17 +462,17 @@ export default function AdminOrderDetailsPage() {
                                 <div>
                                      <h3 className="font-semibold text-muted-foreground mb-2">Contact Details</h3>
                                     <div className="space-y-3">
-                                        <p className="font-semibold text-lg">{contactName}</p>
-                                        {contactEmail && (
+                                        <p className="font-semibold text-lg">{order.customerName}</p>
+                                        {order.customerEmail && (
                                             <div className="flex items-center gap-2 text-sm">
                                                 <Mail className="h-4 w-4 text-muted-foreground" />
-                                                <a href={`mailto:${contactEmail}`} className="text-primary hover:underline">{contactEmail}</a>
+                                                <a href={`mailto:${order.customerEmail}`} className="text-primary hover:underline">{order.customerEmail}</a>
                                             </div>
                                         )}
-                                        {contactPhone && (
+                                        {order.customerPhone && (
                                             <div className="flex items-center gap-2 text-sm">
                                                 <Phone className="h-4 w-4 text-muted-foreground" />
-                                                <span>{contactPhone}</span>
+                                                <span>{order.customerPhone}</span>
                                             </div>
                                         )}
                                     </div>
@@ -582,6 +568,7 @@ export default function AdminOrderDetailsPage() {
                                 <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('payment')}><Phone className="h-4 w-4 mr-2"/>Payment Follow-up</Button>
                                 <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('docs')}><FileText className="h-4 w-4 mr-2"/>Request Documents</Button>
                                 <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('review')}><Star className="h-4 w-4 mr-2"/>Request Review</Button>
+                                <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('discount')}><Percent className="h-4 w-4 mr-2"/>Generate 10% Discount</Button>
                             </div>
                             <Separator/>
                             <Form {...noteForm}>
