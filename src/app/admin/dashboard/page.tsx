@@ -9,7 +9,7 @@ import { format, isPast, addDays, isWithinInterval, startOfToday, addMonths, add
 import { Task, User, TaskComment, Order, OrderNote } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, BrainCircuit, Check, Tag, Eye, Inbox, Bot, Mail, Send as SendIcon } from 'lucide-react';
+import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, BrainCircuit, Check, Tag, Eye, Inbox, Bot, Mail, Send as SendIcon, Archive } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -92,6 +92,8 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
         return allStaff.find(u => u.id === authorId);
     }
     
+    const staffAndAdmins = allStaff.filter(s => s.role === 'staff' || s.role === 'admin');
+
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -128,12 +130,12 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandList>
                                     <CommandEmpty>No results found.</CommandEmpty>
                                     <CommandGroup heading="Teams">
-                                        <CommandItem onSelect={() => field.onChange(['dept:accounting-and-tax'])}>Accounting and Tax Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(['dept:administration'])}>Administration Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(['dept:cap'])}>CAP Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax']?.map(s => s.id) || [])}>Accounting and Tax Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.id) || [])}>Administration Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.id) || [])}>CAP Dept</CommandItem>
                                     </CommandGroup>
                                     <CommandGroup heading="Individual Staff">
-                                        {allStaff.map((staff) => (
+                                        {staffAndAdmins.map((staff) => (
                                         <CommandItem
                                             key={staff.id}
                                             value={staff.name}
@@ -238,7 +240,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandList>
                                     <CommandEmpty>No results found.</CommandEmpty>
                                     <CommandGroup heading="Individual Staff">
-                                        {allStaff.map((staff) => (
+                                        {staffAndAdmins.map((staff) => (
                                         <CommandItem
                                             key={staff.id}
                                             value={staff.name}
@@ -263,7 +265,6 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             <Check className={cn("h-4 w-4")} />
                                             </div>
                                             <span className="flex-grow">{staff.name}</span>
-                                            <span className="text-xs text-muted-foreground font-mono">{staff.uid}</span>
                                         </CommandItem>
                                         ))}
                                     </CommandGroup>
@@ -1051,8 +1052,6 @@ export default function AdminDashboardPage() {
             });
 
             toast({ title: "Reply Sent!", description: "Your note has been posted to the order." });
-            
-            setArchivedNotifications(prev => [...prev, noteId]);
         } catch (e) {
             toast({ title: "Failed to post note", variant: "destructive" });
         }
@@ -1069,7 +1068,6 @@ export default function AdminDashboardPage() {
             orderId: note.orderId,
         } as Task);
         setIsFormOpen(true);
-        setArchivedNotifications(prev => [...prev, noteId]);
     }
 
     return (
@@ -1185,9 +1183,9 @@ export default function AdminDashboardPage() {
                                                                             )}
                                                                             </>
                                                                         )}
-                                                                         {suggestion.suggestedActions?.includes('archive') && (
-                                                                            <Button size="sm" variant="ghost" onClick={() => setArchivedNotifications(prev => [...prev, noteId])}>Archive</Button>
-                                                                         )}
+                                                                         <Button size="sm" variant="ghost" onClick={() => setArchivedNotifications(prev => [...prev, noteId])}>
+                                                                            <Archive className="mr-2 h-4 w-4"/> Archive
+                                                                         </Button>
                                                                     </div>
                                                                 </CardContent>
                                                             </Card>
