@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -1104,7 +1104,6 @@ export default function AdminDashboardPage() {
             orderId: note.orderId,
         } as Task);
         setIsFormOpen(true);
-        archiveNotification(noteId);
     }
 
     return (
@@ -1169,7 +1168,7 @@ export default function AdminDashboardPage() {
                                             const author = getAuthor(note.authorId);
                                             const noteId = note.orderId + (note.date instanceof Date ? note.date.toISOString() : new Date(note.date).toISOString());
                                             const suggestion = aiSuggestions[noteId];
-                                            const date = note.date instanceof Date ? note.date : new Date(note.date);
+                                            const date = note.date;
 
                                             return (
                                                 <div key={index} className="flex items-start gap-3">
@@ -1308,22 +1307,6 @@ export default function AdminDashboardPage() {
                                 onDelete={handleDelete}
                                 allStaff={allStaffAndClients}
                                 currentUser={user}
-                            />
-                        )}
-                        
-                        {(user?.role === 'admin' && automatedTasks.length > 0) && (
-                           <TaskTable
-                                tasks={automatedTasks.filter(task => automatedTaskFilter === 'all' || task.title.startsWith(automatedTaskFilter))}
-                                title="Automated Client Tasks"
-                                description="Recurring tasks generated from the client automation system."
-                                onEdit={handleEdit}
-                                onView={handleView}
-                                onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
-                                onDelete={handleDelete}
-                                allStaff={allStaffAndClients}
-                                currentUser={user}
-                                onFilter={setAutomatedTaskFilter}
-                                taskTypes={taskTypes}
                             />
                         )}
                     </>
