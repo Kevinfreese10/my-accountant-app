@@ -62,6 +62,40 @@ export default function DashboardPage() {
         }).format(price);
     };
 
+    const handlePayNow = (order: Order) => {
+        const payfastUrl = 'https://www.payfast.co.za/eng/process';
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = payfastUrl;
+
+        const data: { [key: string]: string } = {
+            merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
+            merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
+            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
+            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders`,
+            notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+            name_first: order.customerName.split(' ')[0],
+            name_last: order.customerName.split(' ').slice(1).join(' '),
+            email_address: order.customerEmail,
+            cell_number: order.customerPhone || '',
+            m_payment_id: order.id,
+            amount: order.total.toFixed(2),
+            item_name: `Order #${order.id}`,
+            item_description: order.items.map(i => i.title).join(', '),
+        };
+
+        for (const key in data) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = data[key];
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    };
+
     return (
         <div className="space-y-8">
             <Card>
@@ -102,11 +136,17 @@ export default function DashboardPage() {
                                         </TableCell>
                                         <TableCell className="text-right">{formatPrice(order.total)}</TableCell>
                                         <TableCell className="text-right">
-                                            <Button variant="ghost" size="sm" asChild>
-                                                <Link href={`/dashboard/orders/${order.id}`}>
-                                                    View <ArrowRight className="ml-2 h-4 w-4" />
-                                                </Link>
-                                            </Button>
+                                            {order.status === 'Pending Payment' ? (
+                                                <Button size="sm" onClick={() => handlePayNow(order)}>
+                                                    Pay Now
+                                                </Button>
+                                            ) : (
+                                                <Button variant="ghost" size="sm" asChild>
+                                                    <Link href={`/dashboard/orders/${order.id}`}>
+                                                        View <ArrowRight className="ml-2 h-4 w-4" />
+                                                    </Link>
+                                                </Button>
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 ))}
