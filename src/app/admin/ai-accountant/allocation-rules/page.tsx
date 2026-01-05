@@ -6,7 +6,7 @@ import { chartOfAccounts as masterChartOfAccounts, setMasterChartOfAccounts } fr
 import { Input } from "@/components/ui/input";
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, PlusCircle, Edit, Trash2, Loader2, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, PlusCircle, Edit, Trash2, Loader2, ChevronsUpDown, CheckCheck } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
@@ -24,7 +24,7 @@ import { z } from "zod";
 import { allVatTypes } from "@/lib/vat-types";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 
 
@@ -91,17 +91,20 @@ function RuleForm({ rule, onSave, onCancel }: {
                                     <CommandInput placeholder="Search account..." />
                                     <CommandList>
                                     <CommandEmpty>No account found.</CommandEmpty>
-                                    {masterChartOfAccounts.map((acc) => (
-                                        <CommandItem
-                                            value={acc.description}
-                                            key={acc.id}
-                                            onSelect={() => {
-                                                form.setValue("accountId", acc.id)
-                                            }}
-                                        >
-                                            {acc.description}
-                                        </CommandItem>
-                                    ))}
+                                    <CommandGroup>
+                                        {masterChartOfAccounts.map((acc) => (
+                                            <CommandItem
+                                                value={acc.description}
+                                                key={acc.id}
+                                                onSelect={() => {
+                                                    form.setValue("accountId", acc.id)
+                                                }}
+                                            >
+                                                <CheckCheck className={cn("mr-2 h-4 w-4", acc.id === field.value ? "opacity-100" : "opacity-0")}/>
+                                                {acc.description}
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
                                     </CommandList>
                                 </Command>
                             </PopoverContent>

@@ -333,7 +333,42 @@ export default function InvoicesPage() {
                                         {fields.map((field, index) => (
                                             <div key={field.id} className="grid grid-cols-12 gap-x-2 gap-y-2 p-2 border rounded-md relative items-start">
                                                 <div className="col-span-12 md:col-span-4">
-                                                    <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel>Account</FormLabel><Select onValueChange={(value) => handleAccountChange(value, index)} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                                                    <FormField
+                                                        control={form.control}
+                                                        name={`lineItems.${index}.accountId`}
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormLabel>Account</FormLabel>
+                                                                <Popover>
+                                                                    <PopoverTrigger asChild>
+                                                                        <FormControl>
+                                                                            <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
+                                                                                {field.value ? accounts.find((acc) => acc.id === field.value)?.description : "Select account"}
+                                                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                                            </Button>
+                                                                        </FormControl>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                                        <Command>
+                                                                            <CommandInput placeholder="Search account..." />
+                                                                            <CommandList>
+                                                                                <CommandEmpty>No account found.</CommandEmpty>
+                                                                                <CommandGroup>
+                                                                                    {accounts.map((acc) => (
+                                                                                        <CommandItem value={acc.description} key={acc.id} onSelect={() => handleAccountChange(acc.id, index)}>
+                                                                                            <CheckCheck className={cn("mr-2 h-4 w-4", acc.id === field.value ? "opacity-100" : "opacity-0")} />
+                                                                                            {acc.description}
+                                                                                        </CommandItem>
+                                                                                    ))}
+                                                                                </CommandGroup>
+                                                                            </CommandList>
+                                                                        </Command>
+                                                                    </PopoverContent>
+                                                                </Popover>
+                                                                <FormMessage />
+                                                            </FormItem>
+                                                        )}
+                                                    />
                                                 </div>
                                                 <div className="col-span-12 md:col-span-4"><FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage /></FormItem> )}/></div>
                                                 <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormLabel>Qty</FormLabel><FormControl><Input type="number" {...field}/></FormControl><FormMessage /></FormItem> )}/></div>

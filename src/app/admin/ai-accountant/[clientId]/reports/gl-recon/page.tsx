@@ -8,11 +8,11 @@ import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, where, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Scale, CheckCircle, ChevronsUpDown } from "lucide-react";
+import { Loader2, Download, Eye, Scale, CheckCircle, ChevronsUpDown, CheckCheck } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { format } from 'date-fns';
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from "@/components/ui/command";
 import * as XLSX from 'xlsx';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -162,18 +162,21 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
                                     <CommandInput placeholder="Search account..." />
                                     <CommandList>
                                     <CommandEmpty>No account found.</CommandEmpty>
-                                        {client.chartOfAccounts?.map((account) => (
-                                        <CommandItem
-                                            key={account.id}
-                                            value={account.description}
-                                            onSelect={() => {
-                                                setReallocateTo({accountId: account.id, vatType: 'no_vat'})
-                                                setOpen(false)
-                                            }}
-                                        >
-                                            {account.description}
-                                        </CommandItem>
-                                        ))}
+                                        <CommandGroup>
+                                            {client.chartOfAccounts?.map((account) => (
+                                            <CommandItem
+                                                key={account.id}
+                                                value={account.description}
+                                                onSelect={() => {
+                                                    setReallocateTo({accountId: account.id, vatType: 'no_vat'})
+                                                    setOpen(false)
+                                                }}
+                                            >
+                                                <CheckCheck className={cn("mr-2 h-4 w-4", account.id === reallocateTo?.accountId ? "opacity-100" : "opacity-0")} />
+                                                {account.description}
+                                            </CommandItem>
+                                            ))}
+                                        </CommandGroup>
                                     </CommandList>
                                 </Command>
                             </PopoverContent>
@@ -372,18 +375,21 @@ export default function GeneralLedgerReconPage() {
                                             <CommandInput placeholder="Search account..." />
                                             <CommandList>
                                                 <CommandEmpty>No account found.</CommandEmpty>
-                                                {accounts.map(acc => (
-                                                     <CommandItem
-                                                        key={acc.id}
-                                                        value={`${acc.accountNumber} - ${acc.description}`}
-                                                        onSelect={() => {
-                                                            setSelectedAccountId(acc.id)
-                                                            setOpen(false)
-                                                        }}
-                                                    >
-                                                        {acc.accountNumber} - {acc.description}
-                                                     </CommandItem>
-                                                ))}
+                                                <CommandGroup>
+                                                    {accounts.map(acc => (
+                                                        <CommandItem
+                                                            key={acc.id}
+                                                            value={`${acc.accountNumber} - ${acc.description}`}
+                                                            onSelect={() => {
+                                                                setSelectedAccountId(acc.id)
+                                                                setOpen(false)
+                                                            }}
+                                                        >
+                                                            <CheckCheck className={cn("mr-2 h-4 w-4", acc.id === selectedAccountId ? "opacity-100" : "opacity-0")} />
+                                                            {acc.accountNumber} - {acc.description}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
                                             </CommandList>
                                         </Command>
                                     </PopoverContent>
