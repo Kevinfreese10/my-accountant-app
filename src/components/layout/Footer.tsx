@@ -44,6 +44,17 @@ const Footer = () => {
                         <Phone className="h-4 w-4" />
                         <a href="tel:0101091625" className="hover:text-primary">010 109 1625</a>
                     </div>
+                    <div className="mt-4">
+                        <iframe
+                            src="https://www.google.com/maps?q=W263+P6+Randburg&output=embed"
+                            width="100%"
+                            height="200"
+                            style={{ border: 0 }}
+                            allowFullScreen={false}
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                        ></iframe>
+                    </div>
                 </div>
             </div>
 
