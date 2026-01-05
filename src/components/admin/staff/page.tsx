@@ -17,9 +17,9 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser, updatePassword } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 
 const db = getFirestore(firebaseApp);
@@ -29,10 +29,10 @@ const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 const roles = ['staff', 'admin'] as const;
 
 const formSchema = z.object({
-  id: z.string().optional(),
+  uid: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
-  password: z.string().min(6, 'Password must be at least 6 characters.'),
+  password: z.string().min(6, 'Password must be at least 6 characters.').optional(),
   department: z.enum(departments),
   role: z.enum(roles),
 });
@@ -41,10 +41,10 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            id: staffMember?.id || '',
+            uid: staffMember?.uid || '',
             name: staffMember?.name || '',
             email: staffMember?.email || '',
-            password: staffMember?.password || '',
+            password: '',
             department: staffMember?.department || 'Administration',
             role: staffMember?.role === 'admin' ? 'admin' : 'staff',
         },
@@ -57,12 +57,25 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             form.reset({
                 ...staffMember,
                 role: staffMember?.role === 'admin' ? 'admin' : 'staff',
-                password: staffMember?.password || ''
+                password: ''
+            });
+        } else {
+            form.reset({
+                uid: '',
+                name: '',
+                email: '',
+                password: '',
+                department: 'Administration',
+                role: 'staff',
             });
         }
     }, [staffMember, isEditing, form]);
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
+        if (!isEditing && !values.password) {
+            form.setError('password', { message: 'Password is required for new staff members.' });
+            return;
+        }
         onSubmit(values);
     };
     
@@ -107,7 +120,7 @@ export default function AdminStaffPage() {
     try {
         const q = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const querySnapshot = await getDocs(q);
-        const fetchedStaff = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedStaff = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
         setStaff(fetchedStaff);
     } catch (error) {
         console.error("Error fetching staff:", error);
@@ -133,8 +146,6 @@ export default function AdminStaffPage() {
   
   const handleDelete = async (staffId: string) => {
     try {
-        // Note: This only deletes the Firestore record. Deleting from Firebase Auth
-        // requires admin privileges and is typically done server-side.
         await deleteDoc(doc(db, "users", staffId));
         fetchStaff();
         toast({
@@ -149,35 +160,55 @@ export default function AdminStaffPage() {
   };
 
   const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
-    const { id, ...staffData } = data;
+    const { uid, password, ...staffData } = data;
     
     try {
-        if (id) { // Editing existing user
-             const docRef = doc(db, "users", id);
+        if (uid) { // Editing existing user
+             const docRef = doc(db, "users", uid);
              await setDoc(docRef, staffData, { merge: true });
              toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
+             // Optionally update password in Firebase Auth if provided
+             if (password && auth.currentUser && auth.currentUser.uid === adminUser?.uid) {
+                 // This is a complex and potentially insecure operation on the client-side
+                 // It would require re-authentication. For now, we skip this.
+                 // A dedicated "change password" flow for admins would be better.
+             }
         } else { // Creating new user
             if (!adminUser) {
                 toast({ title: 'Error', description: 'Admin user not found.', variant: 'destructive'});
                 return;
             }
-            // 1. Create user in Firebase Auth
-            const userCredential = await createUserWithEmailAndPassword(auth, staffData.email, staffData.password);
+             if (!password) {
+                 toast({ title: 'Error', description: 'Password is required for new users.', variant: 'destructive'});
+                 return;
+            }
+            
+            const existingUserQuery = query(collection(db, "users"), where("email", "==", staffData.email));
+            const existingUserSnapshot = await getDocs(existingUserQuery);
+            if (!existingUserSnapshot.empty) {
+                toast({
+                    title: 'User Exists',
+                    description: 'A user with this email address already exists in the database.',
+                    variant: 'destructive',
+                });
+                return;
+            }
+
+            const userCredential = await createUserWithEmailAndPassword(auth, staffData.email, password);
             const newFirebaseUser = userCredential.user;
 
-            // 2. Create user document in Firestore with the new UID
             const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
             await setDoc(newUserDocRef, {
                 ...staffData,
                 id: newFirebaseUser.uid,
                 uid: newFirebaseUser.uid,
+                createdAt: serverTimestamp(),
             });
 
-            // 3. Re-authenticate the admin user to restore their session
-            const currentAuthUser = auth.currentUser;
-            if(currentAuthUser) {
-              await reauthenticate(currentAuthUser);
+            if (auth.currentUser) {
+               await reauthenticate(auth.currentUser);
             }
+
 
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
         }
@@ -186,7 +217,11 @@ export default function AdminStaffPage() {
         setSelectedStaff(null);
     } catch (error: any) {
         console.error("Error saving staff member:", error);
-        toast({ title: 'Error', description: error.message || 'Could not save the staff member.', variant: 'destructive'});
+        let description = 'Could not save the staff member. Please try again.';
+        if (error.code === 'auth/email-already-in-use') {
+            description = 'A user with this email address already exists in Firebase Authentication.';
+        }
+        toast({ title: 'Error', description, variant: 'destructive'});
     }
   };
 

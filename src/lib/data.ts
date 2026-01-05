@@ -2,9 +2,7 @@
 
 import type { Service, BlogPost, FAQ, Order, User } from './types';
 
-// IMPORTANT: Passwords are in plaintext for demonstration purposes ONLY.
-// In a real-world application, you MUST hash and salt passwords securely.
-// This file is now deprecated for user data. Users should be managed in Firestore.
+// IMPORTANT: This file is now deprecated for user data. Users should be managed in Firestore.
 export const users: Omit<User, 'uid'>[] = [
   { name: 'John Doe', email: 'client@test.com', role: 'client' },
   { 
@@ -12,7 +10,6 @@ export const users: Omit<User, 'uid'>[] = [
     email: 'kev@thinkestry.co.za', 
     role: 'admin',
     department: 'Administration',
-    password: 'Thinkestry10$',
     smtpDetails: {
         host: 'mail.myacc.co.za',
         port: '465',
@@ -25,7 +22,6 @@ export const users: Omit<User, 'uid'>[] = [
     email: 'admin@myacc.co.za',
     role: 'admin',
     department: 'Administration',
-    password: 'Thinkestry10$',
   },
   { 
     name: 'Reseller Pro', 
@@ -34,7 +30,6 @@ export const users: Omit<User, 'uid'>[] = [
     companyName: 'Reseller Pro (Pty) Ltd',
     contactPerson: 'Alex King',
     contactNumber: '0721234567',
-    password: 'Thinkestry10$',
     address: {
         street: '123 Reseller Road',
         city: 'Johannesburg',
@@ -83,9 +78,9 @@ export const services: Service[] = [
         'Logbook for travel claims (if applicable)',
     ],
     informationToProvide: [
-      { label: 'Copy of ID Document' },
-      { label: 'Proof of Address' },
-      { label: 'SARS eFiling Login Details' },
+      { label: 'Copy of ID Document', type: 'pdf' },
+      { label: 'Proof of Address', type: 'pdf' },
+      { label: 'SARS eFiling Login Details', type: 'text' },
     ],
     metaTitle: 'Personal Tax Return Filing (ITR12) | My Accountant',
     metaDescription: 'Expert personal tax return (ITR12) filing services for South African individuals and provisional taxpayers. We ensure compliance and maximize your returns.',
@@ -147,9 +142,9 @@ export const services: Service[] = [
         'Customer invoices',
     ],
     informationToProvide: [
-      { label: 'Monthly Bank Statements (PDF)' },
-      { label: 'All Sales Invoices for the month' },
-      { label: 'All Purchase Invoices/Slips for the month' },
+      { label: 'Monthly Bank Statements (PDF)', type: 'pdf' },
+      { label: 'All Sales Invoices for the month', type: 'pdf' },
+      { label: 'All Purchase Invoices/Slips for the month', type: 'pdf' },
     ],
     metaTitle: 'Monthly Bookkeeping Services for Small Businesses | My Accountant',
     metaDescription: 'Affordable monthly bookkeeping and accounting services for small businesses in South Africa. We handle reconciliations, reporting, and more.',
@@ -179,7 +174,7 @@ export const services: Service[] = [
         'Latest Annual Financial Statements (if applicable)',
     ],
     informationToProvide: [
-       { label: 'Company Registration Number' },
+       { label: 'Company Registration Number', type: 'text' },
     ],
     metaTitle: 'CIPC Annual Returns Filing | My Accountant',
     metaDescription: 'Quick and easy CIPC annual return filing service to keep your South African company compliant. Avoid penalties and deregistration.',
@@ -211,9 +206,9 @@ export const services: Service[] = [
         'Employee details and total earnings',
     ],
     informationToProvide: [
-       { label: 'Nature of Business' },
-       { label: 'Estimated Annual Employee Earnings' },
-       { label: 'Company Registration Certificate' },
+       { label: 'Nature of Business', type: 'text' },
+       { label: 'Estimated Annual Employee Earnings', type: 'text' },
+       { label: 'Company Registration Certificate', type: 'pdf' },
     ],
     metaTitle: 'COIDA Registration Service | My Accountant',
     metaDescription: 'COIDA registration service for South African employers. Ensure compliance with the Compensation for Occupational Injuries and Diseases Act.',

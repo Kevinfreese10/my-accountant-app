@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,8 +15,10 @@ import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { getAuth, updatePassword } from 'firebase/auth';
 
 const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
 
 const profileFormSchema = z.object({
     name: z.string().min(2, 'Name is required.'),
@@ -25,9 +26,9 @@ const profileFormSchema = z.object({
 });
 
 const passwordFormSchema = z.object({
-  password: z.string().min(6, 'Password must be at least 6 characters.'),
+  newPassword: z.string().min(6, 'Password must be at least 6 characters.'),
   confirmPassword: z.string(),
-}).refine(data => data.password === data.confirmPassword, {
+}).refine(data => data.newPassword === data.confirmPassword, {
   message: "Passwords do not match.",
   path: ['confirmPassword'],
 });
@@ -50,7 +51,7 @@ export default function ProfilePage() {
   const passwordForm = useForm<z.infer<typeof passwordFormSchema>>({
     resolver: zodResolver(passwordFormSchema),
     defaultValues: {
-      password: '',
+      newPassword: '',
       confirmPassword: '',
     },
   });
@@ -76,15 +77,20 @@ export default function ProfilePage() {
 
   const onPasswordSubmit = async (values: z.infer<typeof passwordFormSchema>) => {
     setIsPasswordSaving(true);
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) {
+        toast({ title: 'Error', description: 'You are not logged in.', variant: 'destructive' });
+        setIsPasswordSaving(false);
+        return;
+    }
+
     try {
-        const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, { password: values.password });
-        updateUser({ ...user, password: values.password });
+        await updatePassword(firebaseUser, values.newPassword);
         toast({ title: 'Password Updated', description: 'Your password has been changed successfully.' });
         passwordForm.reset();
     } catch (error) {
         console.error("Error updating password:", error);
-        toast({ title: 'Error', description: 'Could not update your password.', variant: 'destructive' });
+        toast({ title: 'Error', description: 'Could not update your password. You may need to log in again to perform this action.', variant: 'destructive' });
     } finally {
         setIsPasswordSaving(false);
     }
@@ -120,7 +126,7 @@ export default function ProfilePage() {
             <CardContent>
                  <Form {...passwordForm}>
                     <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
-                        <FormField control={passwordForm.control} name="password" render={({ field }) => ( <FormItem><FormLabel>New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={passwordForm.control} name="newPassword" render={({ field }) => ( <FormItem><FormLabel>New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={passwordForm.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirm New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <Button type="submit" disabled={isPasswordSaving}>
                             {isPasswordSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -133,4 +139,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

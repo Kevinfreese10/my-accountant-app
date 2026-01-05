@@ -185,7 +185,6 @@ export type User = {
   email: string;
   role: 'client' | 'admin' | 'staff' | 'reseller' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor';
   createdAt?: any;
-  password?: string;
   source?: 'AI Accountant' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   status?: 'Active' | 'Inactive' | 'Archived';

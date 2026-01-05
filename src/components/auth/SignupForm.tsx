@@ -48,12 +48,19 @@ export default function SignupForm() {
             variant: 'destructive',
         });
         setIsLoading(false);
-    } else {
+    } else if (result) {
         toast({
         title: 'Account created successfully',
         description: `Welcome, ${result.name}! Redirecting...`,
         });
         router.push('/dashboard');
+    } else {
+        toast({
+            title: 'Signup Failed',
+            description: 'An unexpected error occurred.',
+            variant: 'destructive',
+        });
+        setIsLoading(false);
     }
   }
 
