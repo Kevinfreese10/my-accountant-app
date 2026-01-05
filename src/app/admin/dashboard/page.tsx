@@ -1151,7 +1151,7 @@ export default function AdminDashboardPage() {
                                                             "{note.text}"
                                                         </blockquote>
                                                         <p className="text-xs text-muted-foreground mt-1">
-                                                            {formatDistanceToNow(date, { addSuffix: true })}
+                                                             {formatDistanceToNow(date, { addSuffix: true })}
                                                         </p>
                                                         
                                                         {suggestion ? (
@@ -1164,13 +1164,13 @@ export default function AdminDashboardPage() {
                                                                 </CardHeader>
                                                                 <CardContent className="p-2 pt-0 space-y-2">
                                                                     <p className="text-xs">{suggestion.summary}</p>
-                                                                    <div className="flex gap-2">
-                                                                        {suggestion.suggestedAction === 'create_task' && (
+                                                                    <div className="flex gap-2 flex-wrap">
+                                                                        {suggestion.suggestedActions?.includes('create_task') && (
                                                                             <Button size="sm" variant="outline" onClick={() => handleCreateTaskFromSuggestion(note)}>
                                                                                 <PlusCircle className="mr-2 h-4 w-4" /> Create Task
                                                                             </Button>
                                                                         )}
-                                                                        {suggestion.suggestedAction === 'draft_reply' && (
+                                                                        {suggestion.suggestedActions?.includes('draft_reply') && (
                                                                              <>
                                                                             {suggestion.draftReply ? (
                                                                                 <div className="w-full space-y-2">
@@ -1185,6 +1185,9 @@ export default function AdminDashboardPage() {
                                                                             )}
                                                                             </>
                                                                         )}
+                                                                         {suggestion.suggestedActions?.includes('archive') && (
+                                                                            <Button size="sm" variant="ghost" onClick={() => setArchivedNotifications(prev => [...prev, noteId])}>Archive</Button>
+                                                                         )}
                                                                     </div>
                                                                 </CardContent>
                                                             </Card>
