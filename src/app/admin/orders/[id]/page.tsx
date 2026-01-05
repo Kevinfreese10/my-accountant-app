@@ -196,8 +196,6 @@ export default function AdminOrderDetailsPage() {
       type: 'note',
       subject: null,
       attachments: attachments.length > 0 ? attachments : null,
-      attachmentUrl: null, 
-      attachmentName: null, 
     };
 
     try {
@@ -323,8 +321,6 @@ export default function AdminOrderDetailsPage() {
                 date: Timestamp.now(),
                 type: 'email',
                 attachments: null,
-                attachmentUrl: null,
-                attachmentName: null,
             };
 
             const orderRef = doc(db, 'orders', order.id);
@@ -377,7 +373,7 @@ export default function AdminOrderDetailsPage() {
       } else if (type === 'docs') {
           text += `This is a reminder to please upload the required documents for your order #${orderId} so that we can begin processing it.\n\n`;
       } else if (type === 'review') {
-          text += `We hope you were happy with our service for order #${orderId}. If you have a moment, we would greatly appreciate it if you could leave us a review on Google at the link below:\n\nhttps://g.page/r/CVIOzn2bYoiaEAE/review\n\n`;
+          text += `We hope you were happy with our service for order #${orderId}. If you have a moment, we would greatly appreciate it if you could leave us a review on Google at the link below:\n\n<a href="https://g.page/r/CVIOzn2bYoiaEAE/review" target="_blank">https://g.page/r/CVIOzn2bYoiaEAE/review</a>\n\n`;
       } else if (type === 'discount') {
           text += `As a token of our appreciation for your business, here is a 10% discount code for your next order: WELCOME10\n\n`;
       }
@@ -632,7 +628,7 @@ export default function AdminOrderDetailsPage() {
                                                             <p className="text-sm italic text-muted-foreground">"{note.text}"</p>
                                                         </div>
                                                     ) : (
-                                                        <p className="text-sm">{note.text}</p>
+                                                        <p className="text-sm" dangerouslySetInnerHTML={{ __html: note.text.replace(/\n/g, '<br />') }} />
                                                     )}
                                                      {note.attachments && note.attachments.length > 0 && (
                                                         <div className="mt-2 space-y-1">
