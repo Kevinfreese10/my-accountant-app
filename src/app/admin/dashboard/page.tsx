@@ -53,6 +53,7 @@ const formSchema = z.object({
   assignedTo: z.array(z.string()).min(1, 'Please assign a staff member.'),
   tags: z.array(z.string()).optional(),
   dueDate: z.date({ required_error: 'A due date is required.'}),
+  dueTime: z.string().optional(),
   recurrence: z.enum(taskRecurrences).optional(),
   orderId: z.string().optional(),
   newComment: z.string().optional(),
@@ -60,6 +61,10 @@ const formSchema = z.object({
 
 function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffByDept }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onCommentSubmit: (taskId: string, commentText: string) => void, allStaff: User[], staffByDept: Record<string, User[]> }) {
     const { user } = useAuth();
+
+    const defaultDueDate = task?.dueDate ? getTaskDate(task) : new Date();
+    const defaultDueTime = task?.dueDate ? format(getTaskDate(task), 'HH:mm') : '09:00';
+
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -68,7 +73,8 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
             description: task?.description || '',
             assignedTo: task?.assignedTo || [],
             tags: task?.tags || [],
-            dueDate: task?.dueDate ? task.dueDate.toDate() : new Date(),
+            dueDate: defaultDueDate,
+            dueTime: defaultDueTime,
             recurrence: task?.recurrence || 'None',
             orderId: task?.orderId || '',
             newComment: '',
@@ -76,7 +82,11 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     });
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        onSubmit(values);
+        const [hours, minutes] = (values.dueTime || "09:00").split(':').map(Number);
+        const finalDueDate = new Date(values.dueDate);
+        finalDueDate.setHours(hours, minutes, 0, 0);
+
+        onSubmit({ ...values, dueDate: finalDueDate });
     };
 
     const handleCommentSubmit = () => {
@@ -171,44 +181,58 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                             </FormItem>
                         )}
                         />
-                     <FormField
-                        control={form.control}
-                        name="dueDate"
-                        render={({ field }) => (
-                            <FormItem className="flex flex-col pt-2">
-                            <FormLabel className="mb-1">Due Date</FormLabel>
-                            <Popover>
-                                <PopoverTrigger asChild>
+                     <div className="flex gap-2 items-end">
+                        <FormField
+                            control={form.control}
+                            name="dueDate"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col flex-grow">
+                                <FormLabel>Due Date</FormLabel>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                        variant={"outline"}
+                                        className={cn(
+                                            "w-full justify-start text-left font-normal",
+                                            !field.value && "text-muted-foreground"
+                                        )}
+                                        >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {field.value ? (
+                                            format(field.value, "dd/MM/yyyy")
+                                        ) : (
+                                            <span>Pick a date</span>
+                                        )}
+                                        </Button>
+                                    </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={field.onChange}
+                                        initialFocus
+                                    />
+                                    </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
+                        <FormField
+                            control={form.control}
+                            name="dueTime"
+                            render={({ field }) => (
+                                <FormItem>
                                 <FormControl>
-                                    <Button
-                                    variant={"outline"}
-                                    className={cn(
-                                        "w-full pl-3 text-left font-normal",
-                                        !field.value && "text-muted-foreground"
-                                    )}
-                                    >
-                                    {field.value ? (
-                                        format(field.value, "dd/MM/yyyy")
-                                    ) : (
-                                        <span>Pick a date</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                    </Button>
+                                    <Input type="time" {...field} className="w-28" />
                                 </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                    mode="single"
-                                    selected={field.value}
-                                    onSelect={field.onChange}
-                                    initialFocus
-                                />
-                                </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                            </FormItem>
-                        )}
+                                <FormMessage />
+                                </FormItem>
+                            )}
                         />
+                     </div>
                 </div>
                  <FormField
                         control={form.control}
@@ -640,11 +664,23 @@ export default function AdminDashboardPage() {
     const [isViewOpen, setIsViewOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [viewingTask, setViewingTask] = useState<Task | null>(null);
-    const [automatedTaskFilter, setAutomatedTaskFilter] = useState('all');
     const [upcomingAutomatedTaskFilter, setUpcomingAutomatedTaskFilter] = useState('all');
     const { toast } = useToast();
     const [aiSuggestions, setAiSuggestions] = useState<{ [key: string]: any }>({});
     const [archivedNotifications, setArchivedNotifications] = useState<string[]>([]);
+    
+    useEffect(() => {
+        const storedArchived = localStorage.getItem('archivedNotifications');
+        if (storedArchived) {
+            setArchivedNotifications(JSON.parse(storedArchived));
+        }
+    }, []);
+
+    const archiveNotification = (noteId: string) => {
+        const newArchived = [...archivedNotifications, noteId];
+        setArchivedNotifications(newArchived);
+        localStorage.setItem('archivedNotifications', JSON.stringify(newArchived));
+    };
     
      const notifications = useMemo(() => {
         if (!user || orders.length === 0) return [];
@@ -1051,6 +1087,7 @@ export default function AdminDashboardPage() {
             });
 
             toast({ title: "Reply Sent!", description: "Your note has been posted to the order." });
+            archiveNotification(noteId);
         } catch (e) {
             toast({ title: "Failed to post note", variant: "destructive" });
         }
@@ -1067,6 +1104,7 @@ export default function AdminDashboardPage() {
             orderId: note.orderId,
         } as Task);
         setIsFormOpen(true);
+        archiveNotification(noteId);
     }
 
     return (
@@ -1182,7 +1220,7 @@ export default function AdminDashboardPage() {
                                                                             )}
                                                                             </>
                                                                         )}
-                                                                         <Button size="sm" variant="ghost" onClick={() => setArchivedNotifications(prev => [...prev, noteId])}>
+                                                                         <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
                                                                             <Archive className="mr-2 h-4 w-4"/> Archive
                                                                          </Button>
                                                                     </div>

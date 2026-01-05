@@ -23,11 +23,13 @@ const getUserColor = (userId: string) => {
   return userColors[hash % userColors.length];
 };
 
+const hours = Array.from({ length: 10 }, (_, i) => i + 8); // 8am to 5pm (17:00)
+
 export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate, onEdit }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, updates: Partial<Task>) => void, onEdit: (task: Task) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  const start = startOfToday();
-  const end = addDays(start, 2); // Show 3 days: today, tomorrow, and the day after
+  const start = startOfDay(currentDate);
+  const end = addDays(start, 2); // Show 3 days
   const weekDays = eachDayOfInterval({ start, end });
 
   const getAssignee = (userId: string) => allStaff.find(u => u.id === userId);
@@ -66,12 +68,10 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
     e.dataTransfer.setData("taskId", taskId);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>, newDate: Date) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, newDate: Date, hour?: number) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData("taskId");
-    const task = tasks.find(t => t.id === taskId);
-    const originalHour = task ? getHours(getTaskDate(task)) : 9; // Keep original time or default to 9am
-    const finalDate = setSeconds(setMinutes(setHours(newDate, originalHour), 0), 0);
+    const finalDate = hour !== undefined ? setSeconds(setMinutes(setHours(newDate, hour), 0), 0) : newDate;
     
     onTaskUpdate(taskId, { dueDate: finalDate });
 };
@@ -155,7 +155,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
         </div>
       </CardHeader>
       <CardContent className="overflow-x-auto">
-        <div className="grid grid-cols-[1fr_repeat(3,2fr)] border-t border-l min-w-[800px]">
+        <div className="grid grid-cols-[1fr_repeat(3,2fr)] border-t border-l min-w-[1000px]">
            <div className="border-r border-b bg-destructive/5">
                 <div className="p-2 text-center border-b h-16 flex flex-col justify-center">
                     <p className="text-sm font-semibold text-destructive flex items-center justify-center gap-2">
@@ -181,15 +181,28 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
               <div 
                   key={day.toString()} 
                   className="border-r border-b"
-                  onDrop={(e) => handleDrop(e, day)}
-                  onDragOver={handleDragOver}
               >
                 <div className={cn("p-2 text-center border-b h-16 flex flex-col justify-center", isToday(day) && "bg-primary/10")}>
                   <p className={cn("text-sm font-semibold", isToday(day) && "text-primary")}>{format(day, 'EEE')}</p>
                   <p className="text-xs text-muted-foreground">{format(day, 'd MMM')}</p>
                 </div>
-                <div className="p-2 space-y-2 min-h-screen">
-                    {tasksForDay.map(task => <DraggableTask key={task.id} task={task} />)}
+                <div className="divide-y">
+                  {hours.map(hour => {
+                    const tasksForHour = tasksForDay.filter(t => getHours(getTaskDate(t)) === hour);
+                    return (
+                      <div
+                        key={hour}
+                        className="h-24 p-1 flex flex-col gap-1"
+                        onDrop={(e) => handleDrop(e, day, hour)}
+                        onDragOver={handleDragOver}
+                      >
+                         <div className="text-[10px] text-muted-foreground pl-1">{hour}:00</div>
+                         <div className="flex-grow space-y-1">
+                            {tasksForHour.map(task => <DraggableTask key={task.id} task={task} />)}
+                         </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
