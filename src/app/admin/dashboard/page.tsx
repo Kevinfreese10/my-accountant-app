@@ -262,7 +262,8 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             >
                                             <Check className={cn("h-4 w-4")} />
                                             </div>
-                                            <span>{staff.name}</span>
+                                            <span className="flex-grow">{staff.name}</span>
+                                            <span className="text-xs text-muted-foreground font-mono">{staff.uid}</span>
                                         </CommandItem>
                                         ))}
                                     </CommandGroup>
@@ -641,10 +642,62 @@ export default function AdminDashboardPage() {
     const [automatedTaskFilter, setAutomatedTaskFilter] = useState('all');
     const [upcomingAutomatedTaskFilter, setUpcomingAutomatedTaskFilter] = useState('all');
     const { toast } = useToast();
+    const [aiSuggestions, setAiSuggestions] = useState<{ [key: string]: any }>({});
+    const [archivedNotifications, setArchivedNotifications] = useState<string[]>([]);
+    
+    const notifications = useMemo(() => {
+        if (!user || orders.length === 0) return [];
+    
+        const assignedOrders = orders.filter(order => order.assignedTo?.includes(user.id));
+        
+        let allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
+    
+        assignedOrders.forEach(order => {
+          const notes = (order.notes || [])
+            .filter(note => note.authorId !== user.id && note.type === 'note')
+            .map(note => {
+                const date = note.date.toDate ? note.date.toDate() : new Date(note.date);
+                return {
+                  ...note,
+                  date,
+                  orderId: order.id,
+                  orderTitle: order.items[0]?.title || 'Untitled Order',
+                  customerName: order.customerName,
+                }
+            });
+          allNotes.push(...notes);
+        });
+        
+        return allNotes.sort((a, b) => b.date.getTime() - a.date.getTime());
+    
+    }, [orders, user]);
+
+     useEffect(() => {
+        const analyzeNewNotifications = async () => {
+            for (const note of notifications) {
+                const noteId = note.orderId + note.date.toISOString();
+                if (!aiSuggestions[noteId] && !archivedNotifications.includes(noteId)) {
+                    try {
+                        const suggestion = await categorizeSupportRequest({
+                            request: note.text,
+                            clientName: note.customerName,
+                        });
+                        setAiSuggestions(prev => ({ ...prev, [noteId]: suggestion }));
+                    } catch (error) {
+                        console.error("AI analysis failed for note:", note, error);
+                    }
+                }
+            }
+        };
+
+        if (notifications.length > 0) {
+            analyzeNewNotifications();
+        }
+    }, [notifications, aiSuggestions, archivedNotifications]);
+
     
     useEffect(() => {
         setIsLoading(true);
-        // Fetch all users (staff, admins, clients)
         const usersQuery = query(collection(db, "users"));
         getDocs(usersQuery).then(usersSnapshot => {
             const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
@@ -654,7 +707,6 @@ export default function AdminDashboardPage() {
             toast({ title: "Error", description: "Could not fetch user data.", variant: "destructive" });
         });
 
-        // Set up real-time listener for tasks
         const tasksQuery = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
         const tasksUnsubscribe = onSnapshot(tasksQuery, (snapshot) => {
             const fetchedTasks = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
@@ -666,7 +718,6 @@ export default function AdminDashboardPage() {
             if (isLoading) setIsLoading(false);
         });
 
-        // Set up real-time listener for orders
         const ordersQuery = query(collection(db, 'orders'), orderBy('date', 'desc'));
         const ordersUnsubscribe = onSnapshot(ordersQuery, (snapshot) => {
             const fetchedOrders = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order));
@@ -701,30 +752,6 @@ export default function AdminDashboardPage() {
         }));
         return ['All Tasks', ...Array.from(types)];
     }, [tasks]);
-
-    const notifications = useMemo(() => {
-        if (!user || orders.length === 0) return [];
-    
-        const assignedOrders = orders.filter(order => order.assignedTo?.includes(user.id));
-        
-        let allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
-    
-        assignedOrders.forEach(order => {
-          const notes = (order.notes || [])
-            .filter(note => note.authorId !== user.id && note.type === 'note') // Only show notes from others
-            .map(note => ({
-              ...note,
-              orderId: order.id,
-              orderTitle: order.items[0]?.title || 'Untitled Order',
-              customerName: order.customerName,
-            }));
-          allNotes.push(...notes);
-        });
-        
-        // Sort notes by date, most recent first
-        return allNotes.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
-    
-      }, [orders, user]);
 
     const myTasks = useMemo(() => {
         if (!user) return [];
@@ -968,29 +995,10 @@ export default function AdminDashboardPage() {
         return allStaffAndClients.find(u => u.uid === authorId || u.id === authorId);
     }
     
-    const [aiSuggestions, setAiSuggestions] = useState<{[key: string]: any}>({});
-    const [isAiLoading, setIsAiLoading] = useState<{[key: string]: boolean}>({});
-
-    const handleAiAnalysis = async (note: any) => {
-        setIsAiLoading(prev => ({ ...prev, [note.orderId + note.date]: true }));
-        try {
-            const suggestion = await categorizeSupportRequest({
-                request: note.text,
-                clientName: note.customerName,
-            });
-            setAiSuggestions(prev => ({ ...prev, [note.orderId + note.date]: suggestion }));
-        } catch (error) {
-            console.error("AI analysis failed", error);
-            toast({ title: 'AI Analysis Failed', variant: 'destructive' });
-        } finally {
-            setIsAiLoading(prev => ({ ...prev, [note.orderId + note.date]: false }));
-        }
-    };
-    
     const [draftingReply, setDraftingReply] = useState<string | null>(null);
 
     const handleDraftReply = async (note: any) => {
-        const noteId = note.orderId + note.date;
+        const noteId = note.orderId + note.date.toISOString();
         setDraftingReply(noteId);
         try {
             const result = await generateEmailReply({
@@ -1017,7 +1025,8 @@ export default function AdminDashboardPage() {
     }
 
     const handleSendReply = async (note: any) => {
-        const suggestion = aiSuggestions[note.orderId + note.date];
+        const noteId = note.orderId + note.date.toISOString();
+        const suggestion = aiSuggestions[noteId];
         if (!suggestion || !suggestion.draftReply || !user) return;
         
         try {
@@ -1034,15 +1043,24 @@ export default function AdminDashboardPage() {
 
             toast({ title: "Reply Sent!", description: "Your note has been posted to the order." });
             
-            setAiSuggestions(prev => {
-                const newSuggestions = { ...prev };
-                delete newSuggestions[note.orderId + note.date];
-                return newSuggestions;
-            });
-
+            setArchivedNotifications(prev => [...prev, noteId]);
         } catch (e) {
             toast({ title: "Failed to post note", variant: "destructive" });
         }
+    }
+    
+    const handleCreateTaskFromSuggestion = (note: any) => {
+        const noteId = note.orderId + note.date.toISOString();
+        const suggestion = aiSuggestions[noteId];
+        if (!suggestion || !suggestion.task?.shouldCreate) return;
+
+        setSelectedTask({
+            title: suggestion.task.title,
+            description: suggestion.task.description,
+            orderId: note.orderId,
+        } as Task);
+        setIsFormOpen(true);
+        setArchivedNotifications(prev => [...prev, noteId]);
     }
 
     return (
@@ -1103,11 +1121,11 @@ export default function AdminDashboardPage() {
                                     {notifications.length > 0 ? (
                                     <ScrollArea className="h-72">
                                         <div className="space-y-4">
-                                        {notifications.map((note, index) => {
+                                        {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
                                             const author = getAuthor(note.authorId);
-                                            const noteId = note.orderId + note.date;
+                                            const noteId = note.orderId + note.date.toISOString();
                                             const suggestion = aiSuggestions[noteId];
-                                            const date = note.date instanceof Date ? note.date : note.date.toDate();
+                                            const date = note.date;
 
                                             return (
                                                 <div key={index} className="flex items-start gap-3">
@@ -1139,7 +1157,7 @@ export default function AdminDashboardPage() {
                                                                     <p className="text-xs">{suggestion.summary}</p>
                                                                     <div className="flex gap-2">
                                                                         {suggestion.suggestedAction === 'create_task' && (
-                                                                            <Button size="sm" variant="outline" onClick={() => { handleEdit({title: suggestion.task.title, description: suggestion.task.description, orderId: note.orderId} as Task)}}>
+                                                                            <Button size="sm" variant="outline" onClick={() => handleCreateTaskFromSuggestion(note)}>
                                                                                 <PlusCircle className="mr-2 h-4 w-4" /> Create Task
                                                                             </Button>
                                                                         )}
@@ -1162,10 +1180,7 @@ export default function AdminDashboardPage() {
                                                                 </CardContent>
                                                             </Card>
                                                         ) : (
-                                                            <Button size="xs" variant="ghost" className="mt-1" onClick={() => handleAiAnalysis(note)} disabled={isAiLoading[noteId]}>
-                                                                {isAiLoading[noteId] ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BrainCircuit className="mr-2 h-4 w-4" />}
-                                                                Analyze
-                                                            </Button>
+                                                          <div className="pt-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
                                                         )}
                                                     </div>
                                                 </div>
