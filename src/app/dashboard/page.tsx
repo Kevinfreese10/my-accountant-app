@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Order, Service, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search, MessageSquare, Inbox } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -35,6 +35,7 @@ const formatPrice = (price: number) => {
     // Use simple formatting to avoid hydration mismatch between server/client
     return `R ${price.toLocaleString('en-US')}`;
 };
+
 
 const userColors = [
   'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
@@ -108,10 +109,12 @@ export default function DashboardPage() {
 
         const servicesUnsubscribe = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snapshot) => {
             setServices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service)));
+            setIsLoading(false);
         });
         
         const categoriesUnsubscribe = onSnapshot(query(collection(db, 'categories'), orderBy('order')), (snapshot) => {
-            setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category)));
+            const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+            setCategories(fetchedCategories);
         });
 
         const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
@@ -123,7 +126,14 @@ export default function DashboardPage() {
         if (user) {
             const ordersQuery = query(collection(db, 'orders'), where('userId', '==', user.uid), orderBy('date', 'desc'));
             ordersUnsubscribe = onSnapshot(ordersQuery, (snapshot) => {
-                setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order)));
+                setOrders(snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return { 
+                        ...data, 
+                        id: doc.id,
+                        notes: (data.notes || []).map((note: any) => ({ ...note, date: note.date?.toDate() })),
+                    } as Order;
+                }));
                 setIsLoading(false);
             }, (error) => {
                 console.error("Error fetching orders:", error);
@@ -155,7 +165,7 @@ export default function DashboardPage() {
             }));
           allNotes.push(...notes);
         });
-        return allNotes.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
+        return allNotes.sort((a, b) => b.date.getTime() - a.date.getTime());
       }, [orders, user]);
 
     const getAuthor = (authorId: string): User | undefined => {
@@ -253,7 +263,7 @@ export default function DashboardPage() {
                             <div className="space-y-4">
                             {notifications.map((note, index) => {
                                 const author = getAuthor(note.authorId);
-                                const date = note.date instanceof Date ? note.date : note.date.toDate();
+                                const date = note.date;
                                 return (
                                     <div key={index} className="flex items-start gap-3">
                                         <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
