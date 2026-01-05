@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Order, Service, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search, MessageSquare, Inbox, Archive } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
