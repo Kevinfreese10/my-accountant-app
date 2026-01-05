@@ -105,8 +105,10 @@ export type OrderNote = {
   authorId: string;
   type?: 'note' | 'email';
   subject?: string | null;
-  attachmentUrl?: string;
-  attachmentName?: string;
+  attachments?: {
+    name: string;
+    url: string;
+  }[];
 };
 
 export type ItnLog = {

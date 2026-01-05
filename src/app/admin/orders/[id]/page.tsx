@@ -212,7 +212,7 @@ function EmailClientDialog({ order, user, allStaff, onEmailSent, contactEmail, c
 
 const noteFormSchema = z.object({
   noteText: z.string().min(3, "Note must be at least 3 characters."),
-  attachment: z.any().optional(),
+  attachments: z.any().optional(),
 });
 
 const rejectionFormSchema = z.object({
@@ -317,23 +317,26 @@ export default function AdminOrderDetailsPage() {
   const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
     if (!currentUser || !order) return;
     
-    noteForm.control.getFieldState('noteText').isDirty
-    
     setIsLoading(true);
-    let attachmentUrl: string | null = null;
-    let attachmentName: string | null = null;
-    const file = values.attachment?.[0];
+    let attachments: { name: string; url: string }[] = [];
+    const files = values.attachment || [];
 
-    if (file) {
-      toast({ title: 'Uploading attachment...', description: 'Please wait.' });
+    if (files.length > 0) {
+      toast({ title: `Uploading ${files.length} file(s)...`, description: 'Please wait.' });
+      
       try {
-        const uniqueFileName = `${Date.now()}-${file.name}`;
-        const storageRef = ref(storage, `orders/${order.id}/notes/${uniqueFileName}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
-        const snapshot = await uploadTask;
-        attachmentUrl = await getDownloadURL(snapshot.ref);
-        attachmentName = file.name;
-        toast({ title: 'Attachment Uploaded' });
+        const uploadPromises = Array.from(files).map(async (file: any) => {
+            const uniqueFileName = `${Date.now()}-${file.name}`;
+            const storageRef = ref(storage, `orders/${order.id}/notes/${uniqueFileName}`);
+            const uploadTask = uploadBytesResumable(storageRef, file);
+            const snapshot = await uploadTask;
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            return { name: file.name, url: downloadURL };
+        });
+
+        attachments = await Promise.all(uploadPromises);
+        toast({ title: 'Attachments Uploaded' });
+
       } catch (error) {
         console.error('Attachment upload failed:', error);
         toast({ title: 'Attachment Upload Failed', variant: 'destructive' });
@@ -348,8 +351,7 @@ export default function AdminOrderDetailsPage() {
       date: Timestamp.now(),
       type: 'note',
       subject: null,
-      attachmentUrl: attachmentUrl,
-      attachmentName: attachmentName,
+      attachments: attachments.length > 0 ? attachments : null,
     };
 
     try {
@@ -397,8 +399,7 @@ export default function AdminOrderDetailsPage() {
       authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'email',
-      attachmentUrl: null,
-      attachmentName: null,
+      attachments: null,
     };
 
     try {
@@ -793,12 +794,14 @@ export default function AdminOrderDetailsPage() {
                                                     ) : (
                                                         <p className="text-sm">{note.text}</p>
                                                     )}
-                                                     {note.attachmentUrl && (
-                                                        <div className="mt-2">
-                                                            <a href={note.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
-                                                                <Paperclip className="h-4 w-4"/>
-                                                                {note.attachmentName || 'View Attachment'}
-                                                            </a>
+                                                     {note.attachments && note.attachments.length > 0 && (
+                                                        <div className="mt-2 space-y-1">
+                                                            {note.attachments.map((att, i) => (
+                                                                <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                                                                    <Paperclip className="h-4 w-4"/>
+                                                                    {att.name}
+                                                                </a>
+                                                            ))}
                                                         </div>
                                                     )}
                                                 </div>
@@ -823,11 +826,12 @@ export default function AdminOrderDetailsPage() {
                                 />
                                 <FormField
                                     control={noteForm.control}
-                                    name="attachment"
+                                    name="attachments"
                                     render={({ field }) => (
                                         <FormItem>
+                                            <FormLabel>Attachments</FormLabel>
                                             <FormControl>
-                                                <Input type="file" onChange={(e) => field.onChange(e.target.files)} />
+                                                <Input type="file" multiple onChange={(e) => field.onChange(e.target.files)} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
