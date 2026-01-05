@@ -209,6 +209,7 @@ export default function ResellerDashboardPage() {
     
             fetchOrdersAndStaff();
             
+            setOutsourcedOrderDetails(newOrderData as Order);
             router.push(`/order-confirmation/${newOrderId}`);
     
         } catch (error) {
@@ -296,62 +297,59 @@ export default function ResellerDashboardPage() {
                 <p className="text-lg text-muted-foreground">{user?.companyName}</p>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Notifications</CardTitle>
-                        <CardDescription>Recent notes from My Accountant on your outsourced orders.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin"/></div> :
-                        notifications.length > 0 ? (
-                        <ScrollArea className="h-72">
-                            <div className="space-y-4">
-                            {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
-                                const author = getAuthor(note.authorId);
-                                const date = note.date instanceof Date ? note.date : note.date.toDate();
-                                const noteId = note.orderId + date.toISOString();
-                                return (
-                                    <div key={index} className="flex items-start gap-3">
-                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
-                                            {author?.name.charAt(0) || 'U'}
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm">
-                                                <span className="font-semibold">{author?.name || 'Unknown User'}</span>
-                                                <span className="text-muted-foreground"> left a note on order </span>
-                                                <Link href={`/reseller/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+             <Card>
+                <CardHeader>
+                    <CardTitle>Notifications</CardTitle>
+                    <CardDescription>Recent notes from My Accountant on your outsourced orders.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin"/></div> :
+                    notifications.length > 0 ? (
+                    <ScrollArea className="h-72">
+                        <div className="space-y-4">
+                        {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
+                            const author = getAuthor(note.authorId);
+                            const date = note.date instanceof Date ? note.date : note.date.toDate();
+                            const noteId = note.orderId + date.toISOString();
+                            return (
+                                <div key={index} className="flex items-start gap-3">
+                                    <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
+                                        {author?.name.charAt(0) || 'U'}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm">
+                                            <span className="font-semibold">{author?.name || 'Unknown User'}</span>
+                                            <span className="text-muted-foreground"> left a note on order </span>
+                                            <Link href={`/reseller/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                        </p>
+                                        <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
+                                            "{note.text}"
+                                        </blockquote>
+                                            <div className="flex items-center justify-between">
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                {formatDistanceToNow(date, { addSuffix: true })}
                                             </p>
-                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
-                                                "{note.text}"
-                                            </blockquote>
-                                             <div className="flex items-center justify-between">
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    {formatDistanceToNow(date, { addSuffix: true })}
-                                                </p>
-                                                <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
-                                                    <Archive className="mr-2 h-4 w-4"/> Archive
-                                                </Button>
-                                            </div>
+                                            <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
+                                                <Archive className="mr-2 h-4 w-4"/> Archive
+                                            </Button>
                                         </div>
                                     </div>
-                                )
-                            })}
-                            </div>
-                        </ScrollArea>
-                        ) : (
-                        <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
-                            <Inbox className="h-12 w-12 mb-4"/>
-                            <p className="font-semibold">All caught up!</p>
-                            <p className="text-sm">You have no new notifications.</p>
+                                </div>
+                            )
+                        })}
                         </div>
-                        )}
-                    </CardContent>
-                </Card>
-                <section>
-                  <CommunityQnA />
-                </section>
-            </div>
+                    </ScrollArea>
+                    ) : (
+                    <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
+                        <Inbox className="h-12 w-12 mb-4"/>
+                        <p className="font-semibold">All caught up!</p>
+                        <p className="text-sm">You have no new notifications.</p>
+                    </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            <CommunityQnA />
       
         </div>
     );
