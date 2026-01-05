@@ -919,10 +919,9 @@ export default function AdminDashboardPage() {
                 await updateDoc(taskRef, { ...taskData });
                 toast({ title: 'Task Updated', description: 'The task details have been saved.' });
             } else { // This is a new task or tasks
-                const newTask: Omit<Task, 'id'> = {
+                const newTask: Omit<Task, 'id' | 'priority'> = {
                     ...taskData,
                     status: 'To-Do',
-                    priority: 'Medium',
                     createdBy: user.id,
                     createdAt: Timestamp.now(),
                     comments: [],
@@ -1098,7 +1097,7 @@ export default function AdminDashboardPage() {
                                     onSubmit={handleFormSubmit}
                                     onCancel={() => handleFormOpenChange(false)}
                                     onCommentSubmit={handleCommentSubmit}
-                                    allStaff={allStaffAndClients}
+                                    allStaff={allStaffAndClients.filter(u => u.role === 'admin' || u.role === 'staff')}
                                     staffByDept={staffByDept}
                                 />
                             </DialogContent>
@@ -1119,7 +1118,7 @@ export default function AdminDashboardPage() {
                 ) : user?.role !== 'cap_staff' ? (
                     <>
                         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-                            <Card className="lg:col-span-2">
+                            <Card className="lg:col-span-3">
                                 <CardHeader>
                                     <CardTitle>Notifications</CardTitle>
                                     <CardDescription>Recent client notes on your assigned orders.</CardDescription>
@@ -1207,15 +1206,6 @@ export default function AdminDashboardPage() {
                                     )}
                                 </CardContent>
                             </Card>
-                             {/* Placeholder for future stats card */}
-                             <Card>
-                                <CardHeader>
-                                    <CardTitle>Stats</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p>Coming soon...</p>
-                                </CardContent>
-                             </Card>
                         </div>
 
 
