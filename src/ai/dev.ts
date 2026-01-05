@@ -13,11 +13,14 @@ export * from '@/ai/flows/extract-statement-data';
 export * from '@/ai/flows/extract-statement-period';
 export * from '@/ai/flows/find-story-name';
 export * from '@/ai/flows/extract-supplier-name';
+export * from '@/ai/flows/categorize-support-requests';
+export * from '@/ai/flows/generate-email-reply';
 
 
 
 
     
+
 
 
 

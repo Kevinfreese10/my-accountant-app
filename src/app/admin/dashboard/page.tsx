@@ -9,7 +9,7 @@ import { format, isPast, addDays, isWithinInterval, startOfToday, addMonths, add
 import { Task, User, TaskComment, Order, OrderNote } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, BrainCircuit, Check, Tag, Eye, Inbox } from 'lucide-react';
+import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, BrainCircuit, Check, Tag, Eye, Inbox, Bot, Mail, Send as SendIcon } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -35,6 +35,8 @@ import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
+import { generateEmailReply } from '@/ai/flows/generate-email-reply';
 
 
 const db = getFirestore(firebaseApp);
@@ -965,6 +967,94 @@ export default function AdminDashboardPage() {
     const getAuthor = (authorId: string): User | undefined => {
         return allStaffAndClients.find(u => u.id === authorId);
     }
+    
+    const [aiSuggestions, setAiSuggestions] = useState<{[key: string]: any}>({});
+    const [isAiLoading, setIsAiLoading] = useState<{[key: string]: boolean}>({});
+
+    const handleAiAnalysis = async (note: any) => {
+        setIsAiLoading(prev => ({ ...prev, [note.orderId + note.date]: true }));
+        try {
+            const suggestion = await categorizeSupportRequest({
+                request: note.text,
+                clientName: note.customerName,
+            });
+            setAiSuggestions(prev => ({ ...prev, [note.orderId + note.date]: suggestion }));
+        } catch (error) {
+            console.error("AI analysis failed", error);
+            toast({ title: 'AI Analysis Failed', variant: 'destructive' });
+        } finally {
+            setIsAiLoading(prev => ({ ...prev, [note.orderId + note.date]: false }));
+        }
+    };
+    
+    const [draftingReply, setDraftingReply] = useState<string | null>(null);
+
+    const handleDraftReply = async (note: any) => {
+        const noteId = note.orderId + note.date;
+        setDraftingReply(noteId);
+        try {
+            const result = await generateEmailReply({
+                subject: `Re: Order ${note.orderId}`,
+                body: note.text,
+                sender: note.customerName,
+            });
+            
+            const suggestion = aiSuggestions[noteId];
+            if (suggestion) {
+                setAiSuggestions(prev => ({
+                    ...prev,
+                    [noteId]: {
+                        ...suggestion,
+                        draftReply: result.draft,
+                    }
+                }));
+            }
+        } catch(e) {
+            toast({ title: 'Failed to draft reply', variant: 'destructive' });
+        } finally {
+            setDraftingReply(null);
+        }
+    }
+
+    const handleSendReply = async (note: any) => {
+        const suggestion = aiSuggestions[note.orderId + note.date];
+        if (!suggestion || !suggestion.draftReply || !user) return;
+        
+        try {
+            const order = orders.find(o => o.id === note.orderId);
+            if (!order) return;
+
+            await sendEmail({
+                to: order.customerEmail,
+                subject: `Re: Order ${note.orderId}`,
+                html: suggestion.draftReply.replace(/\n/g, '<br/>'),
+                replyTo: user.email,
+            });
+
+            const emailNote: OrderNote = {
+                text: suggestion.draftReply,
+                subject: `Re: Order ${note.orderId}`,
+                authorId: user.uid,
+                date: Timestamp.now(),
+                type: 'email',
+            };
+            const orderRef = doc(db, 'orders', order.id);
+            await updateDoc(orderRef, {
+                notes: arrayUnion(emailNote),
+            });
+
+            toast({ title: "Reply Sent!", description: "Your email has been sent to the client." });
+            
+            setAiSuggestions(prev => {
+                const newSuggestions = { ...prev };
+                delete newSuggestions[note.orderId + note.date];
+                return newSuggestions;
+            });
+
+        } catch (e) {
+            toast({ title: "Failed to send email", variant: "destructive" });
+        }
+    }
 
     return (
         <div className="space-y-8">
@@ -1026,6 +1116,9 @@ export default function AdminDashboardPage() {
                                         <div className="space-y-4">
                                         {notifications.map((note, index) => {
                                             const author = getAuthor(note.authorId);
+                                            const noteId = note.orderId + note.date;
+                                            const suggestion = aiSuggestions[noteId];
+
                                             return (
                                                 <div key={index} className="flex items-start gap-3">
                                                     <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
@@ -1041,8 +1134,49 @@ export default function AdminDashboardPage() {
                                                             "{note.text}"
                                                         </blockquote>
                                                         <p className="text-xs text-muted-foreground mt-1">
-                                                            {formatDistanceToNow(note.date.toDate(), { addSuffix: true })}
+                                                            {formatDistanceToNow(new Date(note.date), { addSuffix: true })}
                                                         </p>
+                                                        
+                                                        {suggestion ? (
+                                                            <Card className="mt-2 bg-background">
+                                                                <CardHeader className="p-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Bot className="h-4 w-4 text-primary" />
+                                                                        <CardTitle className="text-sm">AI Suggestion</CardTitle>
+                                                                    </div>
+                                                                </CardHeader>
+                                                                <CardContent className="p-2 pt-0 space-y-2">
+                                                                    <p className="text-xs">{suggestion.summary}</p>
+                                                                    <div className="flex gap-2">
+                                                                        {suggestion.suggestedAction === 'create_task' && (
+                                                                            <Button size="sm" variant="outline" onClick={() => { handleEdit({title: suggestion.task.title, description: suggestion.task.description, orderId: note.orderId} as Task)}}>
+                                                                                <PlusCircle className="mr-2 h-4 w-4" /> Create Task
+                                                                            </Button>
+                                                                        )}
+                                                                        {suggestion.suggestedAction === 'draft_reply' && (
+                                                                             <>
+                                                                            {suggestion.draftReply ? (
+                                                                                <div className="w-full space-y-2">
+                                                                                     <Textarea defaultValue={suggestion.draftReply} rows={4} className="text-xs"/>
+                                                                                     <Button size="sm" onClick={() => handleSendReply(note)}><SendIcon className="mr-2 h-4 w-4"/>Send</Button>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <Button size="sm" variant="outline" onClick={() => handleDraftReply(note)} disabled={draftingReply === noteId}>
+                                                                                    {draftingReply === noteId ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4"/>}
+                                                                                    Draft Reply
+                                                                                </Button>
+                                                                            )}
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                </CardContent>
+                                                            </Card>
+                                                        ) : (
+                                                            <Button size="xs" variant="ghost" className="mt-1" onClick={() => handleAiAnalysis(note)} disabled={isAiLoading[noteId]}>
+                                                                {isAiLoading[noteId] ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BrainCircuit className="mr-2 h-4 w-4" />}
+                                                                Analyze
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )
@@ -1165,5 +1299,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-
-    
