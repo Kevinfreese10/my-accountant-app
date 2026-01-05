@@ -35,12 +35,14 @@ export default function CompanyDetailsPage() {
         if (!client) return;
 
         const { createAIProfile, ...clientFormData } = data;
+        
         const updateData: Partial<User> = {
             ...clientFormData,
             name: data.name,
             companyName: data.name,
             yearEnd: data.yearEnd || null,
         };
+        
         if (!data.isVatRegistered) {
             updateData.vatNumber = '';
             updateData.vatCategory = undefined;
