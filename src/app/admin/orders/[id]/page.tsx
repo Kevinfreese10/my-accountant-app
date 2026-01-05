@@ -271,7 +271,7 @@ export default function AdminOrderDetailsPage() {
             ...data,
             id: docSnap.id,
             date: data.date?.toDate ? data.date.toDate().toISOString() : new Date().toISOString(),
-            notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate() : new Date(note.date)})),
+            notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate() : new Date(note.date), subject: note.subject || null, attachments: note.attachments || null})),
             documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt?.toDate ? doc.uploadedAt.toDate().toISOString() : new Date().toISOString()})),
             itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt?.toDate ? log.receivedAt.toDate().toISOString() : new Date().toISOString() })),
           } as Order;
@@ -317,13 +317,13 @@ export default function AdminOrderDetailsPage() {
   const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
     if (!currentUser || !order) return;
     
-    setIsLoading(true);
+    let isLoadingToast = toast({ title: 'Adding note...', description: 'Please wait.' });
+
     let attachments: { name: string; url: string }[] = [];
-    const files = values.attachment || [];
+    const files = values.attachments || [];
 
     if (files.length > 0) {
-      toast({ title: `Uploading ${files.length} file(s)...`, description: 'Please wait.' });
-      
+        isLoadingToast.update({ id: isLoadingToast.id, title: `Uploading ${files.length} file(s)...` });
       try {
         const uploadPromises = Array.from(files).map(async (file: any) => {
             const uniqueFileName = `${Date.now()}-${file.name}`;
@@ -335,12 +335,12 @@ export default function AdminOrderDetailsPage() {
         });
 
         attachments = await Promise.all(uploadPromises);
-        toast({ title: 'Attachments Uploaded' });
+        isLoadingToast.update({ id: isLoadingToast.id, title: 'Attachments Uploaded' });
 
       } catch (error) {
         console.error('Attachment upload failed:', error);
         toast({ title: 'Attachment Upload Failed', variant: 'destructive' });
-        setIsLoading(false);
+        isLoadingToast.dismiss();
         return;
       }
     }
@@ -367,7 +367,7 @@ export default function AdminOrderDetailsPage() {
       console.error("Error adding note:", error);
       toast({ title: "Error", description: "Failed to add note.", variant: "destructive" });
     } finally {
-      setIsLoading(false);
+        isLoadingToast.dismiss();
     }
   };
 
@@ -707,59 +707,67 @@ export default function AdminOrderDetailsPage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Uploaded Documents</CardTitle>
-                            <CardDescription>Documents uploaded by the client for this order.</CardDescription>
+                            <CardTitle>Required Information</CardTitle>
+                            <CardDescription>Documents and information needed from the client to complete this order.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {order.documentUploads && order.documentUploads.length > 0 ? (
-                                <ul className="space-y-3">
-                                    {order.documentUploads.map((doc, index) => {
-                                        const identifier = doc.type === 'file' ? doc.fileUrl! : doc.textValue!;
-                                        return (
-                                            <li key={index} className="flex items-center justify-between p-2 border rounded-md">
-                                                <div>
-                                                    <p className="font-medium text-sm">{doc.requirementLabel}</p>
-                                                    {doc.type === 'file' ? (
-                                                        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
-                                                            <Download className="h-3 w-3" /> {doc.fileName}
-                                                        </a>
-                                                    ) : (
-                                                        <p className="text-sm p-2 bg-muted rounded-md mt-1">"{doc.textValue}"</p>
-                                                    )}
-
-                                                    {doc.status === 'rejected' && doc.rejectionReason && (
-                                                        <p className="text-xs text-destructive mt-1">Reason: {doc.rejectionReason}</p>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    {doc.status === 'pending' ? (
-                                                        <>
-                                                            <Button size="sm" variant="outline" onClick={() => handleDocumentStatusUpdate(identifier, 'approved')}>
-                                                                <CheckCircle className="mr-2 h-4 w-4 text-green-500" />Approve
-                                                            </Button>
-                                                            <Button size="sm" variant="destructive" onClick={() => handleOpenRejectionDialog(doc)}>
-                                                                <XCircle className="mr-2 h-4 w-4" />Reject
-                                                            </Button>
-                                                        </>
-                                                    ) : doc.status === 'approved' ? (
-                                                        <Badge variant="success" className="text-sm"><CheckCircle className="mr-2 h-4 w-4"/>Approved</Badge>
-                                                    ) : (
-                                                        <Badge variant="destructive" className="text-sm"><AlertTriangle className="mr-2 h-4 w-4"/>Rejected</Badge>
-                                                    )}
-                                                </div>
-                                            </li>
-                                        )
-                                    })}
-                                </ul>
-                            ) : (
-                                <p className="text-sm text-muted-foreground text-center py-4">No documents have been uploaded for this order yet.</p>
-                            )}
+                             <div className="space-y-4">
+                                {orderItemsWithServices.map(item => (
+                                    <div key={item.id}>
+                                        <h4 className="font-semibold">{item.title}</h4>
+                                        {item.service.informationToProvide.length > 0 ? (
+                                            <ul className="mt-2 space-y-3 pl-4 border-l">
+                                                {item.service.informationToProvide.map((req, index) => {
+                                                    const upload = order.documentUploads?.find(d => d.serviceId === item.id && d.requirementLabel === req.label);
+                                                     const identifier = upload ? (upload.type === 'file' ? upload.fileUrl! : upload.textValue!) : '';
+                                                    return (
+                                                        <li key={index} className="pt-3">
+                                                            <div className="flex items-center justify-between">
+                                                                <p className="font-medium text-sm">{req.label}</p>
+                                                                {upload ? (
+                                                                     <Badge variant={upload.status === 'approved' ? 'success' : upload.status === 'rejected' ? 'destructive' : 'warning'}>
+                                                                        {upload.status === 'approved' && <CheckCircle className="mr-1 h-3 w-3" />}
+                                                                        {upload.status === 'rejected' && <AlertTriangle className="mr-1 h-3 w-3" />}
+                                                                        {upload.status}
+                                                                    </Badge>
+                                                                ) : <Badge variant="secondary">Pending</Badge>}
+                                                            </div>
+                                                            {upload ? (
+                                                                <div className="mt-2 space-y-2">
+                                                                    {upload.type === 'file' ? (
+                                                                        <a href={upload.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                                                                            <Download className="h-4 w-4" /> {upload.fileName}
+                                                                        </a>
+                                                                    ) : (
+                                                                        <p className="text-sm p-2 bg-muted rounded-md mt-1">"{upload.textValue}"</p>
+                                                                    )}
+                                                                    {upload.status === 'pending' && (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Button size="xs" variant="outline" onClick={() => handleDocumentStatusUpdate(identifier, 'approved')}>Approve</Button>
+                                                                            <Button size="xs" variant="destructive" onClick={() => handleOpenRejectionDialog(upload)}>Reject</Button>
+                                                                        </div>
+                                                                    )}
+                                                                     {upload.status === 'rejected' && upload.rejectionReason && (
+                                                                        <p className="text-xs text-destructive italic">Reason: {upload.rejectionReason}</p>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-xs text-muted-foreground mt-1">Awaiting client submission.</p>
+                                                            )}
+                                                        </li>
+                                                    )
+                                                })}
+                                            </ul>
+                                        ) : <p className="text-sm text-muted-foreground mt-2 pl-4">No specific information required for this service.</p>}
+                                    </div>
+                                ))}
+                             </div>
                         </CardContent>
-                        {allDocumentsReviewed && (
+                         {order.documentUploads && order.documentUploads.length > 0 && allDocumentsReviewed && (
                             <CardFooter>
                                 <Button onClick={handleSendFeedback} disabled={isSendingFeedback}>
                                     {isSendingFeedback && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Provide Client with Feedback
+                                    Notify Client of Review
                                 </Button>
                             </CardFooter>
                         )}
@@ -814,7 +822,7 @@ export default function AdminOrderDetailsPage() {
                             </div>
                             <Form {...noteForm}>
                             <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4 pt-4">
-                                <FormField
+                                 <FormField
                                     control={noteForm.control}
                                     name="noteText"
                                     render={({ field }) => (
