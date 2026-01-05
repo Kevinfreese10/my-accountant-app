@@ -61,11 +61,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         return await reauthenticate(userCredential.user);
     } catch (error: any) {
-        if (error.code !== 'permission-denied') { 
+        const expectedAuthErrors = ['auth/user-not-found', 'auth/wrong-password', 'auth/invalid-credential'];
+        if (error.code && !expectedAuthErrors.includes(error.code) && error.code !== 'permission-denied') { 
              console.error("Error logging in:", error.code, error.message);
         }
 
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        if (expectedAuthErrors.includes(error.code)) {
              return 'invalid_credentials';
         }
         return undefined;
