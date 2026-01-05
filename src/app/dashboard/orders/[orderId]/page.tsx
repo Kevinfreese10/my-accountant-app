@@ -1,9 +1,10 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote, DocumentUpload } from '@/lib/types';
@@ -12,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Upload, ClipboardCheck, MessageSquare, Send, Mail, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Loader2, Upload, ClipboardCheck, MessageSquare, Send, Mail, CheckCircle, AlertTriangle, Paperclip } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +40,7 @@ const formatPrice = (price: number) => {
 
 const noteFormSchema = z.object({
   noteText: z.string().min(3, "Note must be at least 3 characters."),
+  attachment: z.any().optional(),
 });
 
 export default function ClientOrderDetailsPage() {
@@ -190,11 +192,36 @@ export default function ClientOrderDetailsPage() {
   const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
     if (!currentUser || !order) return;
 
+    setIsSubmitting(true);
+    let attachmentUrl = '';
+    let attachmentName = '';
+    const file = values.attachment?.[0];
+
+    if (file) {
+      toast({ title: 'Uploading attachment...', description: 'Please wait.' });
+      try {
+        const uniqueFileName = `${Date.now()}-${file.name}`;
+        const storageRef = ref(storage, `orders/${order.id}/notes/${uniqueFileName}`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+        const snapshot = await uploadTask;
+        attachmentUrl = await getDownloadURL(snapshot.ref);
+        attachmentName = file.name;
+        toast({ title: 'Attachment Uploaded' });
+      } catch (error) {
+        console.error('Attachment upload failed:', error);
+        toast({ title: 'Attachment Upload Failed', variant: 'destructive' });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     const newNote: OrderNote = {
       text: values.noteText,
       authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'note',
+      attachmentUrl: attachmentUrl || undefined,
+      attachmentName: attachmentName || undefined,
     };
 
     try {
@@ -205,10 +232,12 @@ export default function ClientOrderDetailsPage() {
 
       toast({ title: "Note Added", description: "Your note has been saved." });
       noteForm.reset();
-      await fetchOrderAndServices(); // Re-fetch to display the new note
+      await fetchOrderAndServices();
     } catch (error) {
       console.error("Error adding note:", error);
       toast({ title: "Error", description: "Failed to add note.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -437,6 +466,14 @@ export default function ClientOrderDetailsPage() {
                                                  ) : (
                                                     <p className="text-sm">{note.text}</p>
                                                  )}
+                                                 {note.attachmentUrl && (
+                                                    <div className="mt-2">
+                                                        <a href={note.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                                                            <Paperclip className="h-4 w-4"/>
+                                                            {note.attachmentName || 'View Attachment'}
+                                                        </a>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -446,21 +483,32 @@ export default function ClientOrderDetailsPage() {
                             )}
                         </div>
                          <Form {...noteForm}>
-                          <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="flex items-start gap-2 pt-4">
+                          <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4 pt-4">
                             <FormField
                               control={noteForm.control}
                               name="noteText"
                               render={({ field }) => (
-                                <FormItem className="flex-grow">
-                                  <FormControl>
-                                    <Textarea placeholder="Add a new note..." {...field} rows={2} />
-                                  </FormControl>
+                                <FormItem>
+                                  <Textarea placeholder="Add a new note..." {...field} rows={2} />
                                   <FormMessage />
                                 </FormItem>
                               )}
                             />
-                            <Button type="submit" size="icon" className="flex-shrink-0 mt-1">
-                              <Send className="h-4 w-4" />
+                            <FormField
+                                control={noteForm.control}
+                                name="attachment"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormControl>
+                                            <Input type="file" onChange={(e) => field.onChange(e.target.files)} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <Button type="submit" size="sm" disabled={isSubmitting}>
+                                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                                Post Note
                             </Button>
                           </form>
                         </Form>

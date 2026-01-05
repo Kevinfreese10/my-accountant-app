@@ -1,9 +1,11 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, getDocs, where, query } from 'firebase/firestore';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote, DocumentUpload, ItnLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Users, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Users, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server, Paperclip } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -33,6 +35,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 type OrderItemWithService = {
   id: string;
@@ -208,6 +211,7 @@ function EmailClientDialog({ order, user, allStaff, onEmailSent, contactEmail, c
 
 const noteFormSchema = z.object({
   noteText: z.string().min(3, "Note must be at least 3 characters."),
+  attachment: z.any().optional(),
 });
 
 const rejectionFormSchema = z.object({
@@ -308,14 +312,41 @@ export default function AdminOrderDetailsPage() {
     fetchOrderAndStaff();
   }, [id]);
 
-   const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
+  const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
     if (!currentUser || !order) return;
+    
+    noteForm.control.getFieldState('noteText').isDirty
+    
+    setIsLoading(true);
+    let attachmentUrl = '';
+    let attachmentName = '';
+    const file = values.attachment?.[0];
+
+    if (file) {
+      toast({ title: 'Uploading attachment...', description: 'Please wait.' });
+      try {
+        const uniqueFileName = `${Date.now()}-${file.name}`;
+        const storageRef = ref(storage, `orders/${order.id}/notes/${uniqueFileName}`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+        const snapshot = await uploadTask;
+        attachmentUrl = await getDownloadURL(snapshot.ref);
+        attachmentName = file.name;
+        toast({ title: 'Attachment Uploaded' });
+      } catch (error) {
+        console.error('Attachment upload failed:', error);
+        toast({ title: 'Attachment Upload Failed', variant: 'destructive' });
+        setIsLoading(false);
+        return;
+      }
+    }
 
     const newNote: OrderNote = {
       text: values.noteText,
       authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'note',
+      attachmentUrl: attachmentUrl || undefined,
+      attachmentName: attachmentName || undefined,
     };
 
     try {
@@ -330,6 +361,8 @@ export default function AdminOrderDetailsPage() {
     } catch (error) {
       console.error("Error adding note:", error);
       toast({ title: "Error", description: "Failed to add note.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -406,7 +439,10 @@ export default function AdminOrderDetailsPage() {
   };
   
   const getAuthor = (authorId: string): User | undefined => {
-    return allStaff.find(u => u.uid === authorId);
+    const staffMember = allStaff.find(u => u.uid === authorId);
+    if(staffMember) return staffMember;
+    if(currentUser?.uid === authorId) return currentUser;
+    return undefined;
   }
 
   const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {
@@ -736,6 +772,14 @@ export default function AdminOrderDetailsPage() {
                                                     ) : (
                                                         <p className="text-sm">{note.text}</p>
                                                     )}
+                                                     {note.attachmentUrl && (
+                                                        <div className="mt-2">
+                                                            <a href={note.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                                                                <Paperclip className="h-4 w-4"/>
+                                                                {note.attachmentName || 'View Attachment'}
+                                                            </a>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
@@ -745,21 +789,32 @@ export default function AdminOrderDetailsPage() {
                                 )}
                             </div>
                             <Form {...noteForm}>
-                            <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="flex items-start gap-2 pt-4">
+                            <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4 pt-4">
                                 <FormField
-                                control={noteForm.control}
-                                name="noteText"
-                                render={({ field }) => (
-                                    <FormItem className="flex-grow">
-                                    <FormControl>
-                                        <Textarea placeholder="Add a new note..." {...field} rows={2} />
-                                    </FormControl>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
+                                    control={noteForm.control}
+                                    name="noteText"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <Textarea placeholder="Add a new note..." {...field} rows={2} />
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
                                 />
-                                <Button type="submit" size="icon" className="flex-shrink-0 mt-1">
-                                <Send className="h-4 w-4" />
+                                <FormField
+                                    control={noteForm.control}
+                                    name="attachment"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormControl>
+                                                <Input type="file" onChange={(e) => field.onChange(e.target.files)} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <Button type="submit" size="sm" disabled={isLoading}>
+                                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                                    Post Note
                                 </Button>
                             </form>
                             </Form>
