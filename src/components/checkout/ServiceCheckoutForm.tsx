@@ -21,7 +21,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
-import HolidayClosureDialog from './HolidayClosureDialog';
 
 const db = getFirestore(firebaseApp);
 
@@ -41,7 +40,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const [hasPrerequisites, setHasPrerequisites] = useState(false);
   const [agreedToRefundPolicy, setAgreedToRefundPolicy] = useState(false);
   const [showGuestForm, setShowGuestForm] = useState(false);
-  const [isClosureDialogOpen, setIsClosureDialogOpen] = useState(false);
 
   const form = useForm<z.infer<typeof guestFormSchema>>({
     resolver: zodResolver(guestFormSchema),
@@ -169,10 +167,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
           });
           return;
       }
-      setIsClosureDialogOpen(true);
-  }
-
-  const handleConfirmCheckout = () => {
+      
       if(user) {
           handleLoggedInCheckout();
       } else {
@@ -182,12 +177,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
 
   return (
     <>
-    <HolidayClosureDialog 
-      open={isClosureDialogOpen}
-      onOpenChange={setIsClosureDialogOpen}
-      onConfirm={handleConfirmCheckout}
-      trigger={<div />}
-    />
     <div className="sticky top-24 space-y-4">
         <div className="space-y-4">
             <div className="flex items-start space-x-2">

@@ -24,7 +24,6 @@ import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { render } from '@react-email/components';
 import { nanoid } from 'nanoid';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
-import HolidayClosureDialog from './HolidayClosureDialog';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -45,7 +44,6 @@ export default function CheckoutForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number; percentage: number; } | null>(null);
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
-  const [isClosureDialogOpen, setIsClosureDialogOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -98,11 +96,6 @@ export default function CheckoutForm() {
   const finalTotal = appliedDiscount ? cartTotal - appliedDiscount.amount : cartTotal;
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsClosureDialogOpen(true);
-  }
-
-  async function handleConfirmSubmit() {
-    const values = form.getValues();
     setIsLoading(true);
     toast({
       title: 'Placing Your Order...',
@@ -239,12 +232,6 @@ export default function CheckoutForm() {
 
   return (
     <>
-      <HolidayClosureDialog
-        open={isClosureDialogOpen}
-        onOpenChange={setIsClosureDialogOpen}
-        onConfirm={handleConfirmSubmit}
-        trigger={<div />}
-      />
       <Card>
         <CardHeader>
           <CardTitle>Billing Details</CardTitle>
