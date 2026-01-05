@@ -656,7 +656,7 @@ export default function AdminDashboardPage() {
           const notes = (order.notes || [])
             .filter(note => note.authorId !== user.id && note.type === 'note')
             .map(note => {
-                const date = note.date.toDate ? note.date.toDate() : new Date(note.date);
+                const date = note.date?.toDate ? note.date.toDate() : new Date(note.date);
                 return {
                   ...note,
                   date,
@@ -675,12 +675,18 @@ export default function AdminDashboardPage() {
      useEffect(() => {
         const analyzeNewNotifications = async () => {
             for (const note of notifications) {
-                const noteId = note.orderId + note.date.toISOString();
+                const noteId = note.orderId + (note.date.toISOString ? note.date.toISOString() : new Date(note.date).toISOString());
                 if (!aiSuggestions[noteId] && !archivedNotifications.includes(noteId)) {
                     try {
                         const suggestion = await categorizeSupportRequest({
                             request: note.text,
                             clientName: note.customerName,
+                            attachments: note.attachmentUrl ? [{
+                                filename: note.attachmentName || 'attachment',
+                                contentType: null,
+                                dataUrl: note.attachmentUrl,
+                                size: null
+                            }] : []
                         });
                         setAiSuggestions(prev => ({ ...prev, [noteId]: suggestion }));
                     } catch (error) {
@@ -998,7 +1004,7 @@ export default function AdminDashboardPage() {
     const [draftingReply, setDraftingReply] = useState<string | null>(null);
 
     const handleDraftReply = async (note: any) => {
-        const noteId = note.orderId + note.date.toISOString();
+        const noteId = note.orderId + (note.date.toISOString ? note.date.toISOString() : new Date(note.date).toISOString());
         setDraftingReply(noteId);
         try {
             const result = await generateEmailReply({
@@ -1025,7 +1031,7 @@ export default function AdminDashboardPage() {
     }
 
     const handleSendReply = async (note: any) => {
-        const noteId = note.orderId + note.date.toISOString();
+        const noteId = note.orderId + (note.date.toISOString ? note.date.toISOString() : new Date(note.date).toISOString());
         const suggestion = aiSuggestions[noteId];
         if (!suggestion || !suggestion.draftReply || !user) return;
         
@@ -1035,6 +1041,9 @@ export default function AdminDashboardPage() {
                 authorId: user.uid,
                 date: Timestamp.now(),
                 type: 'note',
+                subject: null,
+                attachmentUrl: undefined,
+                attachmentName: undefined,
             };
             const orderRef = doc(db, 'orders', note.orderId);
             await updateDoc(orderRef, {
@@ -1050,7 +1059,7 @@ export default function AdminDashboardPage() {
     }
     
     const handleCreateTaskFromSuggestion = (note: any) => {
-        const noteId = note.orderId + note.date.toISOString();
+        const noteId = note.orderId + (note.date.toISOString ? note.date.toISOString() : new Date(note.date).toISOString());
         const suggestion = aiSuggestions[noteId];
         if (!suggestion || !suggestion.task?.shouldCreate) return;
 
@@ -1121,9 +1130,9 @@ export default function AdminDashboardPage() {
                                     {notifications.length > 0 ? (
                                     <ScrollArea className="h-72">
                                         <div className="space-y-4">
-                                        {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
+                                        {notifications.filter(n => !archivedNotifications.includes(n.orderId + (n.date.toISOString ? n.date.toISOString() : new Date(n.date).toISOString()))).map((note, index) => {
                                             const author = getAuthor(note.authorId);
-                                            const noteId = note.orderId + note.date.toISOString();
+                                            const noteId = note.orderId + (note.date.toISOString ? note.date.toISOString() : new Date(note.date).toISOString());
                                             const suggestion = aiSuggestions[noteId];
                                             const date = note.date;
 
@@ -1142,7 +1151,7 @@ export default function AdminDashboardPage() {
                                                             "{note.text}"
                                                         </blockquote>
                                                         <p className="text-xs text-muted-foreground mt-1">
-                                                            {formatDistanceToNow(date, { addSuffix: true })}
+                                                            {formatDistanceToNow(new Date(date), { addSuffix: true })}
                                                         </p>
                                                         
                                                         {suggestion ? (
