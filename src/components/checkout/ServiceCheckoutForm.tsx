@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Service, Order, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Loader2, LogIn } from 'lucide-react';
+import { Loader2, LogIn, UserPlus } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getNextOrderId } from '@/lib/sequence';
@@ -161,33 +161,39 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
             </div>
         </div>
       
-        <Button 
-            onClick={handleCheckout}
-            disabled={isLoading || !canPurchase}
-            className="w-full"
-            size="lg"
-        >
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? 'Processing...' : user ? 'Proceed to Payment' : 'Login to Purchase'}
-        </Button>
-      
-       {!user && (
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">OR</span>
-              </div>
-            </div>
-          )}
-       {!user && (
-            <Button variant="secondary" className="w-full" asChild>
-                <Link href={`/login?redirect=/products/${service.slug}`}>
-                    <LogIn className="mr-2 h-4 w-4" />
-                    Login to your account
-                </Link>
+        {user ? (
+             <Button 
+                onClick={handleCheckout}
+                disabled={isLoading || !canPurchase}
+                className="w-full"
+                size="lg"
+            >
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading ? 'Processing...' : 'Proceed to Payment'}
             </Button>
+        ) : (
+            <div className="space-y-4">
+                 <Button asChild className="w-full" size="lg">
+                    <Link href={`/signup?redirect=/products/${service.slug}`}>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Create an Account to Purchase
+                    </Link>
+                </Button>
+                <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">OR</span>
+                    </div>
+                </div>
+                <Button variant="secondary" className="w-full" asChild>
+                    <Link href={`/login?redirect=/products/${service.slug}`}>
+                        <LogIn className="mr-2 h-4 w-4" />
+                        Login to your account
+                    </Link>
+                </Button>
+            </div>
         )}
     </div>
   );
