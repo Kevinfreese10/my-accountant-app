@@ -55,161 +55,6 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-const emailFormSchema = z.object({
-    subject: z.string().min(5, 'Subject must be at least 5 characters long.'),
-    message: z.string().min(20, 'Message must be at least 20 characters long.'),
-});
-
-function BackendSummaryModal({ order }: { order: Order }) {
-  if (!order.itnHistory || order.itnHistory.length === 0) {
-    return (
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Backend Summary for Order {order.id}</DialogTitle>
-          <DialogDescription>No backend notifications have been received for this order yet.</DialogDescription>
-        </DialogHeader>
-      </DialogContent>
-    )
-  }
-
-  return (
-    <DialogContent className="max-w-2xl">
-      <DialogHeader>
-        <DialogTitle>Backend Summary for Order {order.id}</DialogTitle>
-        <DialogDescription>History of notifications received from PayFast.</DialogDescription>
-      </DialogHeader>
-      <ScrollArea className="max-h-[60vh] pr-6">
-        <div className="space-y-4">
-          {order.itnHistory.slice().reverse().map((log, index) => (
-            <Card key={index}>
-              <CardHeader>
-                <CardTitle className="text-base flex justify-between items-center">
-                  <span>
-                    Status: <Badge variant={log.status === 'Success' ? 'success' : 'destructive'}>{log.status}</Badge>
-                  </span>
-                   <span className="text-xs font-normal text-muted-foreground">
-                    {log.receivedAt ? format(new Date(log.receivedAt), 'dd/MM/yyyy, HH:mm:ss') : 'N/A'}
-                  </span>
-                </CardTitle>
-                <CardDescription className="pt-2">{log.message}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <h4 className="font-semibold text-sm mb-2">Received Payload:</h4>
-                <pre className="text-xs bg-muted p-2 rounded-md overflow-x-auto">
-                  {JSON.stringify(log.payload, null, 2)}
-                </pre>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </ScrollArea>
-    </DialogContent>
-  );
-}
-
-
-function EmailClientDialog({ order, user, allStaff, onEmailSent, contactEmail, contactName }: { order: Order, user: User | null, allStaff: User[], onEmailSent: (subject: string, message: string) => Promise<void>, contactEmail: string, contactName: string }) {
-    const { toast } = useToast();
-    const [isOpen, setIsOpen] = useState(false);
-    const [isSending, setIsSending] = useState(false);
-
-    const form = useForm<z.infer<typeof emailFormSchema>>({
-        resolver: zodResolver(emailFormSchema),
-        defaultValues: {
-            subject: `My Accountant | Regarding Your Order: ${order.originalOrderId || order.id}`,
-            message: '',
-        },
-    });
-
-    const onSubmit = async (values: z.infer<typeof emailFormSchema>) => {
-        if (!contactEmail) {
-            toast({ title: "Recipient Error", description: "No recipient email address found for this order.", variant: "destructive" });
-            return;
-        }
-        setIsSending(true);
-        try {
-            await sendEmail({
-                to: contactEmail,
-                subject: values.subject,
-                html: `<p>${values.message.replace(/\n/g, '<br>')}</p>`,
-                resellerId: order.resellerId
-            });
-            await onEmailSent(values.subject, values.message);
-            toast({
-                title: 'Email Sent!',
-                description: 'Your message has been sent to the client.',
-            });
-            form.reset();
-            setIsOpen(false);
-        } catch (error) {
-            console.error("Failed to send email:", error);
-            toast({
-                title: 'Error',
-                description: 'Failed to send the email. Please try again.',
-                variant: 'destructive',
-            });
-        } finally {
-            setIsSending(false);
-        }
-    };
-    
-    return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                 <Button variant="outline" className="w-full justify-start">
-                    <Mail className="mr-2 h-4 w-4" />
-                    Compose Custom Email
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
-                <DialogHeader>
-                    <DialogTitle>Send Email to {contactName}</DialogTitle>
-                    <DialogDescription>
-                        Recipient: <span className="font-semibold">{contactEmail}</span>
-                        <br/>
-                        {order.resellerId ? "This will be sent from the reseller's email." : "The email will be sent from the default company address."}
-                    </DialogDescription>
-                </DialogHeader>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="subject"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Subject</FormLabel>
-                                    <FormControl><Input {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="message"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Message</FormLabel>
-                                    <FormControl><Textarea {...field} rows={8} placeholder={`Hi ${contactName}...`}/></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <div className="flex justify-end items-center pt-4">
-                            <div className="flex gap-2">
-                                <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
-                                <Button type="submit" disabled={isSending}>
-                                    {isSending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Send Email
-                                </Button>
-                            </div>
-                        </div>
-                    </form>
-                </Form>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 const noteFormSchema = z.object({
   noteText: z.string().min(3, "Note must be at least 3 characters."),
   attachments: z.any().optional(),
@@ -352,6 +197,8 @@ export default function AdminOrderDetailsPage() {
       type: 'note',
       subject: null,
       attachments: attachments.length > 0 ? attachments : null,
+      attachmentUrl: null, // Legacy field, ensure it is null
+      attachmentName: null, // Legacy field, ensure it is null
     };
 
     try {
@@ -400,6 +247,8 @@ export default function AdminOrderDetailsPage() {
       date: Timestamp.now(),
       type: 'email',
       attachments: null,
+      attachmentUrl: null,
+      attachmentName: null,
     };
 
     try {
@@ -552,7 +401,7 @@ export default function AdminOrderDetailsPage() {
 
 
   return (
-    <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
+    <Dialog>
         <div className="space-y-8">
             <Dialog open={isRejectionDialogOpen} onOpenChange={setIsRejectionDialogOpen}>
                 <DialogContent>
@@ -601,12 +450,6 @@ export default function AdminOrderDetailsPage() {
                                         {isOutsourced && resellerDetails && <span className="ml-2">| Reseller: {resellerDetails.companyName || resellerDetails.name}</span>}
                                     </div>
                                 </div>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm" onClick={() => setViewingBackendSummary(order)}>
-                                        <Server className="mr-2 h-4 w-4" />
-                                        Backend Summary
-                                    </Button>
-                                </DialogTrigger>
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -756,11 +599,11 @@ export default function AdminOrderDetailsPage() {
                                 <FormField
                                     control={noteForm.control}
                                     name="attachments"
-                                    render={({ field }) => (
+                                    render={({ field: { onChange, value, ...rest }}) => (
                                         <FormItem>
                                             <FormLabel>Attachments (optional)</FormLabel>
                                             <FormControl>
-                                                <Input type="file" multiple onChange={(e) => field.onChange(e.target.files)} />
+                                                <Input type="file" multiple onChange={(e) => onChange(e.target.files)} {...rest} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -777,7 +620,6 @@ export default function AdminOrderDetailsPage() {
                                             Proofread
                                         </Button>
                                     </div>
-                                     <EmailClientDialog order={order} user={null} allStaff={allStaff} onEmailSent={addEmailToHistory} contactEmail={contactEmail || ''} contactName={contactName || ''}/>
                                 </div>
                             </form>
                             </Form>
@@ -846,9 +688,7 @@ export default function AdminOrderDetailsPage() {
                     )}
                 </div>
             </div>
-             {viewingBackendSummary && <BackendSummaryModal order={viewingBackendSummary} />}
         </div>
     </Dialog>
   );
 }
-
