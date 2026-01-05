@@ -18,7 +18,7 @@ interface AuthContextType {
   login: (email: string, password?: string) => Promise<User | 'invalid_role' | 'invalid_credentials' | 'subscription_lapsed' | undefined>;
   reauthenticate: (firebaseUser: FirebaseUser) => Promise<User | 'invalid_credentials' | 'subscription_lapsed' | undefined>;
   logout: () => void;
-  signup: (email: string, password: string, name: string) => Promise<User | string>;
+  signup: (values: { name: string; surname: string; cellNumber: string; email: string; password?: string }) => Promise<User | string>;
   updateUser: (updatedUser: User | null) => void;
   isAuthenticated: boolean | undefined;
 }
@@ -126,20 +126,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAuthenticated(false);
   };
 
-  const signup = async (email: string, password?: string, name?: string): Promise<User | string> => {
-    if (!password) return 'Password is required.';
+  const signup = async (values: { name: string; surname: string; cellNumber: string; email: string; password?: string }): Promise<User | string> => {
+    if (!values.password) return 'Password is required.';
 
     try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const firebaseUser = userCredential.user;
 
         const newUserDocRef = doc(db, "users", firebaseUser.uid);
         const newUser: User = {
             id: firebaseUser.uid,
             uid: firebaseUser.uid,
-            name: name || email,
-            email: email,
+            name: `${values.name} ${values.surname}`,
+            email: values.email,
+            contactNumber: values.cellNumber,
             role: 'client',
+            createdAt: serverTimestamp(),
         };
 
         await setDoc(newUserDocRef, newUser);

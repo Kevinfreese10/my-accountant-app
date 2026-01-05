@@ -1,36 +1,23 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Service, Order, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Loader2, LogIn } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getNextOrderId } from '@/lib/sequence';
 import { Checkbox } from '../ui/checkbox';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { sendEmail } from '@/lib/email';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '../ui/input';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
-
-
-const guestFormSchema = z.object({
-  name_first: z.string().min(1, 'First name is required.'),
-  name_last: z.string().min(1, 'Last name is required.'),
-  email_address: z.string().email('Invalid email address.'),
-  cell_number: z.string().min(10, 'A valid phone number is required.'),
-});
 
 export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const router = useRouter();
@@ -39,39 +26,29 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const [isLoading, setIsLoading] = useState(false);
   const [hasPrerequisites, setHasPrerequisites] = useState(false);
   const [agreedToRefundPolicy, setAgreedToRefundPolicy] = useState(false);
-  const [showGuestForm, setShowGuestForm] = useState(false);
-
-  const form = useForm<z.infer<typeof guestFormSchema>>({
-    resolver: zodResolver(guestFormSchema),
-    defaultValues: {
-      name_first: '',
-      name_last: '',
-      email_address: '',
-      cell_number: '',
-    },
-  });
 
   const canPurchase = hasPrerequisites && agreedToRefundPolicy;
-  
-  const handleGuestCheckout = async (values: z.infer<typeof guestFormSchema>) => {
-    setIsLoading(true);
-    toast({
-      title: 'Placing Your Order...',
-      description: 'Please wait while we create your order.',
-    });
 
-    try {
-      await createOrder(null, `${values.name_first} ${values.name_last}`, values.email_address, values.cell_number);
-    } catch (error: any) {
-        console.error("Error in guest checkout: ", error);
-        toast({ title: 'Order Failed', description: 'There was a problem placing your order. Please try again.', variant: 'destructive' });
-        setIsLoading(false);
+  async function handleCheckout() {
+    if (!user) {
+        toast({
+            title: 'Please Log In',
+            description: 'You must be logged in to purchase a service.',
+            variant: 'destructive'
+        });
+        router.push(`/login?redirect=/products/${service.slug}`);
+        return;
     }
-  };
 
-
-  async function handleLoggedInCheckout() {
-    if (!user) return;
+    if (!canPurchase) {
+      toast({
+          title: 'Confirmation Required',
+          description: 'Please confirm you have the prerequisites and agree to the refund policy.',
+          variant: 'destructive',
+      });
+      return;
+    }
+    
     setIsLoading(true);
     toast({
       title: 'Placing Your Order...',
@@ -120,7 +97,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
           html: emailHtml,
       });
 
-      // Instead of redirecting to confirmation, submit to PayFast
       submitToPayFast(orderData);
   }
 
@@ -157,26 +133,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     document.body.appendChild(form);
     form.submit();
   }
-  
-  const handleMainButtonClick = () => {
-      if (!canPurchase) {
-          toast({
-              title: 'Confirmation Required',
-              description: 'Please confirm you have the prerequisites and agree to the refund policy.',
-              variant: 'destructive',
-          });
-          return;
-      }
-      
-      if(user) {
-          handleLoggedInCheckout();
-      } else {
-          setShowGuestForm(true);
-      }
-  }
 
   return (
-    <>
     <div className="sticky top-24 space-y-4">
         <div className="space-y-4">
             <div className="flex items-start space-x-2">
@@ -203,33 +161,17 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
             </div>
         </div>
       
-      {showGuestForm && !user ? (
-           <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleGuestCheckout)} className="space-y-4 pt-4 border-t">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="name_first" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="name_last" render={({ field }) => ( <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                  </div>
-                  <FormField control={form.control} name="email_address" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                  <FormField control={form.control} name="cell_number" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <Button type="submit" className="w-full" size="lg" disabled={isLoading || !canPurchase}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Proceed to Payment
-                </Button>
-              </form>
-            </Form>
-      ) : (
-          <Button 
-            onClick={handleMainButtonClick}
+        <Button 
+            onClick={handleCheckout}
             disabled={isLoading || !canPurchase}
             className="w-full"
             size="lg"
-          >
+        >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? 'Processing...' : user ? 'Proceed to Payment' : 'Checkout as Guest'}
-          </Button>
-      )}
-       {!user && !showGuestForm && (
+            {isLoading ? 'Processing...' : user ? 'Proceed to Payment' : 'Login to Purchase'}
+        </Button>
+      
+       {!user && (
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
@@ -239,7 +181,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
               </div>
             </div>
           )}
-       {!user && !showGuestForm && (
+       {!user && (
             <Button variant="secondary" className="w-full" asChild>
                 <Link href={`/login?redirect=/products/${service.slug}`}>
                     <LogIn className="mr-2 h-4 w-4" />
@@ -247,8 +189,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                 </Link>
             </Button>
         )}
-
     </div>
-    </>
   );
 }
