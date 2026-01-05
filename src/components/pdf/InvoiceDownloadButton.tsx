@@ -50,9 +50,11 @@ export default function InvoiceDownloadButton({ invoice, client, customer }: Inv
 
     } catch (error: any) {
       console.error('Download error:', error);
+      // Ensure the description is always a string
+      const description = typeof error.message === 'string' ? error.message : 'An unexpected error occurred.';
       toast({
         title: 'Download Failed',
-        description: error.message || 'An unexpected error occurred.',
+        description: description,
         variant: 'destructive',
       });
     } finally {
