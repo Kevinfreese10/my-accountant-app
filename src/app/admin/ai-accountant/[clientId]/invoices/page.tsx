@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -283,9 +282,85 @@ export default function InvoicesPage() {
     return (
         <Dialog onOpenChange={(isOpen) => !isOpen && setViewingInvoice(null)}>
             <div className="space-y-8">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Create New Invoice</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                     <FormField
+                                        control={form.control}
+                                        name="customerId"
+                                        render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Customer</FormLabel>
+                                            <Popover>
+                                            <PopoverTrigger asChild>
+                                                <FormControl>
+                                                <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
+                                                    {field.value ? customers.find((c) => c.id === field.value)?.name : "Select customer..."}
+                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                </Button>
+                                                </FormControl>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="p-0">
+                                                <Command>
+                                                <CommandInput placeholder="Search customer..." />
+                                                <CommandList>
+                                                    <CommandEmpty>No customer found.</CommandEmpty>
+                                                    {customers.map((c) => (
+                                                    <CommandItem value={c.name} key={c.id} onSelect={() => form.setValue("customerId", c.id)}>
+                                                        {c.name}
+                                                    </CommandItem>
+                                                    ))}
+                                                </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                            </Popover>
+                                            <FormMessage />
+                                        </FormItem>
+                                        )}
+                                    />
+                                    <FormField control={form.control} name="invoiceDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Invoice Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
+                                    <FormField control={form.control} name="dueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
+                                </div>
+                                <Separator />
+                                <div>
+                                    <h3 className="text-lg font-medium mb-2">Line Items</h3>
+                                    <div className="space-y-4">
+                                        {fields.map((field, index) => (
+                                            <div key={field.id} className="grid grid-cols-12 gap-x-2 gap-y-2 p-2 border rounded-md relative items-start">
+                                                <div className="col-span-12 md:col-span-4">
+                                                    <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel>Account</FormLabel><Select onValueChange={(value) => handleAccountChange(value, index)} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                                                </div>
+                                                <div className="col-span-12 md:col-span-4"><FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage /></FormItem> )}/></div>
+                                                <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormLabel>Qty</FormLabel><FormControl><Input type="number" {...field}/></FormControl><FormMessage /></FormItem> )}/></div>
+                                                <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <FormItem><FormLabel>Rate</FormLabel><FormControl><Input type="number" {...field}/></FormControl><FormMessage /></FormItem> )}/></div>
+                                                {client?.isVatRegistered && (
+                                                     <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.vatType`} render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{vatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/></div>
+                                                )}
+                                                <div className="col-span-12 md:col-span-1 flex items-end">
+                                                    <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)} className="w-full h-10 mt-2 md:mt-0"><Trash2 className="h-4 w-4"/></Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', quantity: 1, rate: 0, vatType: 'standard_rated_sales' })} className="mt-2"><PlusCircle className="mr-2 h-4 w-4"/>Add Line</Button>
+                                </div>
+                                <InvoiceTotals control={form.control} isVatRegistered={client?.isVatRegistered} />
+                                <div className="flex justify-end pt-4">
+                                  <Button type="submit" disabled={isLoading}>{isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Finalizing...</> : "Finalize & Post Invoice"}</Button>
+                                </div>
+                            </form>
+                        </Form>
+                    </CardContent>
+                </Card>
+                <Separator />
                 <Card>
                     <CardHeader>
-                        <CardTitle>Invoices</CardTitle>
+                        <CardTitle>Posted Invoices</CardTitle>
                         <CardDescription>A list of invoices created for {client?.name}.</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -321,7 +396,6 @@ export default function InvoicesPage() {
                                                 <TableCell>{format(invoice.dueDate, "dd/MM/yyyy")}</TableCell>
                                                 <TableCell className="text-right">{formatPrice(invoice.total)}</TableCell>
                                                 <TableCell className="text-right">
-                                                    <Dialog>
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
                                                                 <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
@@ -337,28 +411,6 @@ export default function InvoicesPage() {
                                                                 <DropdownMenuItem><Mail className="mr-2 h-4 w-4" />Email to Client</DropdownMenuItem>
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
-                                                        <DialogContent className="sm:max-w-4xl">
-                                                            <DialogHeader>
-                                                                <DialogTitle>Tax Invoice Preview</DialogTitle>
-                                                            </DialogHeader>
-                                                            {viewingInvoice && (
-                                                                <>
-                                                                <InvoicePreview
-                                                                    invoice={viewingInvoice}
-                                                                    client={client}
-                                                                    customer={customers.find(c => c.id === viewingInvoice.customerId)}
-                                                                />
-                                                                <DialogFooter>
-                                                                    <InvoiceDownloadButton
-                                                                        invoice={viewingInvoice}
-                                                                        client={client}
-                                                                        customer={customers.find(c => c.id === viewingInvoice.customerId)}
-                                                                    />
-                                                                </DialogFooter>
-                                                                </>
-                                                            )}
-                                                        </DialogContent>
-                                                    </Dialog>
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -370,7 +422,27 @@ export default function InvoicesPage() {
                 </Card>
 
             </div>
-            
+             <DialogContent className="sm:max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Tax Invoice Preview</DialogTitle>
+                </DialogHeader>
+                {viewingInvoice && (
+                    <>
+                    <InvoicePreview
+                        invoice={viewingInvoice}
+                        client={client}
+                        customer={customers.find(c => c.id === viewingInvoice.customerId)}
+                    />
+                    <DialogFooter>
+                        <InvoiceDownloadButton
+                            invoice={viewingInvoice}
+                            client={client}
+                            customer={customers.find(c => c.id === viewingInvoice.customerId)}
+                        />
+                    </DialogFooter>
+                    </>
+                )}
+            </DialogContent>
         </Dialog>
     );
 }
