@@ -16,11 +16,19 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { getNextOrderId } from '@/lib/sequence';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
+
+const auth = getAuth();
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email.' }),
   password: z.string().min(1, { message: 'Password is required.' }),
 });
+
+const resetPasswordSchema = z.object({
+  resetEmail: z.string().email({ message: 'Please enter a valid email to send a reset link to.' }),
+});
+
 
 export default function LoginForm() {
   const router = useRouter();
@@ -29,12 +37,21 @@ export default function LoginForm() {
   const [isLapsedOpen, setIsLapsedOpen] = useState(false);
   const [lapsedUser, setLapsedUser] = useState<User | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isResetOpen, setIsResetOpen] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
       password: '',
+    },
+  });
+  
+  const resetForm = useForm<z.infer<typeof resetPasswordSchema>>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      resetEmail: '',
     },
   });
 
@@ -130,6 +147,28 @@ export default function LoginForm() {
     }
   }
 
+  async function onPasswordReset(values: z.infer<typeof resetPasswordSchema>) {
+    setIsSendingReset(true);
+    try {
+        await sendPasswordResetEmail(auth, values.resetEmail);
+        toast({
+            title: 'Password Reset Email Sent',
+            description: `If an account exists for ${values.resetEmail}, you will receive an email with instructions.`,
+        });
+        setIsResetOpen(false);
+        resetForm.reset();
+    } catch (error) {
+        console.error("Error sending password reset email:", error);
+        toast({
+            title: 'Error',
+            description: 'Could not send password reset email. Please try again.',
+            variant: 'destructive',
+        });
+    } finally {
+        setIsSendingReset(false);
+    }
+  }
+
   return (
     <>
       <Dialog open={isLapsedOpen} onOpenChange={setIsLapsedOpen}>
@@ -149,6 +188,38 @@ export default function LoginForm() {
                     Renew Subscription
                 </Button>
             </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isResetOpen} onOpenChange={setIsResetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Your Password</DialogTitle>
+            <DialogDescription>
+              Enter your email address and we'll send you a link to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+           <Form {...resetForm}>
+              <form onSubmit={resetForm.handleSubmit(onPasswordReset)} className="space-y-4">
+                  <FormField
+                      control={resetForm.control}
+                      name="resetEmail"
+                      render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>Email</FormLabel>
+                              <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
+                              <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+                  <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={() => setIsResetOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={isSendingReset}>
+                        {isSendingReset && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Send Reset Link
+                    </Button>
+                  </DialogFooter>
+              </form>
+          </Form>
         </DialogContent>
       </Dialog>
       <Form {...form}>
@@ -171,7 +242,12 @@ export default function LoginForm() {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <div className="flex justify-between items-center">
+                    <FormLabel>Password</FormLabel>
+                     <Button type="button" variant="link" className="p-0 h-auto text-xs" onClick={() => setIsResetOpen(true)}>
+                        Forgot Password?
+                    </Button>
+                </div>
                 <FormControl>
                   <Input type="password" {...field} />
                 </FormControl>
