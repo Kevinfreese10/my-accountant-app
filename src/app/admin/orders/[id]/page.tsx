@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, getDocs, where, query } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote, DocumentUpload, ItnLog } from '@/lib/types';
@@ -33,10 +33,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { sendDocumentReviewFeedback } from '@/app/actions';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { proofreadNote } from '@/ai/flows/proofread-note';
+import { customAlphabet } from 'nanoid';
 
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
+const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
+
 
 type OrderItemWithService = {
   id: string;
@@ -76,6 +79,7 @@ export default function AdminOrderDetailsPage() {
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [isProofreading, setIsProofreading] = useState(false);
+  const [isGeneratingDiscount, setIsGeneratingDiscount] = useState(false);
   
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [documentToReject, setDocumentToReject] = useState<DocumentUpload | null>(null);
@@ -364,7 +368,7 @@ export default function AdminOrderDetailsPage() {
   
   const contactName = contactIsClient ? order.endCustomerName : (isOutsourced ? resellerDetails?.companyName || resellerDetails?.name : order.customerName);
 
-  const generateNoteTemplate = (type: 'docs' | 'payment' | 'review' | 'discount') => {
+  const generateNoteTemplate = (type: 'docs' | 'payment' | 'review') => {
       let text = `Hi ${contactName},\n\n`;
       const orderId = order.originalOrderId || order.id;
 
@@ -374,11 +378,49 @@ export default function AdminOrderDetailsPage() {
           text += `This is a reminder to please upload the required documents for your order #${orderId} so that we can begin processing it.\n\n`;
       } else if (type === 'review') {
           text += `We hope you were happy with our service for order #${orderId}. If you have a moment, we would greatly appreciate it if you could leave us a review on Google at the link below:\n\n<a href="https://g.page/r/CVIOzn2bYoiaEAE/review" target="_blank" style="color: blue;">https://g.page/r/CVIOzn2bYoiaEAE/review</a>\n\n`;
-      } else if (type === 'discount') {
-          text += `As a token of our appreciation for your business, here is a 10% discount code for your next order: WELCOME10\n\n`;
       }
       text += 'Kind regards,\nThe My Accountant Team';
       noteForm.setValue('noteText', text);
+  }
+  
+  const handleGenerateDiscount = async () => {
+    if (!order) return;
+    
+    if (order.discountCode) {
+      toast({ title: 'Discount Already Generated', description: `This order already has a discount code: ${order.discountCode}`, variant: 'destructive' });
+      const text = `Hi ${contactName},\n\nAs a token of our appreciation for your business, here is your 10% discount code for your next order: ${order.discountCode}\n\nKind regards,\nThe My Accountant Team`;
+      noteForm.setValue('noteText', text);
+      return;
+    }
+
+    setIsGeneratingDiscount(true);
+    toast({ title: 'Generating Discount...', description: 'Please wait a moment.' });
+
+    const newDiscountCode = `WELCOME-${nanoid()}`;
+    const discountData = {
+        percentage: 10,
+        status: 'active',
+        clientEmail: order.customerEmail,
+        createdAt: Timestamp.now(),
+        orderId: order.id,
+    };
+    
+    try {
+      await setDoc(doc(db, "discounts", newDiscountCode), discountData);
+      const orderRef = doc(db, 'orders', order.id);
+      await updateDoc(orderRef, { discountCode: newDiscountCode });
+      
+      setOrder(prev => prev ? { ...prev, discountCode: newDiscountCode } : null);
+      
+      const text = `Hi ${contactName},\n\nAs a token of our appreciation for your business, here is your 10% discount code for your next order: ${newDiscountCode}\n\nKind regards,\nThe My Accountant Team`;
+      noteForm.setValue('noteText', text);
+      toast({ title: 'Discount Generated!', description: `Code ${newDiscountCode} has been created and saved.` });
+    } catch (e) {
+      console.error(e);
+      toast({ title: 'Failed to generate discount', variant: 'destructive' });
+    } finally {
+      setIsGeneratingDiscount(false);
+    }
   }
 
 
@@ -564,7 +606,10 @@ export default function AdminOrderDetailsPage() {
                                 <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('payment')}><Phone className="h-4 w-4 mr-2"/>Payment Follow-up</Button>
                                 <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('docs')}><FileText className="h-4 w-4 mr-2"/>Request Documents</Button>
                                 <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('review')}><Star className="h-4 w-4 mr-2"/>Request Review</Button>
-                                <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('discount')}><Percent className="h-4 w-4 mr-2"/>Generate 10% Discount</Button>
+                                <Button size="sm" variant="outline" onClick={handleGenerateDiscount} disabled={isGeneratingDiscount || !!order.discountCode}>
+                                    {isGeneratingDiscount ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Percent className="h-4 w-4 mr-2"/>}
+                                    {order.discountCode ? 'Discount Generated' : 'Generate 10% Discount'}
+                                </Button>
                             </div>
                             <Separator/>
                             <Form {...noteForm}>
