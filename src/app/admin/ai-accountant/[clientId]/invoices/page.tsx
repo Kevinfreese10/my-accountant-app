@@ -29,10 +29,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import InvoicePreview from '@/components/admin/InvoicePreview';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-import { flushSync } from 'react-dom';
-import { createRoot } from 'react-dom/client';
+import InvoiceDownloadButton from '@/components/pdf/InvoiceDownloadButton';
 
 const lineItemSchema = z.object({
     accountId: z.string().min(1, "Please select an account."),
@@ -94,65 +91,6 @@ export default function InvoicesPage() {
     const { toast } = useToast();
     const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
     const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
-
-
-    const handleDownloadPdf = async (invoiceToDownload: Invoice) => {
-        const customer = customers.find(c => c.id === invoiceToDownload.customerId);
-        if (!client || !customer) {
-            toast({ title: "Error", description: "Cannot generate PDF without client or customer data.", variant: "destructive" });
-            return;
-        }
-
-        const element = document.createElement("div");
-        element.style.position = 'absolute';
-        element.style.left = '-9999px';
-        element.style.top = '0';
-        element.style.width = '800px'; 
-        document.body.appendChild(element);
-
-        const root = createRoot(element);
-        flushSync(() => {
-            root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
-        });
-        
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const invoiceElement = element.children[0] as HTMLElement;
-
-        const canvas = await html2canvas(invoiceElement, {
-            scale: 2,
-            useCORS: true,
-            width: invoiceElement.scrollWidth,
-            height: invoiceElement.scrollHeight + 20, // Add a small buffer to height
-            windowWidth: invoiceElement.scrollWidth,
-            windowHeight: invoiceElement.scrollHeight + 20,
-        });
-
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        const imgProps = pdf.getImageProperties(imgData);
-        const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-        let heightLeft = imgHeight;
-        let position = 0;
-
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= pdfHeight;
-
-        while (heightLeft > 0) {
-            position = position - pdfHeight;
-            pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
-            heightLeft -= pdfHeight;
-        }
-
-        pdf.save(`Invoice-${invoiceToDownload.id}.pdf`);
-
-        root.unmount();
-        document.body.removeChild(element);
-    };
 
 
     const form = useForm<InvoiceFormValues>({
@@ -411,7 +349,11 @@ export default function InvoicesPage() {
                                                                     customer={customers.find(c => c.id === viewingInvoice.customerId)}
                                                                 />
                                                                 <DialogFooter>
-                                                                    <Button onClick={() => handleDownloadPdf(viewingInvoice)}><Download className="mr-2 h-4 w-4"/>Download PDF</Button>
+                                                                    <InvoiceDownloadButton
+                                                                        invoice={viewingInvoice}
+                                                                        client={client}
+                                                                        customer={customers.find(c => c.id === viewingInvoice.customerId)}
+                                                                    />
                                                                 </DialogFooter>
                                                                 </>
                                                             )}
@@ -432,6 +374,3 @@ export default function InvoicesPage() {
         </Dialog>
     );
 }
-    
-
-    
