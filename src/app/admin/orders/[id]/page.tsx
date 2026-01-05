@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Users, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server, Paperclip, Sparkles } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Users, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server, Paperclip, Sparkles, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -466,65 +466,6 @@ export default function AdminOrderDetailsPage() {
   const getAuthor = (authorId: string): User | undefined => {
     return allStaff.find(u => u.uid === authorId || u.id === authorId);
   }
-
-  const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {
-    if (!order || !currentUser) return;
-    
-    const isOutsourced = !!order.resellerId;
-    const resellerDetails = isOutsourced ? allStaff.find(u => u.uid === order.resellerId) : null;
-    
-    let emailTo: string | undefined;
-    let customerNameToUse: string;
-
-    if (isOutsourced) {
-        const contactIsClient = order.documentContact === 'client';
-        emailTo = contactIsClient ? order.endCustomerEmail : resellerDetails?.email;
-        customerNameToUse = contactIsClient ? (order.endCustomerName || 'Valued Customer') : (resellerDetails?.companyName || resellerDetails?.name || 'Valued Partner');
-    } else {
-        emailTo = order.customerEmail;
-        customerNameToUse = order.customerName;
-    }
-    
-    if (!emailTo) {
-        toast({ title: "Recipient Error", description: "No recipient email address could be determined for this action.", variant: "destructive" });
-        return;
-    }
-
-    let emailHtml = '';
-    let subject = '';
-    let message = '';
-    const orderForEmail = { ...order, customerName: customerNameToUse, id: order.originalOrderId || order.id };
-
-    if (type === 'docs') {
-        const itemsWithServices = order.items.map(item => {
-            const service = allServices.find(s => s.id === item.id);
-            return { ...item, service };
-        }).filter(item => item.service) as { service: Service }[];
-        
-        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={resellerDetails || undefined} replyTo={currentUser.email || 'info@myacc.co.za'} />);
-        subject = `Action Required for Your Order #${orderForEmail.id}`;
-        message = `Sent 'Request Documents' email to ${emailTo}.`;
-    } else if (type === 'payment') {
-         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={resellerDetails || undefined} />);
-         subject = `Payment Reminder for Your Order: #${orderForEmail.id}`;
-         message = `Sent 'Payment Follow-up' email to ${emailTo}.`;
-    } else if (type === 'review') {
-         emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={resellerDetails || undefined} />);
-         subject = `We'd love your feedback on order #${orderForEmail.id}`;
-         message = `Sent 'Request a Review' email to ${emailTo}.`;
-    }
-
-    toast({ title: 'Sending email...', description: 'Please wait a moment.' });
-    
-     try {
-          await sendEmail({ to: emailTo, subject, html: emailHtml, resellerId: order.resellerId });
-          await addEmailToHistory(subject, message);
-          toast({ title: 'Email Sent!', description: `The email has been successfully sent to ${emailTo}.` });
-      } catch (error) {
-          console.error(`Failed to send ${type} email:`, error);
-          toast({ title: 'Error', description: 'Failed to send the email.', variant: 'destructive' });
-      }
-  };
   
     const allDocumentsReviewed = order?.documentUploads && order.documentUploads.length > 0 && order.documentUploads.every(d => d.status !== 'pending');
 
@@ -593,6 +534,21 @@ export default function AdminOrderDetailsPage() {
   const contactName = contactIsClient ? order.endCustomerName : (isOutsourced ? resellerDetails?.companyName || resellerDetails?.name : order.customerName);
   const contactEmail = contactIsClient ? order.endCustomerEmail : (isOutsourced ? resellerDetails?.email : order.customerEmail);
   const contactPhone = contactIsClient ? order.customerPhone : (isOutsourced ? resellerDetails?.contactNumber : order.customerPhone);
+
+  const generateNoteTemplate = (type: 'docs' | 'payment' | 'review') => {
+      let text = `Hi ${contactName},\n\n`;
+      const orderId = order.originalOrderId || order.id;
+
+      if (type === 'payment') {
+          text += `This is a friendly reminder that your invoice for order #${orderId} is still outstanding. Please make payment at your earliest convenience to proceed.\n\n`;
+      } else if (type === 'docs') {
+          text += `This is a reminder to please upload the required documents for your order #${orderId} so that we can begin processing it.\n\n`;
+      } else if (type === 'review') {
+          text += `We hope you were happy with our service for order #${orderId}. If you have a moment, we would greatly appreciate it if you could leave us a review on Google.\n\n`;
+      }
+      text += 'Kind regards,\nThe My Accountant Team';
+      noteForm.setValue('noteText', text);
+  }
 
 
   return (
@@ -779,6 +735,53 @@ export default function AdminOrderDetailsPage() {
                             <CardDescription>Internal notes and sent emails for this order.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                             <div className="flex flex-wrap gap-2">
+                                <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('payment')}><Phone className="h-4 w-4 mr-2"/>Payment Follow-up</Button>
+                                <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('docs')}><FileText className="h-4 w-4 mr-2"/>Request Documents</Button>
+                                <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('review')}><Star className="h-4 w-4 mr-2"/>Request Review</Button>
+                            </div>
+                            <Separator/>
+                            <Form {...noteForm}>
+                            <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4">
+                                 <FormField
+                                    control={noteForm.control}
+                                    name="noteText"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <Textarea placeholder="Add a new note..." {...field} rows={4} />
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={noteForm.control}
+                                    name="attachments"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Attachments (optional)</FormLabel>
+                                            <FormControl>
+                                                <Input type="file" multiple onChange={(e) => field.onChange(e.target.files)} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="flex justify-between items-center">
+                                    <div className="flex gap-2">
+                                        <Button type="submit" size="sm" disabled={isLoading}>
+                                            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                                            Post Note
+                                        </Button>
+                                        <Button type="button" variant="outline" size="sm" onClick={handleProofread} disabled={isProofreading}>
+                                            {isProofreading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                                            Proofread
+                                        </Button>
+                                    </div>
+                                     <EmailClientDialog order={order} user={null} allStaff={allStaff} onEmailSent={addEmailToHistory} contactEmail={contactEmail || ''} contactName={contactName || ''}/>
+                                </div>
+                            </form>
+                            </Form>
+                             <Separator/>
                             <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                                 {order.notes && order.notes.length > 0 ? (
                                     order.notes.slice().reverse().map((note, index) => {
@@ -820,43 +823,6 @@ export default function AdminOrderDetailsPage() {
                                     <p className="text-xs text-muted-foreground text-center py-4">No notes for this order yet.</p>
                                 )}
                             </div>
-                            <Form {...noteForm}>
-                            <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4 pt-4">
-                                 <FormField
-                                    control={noteForm.control}
-                                    name="noteText"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <Textarea placeholder="Add a new note..." {...field} rows={2} />
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={noteForm.control}
-                                    name="attachments"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Attachments</FormLabel>
-                                            <FormControl>
-                                                <Input type="file" multiple onChange={(e) => field.onChange(e.target.files)} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <div className="flex gap-2">
-                                    <Button type="submit" size="sm" disabled={isLoading}>
-                                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-                                        Post Note
-                                    </Button>
-                                    <Button type="button" variant="outline" size="sm" onClick={handleProofread} disabled={isProofreading}>
-                                        {isProofreading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                                        Proofread
-                                    </Button>
-                                </div>
-                            </form>
-                            </Form>
                         </CardContent>
                     </Card>
 
@@ -878,29 +844,6 @@ export default function AdminOrderDetailsPage() {
                             </CardContent>
                         </Card>
                     )}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Quick Actions</CardTitle>
-                            <CardDescription>Send pre-made emails to the client.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                            <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('payment')}>
-                                <Phone className="mr-2 h-4 w-4" /> Follow Up On Payment
-                            </Button>
-                            <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('docs')}>
-                                <FileText className="mr-2 h-4 w-4" /> Request Documents
-                            </Button>
-                            <Separator className="my-2" />
-                            <EmailClientDialog order={order} user={null} allStaff={allStaff} onEmailSent={addEmailToHistory} contactEmail={contactEmail || ''} contactName={contactName || ''}/>
-                            <Separator className="my-2" />
-                            <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('review')}>
-                                <Star className="mr-2 h-4 w-4" /> Request a Review
-                            </Button>
-                            <Button variant="outline" className="w-full justify-start">
-                                <Percent className="mr-2 h-4 w-4" /> Generate 10% discount
-                            </Button>
-                        </CardContent>
-                    </Card>
                 </div>
             </div>
              {viewingBackendSummary && <BackendSummaryModal order={viewingBackendSummary} />}
@@ -908,3 +851,4 @@ export default function AdminOrderDetailsPage() {
     </Dialog>
   );
 }
+
