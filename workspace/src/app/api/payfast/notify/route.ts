@@ -1,8 +1,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, getDoc, collection, query, where, getDocs, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import crypto from 'crypto';
+import { ItnLog } from '@/lib/types';
 
 const db = getFirestore(firebaseApp);
 
@@ -41,6 +42,10 @@ function generateSignature(data: { [key: string]: any }, passphrase?: string): s
 }
 
 export async function POST(req: NextRequest) {
+  let log: Omit<ItnLog, 'receivedAt'>;
+  let orderId: string | null = null;
+  let orderDocId: string | null = null;
+  
   try {
     const formData = await req.formData();
     const data: { [key:string]: any } = {};
@@ -49,24 +54,40 @@ export async function POST(req: NextRequest) {
     });
 
     console.log('Received PayFast ITN:', data);
+    
+    orderId = data.m_payment_id;
+
+    if (!orderId) {
+      console.error('ITN Error: No m_payment_id found in the request.');
+      return new NextResponse('OK', { status: 200 }); // Still return 200 to prevent PayFast retries
+    }
+
+    // Find the order document ID
+    const ordersRef = collection(db, "orders");
+    const q = query(ordersRef, where("id", "==", orderId));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+        console.error(`Order ${orderId} not found in database.`);
+        // Can't log if we can't find the order.
+        return new NextResponse('OK', { status: 200 });
+    }
+    
+    orderDocId = querySnapshot.docs[0].id;
+    const orderRef = doc(db, 'orders', orderDocId);
 
     const receivedSignature = data.signature;
     const expectedSignature = generateSignature(data, process.env.PAYFAST_PASSPHRASE);
 
     if (receivedSignature !== expectedSignature) {
-        console.error('Signature mismatch on ITN');
-        console.error('Received:', receivedSignature);
-        console.error('Expected:', expectedSignature);
+        console.error('Signature mismatch on ITN for order:', orderId);
+        log = {
+            status: 'Failed',
+            message: `Signature mismatch. Received: ${receivedSignature}, Expected: ${expectedSignature}`,
+            payload: data,
+        };
+        await updateDoc(orderRef, { itnHistory: arrayUnion({ ...log, receivedAt: Timestamp.now() }) });
         return new NextResponse('Signature mismatch', { status: 400 });
-    }
-    
-    const orderId = data.m_payment_id;
-    const orderRef = doc(db, 'orders', orderId);
-    const orderSnap = await getDoc(orderRef);
-
-    if (!orderSnap.exists()) {
-        console.error(`Order ${orderId} not found in database.`);
-        return new NextResponse('Order not found', { status: 404 });
     }
     
     if (data.payment_status === 'COMPLETE') {
@@ -74,14 +95,40 @@ export async function POST(req: NextRequest) {
         status: 'Processing',
       });
       console.log(`Order ${orderId} updated to Processing.`);
-
+      log = {
+          status: 'Success',
+          message: `Order status updated to Processing.`,
+          payload: data,
+      };
     } else {
       console.log(`Payment for order ${orderId} not complete. Status: ${data.payment_status}`);
+      log = {
+            status: 'Failed',
+            message: `Payment status was "${data.payment_status}", not "COMPLETE". No status update performed.`,
+            payload: data,
+      };
     }
+    
+    await updateDoc(orderRef, { itnHistory: arrayUnion({ ...log, receivedAt: Timestamp.now() }) });
 
     return new NextResponse('OK', { status: 200 });
   } catch (error) {
     console.error('PayFast ITN Error:', error);
+    
+    if (orderDocId) {
+        log = {
+            status: 'Failed',
+            message: `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            payload: {},
+        };
+       try {
+            const orderRef = doc(db, 'orders', orderDocId);
+            await updateDoc(orderRef, { itnHistory: arrayUnion({ ...log, receivedAt: Timestamp.now() }) });
+       } catch (loggingError) {
+           console.error("Failed to log error to Firestore document:", loggingError);
+       }
+    }
+
     return new NextResponse('Error processing ITN', { status: 500 });
   }
 }
