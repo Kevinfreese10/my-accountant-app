@@ -965,7 +965,7 @@ export default function AdminDashboardPage() {
     }
 
     const getAuthor = (authorId: string): User | undefined => {
-        return allStaffAndClients.find(u => u.id === authorId);
+        return allStaffAndClients.find(u => u.uid === authorId || u.id === authorId);
     }
     
     const [aiSuggestions, setAiSuggestions] = useState<{[key: string]: any}>({});
@@ -1107,6 +1107,7 @@ export default function AdminDashboardPage() {
                                             const author = getAuthor(note.authorId);
                                             const noteId = note.orderId + note.date;
                                             const suggestion = aiSuggestions[noteId];
+                                            const date = note.date instanceof Date ? note.date : note.date.toDate();
 
                                             return (
                                                 <div key={index} className="flex items-start gap-3">
@@ -1123,7 +1124,7 @@ export default function AdminDashboardPage() {
                                                             "{note.text}"
                                                         </blockquote>
                                                         <p className="text-xs text-muted-foreground mt-1">
-                                                            {formatDistanceToNow(new Date(note.date), { addSuffix: true })}
+                                                            {formatDistanceToNow(date, { addSuffix: true })}
                                                         </p>
                                                         
                                                         {suggestion ? (

@@ -293,6 +293,7 @@ export default function ResellerDashboardPage() {
                             <div className="space-y-4">
                             {notifications.map((note, index) => {
                                 const author = getAuthor(note.authorId);
+                                const date = note.date instanceof Date ? note.date : note.date.toDate();
                                 return (
                                     <div key={index} className="flex items-start gap-3">
                                         <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
@@ -308,7 +309,7 @@ export default function ResellerDashboardPage() {
                                                 "{note.text}"
                                             </blockquote>
                                             <p className="text-xs text-muted-foreground mt-1">
-                                                {formatDistanceToNow(note.date.toDate(), { addSuffix: true })}
+                                                {formatDistanceToNow(date, { addSuffix: true })}
                                             </p>
                                         </div>
                                     </div>

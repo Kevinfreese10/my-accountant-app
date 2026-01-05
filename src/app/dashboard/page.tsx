@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Order, Service, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search, MessageSquare, Inbox } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -253,6 +253,7 @@ export default function DashboardPage() {
                             <div className="space-y-4">
                             {notifications.map((note, index) => {
                                 const author = getAuthor(note.authorId);
+                                const date = note.date instanceof Date ? note.date : note.date.toDate();
                                 return (
                                     <div key={index} className="flex items-start gap-3">
                                         <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
@@ -268,7 +269,7 @@ export default function DashboardPage() {
                                                 "{note.text}"
                                             </blockquote>
                                             <p className="text-xs text-muted-foreground mt-1">
-                                                {formatDistanceToNow(note.date.toDate(), { addSuffix: true })}
+                                                {formatDistanceToNow(date, { addSuffix: true })}
                                             </p>
                                         </div>
                                     </div>
