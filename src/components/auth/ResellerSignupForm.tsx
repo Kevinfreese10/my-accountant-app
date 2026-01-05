@@ -14,7 +14,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -160,6 +160,7 @@ export default function ResellerSignupForm() {
             uid: authUid,
             role: 'reseller',
             status: 'Active',
+            createdAt: serverTimestamp(),
             cvUrl: cvUrl,
             certificateUrl: certificateUrl,
         });
