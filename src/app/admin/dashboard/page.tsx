@@ -1021,29 +1021,18 @@ export default function AdminDashboardPage() {
         if (!suggestion || !suggestion.draftReply || !user) return;
         
         try {
-            const order = orders.find(o => o.id === note.orderId);
-            if (!order) return;
-
-            await sendEmail({
-                to: order.customerEmail,
-                subject: `Re: Order ${note.orderId}`,
-                html: suggestion.draftReply.replace(/\n/g, '<br/>'),
-                replyTo: user.email,
-            });
-
-            const emailNote: OrderNote = {
+            const newNote: OrderNote = {
                 text: suggestion.draftReply,
-                subject: `Re: Order ${note.orderId}`,
                 authorId: user.uid,
                 date: Timestamp.now(),
-                type: 'email',
+                type: 'note',
             };
-            const orderRef = doc(db, 'orders', order.id);
+            const orderRef = doc(db, 'orders', note.orderId);
             await updateDoc(orderRef, {
-                notes: arrayUnion(emailNote),
+                notes: arrayUnion(newNote),
             });
 
-            toast({ title: "Reply Sent!", description: "Your email has been sent to the client." });
+            toast({ title: "Reply Sent!", description: "Your note has been posted to the order." });
             
             setAiSuggestions(prev => {
                 const newSuggestions = { ...prev };
@@ -1052,7 +1041,7 @@ export default function AdminDashboardPage() {
             });
 
         } catch (e) {
-            toast({ title: "Failed to send email", variant: "destructive" });
+            toast({ title: "Failed to post note", variant: "destructive" });
         }
     }
 
@@ -1158,7 +1147,7 @@ export default function AdminDashboardPage() {
                                                                             {suggestion.draftReply ? (
                                                                                 <div className="w-full space-y-2">
                                                                                      <Textarea defaultValue={suggestion.draftReply} rows={4} className="text-xs"/>
-                                                                                     <Button size="sm" onClick={() => handleSendReply(note)}><SendIcon className="mr-2 h-4 w-4"/>Send</Button>
+                                                                                     <Button size="sm" onClick={() => handleSendReply(note)}><SendIcon className="mr-2 h-4 w-4"/>Post Note Reply</Button>
                                                                                 </div>
                                                                             ) : (
                                                                                 <Button size="sm" variant="outline" onClick={() => handleDraftReply(note)} disabled={draftingReply === noteId}>
