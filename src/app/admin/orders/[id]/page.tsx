@@ -377,7 +377,7 @@ export default function AdminOrderDetailsPage() {
       } else if (type === 'docs') {
           text += `This is a reminder to please upload the required documents for your order #${orderId} so that we can begin processing it.\n\n`;
       } else if (type === 'review') {
-          text += `We hope you were happy with our service for order #${orderId}. If you have a moment, we would greatly appreciate it if you could leave us a review on Google.\n\n`;
+          text += `We hope you were happy with our service for order #${orderId}. If you have a moment, we would greatly appreciate it if you could leave us a review on Google at the link below:\n\nhttps://g.page/r/CVIOzn2bYoiaEAE/review\n\n`;
       } else if (type === 'discount') {
           text += `As a token of our appreciation for your business, here is a 10% discount code for your next order: WELCOME10\n\n`;
       }
