@@ -4,9 +4,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Order, Service, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search, MessageSquare, Inbox } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search, MessageSquare, Inbox, Archive } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -59,6 +59,20 @@ export default function DashboardPage() {
     const { toast } = useToast();
     const router = useRouter();
     const [searchTerm, setSearchTerm] = useState('');
+    const [archivedNotifications, setArchivedNotifications] = useState<string[]>([]);
+
+    useEffect(() => {
+        const storedArchived = localStorage.getItem('archivedNotifications-client');
+        if (storedArchived) {
+            setArchivedNotifications(JSON.parse(storedArchived));
+        }
+    }, []);
+
+    const archiveNotification = (noteId: string) => {
+        const newArchived = [...archivedNotifications, noteId];
+        setArchivedNotifications(newArchived);
+        localStorage.setItem('archivedNotifications-client', JSON.stringify(newArchived));
+    };
 
     const monthlyPackages = [
         {
@@ -261,9 +275,10 @@ export default function DashboardPage() {
                         notifications.length > 0 ? (
                         <ScrollArea className="h-72">
                             <div className="space-y-4">
-                            {notifications.map((note, index) => {
+                            {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
                                 const author = getAuthor(note.authorId);
                                 const date = note.date;
+                                const noteId = note.orderId + date.toISOString();
                                 return (
                                     <div key={index} className="flex items-start gap-3">
                                         <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
@@ -278,9 +293,14 @@ export default function DashboardPage() {
                                             <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
                                                 "{note.text}"
                                             </blockquote>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                {formatDistanceToNow(date, { addSuffix: true })}
-                                            </p>
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    {formatDistanceToNow(date, { addSuffix: true })}
+                                                </p>
+                                                <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
+                                                    <Archive className="mr-2 h-4 w-4"/> Archive
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 )

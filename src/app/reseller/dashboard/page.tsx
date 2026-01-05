@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive } from 'lucide-react';
 import Image from 'next/image';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Order, Service, User, OrderNote } from '@/lib/types';
@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderForm';
@@ -50,6 +50,20 @@ export default function ResellerDashboardPage() {
     const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const staffCounters = useRef<{ [key: string]: number }>({});
+    const [archivedNotifications, setArchivedNotifications] = useState<string[]>([]);
+
+    useEffect(() => {
+        const storedArchived = localStorage.getItem('archivedNotifications-reseller');
+        if (storedArchived) {
+            setArchivedNotifications(JSON.parse(storedArchived));
+        }
+    }, []);
+
+    const archiveNotification = (noteId: string) => {
+        const newArchived = [...archivedNotifications, noteId];
+        setArchivedNotifications(newArchived);
+        localStorage.setItem('archivedNotifications-reseller', JSON.stringify(newArchived));
+    };
     
     const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
 
@@ -129,13 +143,14 @@ export default function ResellerDashboardPage() {
             .filter(note => note.authorId !== user.id && note.type === 'note') // Only show notes from others
             .map(note => ({
               ...note,
+              date: note.date instanceof Date ? note.date : note.date.toDate(),
               orderId: order.id,
               orderTitle: order.items[0]?.title || 'Untitled Order',
               customerName: order.customerName,
             }));
           allNotes.push(...notes);
         });
-        return allNotes.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
+        return allNotes.sort((a, b) => b.date.getTime() - a.date.getTime());
     }, [outsourcedOrders, user]);
 
     const getAuthor = (authorId: string): User | undefined => {
@@ -270,6 +285,7 @@ export default function ResellerDashboardPage() {
         fetchOrdersAndStaff();
     };
 
+    const latestNews = blogPosts.slice(0, 3);
     const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
     const activeOutsourcedOrders = outsourcedOrders.filter(o => o.status !== 'Pending Payment');
 
@@ -291,9 +307,10 @@ export default function ResellerDashboardPage() {
                         notifications.length > 0 ? (
                         <ScrollArea className="h-72">
                             <div className="space-y-4">
-                            {notifications.map((note, index) => {
+                            {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
                                 const author = getAuthor(note.authorId);
                                 const date = note.date instanceof Date ? note.date : note.date.toDate();
+                                const noteId = note.orderId + date.toISOString();
                                 return (
                                     <div key={index} className="flex items-start gap-3">
                                         <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
@@ -308,9 +325,14 @@ export default function ResellerDashboardPage() {
                                             <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
                                                 "{note.text}"
                                             </blockquote>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                {formatDistanceToNow(date, { addSuffix: true })}
-                                            </p>
+                                             <div className="flex items-center justify-between">
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    {formatDistanceToNow(date, { addSuffix: true })}
+                                                </p>
+                                                <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
+                                                    <Archive className="mr-2 h-4 w-4"/> Archive
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 )
