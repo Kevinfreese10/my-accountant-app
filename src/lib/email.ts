@@ -24,16 +24,16 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
   let fromAddress: string;
   let transportConfig: any;
 
-  // Use hardcoded system default
+  // Use system environment variables for SMTP
   const systemSmtpConfig = {
-    host: 'mail.myacc.co.za',
-    port: '465',
-    user: 'info@myacc.co.za',
-    pass: 'Thinkestry10$',
+    host: process.env.SMTP_HOST || 'mail.myacc.co.za',
+    port: process.env.SMTP_PORT || '465',
+    user: process.env.SMTP_USER || 'info@myacc.co.za',
+    pass: process.env.SMTP_PASS, // This should be set in your environment variables
   };
   
   if (!systemSmtpConfig.host || !systemSmtpConfig.port || !systemSmtpConfig.user || !systemSmtpConfig.pass) {
-      console.error('Default SMTP configuration is missing.');
+      console.error('SMTP configuration is missing from environment variables.');
       throw new Error('Email server is not configured.');
   }
 
