@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Users, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server, Paperclip } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Users, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server, Paperclip, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -32,6 +32,7 @@ import PaymentFollowUpEmail from '@/components/emails/PaymentFollowUpEmail';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { sendDocumentReviewFeedback } from '@/app/actions';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { proofreadNote } from '@/ai/flows/proofread-note';
 
 
 const db = getFirestore(firebaseApp);
@@ -230,6 +231,7 @@ export default function AdminOrderDetailsPage() {
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [viewingBackendSummary, setViewingBackendSummary] = useState<Order | null>(null);
+  const [isProofreading, setIsProofreading] = useState(false);
   
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [documentToReject, setDocumentToReject] = useState<DocumentUpload | null>(null);
@@ -367,6 +369,25 @@ export default function AdminOrderDetailsPage() {
     }
   };
 
+  const handleProofread = async () => {
+    const currentNote = noteForm.getValues('noteText');
+    if (!currentNote || currentNote.trim().length < 10) {
+      toast({ title: "Not enough text", description: "Please write a longer note to proofread.", variant: "destructive" });
+      return;
+    }
+    setIsProofreading(true);
+    try {
+      const result = await proofreadNote({ text: currentNote });
+      noteForm.setValue('noteText', result.proofreadText);
+      toast({ title: "Note Proofread", description: "Your note has been improved by AI." });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Proofreading Failed", variant: "destructive" });
+    } finally {
+      setIsProofreading(false);
+    }
+  };
+
   const addEmailToHistory = async (subject: string, message: string) => {
     if (!currentUser || !order) return;
 
@@ -395,7 +416,7 @@ export default function AdminOrderDetailsPage() {
     if (!order) return;
     const updatedUploads = (order.documentUploads || []).map(doc => {
       if (doc.fileUrl === fileUrlOrTextValue || doc.textValue === fileUrlOrTextValue) {
-        return { ...doc, status, rejectionReason: reason || '' };
+        return { ...doc, status, rejectionReason: reason || null };
       }
       return doc;
     });
@@ -812,10 +833,16 @@ export default function AdminOrderDetailsPage() {
                                         </FormItem>
                                     )}
                                 />
-                                <Button type="submit" size="sm" disabled={isLoading}>
-                                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-                                    Post Note
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button type="submit" size="sm" disabled={isLoading}>
+                                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                                        Post Note
+                                    </Button>
+                                    <Button type="button" variant="outline" size="sm" onClick={handleProofread} disabled={isProofreading}>
+                                        {isProofreading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                                        Proofread
+                                    </Button>
+                                </div>
                             </form>
                             </Form>
                         </CardContent>
