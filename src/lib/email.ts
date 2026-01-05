@@ -26,10 +26,10 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
 
   // Use system environment variables for SMTP
   const systemSmtpConfig = {
-    host: process.env.SMTP_HOST || 'mail.myacc.co.za',
-    port: process.env.SMTP_PORT || '465',
-    user: process.env.SMTP_USER || 'info@myacc.co.za',
-    pass: process.env.SMTP_PASS, // This should be set in your environment variables
+    host: 'mail.myacc.co.za',
+    port: '465',
+    user: 'info@myacc.co.za',
+    pass: 'Thinkestry10$', // This should be set in your environment variables
   };
   
   if (!systemSmtpConfig.host || !systemSmtpConfig.port || !systemSmtpConfig.user || !systemSmtpConfig.pass) {
