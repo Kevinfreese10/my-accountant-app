@@ -2,11 +2,11 @@
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Order, Service, User } from '@/lib/types';
+import { Order, Service, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search, MessageSquare, Inbox } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -17,7 +17,10 @@ import { useToast } from '@/hooks/use-toast';
 import { getNextOrderId } from '@/lib/sequence';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
-
+import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
+import Image from 'next/image';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const db = getFirestore(firebaseApp);
 
@@ -33,11 +36,22 @@ const formatPrice = (price: number) => {
     return `R ${price.toLocaleString('en-US')}`;
 };
 
+const userColors = [
+  'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
+  'bg-yellow-200 text-yellow-800', 'bg-purple-200 text-purple-800', 'bg-pink-200 text-pink-800',
+];
+
+const getUserColor = (userId: string) => {
+  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return userColors[hash % userColors.length];
+};
 
 export default function DashboardPage() {
     const { user } = useAuth();
     const [services, setServices] = useState<Service[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
+    const [orders, setOrders] = useState<Order[]>([]);
+    const [allStaff, setAllStaff] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [viewingService, setViewingService] = useState<Service | null>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -90,22 +104,63 @@ export default function DashboardPage() {
     ];
 
     useEffect(() => {
+        setIsLoading(true);
+
         const servicesUnsubscribe = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snapshot) => {
-            const fetchedServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
-            setServices(fetchedServices);
-            setIsLoading(false);
+            setServices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service)));
         });
         
         const categoriesUnsubscribe = onSnapshot(query(collection(db, 'categories'), orderBy('order')), (snapshot) => {
-            const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
-            setCategories(fetchedCategories);
+            setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category)));
         });
 
-        return () => {
-        servicesUnsubscribe();
-        categoriesUnsubscribe();
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffUnsubscribe = onSnapshot(staffQuery, (snapshot) => {
+            setAllStaff(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User)));
+        });
+
+        let ordersUnsubscribe = () => {};
+        if (user) {
+            const ordersQuery = query(collection(db, 'orders'), where('userId', '==', user.uid), orderBy('date', 'desc'));
+            ordersUnsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+                setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order)));
+                setIsLoading(false);
+            }, (error) => {
+                console.error("Error fetching orders:", error);
+                setIsLoading(false);
+            });
+        } else {
+            setIsLoading(false);
         }
-    }, []);
+
+        return () => {
+            servicesUnsubscribe();
+            categoriesUnsubscribe();
+            staffUnsubscribe();
+            ordersUnsubscribe();
+        }
+    }, [user]);
+
+    const notifications = useMemo(() => {
+        if (!user || orders.length === 0) return [];
+        let allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
+        orders.forEach(order => {
+          const notes = (order.notes || [])
+            .filter(note => note.authorId !== user.id && note.type === 'note') // Only show notes from others
+            .map(note => ({
+              ...note,
+              orderId: order.id,
+              orderTitle: order.items[0]?.title || 'Untitled Order',
+              customerName: order.customerName,
+            }));
+          allNotes.push(...notes);
+        });
+        return allNotes.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
+      }, [orders, user]);
+
+    const getAuthor = (authorId: string): User | undefined => {
+        return allStaff.find(u => u.id === authorId);
+    }
 
     const handleBuyNow = async (service: Service) => {
         if (!user) {
@@ -185,6 +240,52 @@ export default function DashboardPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
                     <p className="text-muted-foreground">Here's a summary of your recent activity and available services.</p>
                 </div>
+                
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Notifications</CardTitle>
+                        <CardDescription>Recent notes on your orders from our team.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin"/></div> :
+                        notifications.length > 0 ? (
+                        <ScrollArea className="h-72">
+                            <div className="space-y-4">
+                            {notifications.map((note, index) => {
+                                const author = getAuthor(note.authorId);
+                                return (
+                                    <div key={index} className="flex items-start gap-3">
+                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
+                                            {author?.name.charAt(0) || 'U'}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm">
+                                                <span className="font-semibold">{author?.name || 'Unknown User'}</span>
+                                                <span className="text-muted-foreground"> left a note on order </span>
+                                                <Link href={`/dashboard/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                            </p>
+                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
+                                                "{note.text}"
+                                            </blockquote>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                {formatDistanceToNow(note.date.toDate(), { addSuffix: true })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                            </div>
+                        </ScrollArea>
+                        ) : (
+                        <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
+                            <Inbox className="h-12 w-12 mb-4"/>
+                            <p className="font-semibold">All caught up!</p>
+                            <p className="text-sm">You have no new notifications.</p>
+                        </div>
+                        )}
+                    </CardContent>
+                </Card>
+
 
                 <section id="packages">
                     <div className="space-y-8">

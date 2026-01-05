@@ -5,12 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox } from 'lucide-react';
 import Image from 'next/image';
-import { format } from 'date-fns';
-import { Order, Service, User } from '@/lib/types';
-import { useState, useEffect, useRef } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { format, formatDistanceToNow } from 'date-fns';
+import { Order, Service, User, OrderNote } from '@/lib/types';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -24,8 +24,20 @@ import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderFo
 import CommunityQnA from '@/components/reseller/CommunityQnA';
 import { useRouter } from 'next/navigation';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
+
+const userColors = [
+  'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
+  'bg-yellow-200 text-yellow-800', 'bg-purple-200 text-purple-800', 'bg-pink-200 text-pink-800',
+];
+
+const getUserColor = (userId: string) => {
+  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return userColors[hash % userColors.length];
+};
 
 export default function ResellerDashboardPage() {
     const { user } = useAuth();
@@ -35,9 +47,7 @@ export default function ResellerDashboardPage() {
     const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
-    const [isOutsourceModalOpen, setIsOutsourceModalOpen] = useState(false);
     const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
-    const [outsourcedOrderDetails, setOutsourcedOrderDetails] = useState<Order | null>(null);
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const staffCounters = useRef<{ [key: string]: number }>({});
     
@@ -111,6 +121,27 @@ export default function ResellerDashboardPage() {
     }
   }, [user, toast]);
 
+    const notifications = useMemo(() => {
+        if (!user || outsourcedOrders.length === 0) return [];
+        let allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
+        outsourcedOrders.forEach(order => {
+          const notes = (order.notes || [])
+            .filter(note => note.authorId !== user.id && note.type === 'note') // Only show notes from others
+            .map(note => ({
+              ...note,
+              orderId: order.id,
+              orderTitle: order.items[0]?.title || 'Untitled Order',
+              customerName: order.customerName,
+            }));
+          allNotes.push(...notes);
+        });
+        return allNotes.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
+    }, [outsourcedOrders, user]);
+
+    const getAuthor = (authorId: string): User | undefined => {
+        return allStaff.find(u => u.id === authorId);
+    }
+
     const handleOutsource = async (orderToOutsource: Order) => {
         if (!user) return;
         
@@ -163,7 +194,6 @@ export default function ResellerDashboardPage() {
     
             fetchOrdersAndStaff();
             
-            setOutsourcedOrderDetails(newOrderData as Order);
             router.push(`/order-confirmation/${newOrderId}`);
     
         } catch (error) {
@@ -249,52 +279,56 @@ export default function ResellerDashboardPage() {
                 <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.contactPerson}!</h1>
                 <p className="text-lg text-muted-foreground">{user?.companyName}</p>
             </div>
-
-            <section>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Latest News</CardTitle>
-                        <CardDescription>Stay up-to-date with the latest tax tips and articles.</CardDescription>
+                        <CardTitle>Notifications</CardTitle>
+                        <CardDescription>Recent notes from My Accountant on your outsourced orders.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {isBlogLoading ? (
-                            <div className="flex justify-center items-center h-40">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        {isLoading ? <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin"/></div> :
+                        notifications.length > 0 ? (
+                        <ScrollArea className="h-72">
+                            <div className="space-y-4">
+                            {notifications.map((note, index) => {
+                                const author = getAuthor(note.authorId);
+                                return (
+                                    <div key={index} className="flex items-start gap-3">
+                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
+                                            {author?.name.charAt(0) || 'U'}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm">
+                                                <span className="font-semibold">{author?.name || 'Unknown User'}</span>
+                                                <span className="text-muted-foreground"> left a note on order </span>
+                                                <Link href={`/reseller/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                            </p>
+                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
+                                                "{note.text}"
+                                            </blockquote>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                {formatDistanceToNow(note.date.toDate(), { addSuffix: true })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )
+                            })}
                             </div>
+                        </ScrollArea>
                         ) : (
-                            <Carousel opts={{ align: "start", loop: true }} className="w-full">
-                                <CarouselContent>
-                                    {blogPosts.map(post => (
-                                        <CarouselItem key={post.id} className="md:basis-1/2 lg:basis-1/3">
-                                            <div className="p-1">
-                                                <div className="group">
-                                                    <Link href={`/blog/${post.slug}`} className="block">
-                                                        <div className="relative h-40 w-full overflow-hidden rounded-lg">
-                                                            <Image
-                                                                src={post.imageUrl}
-                                                                alt={post.title}
-                                                                fill
-                                                                className="object-cover transition-transform duration-300 group-hover:scale-105"
-                                                                data-ai-hint={post.imageHint}
-                                                            />
-                                                        </div>
-                                                        <div className="mt-3">
-                                                            <p className="text-sm font-semibold group-hover:text-primary">{post.title}</p>
-                                                            <p className="text-xs text-muted-foreground">{format(new Date(post.date), 'dd/MM/yyyy')}</p>
-                                                        </div>
-                                                    </Link>
-                                                </div>
-                                            </div>
-                                        </CarouselItem>
-                                    ))}
-                                </CarouselContent>
-                                <CarouselPrevious />
-                                <CarouselNext />
-                            </Carousel>
+                        <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
+                            <Inbox className="h-12 w-12 mb-4"/>
+                            <p className="font-semibold">All caught up!</p>
+                            <p className="text-sm">You have no new notifications.</p>
+                        </div>
                         )}
                     </CardContent>
                 </Card>
-            </section>
+                <section>
+                  <CommunityQnA />
+                </section>
+            </div>
       
         </div>
     );
