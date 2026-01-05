@@ -8,25 +8,16 @@ const Footer = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             
-            <div className="space-y-4">
-                 <Link href="/" className="text-lg font-bold text-primary">My Accountant</Link>
-                <p className="text-sm text-muted-foreground">
-                Your trusted partner in accounting and tax services.
-                </p>
-                <div className="flex gap-4">
-                    <Link href="#" className="text-muted-foreground transition-colors hover:text-primary">
-                    <Facebook className="h-5 w-5" />
-                    <span className="sr-only">Facebook</span>
-                    </Link>
-                    <Link href="#" className="text-muted-foreground transition-colors hover:text-primary">
-                    <Twitter className="h-5 w-5" />
-                    <span className="sr-only">Twitter</span>
-                    </Link>
-                    <Link href="#" className="text-muted-foreground transition-colors hover:text-primary">
-                    <Linkedin className="h-5 w-5" />
-                    <span className="sr-only">LinkedIn</span>
-                    </Link>
-                </div>
+            <div>
+                <iframe
+                    src="https://www.google.com/maps?q=W263+P6+Randburg&output=embed"
+                    width="100%"
+                    height="200"
+                    style={{ border: 0 }}
+                    allowFullScreen={false}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                ></iframe>
             </div>
 
             <div className="space-y-3">
@@ -43,17 +34,6 @@ const Footer = () => {
                      <div className="flex items-center gap-3">
                         <Phone className="h-4 w-4" />
                         <a href="tel:0101091625" className="hover:text-primary">010 109 1625</a>
-                    </div>
-                    <div className="mt-4">
-                        <iframe
-                            src="https://www.google.com/maps?q=W263+P6+Randburg&output=embed"
-                            width="100%"
-                            height="200"
-                            style={{ border: 0 }}
-                            allowFullScreen={false}
-                            loading="lazy"
-                            referrerPolicy="no-referrer-when-downgrade"
-                        ></iframe>
                     </div>
                 </div>
             </div>
