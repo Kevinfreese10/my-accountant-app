@@ -269,7 +269,7 @@ export default function AdminOrderDetailsPage() {
             ...data,
             id: docSnap.id,
             date: data.date?.toDate ? data.date.toDate().toISOString() : new Date().toISOString(),
-            notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate().toISOString() : new Date().toISOString()})),
+            notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate() : new Date(note.date)})),
             documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt?.toDate ? doc.uploadedAt.toDate().toISOString() : new Date().toISOString()})),
             itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt?.toDate ? log.receivedAt.toDate().toISOString() : new Date().toISOString() })),
           } as Order;
@@ -318,8 +318,8 @@ export default function AdminOrderDetailsPage() {
     noteForm.control.getFieldState('noteText').isDirty
     
     setIsLoading(true);
-    let attachmentUrl = '';
-    let attachmentName = '';
+    let attachmentUrl: string | null = null;
+    let attachmentName: string | null = null;
     const file = values.attachment?.[0];
 
     if (file) {
@@ -345,8 +345,9 @@ export default function AdminOrderDetailsPage() {
       authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'note',
-      attachmentUrl: attachmentUrl || undefined,
-      attachmentName: attachmentName || undefined,
+      subject: null,
+      attachmentUrl: attachmentUrl,
+      attachmentName: attachmentName,
     };
 
     try {
@@ -375,6 +376,8 @@ export default function AdminOrderDetailsPage() {
       authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'email',
+      attachmentUrl: null,
+      attachmentName: null,
     };
 
     try {
@@ -439,10 +442,7 @@ export default function AdminOrderDetailsPage() {
   };
   
   const getAuthor = (authorId: string): User | undefined => {
-    const staffMember = allStaff.find(u => u.uid === authorId);
-    if(staffMember) return staffMember;
-    if(currentUser?.uid === authorId) return currentUser;
-    return undefined;
+    return allStaff.find(u => u.uid === authorId || u.id === authorId);
   }
 
   const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {

@@ -112,6 +112,9 @@ export default function ResellerOrderDetailsPage() {
       authorId: currentUser.id,
       date: Timestamp.now(),
       type: 'note',
+      subject: null,
+      attachmentUrl: null,
+      attachmentName: null,
     };
 
     try {
@@ -138,6 +141,8 @@ export default function ResellerOrderDetailsPage() {
       authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'email',
+      attachmentUrl: null,
+      attachmentName: null,
     };
 
     try {
@@ -152,7 +157,7 @@ export default function ResellerOrderDetailsPage() {
   };
   
    const getAuthor = (authorId: string): User | undefined => {
-    return allStaff.find(u => u.uid === authorId);
+    return allStaff.find(u => u.uid === authorId || u.id === authorId);
   }
 
    const getStatusVariant = (status: Order['status']) => {

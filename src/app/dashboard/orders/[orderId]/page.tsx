@@ -84,7 +84,7 @@ export default function ClientOrderDetailsPage() {
             ...data,
             id: docSnap.id,
             date: data.date?.toDate ? data.date.toDate().toISOString() : new Date().toISOString(),
-            notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate().toISOString() : new Date().toISOString()})),
+            notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate() : new Date(note.date)})),
             documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt?.toDate ? doc.uploadedAt.toDate().toISOString() : new Date().toISOString()})),
           } as Order);
         } else {
@@ -193,8 +193,8 @@ export default function ClientOrderDetailsPage() {
     if (!currentUser || !order) return;
 
     setIsSubmitting(true);
-    let attachmentUrl = '';
-    let attachmentName = '';
+    let attachmentUrl: string | null = null;
+    let attachmentName: string | null = null;
     const file = values.attachment?.[0];
 
     if (file) {
@@ -220,8 +220,9 @@ export default function ClientOrderDetailsPage() {
       authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'note',
-      attachmentUrl: attachmentUrl || undefined,
-      attachmentName: attachmentName || undefined,
+      subject: null,
+      attachmentUrl: attachmentUrl,
+      attachmentName: attachmentName,
     };
 
     try {
@@ -262,6 +263,9 @@ export default function ClientOrderDetailsPage() {
       authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'note',
+      subject: null,
+      attachmentUrl: null,
+      attachmentName: null,
     };
 
     try {
@@ -302,7 +306,7 @@ export default function ClientOrderDetailsPage() {
 
   const getAuthor = (authorId: string): User | undefined => {
     if (currentUser?.uid === authorId) return currentUser;
-    return allStaff.find(u => u.uid === authorId);
+    return allStaff.find(u => u.uid === authorId || u.id === authorId);
   }
   
   if (isLoading) {
@@ -483,12 +487,12 @@ export default function ClientOrderDetailsPage() {
                             )}
                         </div>
                          <Form {...noteForm}>
-                          <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4 pt-4">
+                          <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="flex items-start gap-2 pt-4">
                             <FormField
                               control={noteForm.control}
                               name="noteText"
                               render={({ field }) => (
-                                <FormItem>
+                                <FormItem className="flex-grow">
                                   <Textarea placeholder="Add a new note..." {...field} rows={2} />
                                   <FormMessage />
                                 </FormItem>
@@ -506,9 +510,8 @@ export default function ClientOrderDetailsPage() {
                                     </FormItem>
                                 )}
                             />
-                            <Button type="submit" size="sm" disabled={isSubmitting}>
-                                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-                                Post Note
+                            <Button type="submit" size="icon" className="flex-shrink-0 mt-1">
+                              <Send className="h-4 w-4" />
                             </Button>
                           </form>
                         </Form>
