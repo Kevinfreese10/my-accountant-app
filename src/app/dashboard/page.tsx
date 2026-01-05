@@ -16,6 +16,7 @@ import ServicePreview from '@/components/admin/ServicePreview';
 import { useToast } from '@/hooks/use-toast';
 import { getNextOrderId } from '@/lib/sequence';
 import { Input } from '@/components/ui/input';
+import { useRouter } from 'next/navigation';
 
 
 const db = getFirestore(firebaseApp);
@@ -133,6 +134,7 @@ export default function DashboardPage() {
             };
 
             await setDoc(doc(db, 'orders', orderId), orderData);
+            
             router.push(`/order-confirmation/${orderId}`);
 
         } catch (error) {
@@ -315,5 +317,3 @@ export default function DashboardPage() {
         </>
     );
 }
-
-    
