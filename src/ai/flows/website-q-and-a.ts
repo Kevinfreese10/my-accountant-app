@@ -87,6 +87,13 @@ export async function websiteQAndA(
   const popiaPolicyContent = `
     POPIA Compliance: My Accountant is committed to safeguarding personal information in line with POPIA. We process information lawfully and for legitimate business purposes. We do not sell personal information. Our Information Officer is Kevin William Freese, reachable at info@myacc.co.za.
   `;
+  
+  const footerContent = `
+    CONTACT INFORMATION:
+    - Address: 369 Oak Avenue, Ferndale, Randburg
+    - Email: info@myacc.co.za
+    - Phone: 010 109 1625
+  `;
 
   // Serialize the website content to pass to the prompt
   const websiteContent = `
@@ -119,6 +126,9 @@ export async function websiteQAndA(
 
     PRIVACY (POPIA) POLICY:
     ${popiaPolicyContent}
+
+    CONTACT AND FOOTER:
+    ${footerContent}
   `;
 
   const prompt = ai.definePrompt({
@@ -133,10 +143,10 @@ export async function websiteQAndA(
 
     If the user's question is about a specific service, you MUST provide the 'serviceUrl' for that service in your response. The service URL must exactly match the URL provided in the context for that service.
     
-    CRITICAL INSTRUCTION: If the user asks a question about a specific service (e.g., "What is VAT Registration?"), your response MUST be in the following format: "The [Service Name] service costs [Price] and takes approximately [Turnaround Time] to complete. For more info click on the link below."
+    CRITICAL INSTRUCTION: If the user asks a question about a specific service (e.g., "What is VAT Registration?"), your response MUST ONLY contain the price and the turnaround time for that service. Do NOT include any other information like prerequisites or descriptions.
     
-    For example, if the user asks "How much for NPO Registration?", and the price is R1200 and time is 90 working days, a good response would be:
-    "The NPO Registration service costs R1200 and takes approximately 90 working days to complete. For more info click on the link below."
+    For example, if the user asks "What is VAT Registration?", a good response would be:
+    "The VAT Registration service costs R1400 and takes 7-10 working days."
 
     If you are completely unable to answer, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can call us on 010 109 1625 during office hours or email us at info@myacc.co.za for assistance."
     
