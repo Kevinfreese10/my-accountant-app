@@ -1,10 +1,11 @@
 
+
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Order, Service, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search, MessageSquare, Inbox, Archive } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -290,9 +291,7 @@ export default function DashboardPage() {
                                                 <span className="text-muted-foreground"> left a note on order </span>
                                                 <Link href={`/dashboard/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
                                             </p>
-                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
-                                                "{note.text}"
-                                            </blockquote>
+                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
                                             <div className="flex items-center justify-between">
                                                 <p className="text-xs text-muted-foreground mt-1">
                                                     {formatDistanceToNow(date, { addSuffix: true })}
