@@ -5,11 +5,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format, isPast, addDays, isWithinInterval, startOfToday, addMonths, addYears } from 'date-fns';
-import { Task, User, TaskComment } from '@/lib/types';
+import { format, isPast, addDays, isWithinInterval, startOfToday, addMonths, addYears, formatDistanceToNow } from 'date-fns';
+import { Task, User, TaskComment, Order, OrderNote } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, BrainCircuit, Check, Tag, Eye } from 'lucide-react';
+import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, BrainCircuit, Check, Tag, Eye, Inbox } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -629,7 +629,8 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
 export default function AdminDashboardPage() {
     const { user } = useAuth();
     const [tasks, setTasks] = useState<Task[]>([]);
-    const [allStaff, setAllStaff] = useState<User[]>([]);
+    const [orders, setOrders] = useState<Order[]>([]);
+    const [allStaffAndClients, setAllStaffAndClients] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [isViewOpen, setIsViewOpen] = useState(false);
@@ -638,42 +639,54 @@ export default function AdminDashboardPage() {
     const [automatedTaskFilter, setAutomatedTaskFilter] = useState('all');
     const [upcomingAutomatedTaskFilter, setUpcomingAutomatedTaskFilter] = useState('all');
     const { toast } = useToast();
-
+    
     useEffect(() => {
         setIsLoading(true);
-        // Fetch staff first
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
-        getDocs(staffQuery).then(staffSnapshot => {
-            const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
-            setAllStaff(fetchedStaff);
+        // Fetch all users (staff, admins, clients)
+        const usersQuery = query(collection(db, "users"));
+        getDocs(usersQuery).then(usersSnapshot => {
+            const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+            setAllStaffAndClients(fetchedUsers);
         }).catch(error => {
-            console.error("Error fetching staff:", error);
-            toast({ title: "Error", description: "Could not fetch staff data.", variant: "destructive" });
+            console.error("Error fetching users:", error);
+            toast({ title: "Error", description: "Could not fetch user data.", variant: "destructive" });
         });
 
         // Set up real-time listener for tasks
         const tasksQuery = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
-        const unsubscribe = onSnapshot(tasksQuery, (snapshot) => {
+        const tasksUnsubscribe = onSnapshot(tasksQuery, (snapshot) => {
             const fetchedTasks = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
             setTasks(fetchedTasks);
-            setIsLoading(false);
+            if (isLoading) setIsLoading(false);
         }, (error) => {
             console.error("Error fetching tasks in real-time:", error);
             toast({ title: "Error", description: "Could not fetch tasks data.", variant: "destructive" });
-            setIsLoading(false);
+            if (isLoading) setIsLoading(false);
         });
 
-        return () => unsubscribe(); // Cleanup listener on component unmount
+        // Set up real-time listener for orders
+        const ordersQuery = query(collection(db, 'orders'), orderBy('date', 'desc'));
+        const ordersUnsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+            const fetchedOrders = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order));
+            setOrders(fetchedOrders);
+        }, (error) => {
+            console.error("Error fetching orders in real-time:", error);
+        });
+
+        return () => {
+            tasksUnsubscribe();
+            ordersUnsubscribe();
+        };
     }, [toast]);
 
 
     const staffByDept = useMemo(() => {
         const result: Record<string, User[]> = {};
         departments.forEach(dept => {
-            result[dept] = allStaff.filter(u => u.department === dept);
+            result[dept] = allStaffAndClients.filter(u => u.department === dept && (u.role === 'staff' || u.role === 'admin'));
         });
         return result;
-    }, [allStaff]);
+    }, [allStaffAndClients]);
 
     const taskTypes = useMemo(() => {
         const types = new Set(tasks.filter(task => task.recurrence && task.recurrence !== 'None').map(task => {
@@ -686,6 +699,30 @@ export default function AdminDashboardPage() {
         }));
         return ['All Tasks', ...Array.from(types)];
     }, [tasks]);
+
+    const notifications = useMemo(() => {
+        if (!user || orders.length === 0) return [];
+    
+        const assignedOrders = orders.filter(order => order.assignedTo?.includes(user.id));
+        
+        let allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
+    
+        assignedOrders.forEach(order => {
+          const notes = (order.notes || [])
+            .filter(note => note.authorId !== user.id && note.type === 'note') // Only show notes from others
+            .map(note => ({
+              ...note,
+              orderId: order.id,
+              orderTitle: order.items[0]?.title || 'Untitled Order',
+              customerName: order.customerName,
+            }));
+          allNotes.push(...notes);
+        });
+        
+        // Sort notes by date, most recent first
+        return allNotes.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
+    
+      }, [orders, user]);
 
     const myTasks = useMemo(() => {
         if (!user) return [];
@@ -714,20 +751,17 @@ export default function AdminDashboardPage() {
             .sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
 
     }, [tasks, upcomingAutomatedTaskFilter]);
-
+    
     const departmentTasks = useMemo(() => {
         if (user?.role !== 'admin') return [];
         
         const deptTasks = tasks.filter(task => {
             if (task.status === 'Done' || !task.clientId) return false;
-
-            // Only include tasks associated with a client
             return true;
         });
         
         return deptTasks.sort((a, b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks, user]);
-
 
     const automatedTasks = useMemo(() => {
         return tasks.filter(task => task.recurrence && task.recurrence !== 'None' && task.status !== 'Done');
@@ -740,7 +774,6 @@ export default function AdminDashboardPage() {
             (task.assignedTo.includes(user.id) || (user.role === 'admin' && task.createdBy === 'system'))
         );
     }, [tasks, user]);
-
 
     const handleAdd = () => {
         setSelectedTask(null);
@@ -864,27 +897,7 @@ export default function AdminDashboardPage() {
                 // Send email notifications
                 for (const assigneeId of data.assignedTo) {
                     if (assigneeId !== user.id) { // Don't email the user who created the task
-                        const assignee = allStaff.find(s => s.id === assigneeId);
-                        // if (assignee?.email) {
-                        //     try {
-                        //         const emailHtml = render(<NewTaskEmail 
-                        //             assigneeName={assignee.name.split(' ')[0]}
-                        //             taskTitle={data.title}
-                        //             taskDescription={data.description}
-                        //             dueDate={format(data.dueDate, 'dd/MM/yyyy')}
-                        //             assignedBy={user.name}
-                        //             taskUrl={`${window.location.origin}/admin/dashboard`}
-                        //         />);
-                        //         await sendEmail({
-                        //             to: assignee.email,
-                        //             subject: `New Task Assigned: ${data.title}`,
-                        //             html: emailHtml,
-                        //         });
-                        //     } catch (emailError) {
-                        //         console.error(`Failed to send email to ${assignee.email}:`, emailError);
-                        //         // Non-blocking, so we just log the error
-                        //     }
-                        // }
+                        const assignee = allStaffAndClients.find(s => s.id === assigneeId);
                     }
                 }
             }
@@ -949,6 +962,10 @@ export default function AdminDashboardPage() {
         }
     }
 
+    const getAuthor = (authorId: string): User | undefined => {
+        return allStaffAndClients.find(u => u.id === authorId);
+    }
+
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -977,7 +994,7 @@ export default function AdminDashboardPage() {
                                     onSubmit={handleFormSubmit}
                                     onCancel={() => handleFormOpenChange(false)}
                                     onCommentSubmit={handleCommentSubmit}
-                                    allStaff={allStaff}
+                                    allStaff={allStaffAndClients}
                                     staffByDept={staffByDept}
                                 />
                             </DialogContent>
@@ -988,7 +1005,7 @@ export default function AdminDashboardPage() {
             
              <Separator />
             
-             <TaskViewDialog task={viewingTask} allStaff={allStaff} open={isViewOpen} onOpenChange={handleViewOpenChange} />
+             <TaskViewDialog task={viewingTask} allStaff={allStaffAndClients} open={isViewOpen} onOpenChange={handleViewOpenChange} />
 
             <div className="space-y-8">
                 {isLoading ? (
@@ -997,7 +1014,63 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : user?.role !== 'cap_staff' ? (
                     <>
-                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} currentUser={user} onTaskUpdate={handleUpdate} onEdit={handleEdit} />
+                        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+                            <Card className="lg:col-span-2">
+                                <CardHeader>
+                                    <CardTitle>Notifications</CardTitle>
+                                    <CardDescription>Recent client notes on your assigned orders.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {notifications.length > 0 ? (
+                                    <ScrollArea className="h-72">
+                                        <div className="space-y-4">
+                                        {notifications.map((note, index) => {
+                                            const author = getAuthor(note.authorId);
+                                            return (
+                                                <div key={index} className="flex items-start gap-3">
+                                                    <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
+                                                        {author?.name.charAt(0) || 'U'}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="text-sm">
+                                                            <span className="font-semibold">{author?.name || 'Unknown User'}</span>
+                                                            <span className="text-muted-foreground"> left a note on order </span>
+                                                            <Link href={`/admin/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                                        </p>
+                                                        <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
+                                                            "{note.text}"
+                                                        </blockquote>
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            {formatDistanceToNow(note.date.toDate(), { addSuffix: true })}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                        </div>
+                                    </ScrollArea>
+                                    ) : (
+                                    <div className="flex flex-col items-center justify-center h-72 text-center text-muted-foreground">
+                                        <Inbox className="h-12 w-12 mb-4"/>
+                                        <p className="font-semibold">All caught up!</p>
+                                        <p className="text-sm">You have no new notifications.</p>
+                                    </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                             {/* Placeholder for future stats card */}
+                             <Card>
+                                <CardHeader>
+                                    <CardTitle>Stats</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p>Coming soon...</p>
+                                </CardContent>
+                             </Card>
+                        </div>
+
+
+                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaffAndClients} currentUser={user} onTaskUpdate={handleUpdate} onEdit={handleEdit} />
 
                         <TaskTable 
                             tasks={myTasks} 
@@ -1007,7 +1080,7 @@ export default function AdminDashboardPage() {
                             onView={handleView}
                             onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
-                            allStaff={allStaff}
+                            allStaff={allStaffAndClients}
                             currentUser={user}
                         />
 
@@ -1019,7 +1092,7 @@ export default function AdminDashboardPage() {
                             onView={handleView}
                             onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
-                            allStaff={allStaff}
+                            allStaff={allStaffAndClients}
                             currentUser={user}
                             onFilter={setUpcomingAutomatedTaskFilter}
                             taskTypes={taskTypes}
@@ -1039,7 +1112,7 @@ export default function AdminDashboardPage() {
                                         onView={handleView}
                                         onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                                         onDelete={handleDelete}
-                                        allStaff={allStaff}
+                                        allStaff={allStaffAndClients}
                                         currentUser={user}
                                     />
                                 </AccordionContent>
@@ -1056,7 +1129,7 @@ export default function AdminDashboardPage() {
                                 onView={handleView}
                                 onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                                 onDelete={handleDelete}
-                                allStaff={allStaff}
+                                allStaff={allStaffAndClients}
                                 currentUser={user}
                             />
                         )}
@@ -1070,7 +1143,7 @@ export default function AdminDashboardPage() {
                                 onView={handleView}
                                 onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                                 onDelete={handleDelete}
-                                allStaff={allStaff}
+                                allStaff={allStaffAndClients}
                                 currentUser={user}
                                 onFilter={setAutomatedTaskFilter}
                                 taskTypes={taskTypes}
@@ -1092,3 +1165,5 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
+
+    
