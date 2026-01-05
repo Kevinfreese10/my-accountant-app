@@ -369,7 +369,7 @@ export default function AdminOrderDetailsPage() {
   const contactName = contactIsClient ? order.endCustomerName : (isOutsourced ? resellerDetails?.companyName || resellerDetails?.name : order.customerName);
 
   const generateNoteTemplate = (type: 'docs' | 'payment' | 'review') => {
-      let text = `Hi ${contactName},\n\n`;
+      let text = `Hi ${contactName?.split(' ')[0]},\n\n`;
       const orderId = order.originalOrderId || order.id;
 
       if (type === 'payment') {
@@ -388,7 +388,7 @@ export default function AdminOrderDetailsPage() {
     
     if (order.discountCode) {
       toast({ title: 'Discount Already Generated', description: `This order already has a discount code: ${order.discountCode}`, variant: 'destructive' });
-      const text = `Hi ${contactName},\n\nAs a token of our appreciation for your business, here is your 10% discount code for your next order: ${order.discountCode}\n\nKind regards,\nThe My Accountant Team`;
+      const text = `Hi ${contactName?.split(' ')[0]},\n\nAs a token of our appreciation for your business, here is your 10% discount code for your next order: ${order.discountCode}\n\nKind regards,\nThe My Accountant Team`;
       noteForm.setValue('noteText', text);
       return;
     }
@@ -412,7 +412,7 @@ export default function AdminOrderDetailsPage() {
       
       setOrder(prev => prev ? { ...prev, discountCode: newDiscountCode } : null);
       
-      const text = `Hi ${contactName},\n\nAs a token of our appreciation for your business, here is your 10% discount code for your next order: ${newDiscountCode}\n\nKind regards,\nThe My Accountant Team`;
+      const text = `Hi ${contactName?.split(' ')[0]},\n\nAs a token of our appreciation for your business, here is your 10% discount code for your next order: ${newDiscountCode}\n\nKind regards,\nThe My Accountant Team`;
       noteForm.setValue('noteText', text);
       toast({ title: 'Discount Generated!', description: `Code ${newDiscountCode} has been created and saved.` });
     } catch (e) {
