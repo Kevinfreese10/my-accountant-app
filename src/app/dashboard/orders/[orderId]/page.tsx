@@ -314,9 +314,9 @@ export default function ClientOrderDetailsPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Order {order.id}</CardTitle>
-                        <CardDescription>
-                        Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
-                        </CardDescription>
+                        <div className="text-sm text-muted-foreground">
+                        <span>Date: {format(new Date(order.date), 'dd MMMM yyyy')}</span> | <span>Status: </span><Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                        </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         {orderedItemsWithServices.map((item, index) => (
