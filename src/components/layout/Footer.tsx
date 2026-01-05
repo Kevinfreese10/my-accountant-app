@@ -8,18 +8,6 @@ const Footer = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             
-            <div>
-                <iframe
-                    src="https://www.google.com/maps?q=W263+P6+Randburg&output=embed"
-                    width="100%"
-                    height="200"
-                    style={{ border: 0 }}
-                    allowFullScreen={false}
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                ></iframe>
-            </div>
-
             <div className="space-y-3">
                 <h3 className="font-semibold">Contact Details</h3>
                 <div className="text-sm text-muted-foreground space-y-3">
@@ -49,6 +37,18 @@ const Footer = () => {
                     <li><Link href="/popia" className="text-muted-foreground hover:text-primary">POPIA Policy</Link></li>
                     <li><Link href="/refund-policy" className="text-muted-foreground hover:text-primary">Refund Policy</Link></li>
                 </ul>
+            </div>
+
+            <div>
+                <iframe
+                    src="https://www.google.com/maps?q=W263+P6+Randburg&output=embed"
+                    width="100%"
+                    height="200"
+                    style={{ border: 0 }}
+                    allowFullScreen={false}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                ></iframe>
             </div>
 
         </div>
