@@ -38,7 +38,8 @@ const lineItemSchema = z.object({
 });
 
 const formSchema = z.object({
-  customerName: z.string().min(2, 'Customer name is required.'),
+  customerFirstName: z.string().min(2, "Client's first name is required."),
+  customerLastName: z.string().min(2, "Client's last name is required."),
   customerEmail: z.string().email('Invalid email address.'),
   customerPhone: z.string().min(10, 'A valid phone number is required.'),
   items: z.array(lineItemSchema).min(1, 'At least one line item is required.'),
@@ -85,7 +86,8 @@ export default function CreateOrderForm() {
   const form = useForm<CreateOrderFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      customerName: '',
+      customerFirstName: '',
+      customerLastName: '',
       customerEmail: '',
       customerPhone: '',
       items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 }],
@@ -165,6 +167,7 @@ export default function CreateOrderForm() {
         const orderId = await getNextOrderId();
         const firstService = allServices.find(s => s.id === values.items[0]?.serviceId);
         const department = firstService?.department;
+        const customerFullName = `${values.customerFirstName} ${values.customerLastName}`;
 
         const confirmationEmailSubject = `My Accountant | Order Confirmation: #${orderId}`;
 
@@ -179,7 +182,7 @@ export default function CreateOrderForm() {
       const orderData: Order = {
         id: orderId,
         userId: null, // No user account is created
-        customerName: values.customerName,
+        customerName: customerFullName,
         customerEmail: values.customerEmail,
         customerPhone: values.customerPhone,
         items: values.items.map(item => ({ 
@@ -235,11 +238,22 @@ export default function CreateOrderForm() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
             control={form.control}
-            name="customerName"
+            name="customerFirstName"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Customer Full Name</FormLabel>
-                <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
+                <FormLabel>Client's First Name</FormLabel>
+                <FormControl><Input placeholder="John" {...field} /></FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+            <FormField
+            control={form.control}
+            name="customerLastName"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Client's Last Name</FormLabel>
+                <FormControl><Input placeholder="Doe" {...field} /></FormControl>
                 <FormMessage />
                 </FormItem>
             )}
