@@ -89,7 +89,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
     });
 
     const isVatRegistered = form.watch('isVatRegistered');
-    const preparesFinancials = form.watch('preparesFinancials');
     const requiresManagementAccounts = form.watch('requiresManagementAccounts');
     const preparesPayroll = form.watch('preparesPayroll');
 
@@ -233,7 +232,6 @@ export default function AdminClientsPage() {
 
     let clientDataForDb: Partial<User>;
 
-    // Common data preparation
     clientDataForDb = {
         name: data.name,
         status: data.status,
@@ -242,7 +240,6 @@ export default function AdminClientsPage() {
         requiresManagementAccounts: data.requiresManagementAccounts,
         isVatRegistered: data.isVatRegistered,
         preparesPayroll: data.preparesPayroll,
-        payrollDueDate: data.preparesPayroll ? data.payrollDueDate : null,
         submitsEmp201: data.submitsEmp201,
         submitsEmp501: data.submitsEmp501,
         submitsProvisionalTax: data.submitsProvisionalTax,
@@ -251,11 +248,8 @@ export default function AdminClientsPage() {
         submitsBeneficialOwnership: data.submitsBeneficialOwnership,
     };
     
-    // Auto-calculate financialsDueDate if financials are prepared
     if (data.preparesFinancials && data.yearEnd) {
         const yearEndMonthIndex = months.indexOf(data.yearEnd);
-        // Financials are due 3 months after year-end.
-        // We set the date to the last day of that month.
         const dueDate = new Date(new Date().getFullYear(), yearEndMonthIndex + 4, 0); 
         clientDataForDb.financialsDueDate = dueDate;
     } else {
@@ -264,6 +258,9 @@ export default function AdminClientsPage() {
     
     clientDataForDb.managementAccountsFrequency = data.requiresManagementAccounts ? data.managementAccountsFrequency : null;
     clientDataForDb.vatCategory = data.isVatRegistered ? data.vatCategory : null;
+    clientDataForDb.vatNumber = data.isVatRegistered ? data.vatNumber : null;
+    clientDataForDb.payrollDueDate = data.preparesPayroll ? data.payrollDueDate : null;
+
     
     try {
         const batch = writeBatch(db);
@@ -355,6 +352,8 @@ export default function AdminClientsPage() {
   };
   
   const createTaskFromTemplate = (batch: ReturnType<typeof writeBatch>, template: Task, clientData: any, clientId: string, currentUserId: string) => {
+    if (!clientData.yearEnd) return; // Prevent task creation if yearEnd is not set
+
     const taskTitle = template.title.replace('{clientName}', clientData.name);
     
     const yearEndMonth = months.indexOf(clientData.yearEnd);
@@ -376,7 +375,7 @@ export default function AdminClientsPage() {
         description: template.description.replace('{clientName}', clientData.name), 
         clientId: clientId, 
         status: 'To-Do', 
-        dueDate: Timestamp.fromDate(dueDate), 
+        dueDate: Timestamp.fromDate(dueDate),
         createdAt: Timestamp.now(), 
         createdBy: currentUserId,
         comments: [],
