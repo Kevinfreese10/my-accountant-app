@@ -286,9 +286,11 @@ export default function AdminServicesPage() {
                         <span>{service.turnaroundTime}</span>
                       </div>
                   </TableCell>
-                  <TableCell className="text-right">R {service.price.toFixed(2)}</TableCell>
                   <TableCell className="text-right">
-                    {service.resellerPrice ? `R ${service.resellerPrice.toFixed(2)}` : 'N/A'}
+                    {service.isPriceTbc ? 'TBC' : `R ${service.price.toFixed(2)}`}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {service.isPriceTbc ? 'TBC' : service.resellerPrice ? `R ${service.resellerPrice.toFixed(2)}` : 'N/A'}
                   </TableCell>
                   <TableCell className="text-right">
                     <Dialog onOpenChange={(isOpen) => !isOpen && setViewingService(null)}>
