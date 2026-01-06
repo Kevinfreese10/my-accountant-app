@@ -79,14 +79,14 @@ export default function WebsiteAIWidget() {
   return (
     <>
       <div className="fixed bottom-4 right-4 z-50">
-        <Button onClick={() => setIsOpen(!isOpen)} size="icon" className="w-16 h-16 rounded-full shadow-lg bg-gradient">
-           {isOpen ? <X className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
+        <Button onClick={() => setIsOpen(!isOpen)} size="icon" className="w-16 h-16 rounded-full shadow-lg bg-primary">
+           {isOpen ? <X className="h-8 w-8 text-white" /> : <MessageCircle className="h-8 w-8 text-white" />}
         </Button>
       </div>
 
       {isOpen && (
         <div className="fixed bottom-24 right-4 left-4 z-50 sm:left-auto sm:w-full sm:max-w-sm">
-          <Card className="flex flex-col h-[60vh] shadow-xl">
+          <Card className="flex flex-col h-[60vh] shadow-xl bg-white">
             <CardContent ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {chatHistory.map((message, index) => (
                 <div key={index} className={cn("flex items-end gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}>
@@ -97,7 +97,7 @@ export default function WebsiteAIWidget() {
                   )}
                    <div className={cn(
                         "p-3 rounded-lg max-w-xs prose prose-sm",
-                        message.role === 'user' ? 'bg-gradient text-primary-foreground' : 'bg-muted'
+                        message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
                     )}>
                         <ReactMarkdown
                             components={{
