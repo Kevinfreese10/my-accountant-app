@@ -25,6 +25,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
 import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const db = getFirestore(firebaseApp);
 
@@ -290,26 +291,27 @@ export default function AdminClientsPage() {
         toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive'});
     }
   };
-
-  const formatYearEnd = (yearEnd: any): string => {
-    if (!yearEnd) return 'N/A';
-    if (typeof yearEnd === 'string') {
-      return yearEnd;
-    }
-    if (yearEnd.toDate && typeof yearEnd.toDate === 'function') {
-      const date = yearEnd.toDate();
-      return format(date, 'MMMM');
-    }
-    try {
-        const d = new Date(yearEnd);
-        if (!isNaN(d.getTime())) {
-             return format(d, 'MMMM');
+  
+    const formatYearEnd = (yearEnd: any): string => {
+        if (!yearEnd) return 'N/A';
+        if (typeof yearEnd === 'string') {
+          return yearEnd;
         }
-    } catch (e) {
-        // fall through
-    }
-    return 'Invalid Date';
-  };
+        if (yearEnd.toDate && typeof yearEnd.toDate === 'function') {
+          const date = yearEnd.toDate();
+          return format(date, 'MMMM');
+        }
+        try {
+            const d = new Date(yearEnd);
+            if (!isNaN(d.getTime())) {
+                 return format(d, 'MMMM');
+            }
+        } catch (e) {
+            // fall through
+        }
+        return 'Invalid Date';
+    };
+
 
   return (
     <div className="space-y-8">
@@ -433,3 +435,5 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
+    
