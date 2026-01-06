@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -32,6 +32,7 @@ const resetPasswordSchema = z.object({
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, user: tempUser } = useAuth();
   const { toast } = useToast();
   const [isLapsedOpen, setIsLapsedOpen] = useState(false);
@@ -135,6 +136,12 @@ export default function LoginForm() {
       title: 'Logged in successfully',
       description: `Welcome back, ${result.name}! Redirecting...`,
     });
+
+    const redirectUrl = searchParams.get('redirect');
+    if (redirectUrl) {
+        router.push(redirectUrl);
+        return;
+    }
     
     if (result.role === 'admin' || result.role === 'staff' || result.role === 'cap_staff' || result.role === 'cap_supervisor') {
         router.push('/admin/dashboard');

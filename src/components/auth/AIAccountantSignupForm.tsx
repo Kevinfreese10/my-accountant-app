@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -56,6 +56,7 @@ const pricing = {
 
 export default function AIAccountantSignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
@@ -149,7 +150,12 @@ export default function AIAccountantSignupForm() {
             description: `Welcome! Your AI Accountant profile is ready. Redirecting to your dashboard...`,
         });
         
-        router.push(`/admin/ai-accountant/${authUid}/dashboard`);
+        const redirectUrl = searchParams.get('redirect');
+        if (redirectUrl) {
+            router.push(redirectUrl);
+        } else {
+            router.push(`/admin/ai-accountant/${authUid}/dashboard`);
+        }
 
     } catch (error: any) {
         let description = 'There was a problem creating your account. Please try again.';

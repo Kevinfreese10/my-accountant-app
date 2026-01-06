@@ -1,7 +1,7 @@
 
 'use client';
-import { useEffect, useState } from 'react';
-import { useParams, notFound } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useParams, notFound, useRouter, useSearchParams } from 'next/navigation';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order } from '@/lib/types';
@@ -13,15 +13,10 @@ import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
 
-const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-    }).format(price);
-};
-
-export default function PaymentSuccessPage() {
+function PaymentSuccessContent() {
     const params = useParams();
+    const router = useRouter();
+    const searchParams = useSearchParams();
     const orderId = params.orderId as string;
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -40,9 +35,12 @@ export default function PaymentSuccessPage() {
                     } as Order;
                     setOrder(orderData);
                     
+                    // If payment is complete, redirect to the order details page
                     if (orderData.status === 'Processing' || orderData.status === 'Completed') {
-                        setIsLoading(false);
-                        setError(null);
+                        router.replace(`/dashboard/orders/${orderId}`);
+                    } else {
+                        // Still loading or pending
+                        setIsLoading(true);
                     }
                 } else {
                     setIsLoading(false);
@@ -54,23 +52,11 @@ export default function PaymentSuccessPage() {
                 setIsLoading(false);
             });
 
-            // Fallback timer to check for ITN issues
+            // Set a timeout to handle cases where ITN is delayed
             const timer = setTimeout(() => {
                 if (isLoading) {
-                    // Re-check order one last time
-                    if (order) {
-                        if (!order.itnHistory || order.itnHistory.length === 0) {
-                            setError("We haven't received payment confirmation from PayFast yet. Please don't worry, your order is safe. Our team will manually verify it shortly. You can check your dashboard for updates.");
-                        } else {
-                            const lastAttempt = order.itnHistory[order.itnHistory.length - 1];
-                            if (lastAttempt.status === 'Failed') {
-                                setError(`Payment confirmation failed: ${lastAttempt.message}. Please contact support with your order ID.`);
-                            }
-                        }
-                    } else {
-                        setError("Confirmation is taking longer than expected. Please check your dashboard for updates or contact support if your order status doesn't update within a few minutes.");
-                    }
-                    setIsLoading(false);
+                    setIsLoading(false); // Stop loading to show a message
+                    setError("Confirmation is taking longer than expected. We will update your order status as soon as we receive confirmation from the payment provider. Please check your dashboard shortly.");
                 }
             }, 15000); // 15 seconds
 
@@ -79,86 +65,62 @@ export default function PaymentSuccessPage() {
                 clearTimeout(timer);
             };
         }
-    }, [orderId, order, isLoading]); // Add order and isLoading to dependency array
+    }, [orderId, router, isLoading]);
 
-    const ConfirmationView = () => (
-        <CardHeader className="text-center">
-            <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
-            <CardTitle className="text-3xl mt-4">Payment Received!</CardTitle>
-            <CardDescription>
-                Thank you for your payment. Your order is now being processed.
-            </CardDescription>
-        </CardHeader>
-    );
-
-    const LoadingView = () => (
-        <CardHeader className="text-center">
-            <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-            <CardTitle className="text-3xl mt-4">Finalizing your order...</CardTitle>
-            <CardDescription>
-                Please wait while we confirm your payment. This may take a few moments.
-            </CardDescription>
-        </CardHeader>
-    );
-    
     if (!order && isLoading) {
-        return (
+         return (
              <div className="container mx-auto px-4 py-20 text-center">
                 <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-                <h1 className="mt-4 text-2xl font-semibold">Loading Your Order...</h1>
+                <h1 className="mt-4 text-2xl font-semibold">Finalizing your order...</h1>
+                <p className="text-muted-foreground">Please wait while we confirm your payment. Do not close this page.</p>
             </div>
         )
     }
-
+    
     if (!order) {
         return notFound();
     }
-
-    return (
-        <div className="container mx-auto px-4 py-12 max-w-4xl">
-            <Card>
-                {isLoading ? <LoadingView /> : <ConfirmationView />}
-                <CardContent className="space-y-8">
-                     <section>
-                        <h3 className="font-semibold text-lg mb-2">Order Summary</h3>
-                        <div className="border rounded-lg p-4 space-y-2">
-                           <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Order ID:</span>
-                                <span className="font-mono">{order.id}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Order Date:</span>
-                                <span>{new Date(order.date).toLocaleDateString()}</span>
-                            </div>
-                            <Separator />
-                            {order.items.map((item, index) => (
-                                <div key={index} className="flex justify-between items-center">
-                                    <p>{item.title}</p>
-                                    <p className="font-semibold">{formatPrice(item.price)}</p>
-                                </div>
-                            ))}
-                             <Separator />
-                            <div className="flex justify-between font-bold text-lg">
-                                <p>Total Paid</p>
-                                <p>{formatPrice(order.total)}</p>
-                            </div>
-                        </div>
-                    </section>
-                    
-                    {error && (
-                        <div className="flex items-center gap-4 bg-destructive/10 border border-destructive/20 p-4 rounded-lg">
-                            <AlertTriangle className="h-6 w-6 text-destructive" />
-                            <p className="text-sm text-destructive">{error}</p>
-                        </div>
-                    )}
-
-                    <div className="text-center pt-4">
-                        <Button asChild>
+    
+     if (error) {
+        return (
+            <div className="container mx-auto px-4 py-12 max-w-2xl">
+                 <Card>
+                    <CardHeader className="text-center">
+                        <AlertTriangle className="mx-auto h-12 w-12 text-yellow-500" />
+                        <CardTitle className="text-3xl mt-4">Payment Confirmation Pending</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-center space-y-4">
+                        <p className="text-muted-foreground">{error}</p>
+                         <Button asChild>
                             <Link href="/dashboard/orders">Go to My Dashboard</Link>
                         </Button>
-                    </div>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+     }
+
+    // This view will only show briefly before redirect, or if the redirect fails.
+    return (
+        <div className="container mx-auto px-4 py-12 max-w-2xl">
+             <Card>
+                <CardHeader className="text-center">
+                    <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
+                    <CardTitle className="text-3xl mt-4">Payment Success!</CardTitle>
+                     <CardDescription>Redirecting you to your order...</CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin" />
                 </CardContent>
-            </Card>
+             </Card>
         </div>
     );
+}
+
+export default function PaymentSuccessPage() {
+    return (
+        <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-12 w-12 animate-spin"/></div>}>
+            <PaymentSuccessContent />
+        </Suspense>
+    )
 }

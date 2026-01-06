@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ const formSchema = z.object({
 
 export default function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signup } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +54,13 @@ export default function SignupForm() {
         title: 'Account created successfully',
         description: `Welcome, ${result.name}! Redirecting...`,
         });
-        router.push('/dashboard');
+
+        const redirectUrl = searchParams.get('redirect');
+        if (redirectUrl) {
+            router.push(redirectUrl);
+        } else {
+            router.push('/dashboard');
+        }
     } else {
         toast({
             title: 'Signup Failed',

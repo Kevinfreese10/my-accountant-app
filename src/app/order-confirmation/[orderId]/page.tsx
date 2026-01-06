@@ -1,15 +1,16 @@
 
 'use client';
 import { useEffect, useState } from 'react';
-import { useParams, notFound } from 'next/navigation';
+import { useParams, notFound, useRouter } from 'next/navigation';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, User } from '@/lib/types';
-import { Loader2, CheckCircle, Banknote } from 'lucide-react';
+import { Order } from '@/lib/types';
+import { Loader2, CheckCircle, Banknote, LogIn } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
 const db = getFirestore(firebaseApp);
 
@@ -22,10 +23,11 @@ const formatPrice = (price: number) => {
 
 export default function OrderConfirmationPage() {
     const params = useParams();
+    const router = useRouter();
+    const { user, isAuthenticated } = useAuth();
     const orderId = params.orderId as string;
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [reseller, setReseller] = useState<User | null>(null);
 
     useEffect(() => {
         if (orderId) {
@@ -41,14 +43,10 @@ export default function OrderConfirmationPage() {
                     } as Order;
                     setOrder(orderData);
 
-                    if (orderData.resellerId) {
-                        const resellerRef = doc(db, 'users', orderData.resellerId);
-                        const resellerSnap = await getDoc(resellerRef);
-                        if (resellerSnap.exists()) {
-                            setReseller(resellerSnap.data() as User);
-                        }
+                    // If user is authenticated and lands here, redirect them to PayFast immediately.
+                    if (isAuthenticated && orderData.status === 'Pending Payment') {
+                        handlePayNow(orderData);
                     }
-
                 } else {
                     notFound();
                 }
@@ -56,9 +54,14 @@ export default function OrderConfirmationPage() {
             };
             fetchOrder();
         }
-    }, [orderId]);
+    }, [orderId, isAuthenticated]); // Rerun when authentication status changes
     
     const handlePayNow = (order: Order) => {
+        if (!isAuthenticated) {
+            router.push(`/login?redirect=/order-confirmation/${order.id}`);
+            return;
+        }
+
         const payfastUrl = 'https://www.payfast.co.za/eng/process';
         const form = document.createElement('form');
         form.method = 'POST';
@@ -138,23 +141,18 @@ export default function OrderConfirmationPage() {
                         </div>
                     </section>
                     
-                    <section>
-                        <h3 className="font-semibold text-lg mb-2">Payment Options</h3>
-                        <div className="space-y-4">
-                            <h4 className="font-medium">Pay with PayFast</h4>
-                            <p className="text-sm text-muted-foreground">Click the button below to pay securely online with your card or instant EFT via PayFast.</p>
-                            <Button onClick={() => handlePayNow(order)} className="w-full">
+                    <section className="text-center">
+                        {isAuthenticated ? (
+                             <Button onClick={() => handlePayNow(order)} className="w-full max-w-sm">
                                 Pay Now with PayFast
                             </Button>
-                        </div>
+                        ) : (
+                             <Button onClick={() => handlePayNow(order)} className="w-full max-w-sm">
+                                <LogIn className="mr-2 h-4 w-4" /> Login or Sign Up to Pay
+                            </Button>
+                        )}
+                       
                     </section>
-
-                    <div className="text-center pt-4">
-                        <p className="text-sm text-muted-foreground">Once payment is complete, you can track your order status in your dashboard.</p>
-                        <Button asChild className="mt-4">
-                            <Link href="/dashboard/orders">Login to Dashboard</Link>
-                        </Button>
-                    </div>
                 </CardContent>
             </Card>
         </div>
