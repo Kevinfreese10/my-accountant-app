@@ -44,59 +44,11 @@ import { render } from '@react-email/components';
 import PaymentConfirmationEmail from '@/components/emails/PaymentConfirmationEmail';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 const db = getFirestore(firebaseApp);
-
-function BackendSummaryModal({ order }: { order: Order }) {
-  if (!order.itnHistory || order.itnHistory.length === 0) {
-    return (
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Backend Summary for Order {order.id}</DialogTitle>
-          <DialogDescription>No backend notifications have been received for this order yet.</DialogDescription>
-        </DialogHeader>
-      </DialogContent>
-    )
-  }
-
-  return (
-    <DialogContent className="max-w-2xl">
-      <DialogHeader>
-        <DialogTitle>Backend Summary for Order {order.id}</DialogTitle>
-        <DialogDescription>History of notifications received from PayFast.</DialogDescription>
-      </DialogHeader>
-      <ScrollArea className="max-h-[60vh] pr-6">
-        <div className="space-y-4">
-          {order.itnHistory.slice().reverse().map((log, index) => (
-            <Card key={index}>
-              <CardHeader>
-                <CardTitle className="text-base flex justify-between items-center">
-                  <span>
-                    Status: <Badge variant={log.status === 'Success' ? 'success' : 'destructive'}>{log.status}</Badge>
-                  </span>
-                   <span className="text-xs font-normal text-muted-foreground">
-                    {log.receivedAt ? format(new Date(log.receivedAt), 'dd/MM/yyyy, HH:mm:ss') : 'N/A'}
-                  </span>
-                </CardTitle>
-                <CardDescription className="pt-2">{log.message}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <h4 className="font-semibold text-sm mb-2">Received Payload:</h4>
-                <pre className="text-xs bg-muted p-2 rounded-md overflow-x-auto">
-                  {JSON.stringify(log.payload, null, 2)}
-                </pre>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </ScrollArea>
-    </DialogContent>
-  );
-}
-
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -104,7 +56,6 @@ export default function AdminOrdersPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [allStaff, setAllStaff] = useState<User[]>([]);
-  const [viewingBackendSummary, setViewingBackendSummary] = useState<Order | null>(null);
 
   const staffCounters = useRef<{ [key: string]: number }>({});
   
@@ -392,7 +343,7 @@ export default function AdminOrdersPage() {
 
 
   return (
-    <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
+    <Dialog>
         <div className="space-y-8">
         <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold tracking-tight">Manage Orders</h1>
@@ -490,61 +441,55 @@ export default function AdminOrdersPage() {
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem asChild>
-                                <Link href={`/admin/orders/${order.id}`}>View Order</Link>
-                            </DropdownMenuItem>
-                            <DialogTrigger asChild>
-                                <DropdownMenuItem onSelect={() => setViewingBackendSummary(order)}>
-                                    Backend Summary
+                            <DropdownMenuContent>
+                                <DropdownMenuItem asChild>
+                                     <Link href={`/admin/orders/${order.id}`}>View Order</Link>
                                 </DropdownMenuItem>
-                            </DialogTrigger>
-                            <DropdownMenuSeparator />
-                            {user?.role === 'admin' && (
-                                <>
-                                    <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Assign To</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        {allStaff.map(staff => (
-                                        <DropdownMenuItem 
-                                            key={staff.id} 
-                                            onClick={() => handleAssignment(order.id, staff.id)}
-                                            disabled={order.assignedTo?.[0] === staff.id}
-                                        >
-                                            {staff.name}
-                                        </DropdownMenuItem>
-                                        ))}
-                                    </DropdownMenuSubContent>
-                                    </DropdownMenuSub>
-                                    <DropdownMenuSeparator />
-                                </>
-                            )}
-                            <DropdownMenuItem
-                                onClick={() => handleUpdateStatus(order.id, 'Pending Payment')}
-                                disabled={order.status === 'Pending Payment'}
-                            >
-                                Mark as Pending Payment
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                onClick={() => handleUpdateStatus(order.id, 'Processing')}
-                                disabled={order.status === 'Processing'}
-                            >
-                                Mark as Processing
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                onClick={() => handleUpdateStatus(order.id, 'Completed')}
-                                disabled={order.status === 'Completed'}
-                            >
-                                Mark as Completed
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                onClick={() => handleUpdateStatus(order.id, 'Cancelled')}
-                                className="text-destructive"
-                                disabled={order.status === 'Cancelled'}
-                            >
-                                Cancel Order
-                            </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {user?.role === 'admin' && (
+                                    <>
+                                        <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger>Assign To</DropdownMenuSubTrigger>
+                                        <DropdownMenuSubContent>
+                                            {allStaff.map(staff => (
+                                            <DropdownMenuItem 
+                                                key={staff.id} 
+                                                onClick={() => handleAssignment(order.id, staff.id)}
+                                                disabled={order.assignedTo?.[0] === staff.id}
+                                            >
+                                                {staff.name}
+                                            </DropdownMenuItem>
+                                            ))}
+                                        </DropdownMenuSubContent>
+                                        </DropdownMenuSub>
+                                        <DropdownMenuSeparator />
+                                    </>
+                                )}
+                                <DropdownMenuItem
+                                    onClick={() => handleUpdateStatus(order.id, 'Pending Payment')}
+                                    disabled={order.status === 'Pending Payment'}
+                                >
+                                    Mark as Pending Payment
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => handleUpdateStatus(order.id, 'Processing')}
+                                    disabled={order.status === 'Processing'}
+                                >
+                                    Mark as Processing
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => handleUpdateStatus(order.id, 'Completed')}
+                                    disabled={order.status === 'Completed'}
+                                >
+                                    Mark as Completed
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => handleUpdateStatus(order.id, 'Cancelled')}
+                                    className="text-destructive"
+                                    disabled={order.status === 'Cancelled'}
+                                >
+                                    Cancel Order
+                                </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                         </TableCell>
@@ -556,7 +501,6 @@ export default function AdminOrdersPage() {
             </CardContent>
         </Card>
         </div>
-        {viewingBackendSummary && <BackendSummaryModal order={viewingBackendSummary} />}
     </Dialog>
   );
 }
