@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle, Pencil } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -174,8 +174,7 @@ export default function AIEmailInboxPage() {
         toast({ title: 'Sending Email...', description: `Sending reply to ${email.from.address}.` });
 
         try {
-            // Convert markdown to HTML for the email body
-            const emailHtml = draft.replace(/\n/g, '<br/>');
+            const emailHtml = draft.replace(/\n\n/g, '<br/><br/>').replace(/\n/g, '<br/>');
 
             await sendEmail({
                 to: email.from.address,
@@ -349,10 +348,16 @@ export default function AIEmailInboxPage() {
                                                         {draftReplies[email.id] || email.aiDraftReply}
                                                     </ReactMarkdown>
 
-                                                      <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
-                                                        {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
-                                                        Send Email Reply
-                                                      </Button>
+                                                      <div className="flex items-center gap-2">
+                                                          <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
+                                                            {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
+                                                            Send Email Reply
+                                                          </Button>
+                                                          <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id}>
+                                                              {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Pencil className="mr-2 h-4 w-4" />}
+                                                              Fix Format / Regenerate
+                                                          </Button>
+                                                      </div>
                                                  </div>
                                              )}
                                              <div className="flex items-center gap-2 pt-2">
