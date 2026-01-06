@@ -105,6 +105,8 @@ export type OrderNote = {
   date: any;
   authorId: string;
   type?: 'note' | 'email';
+  subject: string | null;
+  attachments: { name: string; url: string }[] | null;
 };
 
 export type ItnLog = {
@@ -442,6 +444,7 @@ export type ProcessedEmail = {
     description: string;
   };
   aiDraftReply?: string;
+  taskCreated?: boolean;
 };
 
 import { z } from 'zod';

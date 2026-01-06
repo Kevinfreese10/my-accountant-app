@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -19,7 +19,7 @@ import { generateEmailReply } from '@/ai/flows/generate-email-reply';
 import { Textarea } from '@/components/ui/textarea';
 import { sendEmail } from '@/lib/email';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import TaskForm from '@/components/admin/TaskForm'; // Reusing the TaskForm component
+import TaskForm from '@/components/admin/TaskForm'; 
 
 const db = getFirestore(firebaseApp);
 
@@ -193,7 +193,7 @@ export default function AIEmailInboxPage() {
         }
     };
     
-    const handleCreateTask = async (task: Partial<Task>) => {
+    const handleCreateTask = async (task: Partial<Task>, emailId: string) => {
         if (!user?.id) return;
         try {
             await addDoc(collection(db, 'tasks'), {
@@ -203,6 +203,12 @@ export default function AIEmailInboxPage() {
                 createdAt: Timestamp.now(),
                 comments: [],
             });
+            
+            // Flag the email as task created
+            await updateDoc(doc(db, 'processedEmails', emailId), {
+                taskCreated: true,
+            });
+
             toast({ title: 'Task Created Successfully' });
             setIsTaskFormOpen(false);
             setSelectedTask(null);
@@ -215,17 +221,21 @@ export default function AIEmailInboxPage() {
 
     const ActionButton = ({ email }: { email: ProcessedEmail}) => {
         const action = email.aiSuggestedAction;
-        if (!action) return null;
 
         const handleCreateTaskClick = () => {
             if (email.aiTask) {
                 setSelectedTask({
                     title: email.aiTask.title,
                     description: email.aiTask.description,
-                } as Task);
+                    id: email.id, // Pass email id to link it
+                } as unknown as Task);
                 setIsTaskFormOpen(true);
             }
         };
+
+        if (email.taskCreated) {
+            return <Badge variant="secondary"><CheckCircle className="mr-2 h-4 w-4" />Task Created</Badge>;
+        }
 
         const actionMap: { [key: string]: { icon: React.ReactNode, label: string, onClick?: () => void } } = {
             create_task: { icon: <PlusCircle className="mr-2 h-4 w-4" />, label: 'Create Task', onClick: handleCreateTaskClick },
@@ -238,7 +248,7 @@ export default function AIEmailInboxPage() {
             none: { icon: <></>, label: '', onClick: undefined }
         };
         
-        const actionDetails = actionMap[action];
+        const actionDetails = action ? actionMap[action] : null;
         if (!actionDetails || !actionDetails.onClick) return null;
 
         return (
@@ -261,8 +271,9 @@ export default function AIEmailInboxPage() {
                     </DialogHeader>
                     <TaskForm 
                         task={selectedTask}
-                        // @ts-ignore
-                        onSubmit={handleCreateTask}
+                        onSubmit={(taskData) => {
+                            if(selectedTask?.id) handleCreateTask(taskData, selectedTask.id);
+                        }}
                         onCancel={() => setIsTaskFormOpen(false)}
                         onCommentSubmit={() => {}} // Not needed for new task
                         allStaff={allStaff}
