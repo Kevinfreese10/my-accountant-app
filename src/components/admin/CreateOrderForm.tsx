@@ -205,7 +205,7 @@ export default function CreateOrderForm() {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} showPaymentButton={true} />);
       await sendEmail({
         to: values.customerEmail,
         bcc: 'kev@thinkestry.co.za',

@@ -22,6 +22,7 @@ interface OrderConfirmationEmailProps {
   reseller?: User;
   isNewUser?: boolean;
   generatedPassword?: string | null;
+  showPaymentButton?: boolean;
 }
 
 const formatPrice = (price: number) => {
@@ -92,7 +93,7 @@ const heading = {
   color: '#333',
 }
 
-export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPassword }: OrderConfirmationEmailProps) => {
+export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPassword, showPaymentButton = false }: OrderConfirmationEmailProps) => {
     const previewText = `Order Confirmation #${order.id}`;
     
     const customerDisplayName = reseller ? reseller.companyName || reseller.name : order.customerName;
@@ -120,8 +121,24 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                     </Text>
                  )}
                 <Text style={paragraph}>
-                    Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed. You will now be redirected to PayFast to complete your payment.
+                    Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed.
                 </Text>
+                {showPaymentButton ? (
+                    <Text style={paragraph}>
+                        Please click the button below to complete your payment.
+                    </Text>
+                ) : (
+                     <Text style={paragraph}>
+                        You will be redirected to PayFast to complete your payment.
+                    </Text>
+                )}
+
+                {showPaymentButton && (
+                    <Button style={button} href={`${siteUrl}/order-confirmation/${order.id}`}>
+                        Pay Now
+                    </Button>
+                )}
+                
                 <Hr style={hr} />
                 <Text style={{ ...paragraph, fontWeight: 'bold' }}>
                     Order Summary:
