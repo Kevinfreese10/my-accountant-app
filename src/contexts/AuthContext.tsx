@@ -3,7 +3,7 @@
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
-import { getFirestore, collection, query, where, getDocs, doc, setDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, setDoc, updateDoc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, User as FirebaseUser, signOut, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -154,6 +154,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await setDoc(newUserDocRef, newUser);
         updateUser(newUser);
         setIsAuthenticated(true);
+        
+        // Link existing orders
+        const ordersQuery = query(collection(db, "orders"), where("customerEmail", "==", values.email), where("userId", "==", null));
+        const ordersSnapshot = await getDocs(ordersQuery);
+        if (!ordersSnapshot.empty) {
+            const batch = writeBatch(db);
+            ordersSnapshot.forEach(orderDoc => {
+                const orderRef = doc(db, "orders", orderDoc.id);
+                batch.update(orderRef, { userId: firebaseUser.uid });
+            });
+            await batch.commit();
+        }
 
         return newUser;
     } catch (error: any) {
