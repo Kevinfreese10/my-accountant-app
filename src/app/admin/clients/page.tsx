@@ -23,8 +23,6 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
-import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 import { Checkbox } from '@/components/ui/checkbox';
 
 const db = getFirestore(firebaseApp);
@@ -64,7 +62,8 @@ const formSchema = z.object({
   submitsEmp201: z.boolean().default(false),
   submitsEmp501: z.boolean().default(false),
 
-  createAIProfile: z.boolean().default(false),
+  submitsProvisionalTax: z.boolean().default(false),
+  submitsIncomeTax: z.boolean().default(false),
 });
 
 function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onSubmit: (data: any) => void, onCancel: () => void }) {
@@ -89,7 +88,8 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             payrollDueDate: client?.payrollDueDate || undefined,
             submitsEmp201: client?.submitsEmp201 || false,
             submitsEmp501: client?.submitsEmp501 || false,
-            createAIProfile: client?.hasNumeraProfile || false,
+            submitsProvisionalTax: client?.submitsProvisionalTax || false,
+            submitsIncomeTax: client?.submitsIncomeTax || false,
         },
     });
 
@@ -112,12 +112,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                  <Separator />
                 <div className="space-y-4">
                      <h3 className="text-lg font-medium">Automation Settings</h3>
-                     <FormField control={form.control} name="createAIProfile" render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                            <div className="space-y-0.5"><FormLabel>Create AI Accountant Profile?</FormLabel><FormDescription>This will give the client access to the AI Accountant module.</FormDescription></div>
-                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                        </FormItem>
-                     )}/>
                     <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="preparesFinancials" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Prepare Annual Financials?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                     {preparesFinancials && (
@@ -133,14 +127,12 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                             <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                         </FormItem>
                     )} />
-
                     {isVatRegistered && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                              <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                     )}
-
                     <FormField control={form.control} name="preparesPayroll" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Prepare Payroll?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                     {preparesPayroll && (
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
@@ -151,6 +143,8 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                             </div>
                         </div>
                     )}
+                    <FormField control={form.control} name="submitsProvisionalTax" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Submit Provisional Tax?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
+                    <FormField control={form.control} name="submitsIncomeTax" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Submit Income Tax Return (ITR14)?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                 </div>
                 <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
@@ -235,52 +229,28 @@ export default function AdminClientsPage() {
   const handleFormSubmit = async (data: any) => {
     if (!currentUser) return;
     
-    const { createAIProfile, ...clientFormData } = data;
-
     const clientData: Partial<Client> = {
-        ...clientFormData,
+        ...data,
         financialsDueDate: data.preparesFinancials ? data.financialsDueDate : null,
         managementAccountsFrequency: data.requiresManagementAccounts ? data.managementAccountsFrequency : null,
         vatCategory: data.isVatRegistered ? data.vatCategory : null,
         payrollDueDate: data.preparesPayroll ? data.payrollDueDate : null,
         role: 'client',
+        source: 'Client Management',
     };
     
-    if (createAIProfile) {
-        clientData.hasNumeraProfile = true;
-        clientData.source = 'AI Accountant';
-        clientData.chartOfAccounts = initialChartOfAccounts;
-        clientData.allocationRules = initialAllocationRules;
-    } else {
-        clientData.source = 'Client Management';
+    if (!data.isVatRegistered) {
+        clientData.vatNumber = null;
+        clientData.vatCategory = null;
     }
 
     try {
-        let clientToProcess: Client;
-
         if (selectedClient?.id) {
             await setDoc(doc(db, "clients", selectedClient.id), clientData, { merge: true });
             toast({ title: 'Client Updated'});
-            clientToProcess = { ...selectedClient, ...clientData };
         } else {
             const newDocRef = await addDoc(collection(db, "clients"), clientData);
             toast({ title: 'Client Created' });
-            clientToProcess = { ...clientData, id: newDocRef.id } as Client;
-        }
-
-        if (createAIProfile) {
-            const aiClientRef = doc(db, 'aiAccountantClients', clientToProcess.id);
-            const aiClientSnap = await getDoc(aiClientRef);
-            if (!aiClientSnap.exists()) {
-                await setDoc(aiClientRef, {
-                    ...clientData,
-                    id: clientToProcess.id,
-                    uid: clientToProcess.id,
-                    createdAt: Timestamp.now(),
-                    createdBy: currentUser.uid,
-                    sharedWith: [],
-                });
-            }
         }
 
         fetchClientsAndStaff();
@@ -435,5 +405,3 @@ export default function AdminClientsPage() {
     </div>
   );
 }
-
-    

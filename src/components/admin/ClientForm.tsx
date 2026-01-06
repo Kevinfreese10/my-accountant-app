@@ -20,6 +20,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '../ui/checkbox';
 
 const storage = getStorage(firebaseApp);
 
@@ -44,9 +45,7 @@ const formSchema = z.object({
   vatCategory: z.enum(['A', 'B', 'C']).optional(),
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses).optional(),
-  
-  createAIProfile: z.boolean().default(false),
-  
+    
   address: z.object({
       street: z.string().optional(),
       suburb: z.string().optional(),
@@ -97,8 +96,6 @@ export default function ClientForm({
             vatCategory: (client as any)?.vatCategory || undefined,
             cellNumber: client?.contactNumber || '',
             status: client?.status || 'Active',
-            
-            createAIProfile: isAIClient || client?.hasNumeraProfile || false,
 
             address: {
                 street: client?.address?.street || '',
@@ -175,15 +172,6 @@ export default function ClientForm({
                 <div className="space-y-4">
                      <h3 className="text-lg font-medium">Financial & Invoicing Setup</h3>
                      
-                     {!isAIClient && (
-                         <FormField control={form.control} name="createAIProfile" render={({ field }) => (
-                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                <div className="space-y-0.5"><FormLabel>Create AI Accountant Profile?</FormLabel><FormDescription>This will give the client access to the AI Accountant module.</FormDescription></div>
-                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                            </FormItem>
-                         )}/>
-                     )}
-
                     <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                     
                     <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
