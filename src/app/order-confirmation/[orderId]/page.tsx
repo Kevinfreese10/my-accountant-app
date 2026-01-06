@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, notFound } from 'next/navigation';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order } from '@/lib/types';
+import { Order, User } from '@/lib/types';
 import { Loader2, CheckCircle, Banknote } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -25,6 +25,7 @@ export default function OrderConfirmationPage() {
     const orderId = params.orderId as string;
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [reseller, setReseller] = useState<User | null>(null);
 
     useEffect(() => {
         if (orderId) {
@@ -33,12 +34,21 @@ export default function OrderConfirmationPage() {
                 const orderRef = doc(db, 'orders', orderId);
                 const orderSnap = await getDoc(orderRef);
                 if (orderSnap.exists()) {
-                    const data = orderSnap.data();
-                    setOrder({ 
-                        ...data, 
+                    const orderData = { 
+                        ...orderSnap.data(), 
                         id: orderSnap.id,
-                        date: data.date.toDate().toISOString()
-                    } as Order);
+                        date: orderSnap.data().date.toDate().toISOString()
+                    } as Order;
+                    setOrder(orderData);
+
+                    if (orderData.resellerId) {
+                        const resellerRef = doc(db, 'users', orderData.resellerId);
+                        const resellerSnap = await getDoc(resellerRef);
+                        if (resellerSnap.exists()) {
+                            setReseller(resellerSnap.data() as User);
+                        }
+                    }
+
                 } else {
                     notFound();
                 }
@@ -47,12 +57,46 @@ export default function OrderConfirmationPage() {
             fetchOrder();
         }
     }, [orderId]);
+    
+    const handlePayNow = (order: Order) => {
+        const payfastUrl = 'https://www.payfast.co.za/eng/process';
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = payfastUrl;
+
+        const data: { [key: string]: string } = {
+            merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '',
+            merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || '',
+            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
+            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/cart`,
+            notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+            name_first: order.customerName.split(' ')[0],
+            name_last: order.customerName.split(' ').slice(1).join(' '),
+            email_address: order.customerEmail,
+            cell_number: order.customerPhone || '',
+            m_payment_id: order.id,
+            amount: (order.clientTotal || order.total).toFixed(2),
+            item_name: `Order #${order.id}`,
+            item_description: order.items.map(i => i.title).join(', '),
+        };
+
+        for (const key in data) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = data[key];
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+  }
 
     if (isLoading) {
         return (
             <div className="container mx-auto px-4 py-20 text-center">
                 <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-                <h1 className="mt-4 text-2xl font-semibold">Loading Your Order Confirmation...</h1>
+                <h1 className="mt-4 text-2xl font-semibold">Loading Your Order...</h1>
             </div>
         );
     }
@@ -60,6 +104,14 @@ export default function OrderConfirmationPage() {
     if (!order) {
         return notFound();
     }
+    
+    const bankingDetails = reseller?.bankingDetails || {
+        bankName: 'FNB',
+        accountHolder: 'My Accountant (Pty) Ltd',
+        accountNumber: '63084378223',
+        branchCode: '250655',
+    };
+    const hasBankingDetails = !!(bankingDetails.bankName && bankingDetails.accountHolder && bankingDetails.accountNumber);
 
     return (
         <div className="container mx-auto px-4 py-12 max-w-4xl">
@@ -68,7 +120,7 @@ export default function OrderConfirmationPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                        You will be redirected to PayFast to complete your payment or subscription setup.
+                       Please complete payment for your order using one of the methods below.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -94,10 +146,35 @@ export default function OrderConfirmationPage() {
                         </div>
                     </section>
                     
+                    <section>
+                        <h3 className="font-semibold text-lg mb-2">Payment Options</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <h4 className="font-medium">1. Pay with PayFast</h4>
+                                <p className="text-sm text-muted-foreground">Click the button below to pay securely online with your card or instant EFT via PayFast.</p>
+                                <Button onClick={() => handlePayNow(order)} className="w-full">
+                                    Pay Now with PayFast
+                                </Button>
+                            </div>
+                             {hasBankingDetails && (
+                                <div className="space-y-4">
+                                     <h4 className="font-medium">2. Pay via EFT</h4>
+                                     <div className="text-sm space-y-2 p-4 bg-muted rounded-lg">
+                                        <p><strong>Bank:</strong> {bankingDetails.bankName}</p>
+                                        <p><strong>Account Holder:</strong> {bankingDetails.accountHolder}</p>
+                                        <p><strong>Account Number:</strong> {bankingDetails.accountNumber}</p>
+                                        <p><strong>Branch Code:</strong> {bankingDetails.branchCode}</p>
+                                        <p><strong>Reference:</strong> <span className="font-bold text-destructive">{order.id}</span></p>
+                                    </div>
+                                </div>
+                             )}
+                        </div>
+                    </section>
+
                     <div className="text-center pt-4">
-                        <p className="text-sm text-muted-foreground">If you are not redirected automatically, please click the button below.</p>
+                        <p className="text-sm text-muted-foreground">Once payment is complete, you can track your order status in your dashboard.</p>
                         <Button asChild className="mt-4">
-                            <Link href="/">Back to Homepage</Link>
+                            <Link href="/dashboard/orders">Login to Dashboard</Link>
                         </Button>
                     </div>
                 </CardContent>
