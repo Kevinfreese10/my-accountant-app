@@ -22,12 +22,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 
 const db = getFirestore(firebaseApp);
 
-type Client = User & { status: 'Active' | 'Inactive' | 'Archived'; cellNumber?: string; contactPerson?: string; };
+type Client = User & { status: 'Active' | 'Inactive' | 'Archived'; };
 
 const clientStatuses: ('Active' | 'Inactive' | 'Archived')[] = ['Active', 'Inactive', 'Archived'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
@@ -228,10 +227,9 @@ export default function AdminClientsPage() {
 
   const handleFormSubmit = async (data: any, originalClient: Client | null) => {
     if (!currentUser) return;
-
-    let clientDataForDb: Partial<User>;
-
-    clientDataForDb = {
+    
+    // Sanitize data to prevent saving 'undefined'
+    const clientDataForDb: Partial<User> = {
         name: data.name,
         status: data.status,
         yearEnd: data.yearEnd,
@@ -245,21 +243,13 @@ export default function AdminClientsPage() {
         submitsIncomeTax: data.submitsIncomeTax,
         submitsAnnualReturns: data.submitsAnnualReturns,
         submitsBeneficialOwnership: data.submitsBeneficialOwnership,
+        // Set dependent fields to null if their toggle is false
+        financialsDueDate: data.preparesFinancials && data.yearEnd ? new Date(new Date().getFullYear(), months.indexOf(data.yearEnd) + 3, 1) : null,
+        managementAccountsFrequency: data.requiresManagementAccounts ? data.managementAccountsFrequency : null,
+        vatCategory: data.isVatRegistered ? data.vatCategory : null,
+        vatNumber: data.isVatRegistered ? data.vatNumber : null,
+        payrollDueDate: data.preparesPayroll ? data.payrollDueDate : null,
     };
-    
-    if (data.preparesFinancials && data.yearEnd) {
-        const yearEndMonthIndex = months.indexOf(data.yearEnd);
-        const dueDate = new Date(new Date().getFullYear(), yearEndMonthIndex + 3, 1); 
-        dueDate.setMonth(dueDate.getMonth() + 1, 0); // Last day of the month, 3 months later
-        clientDataForDb.financialsDueDate = dueDate;
-    } else {
-        clientDataForDb.financialsDueDate = null;
-    }
-    
-    clientDataForDb.managementAccountsFrequency = data.requiresManagementAccounts ? data.managementAccountsFrequency : null;
-    clientDataForDb.vatCategory = data.isVatRegistered ? data.vatCategory : null;
-    clientDataForDb.payrollDueDate = data.preparesPayroll ? data.payrollDueDate : null;
-
     
     try {
         const batch = writeBatch(db);
@@ -318,8 +308,8 @@ export default function AdminClientsPage() {
 
         } else { // Creating new client
              const newDocRef = doc(db, "clients", clientIdForTasks);
-             clientDataForDb = { ...clientDataForDb, role: 'client', source: 'Client Management', createdAt: serverTimestamp() };
-             batch.set(newDocRef, clientDataForDb);
+             const finalClientData = { ...clientDataForDb, role: 'client', source: 'Client Management', createdAt: serverTimestamp() };
+             batch.set(newDocRef, finalClientData);
 
              const automationFlags: (keyof User)[] = [
                 'preparesFinancials', 'requiresManagementAccounts', 'submitsEmp201', 'submitsEmp501', 
