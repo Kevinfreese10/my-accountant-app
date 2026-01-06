@@ -1,15 +1,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { getFirestore, doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, ProcessedEmail } from '@/lib/types';
-import imaps from 'imap-simple';
+import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
-import crypto from 'crypto';
+import { subDays, format } from 'date-fns';
+import { SHA256 } from 'crypto-js';
 
 const db = getFirestore(firebaseApp);
-const auth = getAuth(firebaseApp);
 
 export async function POST(req: NextRequest) {
     try {
@@ -27,64 +26,62 @@ export async function POST(req: NextRequest) {
 
         const userData = userDoc.data() as User;
         const imapConfig = {
-            imap: {
+            host: userData.imapDetails?.host || '',
+            port: Number(userData.imapDetails?.port) || 993,
+            secure: true,
+            auth: {
                 user: userData.imapDetails?.user || '',
-                password: userData.imapDetails?.pass || '',
-                host: userData.imapDetails?.host || '',
-                port: Number(userData.imapDetails?.port) || 993,
-                tls: true,
-                authTimeout: 3000
+                pass: userData.imapDetails?.pass || '',
+            },
+            logger: false, // Set to true for verbose debugging
+        };
+
+        const client = new ImapFlow(imapConfig);
+        await client.connect();
+
+        let lock = await client.getMailboxLock('INBOX');
+        let count = 0;
+        try {
+            const sinceDate = subDays(new Date(), 7);
+            const searchCriteria = { since: format(sinceDate, 'yyyy-MM-dd') };
+
+            for await (let msg of client.fetch(searchCriteria, { envelope: true, source: true, uid: true })) {
+                const parsedMail = await simpleParser(msg.source);
+                const messageId = parsedMail.messageId || `${msg.envelope.date?.toISOString()}-${msg.envelope.from?.[0]?.address}`;
+                const idHash = SHA256(messageId).toString();
+                
+                const emailDocRef = doc(db, 'processedEmails', idHash);
+                
+                const emailData: Omit<ProcessedEmail, 'id'> = {
+                    uid: msg.uid,
+                    messageId: messageId,
+                    mailbox: 'INBOX',
+                    date: parsedMail.date ? Timestamp.fromDate(parsedMail.date) : Timestamp.now(),
+                    from: { name: parsedMail.from?.value[0]?.name || '', address: parsedMail.from?.value[0]?.address || '' },
+                    to: parsedMail.to?.value.map(t => ({ name: t.name, address: t.address || '' })) || [],
+                    subject: parsedMail.subject || '',
+                    snippet: parsedMail.text?.substring(0, 150) || '',
+                    text: parsedMail.text || '',
+                    html: typeof parsedMail.html === 'string' ? parsedMail.html : '',
+                    status: 'new',
+                    ownerId: userId,
+                };
+                
+                await setDoc(emailDocRef, emailData, { merge: true });
+                count++;
             }
-        };
-
-        const connection = await imaps.connect(imapConfig);
-        await connection.openBox('INBOX');
-
-        // Fetch last 10 emails for demonstration purposes
-        const searchCriteria = ['ALL'];
-        const fetchOptions = {
-            bodies: ['HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID)', 'TEXT'],
-            struct: true,
-        };
-        
-        const messages = await connection.search(searchCriteria, fetchOptions);
-
-        for (const item of messages) {
-            const all = item.parts.find(part => part.which === 'TEXT');
-            const headers = item.parts.find(part => part.which === 'HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID)');
-            const parsedMail = await simpleParser(headers!.body + all!.body);
-
-            const messageId = parsedMail.messageId || `no-id-${item.attributes.uid}`;
-            const idHash = crypto.createHash('sha256').update(messageId).digest('hex');
-            
-            const emailDocRef = doc(db, 'processedEmails', idHash);
-
-            const emailData: Omit<ProcessedEmail, 'id'> = {
-                uid: item.attributes.uid,
-                messageId: messageId,
-                mailbox: 'INBOX',
-                date: parsedMail.date ? Timestamp.fromDate(parsedMail.date) : Timestamp.now(),
-                from: { name: parsedMail.from?.value[0]?.name || '', address: parsedMail.from?.value[0]?.address || '' },
-                to: parsedMail.to?.value.map(t => ({ name: t.name, address: t.address || '' })) || [],
-                subject: parsedMail.subject || '',
-                snippet: parsedMail.text?.substring(0, 150) || '',
-                text: parsedMail.text || '',
-                html: typeof parsedMail.html === 'string' ? parsedMail.html : '',
-                status: 'new',
-                ownerId: userId,
-            };
-
-            await setDoc(emailDocRef, emailData, { merge: true });
+        } finally {
+            lock.release();
         }
 
-        connection.end();
+        await client.logout();
 
-        return NextResponse.json({ success: true, message: `Fetched ${messages.length} emails.` });
+        return NextResponse.json({ success: true, message: `Synced ${count} emails from the last 7 days.` });
 
     } catch (error: any) {
-        console.error('Email fetch error:', error);
+        console.error('Email fetch API error:', error);
         return NextResponse.json(
-            { error: 'Failed to fetch emails.', details: error.message },
+            { error: 'Failed to fetch emails.', details: error.message || 'An unknown error occurred.' },
             { status: 500 }
         );
     }
