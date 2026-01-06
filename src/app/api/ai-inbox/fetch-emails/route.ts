@@ -11,6 +11,9 @@ import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests
 
 const db = getFirestore(firebaseApp);
 
+// Firestore's 1MiB limit, with a small buffer.
+const MAX_FIELD_SIZE = 1048000;
+
 // Function to safely extract attachments
 const getAttachments = async (attachments: any[]): Promise<any[]> => {
     return Promise.all(attachments.map(async (attachment) => {
@@ -85,6 +88,17 @@ export async function POST(req: NextRequest) {
             }
 
             const attachments = parsedMail.attachments ? await getAttachments(parsedMail.attachments) : [];
+            
+            let htmlContent = '';
+            if (typeof parsedMail.html === 'string') {
+                // Check if the html content exceeds Firestore's limit
+                if (new Blob([parsedMail.html]).size > MAX_FIELD_SIZE) {
+                    htmlContent = ''; // Set to empty if too large
+                } else {
+                    htmlContent = parsedMail.html;
+                }
+            }
+
 
             const emailData: Omit<ProcessedEmail, 'id'> = {
                 uid: id,
@@ -96,7 +110,7 @@ export async function POST(req: NextRequest) {
                 subject: parsedMail.subject || '',
                 snippet: parsedMail.text?.substring(0, 150) || '',
                 text: parsedMail.text || '',
-                html: typeof parsedMail.html === 'string' ? parsedMail.html : '',
+                html: htmlContent,
                 status: 'new',
                 ownerId: userId,
                 attachments: parsedMail.attachments?.map(att => ({
