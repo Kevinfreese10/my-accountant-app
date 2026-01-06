@@ -1,4 +1,5 @@
 
+
 'use server';
 
 /**
@@ -45,9 +46,9 @@ const CategorizeSupportRequestOutputSchema = z.object({
       title: z.string().optional().describe("If a task should be created, provide a concise and clear title for the task. E.g., 'File VAT201 for ABC (Pty) Ltd' or 'Call John Doe regarding query'."),
       description: z.string().optional().describe("A brief description of the task based on the email content."),
     }).optional().describe("Task creation details. Only populate if the email contains a clear, actionable request."),
-    suggestedActions: z
-    .array(z.enum(['create_task', 'draft_reply', 'archive', 'none']))
-    .describe("Based on the content, suggest one or more logical next actions. 'create_task' for actionable requests, 'draft_reply' for queries, and 'archive' for spam/promo."),
+    suggestedAction: z
+    .enum(['create_task', 'draft_reply', 'archive', 'none'])
+    .describe("Based on the content, suggest the most logical next action. 'create_task' for actionable requests, 'draft_reply' for queries, and 'archive' for spam/promo."),
     draftReply: z.string().optional().describe("If the suggested action is 'draft_reply', provide a professionally written draft reply. It should be helpful, concise, and maintain a friendly but professional tone, addressing the sender's query directly."),
 });
 export type CategorizeSupportRequestOutput = z.infer<typeof CategorizeSupportRequestOutputSchema>;
@@ -85,8 +86,8 @@ const categorizeSupportRequestFlow = ai.defineFlow(
       - SLA: High priority = 24 hours, Medium = 48 hours, Low = 72 hours.
 
       **Task, Action, & Reply Guidelines:**
-      - If the email contains a clear instruction for work (e.g., "Please file my VAT"), your suggestedActions list should contain 'create_task'. The task title must be specific and include the client's name.
-      - If the email asks for a callback or meeting (e.g., "Please call me"), your suggestedActions list MUST include BOTH 'create_task' (e.g., "Call John Doe") AND 'draft_reply'.
+      - If the email contains a clear instruction for work (e.g., "Please file my VAT"), your suggestedAction should be 'create_task'. The task title must be specific and include the client's name.
+      - If the email asks for a callback or meeting (e.g., "Please call me"), your suggestedAction MUST be 'create_task' (e.g., "Call John Doe").
       - If the email is a general inquiry or question, suggest just 'draft_reply'.
       - For spam, marketing, or newsletters, categorize as 'Spam/Promo', set priority to 'Low', and suggest 'archive'.
       - If no clear action is needed, suggest 'none'.

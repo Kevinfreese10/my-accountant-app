@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, Mail, MoreHorizontal, Eye } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +20,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import ReactMarkdown from 'react-markdown';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -103,6 +106,36 @@ export default function AIEmailInboxPage() {
         setSelectedEmail(email);
         setIsViewOpen(true);
     }
+    
+    const getPriorityBadgeVariant = (priority?: 'High' | 'Medium' | 'Low') => {
+        switch(priority) {
+            case 'High': return 'destructive';
+            case 'Medium': return 'warning';
+            case 'Low': return 'secondary';
+            default: return 'outline';
+        }
+    }
+
+    const ActionButton = ({ action }: { action: ProcessedEmail['aiSuggestedAction']}) => {
+        if (!action) return null;
+
+        const actionMap = {
+            create_task: { icon: <PlusCircle className="mr-2 h-4 w-4" />, label: 'Create Task' },
+            draft_reply: { icon: <Send className="mr-2 h-4 w-4" />, label: 'Draft Reply' },
+            archive: { icon: <Archive className="mr-2 h-4 w-4" />, label: 'Archive' },
+            none: null
+        }
+        
+        const actionDetails = actionMap[action];
+        if (!actionDetails) return null;
+
+        return (
+            <Button size="sm" variant="outline">
+                {actionDetails.icon}
+                {actionDetails.label}
+            </Button>
+        )
+    }
 
     return (
         <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
@@ -135,34 +168,52 @@ export default function AIEmailInboxPage() {
                                 {emails.map(email => (
                                     <div 
                                         key={email.id} 
-                                        className={cn("w-full text-left p-4 flex justify-between items-start gap-4")}
+                                        className={cn("w-full text-left p-4 space-y-2")}
                                     >
-                                        <div className="flex-grow space-y-1 overflow-hidden">
-                                            <div className="flex justify-between items-start">
-                                                <p className="font-semibold truncate">{email.from.name || email.from.address}</p>
-                                                <p className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formatDate(email.date)}</p>
+                                        <div className="flex justify-between items-start gap-4">
+                                            <div className="flex-grow space-y-1 overflow-hidden">
+                                                <div className="flex justify-between items-start">
+                                                    <p className="font-semibold truncate">{email.from.name || email.from.address}</p>
+                                                    <p className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formatDate(email.date)}</p>
+                                                </div>
+                                                <p className="text-sm truncate font-medium">{email.subject}</p>
+                                                <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
                                             </div>
-                                            <p className="text-sm truncate font-medium">{email.subject}</p>
-                                            <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DropdownMenuItem onSelect={() => handleViewEmail(email)}>
+                                                        <Eye className="mr-2 h-4 w-4" /> View Email
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem>
+                                                        <Send className="mr-2 h-4 w-4" /> Reply
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem>
+                                                        <Archive className="mr-2 h-4 w-4" /> Archive
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         </div>
-                                         <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8">
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent>
-                                                <DropdownMenuItem onSelect={() => handleViewEmail(email)}>
-                                                    <Eye className="mr-2 h-4 w-4" /> View Email
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem>
-                                                    <Send className="mr-2 h-4 w-4" /> Reply
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem>
-                                                    <Archive className="mr-2 h-4 w-4" /> Archive
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+                                         {email.aiSummary && (
+                                            <div className="p-3 bg-muted/50 rounded-md border space-y-2">
+                                                 <div className="flex items-center gap-2">
+                                                    <Bot className="h-4 w-4 text-primary" />
+                                                    <h4 className="text-sm font-semibold">AI Summary & Actions</h4>
+                                                 </div>
+                                                 <ReactMarkdown className="text-xs"
+                                                  components={{ p: ({node, ...props}) => <p className="my-0" {...props} /> }}
+                                                 >{email.aiSummary}</ReactMarkdown>
+                                                 <div className="flex items-center gap-2 pt-2">
+                                                    <ActionButton action={email.aiSuggestedAction} />
+                                                    {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
+                                                    {email.aiPriority && <Badge variant={getPriorityBadgeVariant(email.aiPriority)}>{email.aiPriority}</Badge>}
+                                                 </div>
+                                            </div>
+                                         )}
                                     </div>
                                 ))}
                             </div>

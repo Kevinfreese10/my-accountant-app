@@ -1,4 +1,5 @@
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -429,8 +430,6 @@ export type ProcessedEmail = {
   text: string;
   html: string;
   status: 'new' | 'processed' | 'archived';
-  category?: 'Account issues' | 'Tax preparation' | 'Service inquiry' | 'Document upload' | 'Spam/Promo' | 'Other';
-  priority?: 'High' | 'Medium' | 'Low';
   ownerId: string;
   attachments?: {
     filename: string;
@@ -438,6 +437,15 @@ export type ProcessedEmail = {
     size: number;
     storagePath: string; // Path in Firebase Storage
   }[];
+  // AI-generated fields
+  aiSummary?: string;
+  aiCategory?: 'Account issues' | 'Tax preparation' | 'Service inquiry' | 'Document upload' | 'Spam/Promo' | 'Other';
+  aiPriority?: 'High' | 'Medium' | 'Low';
+  aiSuggestedAction?: 'create_task' | 'draft_reply' | 'archive' | 'none';
+  aiTask?: {
+    title: string;
+    description: string;
+  }
 };
 
 import { z } from 'zod';

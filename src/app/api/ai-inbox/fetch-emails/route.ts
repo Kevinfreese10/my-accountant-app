@@ -7,6 +7,7 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { subDays, format } from 'date-fns';
 import { SHA256 } from 'crypto-js';
+import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
 
 const db = getFirestore(firebaseApp);
 
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
             const sinceDate = subDays(new Date(), 7);
             const searchCriteria = { since: format(sinceDate, 'yyyy-MM-dd') };
 
-            for await (let msg of client.fetch(searchCriteria, { envelope: true, source: true, uid: true })) {
+            for await (let msg of client.fetch(searchCriteria, { envelope: true, source: true, uid: true, bodyStructure: true })) {
                 const parsedMail = await simpleParser(msg.source);
                 const messageId = parsedMail.messageId || `${msg.envelope.date?.toISOString()}-${msg.envelope.from?.[0]?.address}`;
                 const idHash = SHA256(messageId).toString();
@@ -67,6 +68,35 @@ export async function POST(req: NextRequest) {
                     ownerId: userId,
                 };
                 
+                // Call AI categorization flow
+                try {
+                    const aiResult = await categorizeSupportRequest({
+                        request: `${parsedMail.subject || ''}\n\n${parsedMail.text || ''}`,
+                        clientName: parsedMail.from?.value[0]?.name || parsedMail.from?.value[0]?.address || 'Unknown Sender',
+                        attachments: parsedMail.attachments?.map(att => ({
+                            filename: att.filename || null,
+                            contentType: att.contentType || null,
+                            dataUrl: `data:${att.contentType};base64,${att.content.toString('base64')}`,
+                            size: att.size,
+                        })) || []
+                    });
+
+                    emailData.aiSummary = aiResult.summary;
+                    emailData.aiCategory = aiResult.category;
+                    emailData.aiPriority = aiResult.priority;
+                    emailData.aiSuggestedAction = aiResult.suggestedAction;
+                    if(aiResult.task?.shouldCreate) {
+                        emailData.aiTask = {
+                            title: aiResult.task.title || 'Untitled Task',
+                            description: aiResult.task.description || 'No description provided.',
+                        }
+                    }
+
+                } catch(aiError) {
+                    console.error(`AI categorization failed for email ${messageId}:`, aiError);
+                    // Continue without AI data if it fails
+                }
+
                 await setDoc(emailDocRef, emailData, { merge: true });
                 count++;
             }
