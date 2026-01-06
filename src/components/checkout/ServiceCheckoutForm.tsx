@@ -97,41 +97,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
           html: emailHtml,
       });
 
-      submitToPayFast(orderData);
-  }
-
-  const submitToPayFast = (order: Order) => {
-    const payfastUrl = 'https://www.payfast.co.za/eng/process';
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = payfastUrl;
-
-    const data: { [key: string]: string } = {
-        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
-        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/products/${service.slug}`,
-        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
-        name_first: order.customerName.split(' ')[0],
-        name_last: order.customerName.split(' ').slice(1).join(' '),
-        email_address: order.customerEmail,
-        cell_number: order.customerPhone || '',
-        m_payment_id: order.id,
-        amount: order.total.toFixed(2),
-        item_name: `Order #${order.id}`,
-        item_description: order.items.map(i => i.title).join(', '),
-    };
-
-    for (const key in data) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = data[key];
-        form.appendChild(input);
-    }
-    
-    document.body.appendChild(form);
-    form.submit();
+      router.push(`/order-confirmation/${orderId}`);
   }
 
   return (

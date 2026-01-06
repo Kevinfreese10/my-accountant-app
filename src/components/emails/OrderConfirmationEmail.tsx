@@ -120,7 +120,7 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                     </Text>
                  )}
                 <Text style={paragraph}>
-                    Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed. You will be redirected to PayFast to complete your payment. If you are not redirected, please use the button below.
+                    Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed. You will now be redirected to PayFast to complete your payment.
                 </Text>
                 <Hr style={hr} />
                 <Text style={{ ...paragraph, fontWeight: 'bold' }}>

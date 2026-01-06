@@ -68,7 +68,7 @@ export default function OrderConfirmationPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                        You will be redirected to PayFast to complete your payment.
+                        You will be redirected to PayFast to complete your payment or subscription setup.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
