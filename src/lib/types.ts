@@ -445,7 +445,8 @@ export type ProcessedEmail = {
   aiTask?: {
     title: string;
     description: string;
-  }
+  };
+  aiDraftReply?: string;
 };
 
 import { z } from 'zod';

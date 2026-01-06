@@ -52,6 +52,12 @@ export async function POST(req: NextRequest) {
                 const idHash = SHA256(messageId).toString();
                 
                 const emailDocRef = doc(db, 'processedEmails', idHash);
+                const docSnap = await getDoc(emailDocRef);
+
+                // Skip if email has been processed before, unless it's a new email
+                if (docSnap.exists() && docSnap.data().status !== 'new') {
+                    continue;
+                }
                 
                 const emailData: Omit<ProcessedEmail, 'id'> = {
                     uid: msg.uid,
