@@ -104,7 +104,7 @@ export default function AIEmailInboxPage() {
                 </Button>
             </div>
             <Card className="h-[calc(100vh-12rem)]">
-                <div className="grid grid-cols-1 md:grid-cols-[350px_1fr] h-full">
+                <div className="grid grid-cols-1 h-full">
                     <div className="border-r">
                         <div className="p-4 border-b">
                             <h2 className="text-lg font-semibold">Inbox ({emails.length})</h2>
@@ -139,32 +139,6 @@ export default function AIEmailInboxPage() {
                             </div>
                         )}
                         </ScrollArea>
-                    </div>
-                    <div className="flex flex-col">
-                        {selectedEmail ? (
-                            <div className="p-4 border-b space-y-2">
-                                <h3 className="text-xl font-bold">{selectedEmail.subject}</h3>
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <p className="text-sm font-semibold">{selectedEmail.from.name}</p>
-                                        <p className="text-xs text-muted-foreground">{selectedEmail.from.address}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-xs text-muted-foreground">{formatDate(selectedEmail.date)}</p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-2 pt-2">
-                                    <Button size="sm" variant="outline"><Send className="mr-2 h-4 w-4"/>Reply</Button>
-                                    <Button size="sm" variant="outline"><Trash className="mr-2 h-4 w-4"/>Delete</Button>
-                                    <Button size="sm" variant="outline"><Archive className="mr-2 h-4 w-4"/>Archive</Button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                                <Mail className="h-16 w-16 mb-4"/>
-                                <p>Select an email to read</p>
-                            </div>
-                        )}
                     </div>
                 </div>
             </Card>
