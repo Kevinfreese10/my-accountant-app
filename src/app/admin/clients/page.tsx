@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { User, Task, Service } from '@/lib/types';
+import { User, Task } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -45,7 +45,6 @@ const formSchema = z.object({
   
   yearEnd: z.string().min(1, 'Financial Year End is required.'),
   preparesFinancials: z.boolean().default(false),
-  financialsDueDate: z.string().optional(),
 
   requiresManagementAccounts: z.boolean().default(false),
   managementAccountsFrequency: z.enum(managementAccountFrequencies).optional(),
@@ -74,7 +73,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             status: client?.status || 'Active',
             yearEnd: client?.yearEnd || undefined,
             preparesFinancials: client?.preparesFinancials || false,
-            financialsDueDate: client?.financialsDueDate || undefined,
             requiresManagementAccounts: client?.requiresManagementAccounts || false,
             managementAccountsFrequency: client?.managementAccountsFrequency || undefined,
             isVatRegistered: client?.isVatRegistered || false,
@@ -244,6 +242,7 @@ export default function AdminClientsPage() {
         requiresManagementAccounts: data.requiresManagementAccounts,
         isVatRegistered: data.isVatRegistered,
         preparesPayroll: data.preparesPayroll,
+        payrollDueDate: data.preparesPayroll ? data.payrollDueDate : null,
         submitsEmp201: data.submitsEmp201,
         submitsEmp501: data.submitsEmp501,
         submitsProvisionalTax: data.submitsProvisionalTax,
@@ -253,7 +252,7 @@ export default function AdminClientsPage() {
     };
     
     // Auto-calculate financialsDueDate if financials are prepared
-    if (data.preparesFinancials) {
+    if (data.preparesFinancials && data.yearEnd) {
         const yearEndMonthIndex = months.indexOf(data.yearEnd);
         // Financials are due 3 months after year-end.
         // We set the date to the last day of that month.
@@ -262,15 +261,9 @@ export default function AdminClientsPage() {
     } else {
         clientDataForDb.financialsDueDate = null;
     }
-
-    clientDataForDb.managementAccountsFrequency = data.requiresManagementAccounts ? data.managementAccountsFrequency : null;
-    clientDataForDb.payrollDueDate = data.preparesPayroll ? data.payrollDueDate : null;
-    clientDataForDb.vatCategory = data.isVatRegistered ? data.vatCategory : null;
     
-    // This is a temporary fix. In a real app, you would have a more robust way of handling user creation or linking
-    if (!originalClient) {
-        clientDataForDb.email = `client-${Date.now()}@my-company.com`;
-    }
+    clientDataForDb.managementAccountsFrequency = data.requiresManagementAccounts ? data.managementAccountsFrequency : null;
+    clientDataForDb.vatCategory = data.isVatRegistered ? data.vatCategory : null;
     
     try {
         const batch = writeBatch(db);
@@ -530,5 +523,3 @@ export default function AdminClientsPage() {
     </div>
   );
 }
-
-    
