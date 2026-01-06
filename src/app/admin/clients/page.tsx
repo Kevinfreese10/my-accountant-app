@@ -249,6 +249,7 @@ export default function AdminClientsPage() {
             managementAccountsFrequency: data.requiresManagementAccounts ? data.managementAccountsFrequency : null,
             isVatRegistered: data.isVatRegistered,
             vatCategory: data.isVatRegistered ? data.vatCategory : null,
+            vatNumber: data.isVatRegistered ? data.vatNumber : null,
             preparesPayroll: data.preparesPayroll,
             payrollDueDate: data.preparesPayroll ? data.payrollDueDate : null,
             submitsEmp201: data.submitsEmp201,
@@ -516,3 +517,5 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
+    
