@@ -27,7 +27,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 const db = getFirestore(firebaseApp);
 
-type Client = User & { status: 'Active' | 'Inactive'; cellNumber?: string; contactPerson?: string; };
+type Client = User & { status: 'Active' | 'Inactive' | 'Archived'; cellNumber?: string; contactPerson?: string; };
 
 const clientStatuses: ('Active' | 'Inactive' | 'Archived')[] = ['Active', 'Inactive', 'Archived'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
@@ -71,14 +71,14 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             id: client?.id || '',
             name: client?.name || '',
             status: client?.status || 'Active',
-            yearEnd: client?.yearEnd || undefined,
+            yearEnd: client?.yearEnd || '',
             preparesFinancials: client?.preparesFinancials || false,
             requiresManagementAccounts: client?.requiresManagementAccounts || false,
             managementAccountsFrequency: client?.managementAccountsFrequency || undefined,
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
             preparesPayroll: client?.preparesPayroll || false,
-            payrollDueDate: client?.payrollDueDate || undefined,
+            payrollDueDate: client?.payrollDueDate || '',
             submitsEmp201: client?.submitsEmp201 || false,
             submitsEmp501: client?.submitsEmp501 || false,
             submitsProvisionalTax: client?.submitsProvisionalTax || false,
@@ -100,7 +100,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
-                 <Separator />
                 
                 <div className="space-y-4 rounded-md border p-4">
                     <h3 className="text-lg font-medium">Accounting and Tax</h3>
@@ -250,7 +249,8 @@ export default function AdminClientsPage() {
     
     if (data.preparesFinancials && data.yearEnd) {
         const yearEndMonthIndex = months.indexOf(data.yearEnd);
-        const dueDate = new Date(new Date().getFullYear(), yearEndMonthIndex + 4, 0); 
+        const dueDate = new Date(new Date().getFullYear(), yearEndMonthIndex + 3, 1); 
+        dueDate.setMonth(dueDate.getMonth() + 1, 0); // Last day of the month, 3 months later
         clientDataForDb.financialsDueDate = dueDate;
     } else {
         clientDataForDb.financialsDueDate = null;
@@ -258,7 +258,6 @@ export default function AdminClientsPage() {
     
     clientDataForDb.managementAccountsFrequency = data.requiresManagementAccounts ? data.managementAccountsFrequency : null;
     clientDataForDb.vatCategory = data.isVatRegistered ? data.vatCategory : null;
-    clientDataForDb.vatNumber = data.isVatRegistered ? data.vatNumber : null;
     clientDataForDb.payrollDueDate = data.preparesPayroll ? data.payrollDueDate : null;
 
     
