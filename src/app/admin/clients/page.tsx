@@ -104,13 +104,10 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
                  <Separator />
-                 <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Automation Settings</h3>
-                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                </div>
-
+                
                 <div className="space-y-4 rounded-md border p-4">
-                    <h4 className="text-md font-semibold">Accounting and Tax</h4>
+                    <h3 className="text-lg font-medium">Accounting and Tax</h3>
+                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="preparesFinancials" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Prepare Annual Financials?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                     <FormField control={form.control} name="requiresManagementAccounts" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Prepare Management Accounts?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                     {requiresManagementAccounts && (
@@ -127,7 +124,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                 </div>
                 
                 <div className="space-y-4 rounded-md border p-4">
-                     <h4 className="text-md font-semibold">Payroll</h4>
+                     <h3 className="text-lg font-medium">Payroll</h3>
                     <FormField control={form.control} name="preparesPayroll" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Prepare Payroll?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                     {preparesPayroll && (
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center pl-4">
@@ -141,7 +138,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                 </div>
 
                 <div className="space-y-4 rounded-md border p-4">
-                    <h4 className="text-md font-semibold">Compliance</h4>
+                    <h3 className="text-lg font-medium">Compliance</h3>
                     <FormField control={form.control} name="submitsAnnualReturns" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Submit CIPC Annual Returns?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                     <FormField control={form.control} name="submitsBeneficialOwnership" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Submit Beneficial Ownership?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                </div>
@@ -235,36 +232,52 @@ export default function AdminClientsPage() {
 
   const handleFormSubmit = async (data: any, originalClient: Client | null) => {
     if (!currentUser) return;
+
+    let clientDataForDb: Partial<User>;
+
+    // Common data preparation
+    clientDataForDb = {
+        name: data.name,
+        status: data.status,
+        yearEnd: data.yearEnd,
+        preparesFinancials: data.preparesFinancials,
+        requiresManagementAccounts: data.requiresManagementAccounts,
+        isVatRegistered: data.isVatRegistered,
+        preparesPayroll: data.preparesPayroll,
+        submitsEmp201: data.submitsEmp201,
+        submitsEmp501: data.submitsEmp501,
+        submitsProvisionalTax: data.submitsProvisionalTax,
+        submitsIncomeTax: data.submitsIncomeTax,
+        submitsAnnualReturns: data.submitsAnnualReturns,
+        submitsBeneficialOwnership: data.submitsBeneficialOwnership,
+    };
     
-    const clientToUpdateId = originalClient?.id || (data.id || undefined);
+    // Auto-calculate financialsDueDate if financials are prepared
+    if (data.preparesFinancials) {
+        const yearEndMonthIndex = months.indexOf(data.yearEnd);
+        // Financials are due 3 months after year-end.
+        // We set the date to the last day of that month.
+        const dueDate = new Date(new Date().getFullYear(), yearEndMonthIndex + 4, 0); 
+        clientDataForDb.financialsDueDate = dueDate;
+    } else {
+        clientDataForDb.financialsDueDate = null;
+    }
 
+    clientDataForDb.managementAccountsFrequency = data.requiresManagementAccounts ? data.managementAccountsFrequency : null;
+    clientDataForDb.payrollDueDate = data.preparesPayroll ? data.payrollDueDate : null;
+    clientDataForDb.vatCategory = data.isVatRegistered ? data.vatCategory : null;
+    
+    // This is a temporary fix. In a real app, you would have a more robust way of handling user creation or linking
+    if (!originalClient) {
+        clientDataForDb.email = `client-${Date.now()}@my-company.com`;
+    }
+    
     try {
-        let clientDataForDb: Partial<User> = {
-            name: data.name,
-            status: data.status,
-            yearEnd: data.yearEnd || null,
-            preparesFinancials: data.preparesFinancials,
-            financialsDueDate: data.preparesFinancials ? data.financialsDueDate : null,
-            requiresManagementAccounts: data.requiresManagementAccounts,
-            managementAccountsFrequency: data.requiresManagementAccounts ? data.managementAccountsFrequency : null,
-            isVatRegistered: data.isVatRegistered,
-            vatCategory: data.isVatRegistered ? data.vatCategory : null,
-            vatNumber: data.isVatRegistered ? data.vatNumber : null,
-            preparesPayroll: data.preparesPayroll,
-            payrollDueDate: data.preparesPayroll ? data.payrollDueDate : null,
-            submitsEmp201: data.submitsEmp201,
-            submitsEmp501: data.submitsEmp501,
-            submitsProvisionalTax: data.submitsProvisionalTax,
-            submitsIncomeTax: data.submitsIncomeTax,
-            submitsAnnualReturns: data.submitsAnnualReturns,
-            submitsBeneficialOwnership: data.submitsBeneficialOwnership,
-        };
-
         const batch = writeBatch(db);
-        const clientIdForTasks = clientToUpdateId || doc(collection(db, "clients")).id;
+        const clientIdForTasks = originalClient?.id || doc(collection(db, "clients")).id;
 
-        if (clientToUpdateId && originalClient) { // Editing existing client
-            const clientRef = doc(db, "clients", clientToUpdateId);
+        if (originalClient) { // Editing existing client
+            const clientRef = doc(db, "clients", clientIdForTasks);
             batch.update(clientRef, clientDataForDb);
             
             const existingTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientIdForTasks));
@@ -276,7 +289,7 @@ export default function AdminClientsPage() {
                 'submitsProvisionalTax', 'submitsIncomeTax', 'isVatRegistered',
                 'submitsAnnualReturns', 'submitsBeneficialOwnership'
             ];
-
+            
             for (const flag of automationFlags) {
                 const wasEnabled = !!originalClient[flag];
                 const isNowEnabled = !!data[flag];
