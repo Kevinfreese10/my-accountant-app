@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle } from "lucide-react";
 import { Button } from '@/components/ui/button';
@@ -174,6 +174,7 @@ export default function AIEmailInboxPage() {
         toast({ title: 'Sending Email...', description: `Sending reply to ${email.from.address}.` });
 
         try {
+            // Convert markdown to HTML for the email body
             const emailHtml = draft.replace(/\n/g, '<br/>');
 
             await sendEmail({
@@ -237,26 +238,23 @@ export default function AIEmailInboxPage() {
             return <Badge variant="secondary"><CheckCircle className="mr-2 h-4 w-4" />Task Created</Badge>;
         }
 
-        const actionMap: { [key: string]: { icon: React.ReactNode, label: string, onClick?: () => void } } = {
-            create_task: { icon: <PlusCircle className="mr-2 h-4 w-4" />, label: 'Create Task', onClick: handleCreateTaskClick },
-            draft_reply: { 
-                icon: isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />, 
-                label: isDrafting === email.id ? 'Drafting...' : 'Draft Reply',
-                onClick: () => handleDraftReply(email),
-            },
-            archive: { icon: <Archive className="mr-2 h-4 w-4" />, label: 'Archive', onClick: () => handleArchiveEmail(email.id) },
-            none: { icon: <></>, label: '', onClick: undefined }
-        };
+        if (action === 'create_task') {
+            return (
+                <Button size="sm" variant="default" onClick={handleCreateTaskClick}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Create Task
+                </Button>
+            );
+        }
         
-        const actionDetails = action ? actionMap[action] : null;
-        if (!actionDetails || !actionDetails.onClick) return null;
-
-        return (
-            <Button size="sm" variant="default" onClick={actionDetails.onClick} disabled={isDrafting === email.id}>
-                {actionDetails.icon}
-                {actionDetails.label}
-            </Button>
-        )
+        if (action === 'draft_reply') {
+            return (
+                 <Button size="sm" variant="default" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id}>
+                    {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />}
+                    {isDrafting === email.id ? 'Drafting...' : 'Draft Reply'}
+                </Button>
+            )
+        }
+        return null;
     }
 
     return (
@@ -334,18 +332,23 @@ export default function AIEmailInboxPage() {
                                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleArchiveEmail(email.id)}><Archive className="h-4 w-4" /></Button>
                                                 </div>
                                              </div>
-                                             <ReactMarkdown className="text-xs"
-                                              components={{ p: ({node, ...props}) => <p className="my-0" {...props} /> }}
+                                             <ReactMarkdown className="text-xs prose prose-sm max-w-none"
+                                              components={{ p: ({node, ...props}) => <p className="my-1" {...props} /> }}
                                              >{email.aiSummary}</ReactMarkdown>
                                              {(draftReplies[email.id] || email.aiDraftReply) && (
                                                  <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
                                                     <p className="text-xs font-semibold">Suggested Reply:</p>
-                                                     <Textarea 
-                                                        defaultValue={draftReplies[email.id] || email.aiDraftReply}
-                                                        onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: e.target.value}))}
-                                                        className="text-xs h-auto bg-white"
-                                                        rows={4}
-                                                      />
+                                                     <ReactMarkdown
+                                                        className="text-xs bg-white p-2 rounded-md border prose prose-sm max-w-none"
+                                                        components={{
+                                                            p: ({node, ...props}) => <p className="my-1" {...props} />,
+                                                            ul: ({node, ...props}) => <ul className="my-1 list-disc pl-4" {...props} />,
+                                                            li: ({node, ...props}) => <li className="my-0.5" {...props} />
+                                                        }}
+                                                    >
+                                                        {draftReplies[email.id] || email.aiDraftReply}
+                                                    </ReactMarkdown>
+
                                                       <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
                                                         {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
                                                         Send Email Reply
