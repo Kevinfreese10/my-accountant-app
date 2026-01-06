@@ -13,13 +13,6 @@ import { OrderNote, ProcessedEmail } from '@/lib/types';
 import { format, isToday, isThisWeek, isThisYear } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import ReactMarkdown from 'react-markdown';
 import { generateEmailReply } from '@/ai/flows/generate-email-reply';
@@ -35,8 +28,7 @@ export default function AIEmailInboxPage() {
     const [isSyncing, setIsSyncing] = useState(false);
     const [emails, setEmails] = useState<ProcessedEmail[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedEmail, setSelectedEmail] = useState<ProcessedEmail | null>(null);
-    const [isViewOpen, setIsViewOpen] = useState(false);
+    const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
     const [isDrafting, setIsDrafting] = useState<string | null>(null);
     const [draftReplies, setDraftReplies] = useState<Record<string, string>>({});
     const [isSending, setIsSending] = useState<string | null>(null);
@@ -109,18 +101,13 @@ export default function AIEmailInboxPage() {
         return format(date, 'dd/MM/yyyy');
     };
     
-    const handleViewEmail = (email: ProcessedEmail) => {
-        setSelectedEmail(email);
-        setIsViewOpen(true);
-    }
-    
     const handleArchiveEmail = async (emailId: string) => {
         try {
             const emailRef = doc(db, 'processedEmails', emailId);
             await updateDoc(emailRef, { status: 'archived' });
             toast({ title: 'Email Archived' });
-            if (selectedEmail?.id === emailId) {
-                setIsViewOpen(false);
+            if (selectedEmailId === emailId) {
+                setSelectedEmailId(null);
             }
         } catch (error) {
             toast({ title: 'Error', description: 'Could not archive email.', variant: 'destructive' });
@@ -150,9 +137,6 @@ export default function AIEmailInboxPage() {
             });
             await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: result.draft });
             setDraftReplies(prev => ({...prev, [email.id]: result.draft}));
-             if (selectedEmail?.id === email.id) {
-                setSelectedEmail(prev => prev ? { ...prev, aiDraftReply: result.draft } : null);
-            }
         } catch (e) {
             toast({ title: 'Failed to draft reply', variant: 'destructive' });
         } finally {
@@ -215,112 +199,88 @@ export default function AIEmailInboxPage() {
     }
 
     return (
-        <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-            <div className="space-y-8">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
-                    <Button onClick={handleSyncEmails} disabled={isSyncing}>
-                        {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                        Sync Emails
-                    </Button>
-                </div>
-                <Card>
-                    <CardHeader className="p-4 border-b">
-                        <h2 className="text-lg font-semibold">Inbox ({emails.length})</h2>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <ScrollArea className="h-[calc(100vh-18rem)]">
-                        {isLoading ? (
-                            <div className="flex justify-center items-center h-full">
-                                <Loader2 className="h-6 w-6 animate-spin"/>
-                            </div>
-                        ) : emails.length === 0 ? (
-                            <div className="text-center p-8 text-muted-foreground">
-                                <Inbox className="mx-auto h-12 w-12" />
-                                <p className="mt-4 text-sm">Your inbox is empty.</p>
-                                <p className="text-xs">Click "Sync Emails" to get started.</p>
-                            </div>
-                        ) : (
-                            <div className="divide-y">
-                                {emails.map(email => (
-                                    <div 
-                                        key={email.id} 
-                                        className={cn("w-full text-left p-4 space-y-2 cursor-pointer hover:bg-muted/50", selectedEmail?.id === email.id && "bg-muted")}
-                                        onClick={() => handleViewEmail(email)}
-                                    >
-                                        <div className="flex justify-between items-start gap-4">
-                                            <div className="flex-grow space-y-1 overflow-hidden">
-                                                <div className="flex justify-between items-start">
-                                                    <p className="font-semibold truncate">{email.from.name || email.from.address}</p>
-                                                    <p className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formatDate(email.date)}</p>
-                                                </div>
-                                                <p className="text-sm truncate font-medium">{email.subject}</p>
-                                                <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
-                                            </div>
-                                        </div>
-                                         {email.aiSummary && (
-                                            <div className="p-3 bg-background rounded-md border space-y-2">
-                                                 <div className="flex items-center gap-2">
-                                                    <Bot className="h-4 w-4 text-primary" />
-                                                    <h4 className="text-sm font-semibold">AI Summary & Actions</h4>
-                                                 </div>
-                                                 <ReactMarkdown className="text-xs"
-                                                  components={{ p: ({node, ...props}) => <p className="my-0" {...props} /> }}
-                                                 >{email.aiSummary}</ReactMarkdown>
-                                                 {(draftReplies[email.id] || email.aiDraftReply) && (
-                                                     <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
-                                                        <p className="text-xs font-semibold">Suggested Reply:</p>
-                                                         <Textarea 
-                                                            defaultValue={draftReplies[email.id] || email.aiDraftReply}
-                                                            onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: e.target.value}))}
-                                                            className="text-xs h-auto bg-white"
-                                                            rows={4}
-                                                          />
-                                                          <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
-                                                            {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
-                                                            Send Email Reply
-                                                          </Button>
-                                                     </div>
-                                                 )}
-                                                 <div className="flex items-center gap-2 pt-2">
-                                                    <ActionButton email={email} />
-                                                    {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
-                                                 </div>
-                                            </div>
-                                         )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        </ScrollArea>
-                    </CardContent>
-                </Card>
+        <div className="space-y-8">
+            <div className="flex items-center justify-between">
+                <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
+                <Button onClick={handleSyncEmails} disabled={isSyncing}>
+                    {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                    Sync Emails
+                </Button>
             </div>
-            <DialogContent className="sm:max-w-3xl h-[80vh] flex flex-col">
-                <DialogHeader>
-                    <DialogTitle className="truncate">{selectedEmail?.subject}</DialogTitle>
-                    <DialogDescription>From: {selectedEmail?.from.name} ({selectedEmail?.from.address})</DialogDescription>
-                    <div className="flex gap-2 pt-2">
-                        {selectedEmail && (
-                           <>
-                             <Button size="sm" onClick={() => handleReplyToEmail(selectedEmail)}><Send className="mr-2 h-4 w-4" />Reply</Button>
-                             <Button size="sm" variant="outline" onClick={() => handleArchiveEmail(selectedEmail.id)}><Archive className="mr-2 h-4 w-4" />Archive</Button>
-                           </>
-                        )}
-                    </div>
-                </DialogHeader>
-                 <div className="flex-1 -m-6 mt-2">
-                    {selectedEmail?.html ? (
-                        <iframe
-                            srcDoc={selectedEmail.html}
-                            className="w-full h-full border-0"
-                            sandbox=""
-                        />
+            <Card>
+                <CardHeader className="p-4 border-b">
+                    <h2 className="text-lg font-semibold">Inbox ({emails.length})</h2>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <ScrollArea className="h-[calc(100vh-18rem)]">
+                    {isLoading ? (
+                        <div className="flex justify-center items-center h-full">
+                            <Loader2 className="h-6 w-6 animate-spin"/>
+                        </div>
+                    ) : emails.length === 0 ? (
+                        <div className="text-center p-8 text-muted-foreground">
+                            <Inbox className="mx-auto h-12 w-12" />
+                            <p className="mt-4 text-sm">Your inbox is empty.</p>
+                            <p className="text-xs">Click "Sync Emails" to get started.</p>
+                        </div>
                     ) : (
-                        <pre className="w-full h-full text-sm whitespace-pre-wrap p-6">{selectedEmail?.text}</pre>
+                        <div className="divide-y">
+                            {emails.map(email => (
+                                <div 
+                                    key={email.id} 
+                                    className={cn("w-full text-left p-4 space-y-2", selectedEmailId === email.id && "bg-muted")}
+                                    onClick={() => setSelectedEmailId(email.id)}
+                                >
+                                    <div className="flex justify-between items-start gap-4">
+                                        <div className="flex-grow space-y-1 overflow-hidden">
+                                            <div className="flex justify-between items-start">
+                                                <p className="font-semibold truncate">{email.from.name || email.from.address}</p>
+                                                <p className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formatDate(email.date)}</p>
+                                            </div>
+                                            <p className="text-sm truncate font-medium">{email.subject}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
+                                        </div>
+                                    </div>
+                                     {email.aiSummary && (
+                                        <div className="p-3 bg-background rounded-md border space-y-2">
+                                             <div className="flex items-center gap-2">
+                                                <Bot className="h-4 w-4 text-primary" />
+                                                <h4 className="text-sm font-semibold">AI Summary & Actions</h4>
+                                             </div>
+                                             <ReactMarkdown className="text-xs"
+                                              components={{ p: ({node, ...props}) => <p className="my-0" {...props} /> }}
+                                             >{email.aiSummary}</ReactMarkdown>
+                                             {(draftReplies[email.id] || email.aiDraftReply) && (
+                                                 <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
+                                                    <p className="text-xs font-semibold">Suggested Reply:</p>
+                                                     <Textarea 
+                                                        defaultValue={draftReplies[email.id] || email.aiDraftReply}
+                                                        onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: e.target.value}))}
+                                                        className="text-xs h-auto bg-white"
+                                                        rows={4}
+                                                      />
+                                                      <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
+                                                        {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
+                                                        Send Email Reply
+                                                      </Button>
+                                                 </div>
+                                             )}
+                                             <div className="flex items-center gap-2 pt-2">
+                                                <ActionButton email={email} />
+                                                {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
+                                             </div>
+                                        </div>
+                                     )}
+                                </div>
+                            ))}
+                        </div>
                     )}
-                 </div>
-            </DialogContent>
-        </Dialog>
+                    </ScrollArea>
+                </CardContent>
+            </Card>
+        </div>
     );
 }
+
+
+    
