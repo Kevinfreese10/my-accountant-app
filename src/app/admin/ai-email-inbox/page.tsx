@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, Mail } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, Mail, MoreHorizontal, Eye } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -11,11 +11,15 @@ import { collection, query, where, orderBy, onSnapshot, getFirestore } from 'fir
 import { firebaseApp } from '@/lib/firebase';
 import { ProcessedEmail } from '@/lib/types';
 import { format, isToday, isThisWeek, isThisYear } from 'date-fns';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 const db = getFirestore(firebaseApp);
 
@@ -26,6 +30,7 @@ export default function AIEmailInboxPage() {
     const [emails, setEmails] = useState<ProcessedEmail[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedEmail, setSelectedEmail] = useState<ProcessedEmail | null>(null);
+    const [isViewOpen, setIsViewOpen] = useState(false);
 
     useEffect(() => {
         if (user?.uid) {
@@ -94,22 +99,27 @@ export default function AIEmailInboxPage() {
         return format(date, 'dd/MM/yyyy');
     };
 
+    const handleViewEmail = (email: ProcessedEmail) => {
+        setSelectedEmail(email);
+        setIsViewOpen(true);
+    }
+
     return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
-                <Button onClick={handleSyncEmails} disabled={isSyncing}>
-                    {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                    Sync Emails
-                </Button>
-            </div>
-            <Card className="h-[calc(100vh-12rem)]">
-                <div className="grid grid-cols-1 h-full">
-                    <div className="border-r">
-                        <div className="p-4 border-b">
-                            <h2 className="text-lg font-semibold">Inbox ({emails.length})</h2>
-                        </div>
-                        <ScrollArea className="h-[calc(100vh-16rem)]">
+        <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+            <div className="space-y-8">
+                <div className="flex items-center justify-between">
+                    <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
+                    <Button onClick={handleSyncEmails} disabled={isSyncing}>
+                        {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Sync Emails
+                    </Button>
+                </div>
+                <Card>
+                    <CardHeader className="p-4 border-b">
+                        <h2 className="text-lg font-semibold">Inbox ({emails.length})</h2>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <ScrollArea className="h-[calc(100vh-18rem)]">
                         {isLoading ? (
                             <div className="flex justify-center items-center h-full">
                                 <Loader2 className="h-6 w-6 animate-spin"/>
@@ -123,25 +133,61 @@ export default function AIEmailInboxPage() {
                         ) : (
                             <div className="divide-y">
                                 {emails.map(email => (
-                                    <button 
+                                    <div 
                                         key={email.id} 
-                                        className={cn("w-full text-left p-4 hover:bg-muted/50", selectedEmail?.id === email.id && "bg-muted")}
-                                        onClick={() => setSelectedEmail(email)}
+                                        className={cn("w-full text-left p-4 flex justify-between items-start gap-4")}
                                     >
-                                        <div className="flex justify-between items-start">
-                                            <p className="font-semibold truncate">{email.from.name || email.from.address}</p>
-                                            <p className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formatDate(email.date)}</p>
+                                        <div className="flex-grow space-y-1 overflow-hidden">
+                                            <div className="flex justify-between items-start">
+                                                <p className="font-semibold truncate">{email.from.name || email.from.address}</p>
+                                                <p className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formatDate(email.date)}</p>
+                                            </div>
+                                            <p className="text-sm truncate font-medium">{email.subject}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
                                         </div>
-                                        <p className="text-sm truncate font-medium">{email.subject}</p>
-                                        <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
-                                    </button>
+                                         <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent>
+                                                <DropdownMenuItem onSelect={() => handleViewEmail(email)}>
+                                                    <Eye className="mr-2 h-4 w-4" /> View Email
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem>
+                                                    <Send className="mr-2 h-4 w-4" /> Reply
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem>
+                                                    <Archive className="mr-2 h-4 w-4" /> Archive
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
                                 ))}
                             </div>
                         )}
                         </ScrollArea>
-                    </div>
-                </div>
-            </Card>
-        </div>
+                    </CardContent>
+                </Card>
+            </div>
+            <DialogContent className="sm:max-w-3xl h-[80vh] flex flex-col">
+                <DialogHeader>
+                    <DialogTitle className="truncate">{selectedEmail?.subject}</DialogTitle>
+                    <DialogDescription>From: {selectedEmail?.from.name} ({selectedEmail?.from.address})</DialogDescription>
+                </DialogHeader>
+                 <div className="flex-1 -m-6 mt-2">
+                    {selectedEmail?.html ? (
+                        <iframe
+                            srcDoc={selectedEmail.html}
+                            className="w-full h-full border-0"
+                            sandbox="allow-popups allow-popups-to-escape-sandbox"
+                        />
+                    ) : (
+                        <pre className="w-full h-full text-sm whitespace-pre-wrap p-6">{selectedEmail?.text}</pre>
+                    )}
+                 </div>
+            </DialogContent>
+        </Dialog>
     );
 }
