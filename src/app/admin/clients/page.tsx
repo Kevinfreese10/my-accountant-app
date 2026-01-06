@@ -29,7 +29,7 @@ const db = getFirestore(firebaseApp);
 
 type Client = User & { status: 'Active' | 'Inactive'; cellNumber?: string; contactPerson?: string; };
 
-const clientStatuses: ('Active' | 'Inactive')[] = ['Active', 'Inactive'];
+const clientStatuses: ('Active' | 'Inactive' | 'Archived')[] = ['Active', 'Inactive', 'Archived'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
 const managementAccountFrequencies: ('Monthly' | 'Quarterly' | 'Bi-Annually' | 'Annually')[] = ['Monthly', 'Quarterly', 'Bi-Annually', 'Annually'];
 const vatCategories: { value: 'A' | 'B' | 'C'; label: string }[] = [
@@ -244,13 +244,13 @@ export default function AdminClientsPage() {
             status: data.status,
             yearEnd: data.yearEnd || null,
             preparesFinancials: data.preparesFinancials,
-            financialsDueDate: data.financialsDueDate,
+            financialsDueDate: data.preparesFinancials ? data.financialsDueDate : null,
             requiresManagementAccounts: data.requiresManagementAccounts,
-            managementAccountsFrequency: data.managementAccountsFrequency,
+            managementAccountsFrequency: data.requiresManagementAccounts ? data.managementAccountsFrequency : null,
             isVatRegistered: data.isVatRegistered,
             vatCategory: data.isVatRegistered ? data.vatCategory : null,
             preparesPayroll: data.preparesPayroll,
-            payrollDueDate: data.payrollDueDate,
+            payrollDueDate: data.preparesPayroll ? data.payrollDueDate : null,
             submitsEmp201: data.submitsEmp201,
             submitsEmp501: data.submitsEmp501,
             submitsProvisionalTax: data.submitsProvisionalTax,
@@ -265,8 +265,7 @@ export default function AdminClientsPage() {
         if (clientToUpdateId && originalClient) { // Editing existing client
             const clientRef = doc(db, "clients", clientToUpdateId);
             batch.update(clientRef, clientDataForDb);
-            toast({ title: 'Client Updated'});
-
+            
             const existingTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientIdForTasks));
             const existingTasksSnapshot = await getDocs(existingTasksQuery);
             const existingTasks = existingTasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
@@ -285,7 +284,9 @@ export default function AdminClientsPage() {
                     const templatesToCreate = taskTemplates.filter(t => t.triggerField === flag);
                     templatesToCreate.forEach(template => {
                          if (flag === 'isVatRegistered' && template.vatCategory && template.vatCategory !== data.vatCategory) return;
-                        createTaskFromTemplate(batch, template, data, clientIdForTasks, currentUser.uid);
+                        if (!existingTasks.some(t => t.title.includes(template.title.replace('{clientName}', '')))) {
+                           createTaskFromTemplate(batch, template, data, clientIdForTasks, currentUser.uid);
+                        }
                     });
                 } else if (!isNowEnabled && wasEnabled) {
                      const templatesToDelete = taskTemplates.filter(t => t.triggerField === flag);
@@ -295,15 +296,22 @@ export default function AdminClientsPage() {
                          if (taskToDelete) batch.delete(doc(db, 'tasks', taskToDelete.id));
                     });
                 } else if (flag === 'isVatRegistered' && isNowEnabled && wasEnabled && originalClient?.vatCategory !== data.vatCategory) {
+                    // Delete old VAT tasks
                     const oldVatTemplates = taskTemplates.filter(t => t.triggerField === 'isVatRegistered' && t.vatCategory === originalClient?.vatCategory);
                     oldVatTemplates.forEach(template => {
                         const taskToDelete = existingTasks.find(t => t.title.includes(template.title.replace('{clientName}', '')) && t.status !== 'Done');
                         if (taskToDelete) batch.delete(doc(db, 'tasks', taskToDelete.id));
                     });
+                    // Create new VAT tasks
                     const newVatTemplates = taskTemplates.filter(t => t.triggerField === 'isVatRegistered' && t.vatCategory === data.vatCategory);
-                    newVatTemplates.forEach(template => createTaskFromTemplate(batch, template, data, clientIdForTasks, currentUser.uid));
+                    newVatTemplates.forEach(template => {
+                         if (!existingTasks.some(t => t.title.includes(template.title.replace('{clientName}', '')))) {
+                           createTaskFromTemplate(batch, template, data, clientIdForTasks, currentUser.uid);
+                        }
+                    });
                 }
             }
+             toast({ title: 'Client Updated', description: 'Automation settings and tasks have been synchronized.' });
 
         } else { // Creating new client
              const newDocRef = doc(db, "clients", clientIdForTasks);
@@ -325,7 +333,7 @@ export default function AdminClientsPage() {
                     });
                 }
              });
-             toast({ title: 'Client Created' });
+             toast({ title: 'Client Created', description: 'Automated tasks have been generated based on your selections.' });
         }
         
         await batch.commit();
@@ -342,12 +350,10 @@ export default function AdminClientsPage() {
   const createTaskFromTemplate = (batch: ReturnType<typeof writeBatch>, template: Task, clientData: any, clientId: string, currentUserId: string) => {
     const taskTitle = template.title.replace('{clientName}', clientData.name);
     
-    // Calculate due date based on offset
     const yearEndMonth = months.indexOf(clientData.yearEnd);
     let dueYear = new Date().getFullYear();
     let dueMonth = (yearEndMonth + template.dueMonthOffset);
 
-    // Handle year wrap-around
     if (dueMonth > 11) {
         dueMonth = dueMonth % 12;
     } else if (dueMonth < 0) {
@@ -367,7 +373,7 @@ export default function AdminClientsPage() {
         createdAt: Timestamp.now(), 
         createdBy: currentUserId,
         comments: [],
-        assignedTo: [] // Reset assignedTo, should be assigned by department later or manually
+        assignedTo: []
     };
     batch.set(doc(collection(db, 'tasks')), newTask);
   };
@@ -510,5 +516,3 @@ export default function AdminClientsPage() {
     </div>
   );
 }
-
-    
