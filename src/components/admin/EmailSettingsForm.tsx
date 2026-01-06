@@ -12,7 +12,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { sendEmail } from '@/lib/email';
-import { users } from '@/lib/data'; // Import static user data
 
 const formSchema = z.object({
   smtpDetails: z.object({
@@ -29,22 +28,14 @@ export default function EmailSettingsForm() {
   const { toast } = useToast();
   const [isTesting, setIsTesting] = useState(false);
 
-  // Get the specific SMTP settings for info@myacc.co.za
-  const systemSmtpConfig = {
-      host: 'mail.myacc.co.za',
-      port: '465',
-      user: 'info@myacc.co.za',
-      pass: 'Thinkestry10$',
-  };
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       smtpDetails: { 
-          host: systemSmtpConfig?.host || '', 
-          port: systemSmtpConfig?.port || '', 
-          user: systemSmtpConfig?.user || '', 
-          pass: systemSmtpConfig?.pass || ''
+          host: process.env.NEXT_PUBLIC_SMTP_HOST || 'mail.myacc.co.za', 
+          port: process.env.NEXT_PUBLIC_SMTP_PORT || '465', 
+          user: process.env.NEXT_PUBLIC_SMTP_USER || 'info@myacc.co.za', 
+          pass: process.env.NEXT_PUBLIC_SMTP_PASS || 'Thinkestry10$'
       },
       testEmail: user?.email || '',
     },
