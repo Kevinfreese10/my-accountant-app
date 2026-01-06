@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
                 port: Number(userData.imapDetails?.port) || 993,
                 tls: userData.imapDetails?.secure === undefined ? true : userData.imapDetails.secure,
                 authTimeout: 5000,
+                tlsOptions: {
+                    rejectUnauthorized: false
+                }
             },
         };
 
