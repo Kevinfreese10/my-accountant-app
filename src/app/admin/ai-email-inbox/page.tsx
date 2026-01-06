@@ -3,11 +3,11 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, where, orderBy, onSnapshot, getFirestore } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { ProcessedEmail } from '@/lib/types';
 import { format, isToday, isThisWeek, isThisYear } from 'date-fns';
@@ -22,6 +22,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import ReactMarkdown from 'react-markdown';
+import { generateEmailReply } from '@/ai/flows/generate-email-reply';
 
 
 const db = getFirestore(firebaseApp);
@@ -34,6 +35,7 @@ export default function AIEmailInboxPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [selectedEmail, setSelectedEmail] = useState<ProcessedEmail | null>(null);
     const [isViewOpen, setIsViewOpen] = useState(false);
+    const [isDrafting, setIsDrafting] = useState<string | null>(null);
 
     useEffect(() => {
         if (user?.uid) {
@@ -41,6 +43,7 @@ export default function AIEmailInboxPage() {
             const q = query(
                 collection(db, 'processedEmails'),
                 where('ownerId', '==', user.uid),
+                where('status', '==', 'new'),
                 orderBy('date', 'desc')
             );
             const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -101,36 +104,77 @@ export default function AIEmailInboxPage() {
         }
         return format(date, 'dd/MM/yyyy');
     };
-
+    
     const handleViewEmail = (email: ProcessedEmail) => {
         setSelectedEmail(email);
         setIsViewOpen(true);
     }
     
-    const getPriorityBadgeVariant = (priority?: 'High' | 'Medium' | 'Low') => {
-        switch(priority) {
-            case 'High': return 'destructive';
-            case 'Medium': return 'warning';
-            case 'Low': return 'secondary';
-            default: return 'outline';
+    const handleArchiveEmail = async (emailId: string) => {
+        try {
+            const emailRef = doc(db, 'processedEmails', emailId);
+            await updateDoc(emailRef, { status: 'archived' });
+            toast({ title: 'Email Archived' });
+            if (selectedEmail?.id === emailId) {
+                setIsViewOpen(false);
+            }
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not archive email.', variant: 'destructive' });
         }
-    }
+    };
 
-    const ActionButton = ({ action }: { action: ProcessedEmail['aiSuggestedAction']}) => {
-        if (!action) return null;
-
-        const actionMap = {
-            create_task: { icon: <PlusCircle className="mr-2 h-4 w-4" />, label: 'Create Task' },
-            draft_reply: { icon: <Send className="mr-2 h-4 w-4" />, label: 'Draft Reply' },
-            archive: { icon: <Archive className="mr-2 h-4 w-4" />, label: 'Archive' },
-            none: null
+    const handleReplyToEmail = (email: ProcessedEmail) => {
+        let body = `\n\n\n--- Original Message ---\nFrom: ${email.from.name} <${email.from.address}>\nDate: ${new Date(email.date.seconds * 1000).toUTCString()}\nSubject: ${email.subject}\n\n${email.text}`;
+        
+        if (email.aiDraftReply) {
+            body = `${email.aiDraftReply.replace(/\n/g, '\n')}${body}`;
         }
         
+        const mailtoLink = `mailto:${email.from.address}?subject=Re: ${encodeURIComponent(email.subject)}&body=${encodeURIComponent(body)}`;
+        window.location.href = mailtoLink;
+    };
+
+
+    const handleDraftReply = async (email: ProcessedEmail) => {
+        setIsDrafting(email.id);
+        try {
+            const result = await generateEmailReply({
+                subject: email.subject,
+                body: email.text,
+                sender: email.from.name || email.from.address,
+            });
+            const emailRef = doc(db, 'processedEmails', email.id);
+            await updateDoc(emailRef, { aiDraftReply: result.draft });
+             if (selectedEmail?.id === email.id) {
+                setSelectedEmail(prev => prev ? { ...prev, aiDraftReply: result.draft } : null);
+            }
+        } catch (e) {
+            toast({ title: 'Failed to draft reply', variant: 'destructive' });
+        } finally {
+            setIsDrafting(null);
+        }
+    };
+
+    const ActionButton = ({ email }: { email: ProcessedEmail}) => {
+        const action = email.aiSuggestedAction;
+        if (!action) return null;
+
+        const actionMap: { [key: string]: { icon: React.ReactNode, label: string, onClick?: () => void } } = {
+            create_task: { icon: <PlusCircle className="mr-2 h-4 w-4" />, label: 'Create Task', onClick: () => alert('Create task functionality coming soon!') },
+            draft_reply: { 
+                icon: isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />, 
+                label: isDrafting === email.id ? 'Drafting...' : 'Draft Reply',
+                onClick: () => handleDraftReply(email),
+            },
+            archive: { icon: <Archive className="mr-2 h-4 w-4" />, label: 'Archive', onClick: () => handleArchiveEmail(email.id) },
+            none: { icon: <></>, label: '', onClick: undefined }
+        };
+        
         const actionDetails = actionMap[action];
-        if (!actionDetails) return null;
+        if (!actionDetails || !actionDetails.onClick) return null;
 
         return (
-            <Button size="sm" variant="outline">
+            <Button size="sm" variant="outline" onClick={actionDetails.onClick} disabled={isDrafting === email.id}>
                 {actionDetails.icon}
                 {actionDetails.label}
             </Button>
@@ -168,7 +212,8 @@ export default function AIEmailInboxPage() {
                                 {emails.map(email => (
                                     <div 
                                         key={email.id} 
-                                        className={cn("w-full text-left p-4 space-y-2")}
+                                        className={cn("w-full text-left p-4 space-y-2 cursor-pointer hover:bg-muted/50", selectedEmail?.id === email.id && "bg-muted")}
+                                        onClick={() => handleViewEmail(email)}
                                     >
                                         <div className="flex justify-between items-start gap-4">
                                             <div className="flex-grow space-y-1 overflow-hidden">
@@ -179,27 +224,9 @@ export default function AIEmailInboxPage() {
                                                 <p className="text-sm truncate font-medium">{email.subject}</p>
                                                 <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
                                             </div>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent>
-                                                    <DropdownMenuItem onSelect={() => handleViewEmail(email)}>
-                                                        <Eye className="mr-2 h-4 w-4" /> View Email
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem>
-                                                        <Send className="mr-2 h-4 w-4" /> Reply
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem>
-                                                        <Archive className="mr-2 h-4 w-4" /> Archive
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
                                         </div>
                                          {email.aiSummary && (
-                                            <div className="p-3 bg-muted/50 rounded-md border space-y-2">
+                                            <div className="p-3 bg-background rounded-md border space-y-2">
                                                  <div className="flex items-center gap-2">
                                                     <Bot className="h-4 w-4 text-primary" />
                                                     <h4 className="text-sm font-semibold">AI Summary & Actions</h4>
@@ -207,10 +234,15 @@ export default function AIEmailInboxPage() {
                                                  <ReactMarkdown className="text-xs"
                                                   components={{ p: ({node, ...props}) => <p className="my-0" {...props} /> }}
                                                  >{email.aiSummary}</ReactMarkdown>
+                                                 {email.aiDraftReply && (
+                                                     <div className="p-2 border-l-2 border-primary bg-primary/10">
+                                                        <p className="text-xs font-semibold">Suggested Reply:</p>
+                                                        <p className="text-xs italic">"{email.aiDraftReply}"</p>
+                                                     </div>
+                                                 )}
                                                  <div className="flex items-center gap-2 pt-2">
-                                                    <ActionButton action={email.aiSuggestedAction} />
+                                                    <ActionButton email={email} />
                                                     {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
-                                                    {email.aiPriority && <Badge variant={getPriorityBadgeVariant(email.aiPriority)}>{email.aiPriority}</Badge>}
                                                  </div>
                                             </div>
                                          )}
@@ -226,13 +258,21 @@ export default function AIEmailInboxPage() {
                 <DialogHeader>
                     <DialogTitle className="truncate">{selectedEmail?.subject}</DialogTitle>
                     <DialogDescription>From: {selectedEmail?.from.name} ({selectedEmail?.from.address})</DialogDescription>
+                    <div className="flex gap-2 pt-2">
+                        {selectedEmail && (
+                           <>
+                             <Button size="sm" onClick={() => handleReplyToEmail(selectedEmail)}><Send className="mr-2 h-4 w-4" />Reply</Button>
+                             <Button size="sm" variant="outline" onClick={() => handleArchiveEmail(selectedEmail.id)}><Archive className="mr-2 h-4 w-4" />Archive</Button>
+                           </>
+                        )}
+                    </div>
                 </DialogHeader>
                  <div className="flex-1 -m-6 mt-2">
                     {selectedEmail?.html ? (
                         <iframe
                             srcDoc={selectedEmail.html}
                             className="w-full h-full border-0"
-                            sandbox="allow-popups allow-popups-to-escape-sandbox"
+                            sandbox=""
                         />
                     ) : (
                         <pre className="w-full h-full text-sm whitespace-pre-wrap p-6">{selectedEmail?.text}</pre>
