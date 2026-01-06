@@ -98,7 +98,7 @@ export default function AIEmailInboxPage() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to sync emails.');
+                throw new Error(data.details || 'Failed to sync emails.');
             }
 
             toast({ title: 'Sync Complete', description: data.message });
