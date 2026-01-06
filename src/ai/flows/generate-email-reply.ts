@@ -72,8 +72,11 @@ const generateEmailReplyFlow = ai.defineFlow(
         Your task is to draft a professional and helpful reply to the following email.
         - Your tone should be friendly, professional, and reassuring.
         - Address the sender by their name if it's available.
-        - Use paragraphs for clear spacing and structure.
-        - Use bullet points for any lists, such as service prerequisites.
+        
+        CRITICAL INSTRUCTION: Your response MUST be plain text. Do NOT use any HTML tags like <p>, <h3>, <ul>, etc. Use Markdown for formatting:
+        - For paragraphs, use double newlines (\n\n).
+        - For lists, use a hyphen (-) for each bullet point.
+        - Your entire response will be rendered as Markdown.
         
         CRITICAL INSTRUCTION: If the user is asking about a specific service (like 'VAT Registration' or 'Company Registration'), you MUST find that service in the CONTEXT provided below. Your reply MUST state the exact price and turnaround time in the first paragraph. Then, list ALL prerequisites using a bulleted list. Do NOT ask for more information or offer to discuss it further if the details are in the context. Be direct and provide the answer.
 
