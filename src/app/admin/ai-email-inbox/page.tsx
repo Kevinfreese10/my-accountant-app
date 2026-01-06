@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, Mail } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
