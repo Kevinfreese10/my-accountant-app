@@ -46,7 +46,7 @@
     "firebase": "^11.9.1",
     "genkit": "1.19.1",
     "html2canvas": "^1.4.1",
-    "imapflow": "^1.0.150",
+    "imap-simple": "^5.1.0",
     "ipaddr.js": "^2.2.0",
     "jspdf": "^2.5.1",
     "lucide-react": "^0.475.0",
