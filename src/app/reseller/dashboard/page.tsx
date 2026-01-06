@@ -40,7 +40,7 @@ const getUserColor = (userId: string) => {
 };
 
 export default function ResellerDashboardPage() {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const router = useRouter();
     const { blogPosts, isLoading: isBlogLoading } = useBlog();
     const [orders, setOrders] = useState<Order[]>([]);
@@ -50,19 +50,17 @@ export default function ResellerDashboardPage() {
     const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const staffCounters = useRef<{ [key: string]: number }>({});
-    const [archivedNotifications, setArchivedNotifications] = useState<string[]>([]);
+    
+    const archivedNotifications = user?.archivedNotifications || [];
 
-    useEffect(() => {
-        const storedArchived = localStorage.getItem('archivedNotifications-reseller');
-        if (storedArchived) {
-            setArchivedNotifications(JSON.parse(storedArchived));
-        }
-    }, []);
-
-    const archiveNotification = (noteId: string) => {
-        const newArchived = [...archivedNotifications, noteId];
-        setArchivedNotifications(newArchived);
-        localStorage.setItem('archivedNotifications-reseller', JSON.stringify(newArchived));
+    const archiveNotification = async (noteId: string) => {
+        if (!user) return;
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, {
+            archivedNotifications: arrayUnion(noteId)
+        });
+        // Optimistically update local state
+        updateUser({ ...user, archivedNotifications: [...(user.archivedNotifications || []), noteId] });
     };
     
     const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
@@ -296,60 +294,70 @@ export default function ResellerDashboardPage() {
                 <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.contactPerson}!</h1>
                 <p className="text-lg text-muted-foreground">{user?.companyName}</p>
             </div>
-            
-             <Card>
-                <CardHeader>
-                    <CardTitle>Notifications</CardTitle>
-                    <CardDescription>Recent notes from My Accountant on your outsourced orders.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin"/></div> :
-                    notifications.length > 0 ? (
-                    <ScrollArea className="h-72">
-                        <div className="space-y-4">
-                        {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
-                            const author = getAuthor(note.authorId);
-                            const date = note.date instanceof Date ? note.date : note.date.toDate();
-                            const noteId = note.orderId + date.toISOString();
-                            return (
-                                <div key={index} className="flex items-start gap-3">
-                                    <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
-                                        {author?.name.charAt(0) || 'U'}
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm">
-                                            <span className="font-semibold">{author?.name || 'Unknown User'}</span>
-                                            <span className="text-muted-foreground"> left a note on order </span>
-                                            <Link href={`/reseller/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
-                                        </p>
-                                        <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
-                                            "{note.text}"
-                                        </blockquote>
-                                            <div className="flex items-center justify-between">
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                {formatDistanceToNow(date, { addSuffix: true })}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card className="lg:col-span-1">
+                    <CardHeader>
+                        <CardTitle>Notifications</CardTitle>
+                        <CardDescription>Recent notes from My Accountant on your outsourced orders.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin"/></div> :
+                        notifications.length > 0 ? (
+                        <ScrollArea className="h-72">
+                            <div className="space-y-4">
+                            {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
+                                const author = getAuthor(note.authorId);
+                                const date = note.date instanceof Date ? note.date : note.date.toDate();
+                                const noteId = note.orderId + date.toISOString();
+                                return (
+                                    <div key={index} className="flex items-start gap-3">
+                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
+                                            {author?.name.charAt(0) || 'U'}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm">
+                                                <span className="font-semibold">{author?.name || 'Unknown User'}</span>
+                                                <span className="text-muted-foreground"> left a note on order </span>
+                                                <Link href={`/reseller/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
                                             </p>
-                                            <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
-                                                <Archive className="mr-2 h-4 w-4"/> Archive
-                                            </Button>
+                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
+                                                "{note.text}"
+                                            </blockquote>
+                                                <div className="flex items-center justify-between">
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    {formatDistanceToNow(date, { addSuffix: true })}
+                                                </p>
+                                                <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
+                                                    <Archive className="mr-2 h-4 w-4"/> Archive
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )
-                        })}
+                                )
+                            })}
+                            </div>
+                        </ScrollArea>
+                        ) : (
+                        <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
+                            <Inbox className="h-12 w-12 mb-4"/>
+                            <p className="font-semibold">All caught up!</p>
+                            <p className="text-sm">You have no new notifications.</p>
                         </div>
-                    </ScrollArea>
-                    ) : (
-                    <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
-                        <Inbox className="h-12 w-12 mb-4"/>
-                        <p className="font-semibold">All caught up!</p>
-                        <p className="text-sm">You have no new notifications.</p>
-                    </div>
-                    )}
-                </CardContent>
-            </Card>
+                        )}
+                    </CardContent>
+                </Card>
 
-            <CommunityQnA />
+                <Card className="lg:col-span-1">
+                    <CardHeader>
+                        <CardTitle>Community Q&amp;A</CardTitle>
+                        <CardDescription>Ask questions and share your knowledge with other Accountants</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <CommunityQnA />
+                    </CardContent>
+                </Card>
+            </div>
       
         </div>
     );

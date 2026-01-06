@@ -655,7 +655,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
 
 
 export default function AdminDashboardPage() {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const [tasks, setTasks] = useState<Task[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
     const [allStaffAndClients, setAllStaffAndClients] = useState<User[]>([]);
@@ -667,22 +667,20 @@ export default function AdminDashboardPage() {
     const [upcomingAutomatedTaskFilter, setUpcomingAutomatedTaskFilter] = useState('all');
     const { toast } = useToast();
     const [aiSuggestions, setAiSuggestions] = useState<{ [key: string]: any }>({});
-    const [archivedNotifications, setArchivedNotifications] = useState<string[]>([]);
     
-    useEffect(() => {
-        const storedArchived = localStorage.getItem('archivedNotifications');
-        if (storedArchived) {
-            setArchivedNotifications(JSON.parse(storedArchived));
-        }
-    }, []);
+    const archivedNotifications = user?.archivedNotifications || [];
 
-    const archiveNotification = (noteId: string) => {
-        const newArchived = [...archivedNotifications, noteId];
-        setArchivedNotifications(newArchived);
-        localStorage.setItem('archivedNotifications', JSON.stringify(newArchived));
+    const archiveNotification = async (noteId: string) => {
+        if (!user) return;
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, {
+            archivedNotifications: arrayUnion(noteId)
+        });
+        // Optimistically update local state
+        updateUser({ ...user, archivedNotifications: [...(user.archivedNotifications || []), noteId] });
     };
-    
-     const notifications = useMemo(() => {
+
+    const notifications = useMemo(() => {
         if (!user || orders.length === 0) return [];
     
         const assignedOrders = orders.filter(order => order.assignedTo?.includes(user.id));
@@ -718,12 +716,12 @@ export default function AdminDashboardPage() {
                         const suggestion = await categorizeSupportRequest({
                             request: note.text,
                             clientName: note.customerName,
-                            attachments: note.attachmentUrl ? [{
-                                filename: note.attachmentName || 'attachment',
+                            attachments: note.attachments ? note.attachments.map(att => ({
+                                filename: att.name,
                                 contentType: null,
-                                dataUrl: note.attachmentUrl,
+                                dataUrl: att.url,
                                 size: null
-                            }] : []
+                            })) : []
                         });
                         setAiSuggestions(prev => ({ ...prev, [noteId]: suggestion }));
                     } catch (error) {
@@ -1078,8 +1076,7 @@ export default function AdminDashboardPage() {
                 date: Timestamp.now(),
                 type: 'note',
                 subject: null,
-                attachmentUrl: null,
-                attachmentName: null,
+                attachments: null,
             };
             const orderRef = doc(db, 'orders', note.orderId);
             await updateDoc(orderRef, {

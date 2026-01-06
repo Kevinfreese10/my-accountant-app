@@ -241,6 +241,7 @@ export type User = {
   enableInvoicing?: boolean;
   logoUrl?: string;
   nextInvoiceNumber?: number;
+  archivedNotifications?: string[];
 };
 
 export type ClientCustomer = {
