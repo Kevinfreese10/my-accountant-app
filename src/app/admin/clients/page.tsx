@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -266,70 +265,72 @@ export default function AdminClientsPage() {
         const batch = writeBatch(db);
         const clientIdForTasks = clientToUpdateId || doc(collection(db, "clients")).id;
 
-        if (clientToUpdateId) {
+        if (clientToUpdateId) { // Editing existing client
             const clientRef = doc(db, "clients", clientToUpdateId);
             batch.update(clientRef, clientDataForDb);
             toast({ title: 'Client Updated'});
-        } else {
-             const newDocRef = doc(db, "clients", clientIdForTasks);
-             clientDataForDb = { ...clientDataForDb, role: 'client', source: 'Client Management', createdAt: serverTimestamp() };
-             batch.set(newDocRef, clientDataForDb);
-             toast({ title: 'Client Created' });
-        }
 
-        // --- Task Update Logic ---
-        const existingTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientIdForTasks));
-        const existingTasksSnapshot = await getDocs(existingTasksQuery);
-        const existingTasks = existingTasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
+            // --- Task Update Logic ---
+            const existingTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientIdForTasks));
+            const existingTasksSnapshot = await getDocs(existingTasksQuery);
+            const existingTasks = existingTasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
 
-        const automationFlags: (keyof User)[] = [
-            'preparesFinancials', 'requiresManagementAccounts', 'submitsEmp201', 'submitsEmp501', 
-            'submitsProvisionalTax', 'submitsIncomeTax', 'isVatRegistered',
-            'submitsAnnualReturns', 'submitsBeneficialOwnership'
-        ];
+            const automationFlags: (keyof User)[] = [
+                'preparesFinancials', 'requiresManagementAccounts', 'submitsEmp201', 'submitsEmp501', 
+                'submitsProvisionalTax', 'submitsIncomeTax', 'isVatRegistered',
+                'submitsAnnualReturns', 'submitsBeneficialOwnership'
+            ];
 
-        for (const flag of automationFlags) {
-            const wasEnabled = originalClient ? !!originalClient[flag] : false;
-            const isNowEnabled = !!data[flag];
-            
-            if (wasEnabled === isNowEnabled) {
-                // Special case for VAT category change
-                if (flag === 'isVatRegistered' && isNowEnabled && originalClient?.vatCategory !== data.vatCategory) {
-                    // Delete old VAT tasks
+            for (const flag of automationFlags) {
+                const wasEnabled = originalClient ? !!originalClient[flag] : false;
+                const isNowEnabled = !!data[flag];
+                
+                if (isNowEnabled && !wasEnabled) { // Service was turned ON
+                    const templatesToCreate = taskTemplates.filter(t => t.triggerField === flag);
+                    templatesToCreate.forEach(template => {
+                        if (flag === 'isVatRegistered' && template.vatCategory && template.vatCategory !== data.vatCategory) return;
+                        createTaskFromTemplate(batch, template, data, clientIdForTasks, currentUser.uid);
+                    });
+                } else if (!isNowEnabled && wasEnabled) { // Service was turned OFF
+                    const templatesToDelete = taskTemplates.filter(t => t.triggerField === flag);
+                    templatesToDelete.forEach(template => {
+                        if (flag === 'isVatRegistered' && template.vatCategory && originalClient && template.vatCategory !== originalClient.vatCategory) return;
+                        const taskToDelete = existingTasks.find(t => t.title.includes(template.title.replace('{clientName}', '')) && t.status !== 'Done');
+                        if (taskToDelete) batch.delete(doc(db, 'tasks', taskToDelete.id));
+                    });
+                } else if (flag === 'isVatRegistered' && isNowEnabled && wasEnabled && originalClient?.vatCategory !== data.vatCategory) {
+                    // VAT category changed
                     const oldVatTemplates = taskTemplates.filter(t => t.triggerField === 'isVatRegistered' && t.vatCategory === originalClient?.vatCategory);
                     oldVatTemplates.forEach(template => {
                         const taskToDelete = existingTasks.find(t => t.title.includes(template.title.replace('{clientName}', '')) && t.status !== 'Done');
                         if (taskToDelete) batch.delete(doc(db, 'tasks', taskToDelete.id));
                     });
-                     // Create new VAT tasks
                     const newVatTemplates = taskTemplates.filter(t => t.triggerField === 'isVatRegistered' && t.vatCategory === data.vatCategory);
                     newVatTemplates.forEach(template => createTaskFromTemplate(batch, template, data, clientIdForTasks, currentUser.uid));
                 }
-                continue;
             }
 
-            if (isNowEnabled) { // Service was turned ON
-                const templatesToCreate = taskTemplates.filter(t => t.triggerField === flag);
-                templatesToCreate.forEach(template => {
-                    // For VAT, only create if the category matches
-                    if (flag === 'isVatRegistered' && template.vatCategory && template.vatCategory !== data.vatCategory) {
-                        return;
-                    }
-                    createTaskFromTemplate(batch, template, data, clientIdForTasks, currentUser.uid);
-                });
-            } else { // Service was turned OFF
-                const templatesToDelete = taskTemplates.filter(t => t.triggerField === flag);
-                templatesToDelete.forEach(template => {
-                     // For VAT, also check the old category if it exists
-                    if (flag === 'isVatRegistered' && template.vatCategory && originalClient && template.vatCategory !== originalClient.vatCategory) {
-                        return;
-                    }
-                    const taskToDelete = existingTasks.find(t => t.title.includes(template.title.replace('{clientName}', '')) && t.status !== 'Done');
-                    if (taskToDelete) {
-                        batch.delete(doc(db, 'tasks', taskToDelete.id));
-                    }
-                });
-            }
+        } else { // Creating new client
+             const newDocRef = doc(db, "clients", clientIdForTasks);
+             clientDataForDb = { ...clientDataForDb, role: 'client', source: 'Client Management', createdAt: serverTimestamp() };
+             batch.set(newDocRef, clientDataForDb);
+
+             const automationFlags: (keyof User)[] = [
+                'preparesFinancials', 'requiresManagementAccounts', 'submitsEmp201', 'submitsEmp501', 
+                'submitsProvisionalTax', 'submitsIncomeTax', 'isVatRegistered',
+                'submitsAnnualReturns', 'submitsBeneficialOwnership'
+             ];
+
+             automationFlags.forEach(flag => {
+                if(data[flag]) {
+                    const templatesToCreate = taskTemplates.filter(t => t.triggerField === flag);
+                    templatesToCreate.forEach(template => {
+                        if (flag === 'isVatRegistered' && template.vatCategory && template.vatCategory !== data.vatCategory) return;
+                        createTaskFromTemplate(batch, template, data, clientIdForTasks, currentUser.uid);
+                    });
+                }
+             });
+             toast({ title: 'Client Created' });
         }
         
         await batch.commit();

@@ -194,6 +194,7 @@ export default function TaskTemplatesPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Title</TableHead>
+                                <TableHead>Department</TableHead>
                                 <TableHead>Recurrence</TableHead>
                                 <TableHead>Due</TableHead>
                                 <TableHead>Automation Trigger</TableHead>
@@ -202,11 +203,12 @@ export default function TaskTemplatesPage() {
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
-                                <TableRow><TableCell colSpan={5} className="text-center"><Loader2 className="animate-spin" /></TableCell></TableRow>
+                                <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
                             ) : (
                                 templates.map(template => (
                                     <TableRow key={template.id}>
                                         <TableCell className="font-medium">{template.title}</TableCell>
+                                        <TableCell>{template.department}</TableCell>
                                         <TableCell>{template.recurrence}</TableCell>
                                         <TableCell>{`Month ${template.dueMonthOffset}, Day ${template.dueDay}`}</TableCell>
                                         <TableCell>
