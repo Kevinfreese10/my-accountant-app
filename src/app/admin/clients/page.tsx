@@ -43,7 +43,7 @@ const formSchema = z.object({
   name: z.string().min(2, 'Client/Company name is required.'),
   status: z.enum(clientStatuses).optional(),
   
-  yearEnd: z.string().optional(),
+  yearEnd: z.string().min(1, 'Financial Year End is required.'),
   preparesFinancials: z.boolean().default(false),
   financialsDueDate: z.string().optional(),
 
@@ -110,11 +110,8 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                 </div>
                 
                 <div className="space-y-4 rounded-md border p-4">
-                     <h4 className="text-md font-semibold">Accounting & Tax</h4>
+                     <h4 className="text-md font-semibold">Accounting and Tax</h4>
                     <FormField control={form.control} name="preparesFinancials" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Prepare Annual Financials?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
-                    {preparesFinancials && (
-                        <FormField control={form.control} name="financialsDueDate" render={({ field }) => ( <FormItem><FormLabel>Due Date (Day of Month)</FormLabel><FormControl><Input type="number" min="1" max="31" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    )}
                      <FormField control={form.control} name="requiresManagementAccounts" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Prepare Management Accounts?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                      {requiresManagementAccounts && (
                         <FormField control={form.control} name="managementAccountsFrequency" render={({ field }) => ( <FormItem><FormLabel>Frequency</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger></FormControl><SelectContent>{managementAccountFrequencies.map(freq => <SelectItem key={freq} value={freq}>{freq}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
@@ -270,7 +267,6 @@ export default function AdminClientsPage() {
             batch.update(clientRef, clientDataForDb);
             toast({ title: 'Client Updated'});
 
-            // --- Task Update Logic ---
             const existingTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientIdForTasks));
             const existingTasksSnapshot = await getDocs(existingTasksQuery);
             const existingTasks = existingTasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
@@ -285,21 +281,20 @@ export default function AdminClientsPage() {
                 const wasEnabled = originalClient ? !!originalClient[flag] : false;
                 const isNowEnabled = !!data[flag];
                 
-                if (isNowEnabled && !wasEnabled) { // Service was turned ON
+                if (isNowEnabled && !wasEnabled) {
                     const templatesToCreate = taskTemplates.filter(t => t.triggerField === flag);
                     templatesToCreate.forEach(template => {
-                        if (flag === 'isVatRegistered' && template.vatCategory && template.vatCategory !== data.vatCategory) return;
+                         if (flag === 'isVatRegistered' && template.vatCategory && template.vatCategory !== data.vatCategory) return;
                         createTaskFromTemplate(batch, template, data, clientIdForTasks, currentUser.uid);
                     });
-                } else if (!isNowEnabled && wasEnabled) { // Service was turned OFF
-                    const templatesToDelete = taskTemplates.filter(t => t.triggerField === flag);
+                } else if (!isNowEnabled && wasEnabled) {
+                     const templatesToDelete = taskTemplates.filter(t => t.triggerField === flag);
                     templatesToDelete.forEach(template => {
-                        if (flag === 'isVatRegistered' && template.vatCategory && originalClient && template.vatCategory !== originalClient.vatCategory) return;
-                        const taskToDelete = existingTasks.find(t => t.title.includes(template.title.replace('{clientName}', '')) && t.status !== 'Done');
-                        if (taskToDelete) batch.delete(doc(db, 'tasks', taskToDelete.id));
+                         if (flag === 'isVatRegistered' && template.vatCategory && originalClient && template.vatCategory !== originalClient.vatCategory) return;
+                         const taskToDelete = existingTasks.find(t => t.title.includes(template.title.replace('{clientName}', '')) && t.status !== 'Done');
+                         if (taskToDelete) batch.delete(doc(db, 'tasks', taskToDelete.id));
                     });
                 } else if (flag === 'isVatRegistered' && isNowEnabled && wasEnabled && originalClient?.vatCategory !== data.vatCategory) {
-                    // VAT category changed
                     const oldVatTemplates = taskTemplates.filter(t => t.triggerField === 'isVatRegistered' && t.vatCategory === originalClient?.vatCategory);
                     oldVatTemplates.forEach(template => {
                         const taskToDelete = existingTasks.find(t => t.title.includes(template.title.replace('{clientName}', '')) && t.status !== 'Done');
@@ -515,3 +510,4 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
