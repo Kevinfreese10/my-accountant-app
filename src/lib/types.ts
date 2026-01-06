@@ -445,6 +445,7 @@ export type ProcessedEmail = {
   };
   aiDraftReply?: string;
   taskCreated?: boolean;
+  replySent?: boolean;
 };
 
 import { z } from 'zod';

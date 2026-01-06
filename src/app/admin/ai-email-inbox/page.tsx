@@ -183,6 +183,9 @@ export default function AIEmailInboxPage() {
                 replyTo: user.email,
             });
 
+            const emailRef = doc(db, 'processedEmails', email.id);
+            await updateDoc(emailRef, { replySent: true });
+
             toast({ title: "Reply Sent!", description: "Your email has been sent successfully." });
 
         } catch (e) {
@@ -349,10 +352,14 @@ export default function AIEmailInboxPage() {
                                                     </ReactMarkdown>
 
                                                       <div className="flex items-center gap-2">
-                                                          <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
-                                                            {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
-                                                            Send Email Reply
-                                                          </Button>
+                                                          {email.replySent ? (
+                                                              <Badge variant="success"><CheckCircle className="mr-2 h-4 w-4"/> Reply Sent</Badge>
+                                                          ) : (
+                                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
+                                                              {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
+                                                              Send Email Reply
+                                                            </Button>
+                                                          )}
                                                           <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id}>
                                                               {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Pencil className="mr-2 h-4 w-4" />}
                                                               Fix Format / Regenerate
