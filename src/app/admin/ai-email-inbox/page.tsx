@@ -3,13 +3,13 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, where, orderBy, onSnapshot, getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, getFirestore, doc, updateDoc, Timestamp, arrayUnion } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { ProcessedEmail } from '@/lib/types';
+import { OrderNote, ProcessedEmail } from '@/lib/types';
 import { format, isToday, isThisWeek, isThisYear } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from '@/components/ui/badge';
 import ReactMarkdown from 'react-markdown';
 import { generateEmailReply } from '@/ai/flows/generate-email-reply';
+import { Textarea } from '@/components/ui/textarea';
 
 
 const db = getFirestore(firebaseApp);
@@ -36,6 +37,7 @@ export default function AIEmailInboxPage() {
     const [selectedEmail, setSelectedEmail] = useState<ProcessedEmail | null>(null);
     const [isViewOpen, setIsViewOpen] = useState(false);
     const [isDrafting, setIsDrafting] = useState<string | null>(null);
+    const [draftReplies, setDraftReplies] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (user?.uid) {
@@ -126,8 +128,9 @@ export default function AIEmailInboxPage() {
     const handleReplyToEmail = (email: ProcessedEmail) => {
         let body = `\n\n\n--- Original Message ---\nFrom: ${email.from.name} <${email.from.address}>\nDate: ${new Date(email.date.seconds * 1000).toUTCString()}\nSubject: ${email.subject}\n\n${email.text}`;
         
-        if (email.aiDraftReply) {
-            body = `${email.aiDraftReply.replace(/\n/g, '\n')}${body}`;
+        const draft = draftReplies[email.id] || email.aiDraftReply;
+        if (draft) {
+            body = `${draft.replace(/\n/g, '\n')}${body}`;
         }
         
         const mailtoLink = `mailto:${email.from.address}?subject=Re: ${encodeURIComponent(email.subject)}&body=${encodeURIComponent(body)}`;
@@ -143,8 +146,8 @@ export default function AIEmailInboxPage() {
                 body: email.text,
                 sender: email.from.name || email.from.address,
             });
-            const emailRef = doc(db, 'processedEmails', email.id);
-            await updateDoc(emailRef, { aiDraftReply: result.draft });
+            await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: result.draft });
+            setDraftReplies(prev => ({...prev, [email.id]: result.draft}));
              if (selectedEmail?.id === email.id) {
                 setSelectedEmail(prev => prev ? { ...prev, aiDraftReply: result.draft } : null);
             }
@@ -154,6 +157,38 @@ export default function AIEmailInboxPage() {
             setIsDrafting(null);
         }
     };
+    
+     const handleSendReply = async (email: ProcessedEmail) => {
+        const draft = draftReplies[email.id] || email.aiDraftReply;
+        if (!draft || !user) return;
+        
+        const orderIdMatch = email.subject.match(/ORD-\d+/);
+        if (!orderIdMatch) {
+            toast({ title: "Cannot Post Note", description: "Could not find an Order ID in the email subject.", variant: "destructive" });
+            return;
+        }
+        const orderId = orderIdMatch[0];
+
+        try {
+            const newNote: OrderNote = {
+                text: draft,
+                authorId: user.uid,
+                date: Timestamp.now(),
+                type: 'note',
+                subject: `Re: ${email.subject}`,
+            };
+            const orderRef = doc(db, 'orders', orderId);
+            await updateDoc(orderRef, {
+                notes: arrayUnion(newNote),
+            });
+
+            toast({ title: "Reply Sent!", description: "Your note has been posted to the order." });
+            await handleArchiveEmail(email.id);
+        } catch (e) {
+            toast({ title: "Failed to post note", description: "Could not find a matching order to post the note to.", variant: "destructive" });
+        }
+    };
+
 
     const ActionButton = ({ email }: { email: ProcessedEmail}) => {
         const action = email.aiSuggestedAction;
@@ -162,7 +197,7 @@ export default function AIEmailInboxPage() {
         const actionMap: { [key: string]: { icon: React.ReactNode, label: string, onClick?: () => void } } = {
             create_task: { icon: <PlusCircle className="mr-2 h-4 w-4" />, label: 'Create Task', onClick: () => alert('Create task functionality coming soon!') },
             draft_reply: { 
-                icon: isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />, 
+                icon: isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />, 
                 label: isDrafting === email.id ? 'Drafting...' : 'Draft Reply',
                 onClick: () => handleDraftReply(email),
             },
@@ -234,10 +269,18 @@ export default function AIEmailInboxPage() {
                                                  <ReactMarkdown className="text-xs"
                                                   components={{ p: ({node, ...props}) => <p className="my-0" {...props} /> }}
                                                  >{email.aiSummary}</ReactMarkdown>
-                                                 {email.aiDraftReply && (
-                                                     <div className="p-2 border-l-2 border-primary bg-primary/10">
+                                                 {(draftReplies[email.id] || email.aiDraftReply) && (
+                                                     <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
                                                         <p className="text-xs font-semibold">Suggested Reply:</p>
-                                                        <p className="text-xs italic">"{email.aiDraftReply}"</p>
+                                                         <Textarea 
+                                                            defaultValue={draftReplies[email.id] || email.aiDraftReply}
+                                                            onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: e.target.value}))}
+                                                            className="text-xs h-auto bg-white"
+                                                            rows={4}
+                                                          />
+                                                          <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }}>
+                                                            <SendIcon className="mr-2 h-4 w-4"/>Post Note Reply
+                                                          </Button>
                                                      </div>
                                                  )}
                                                  <div className="flex items-center gap-2 pt-2">
