@@ -233,6 +233,10 @@ export type User = {
   payrollDueDate?: any;
   submitsEmp201?: boolean;
   submitsEmp501?: boolean;
+  submitsProvisionalTax?: boolean;
+  submitsIncomeTax?: boolean;
+  submitsAnnualReturns?: boolean;
+  submitsBeneficialOwnership?: boolean;
   chartOfAccounts?: ChartOfAccount[];
   allocationRules?: AllocationRule[];
   hasNumeraProfile?: boolean;
@@ -297,6 +301,10 @@ export type Task = {
   clientId?: string;
   comments?: TaskComment[];
   tags?: string[];
+  triggerField?: string;
+  vatCategory?: 'A' | 'B' | 'C';
+  dueMonthOffset: number;
+  dueDay: number;
 };
 
 export type AIAllocationResult = {
