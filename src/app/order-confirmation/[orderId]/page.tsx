@@ -65,10 +65,10 @@ export default function OrderConfirmationPage() {
         form.action = payfastUrl;
 
         const data: { [key: string]: string } = {
-            merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '',
-            merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || '',
+            merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
+            merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
             return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/cart`,
+            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders`,
             notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
             name_first: order.customerName.split(' ')[0],
             name_last: order.customerName.split(' ').slice(1).join(' '),
@@ -105,14 +105,6 @@ export default function OrderConfirmationPage() {
         return notFound();
     }
     
-    const bankingDetails = reseller?.bankingDetails || {
-        bankName: 'FNB',
-        accountHolder: 'My Accountant (Pty) Ltd',
-        accountNumber: '63084378223',
-        branchCode: '250655',
-    };
-    const hasBankingDetails = !!(bankingDetails.bankName && bankingDetails.accountHolder && bankingDetails.accountNumber);
-
     return (
         <div className="container mx-auto px-4 py-12 max-w-4xl">
             <Card>
@@ -120,7 +112,7 @@ export default function OrderConfirmationPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                       Please complete payment for your order using one of the methods below.
+                       Please complete payment for your order using the secure PayFast button below.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -148,26 +140,12 @@ export default function OrderConfirmationPage() {
                     
                     <section>
                         <h3 className="font-semibold text-lg mb-2">Payment Options</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-4">
-                                <h4 className="font-medium">1. Pay with PayFast</h4>
-                                <p className="text-sm text-muted-foreground">Click the button below to pay securely online with your card or instant EFT via PayFast.</p>
-                                <Button onClick={() => handlePayNow(order)} className="w-full">
-                                    Pay Now with PayFast
-                                </Button>
-                            </div>
-                             {hasBankingDetails && (
-                                <div className="space-y-4">
-                                     <h4 className="font-medium">2. Pay via EFT</h4>
-                                     <div className="text-sm space-y-2 p-4 bg-muted rounded-lg">
-                                        <p><strong>Bank:</strong> {bankingDetails.bankName}</p>
-                                        <p><strong>Account Holder:</strong> {bankingDetails.accountHolder}</p>
-                                        <p><strong>Account Number:</strong> {bankingDetails.accountNumber}</p>
-                                        <p><strong>Branch Code:</strong> {bankingDetails.branchCode}</p>
-                                        <p><strong>Reference:</strong> <span className="font-bold text-destructive">{order.id}</span></p>
-                                    </div>
-                                </div>
-                             )}
+                        <div className="space-y-4">
+                            <h4 className="font-medium">Pay with PayFast</h4>
+                            <p className="text-sm text-muted-foreground">Click the button below to pay securely online with your card or instant EFT via PayFast.</p>
+                            <Button onClick={() => handlePayNow(order)} className="w-full">
+                                Pay Now with PayFast
+                            </Button>
                         </div>
                     </section>
 
