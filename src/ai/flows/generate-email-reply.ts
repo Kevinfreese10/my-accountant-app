@@ -18,14 +18,14 @@ import { Service, BlogPost } from '@/lib/types';
 const db = getFirestore(firebaseApp);
 
 const GenerateEmailReplyInputSchema = z.object({
-  subject: z.string().describe('The subject of the original email/note.'),
-  body: z.string().describe('The body of the original email/note.'),
-  sender: z.string().describe('The name of the original sender.'),
+  subject: z.string().describe('The subject of the original email.'),
+  body: z.string().describe('The body of the original email.'),
+  sender: z.string().describe('The name and/or email of the original sender.'),
 });
 export type GenerateEmailReplyInput = z.infer<typeof GenerateEmailReplyInputSchema>;
 
 const GenerateEmailReplyOutputSchema = z.object({
-  draft: z.string().describe("A professionally written draft note reply. It should be helpful, concise, and maintain a friendly but professional tone. It should address the sender's query or comment directly."),
+  draft: z.string().describe("A professionally written draft reply. It should be helpful, concise, and maintain a friendly but professional tone. It should address the sender's query or comment directly."),
 });
 export type GenerateEmailReplyOutput = z.infer<typeof GenerateEmailReplyOutputSchema>;
 
@@ -69,25 +69,25 @@ const generateEmailReplyFlow = ai.defineFlow(
         output: { schema: GenerateEmailReplyOutputSchema },
         prompt: `You are an expert administrative assistant for an accounting firm called "My Accountant". Your name is Winifred Beukes.
 
-        Your task is to draft a professional and helpful NOTE to reply to the following message from a client.
+        Your task is to draft a professional and helpful reply to the following email.
         - Your tone should be friendly, professional, and reassuring.
         - Address the sender by their name if it's available.
-        - Directly address the main point of their message.
-        - Use bullet points for lists to make the information clear and easy to read.
+        - Use paragraphs for clear spacing and structure.
+        - Use bullet points for any lists, such as service prerequisites.
         
-        CRITICAL INSTRUCTION: If the user is asking about a specific service (like 'VAT Registration' or 'Company Registration'), you MUST find that service in the CONTEXT provided below. Your reply MUST state the exact price, turnaround time, and ALL prerequisites for that service, formatted clearly for the user using bullet points for the prerequisites. Do NOT ask for more information or offer to discuss it further if the details are in the context. Be direct and provide the answer.
+        CRITICAL INSTRUCTION: If the user is asking about a specific service (like 'VAT Registration' or 'Company Registration'), you MUST find that service in the CONTEXT provided below. Your reply MUST state the exact price and turnaround time in the first paragraph. Then, list ALL prerequisites using a bulleted list. Do NOT ask for more information or offer to discuss it further if the details are in the context. Be direct and provide the answer.
 
         - If they are asking a general question, try to find an answer in the CONTEXT.
         - If they are sending documents, acknowledge receipt.
-        - Keep the reply concise and to the point.
-        - Do NOT include any formal email greetings or closings like "Hi", "Regards,", or your name. Just provide the body of the note.
+        - Keep the reply concise.
+        - Sign off with a friendly closing (e.g., "Kind regards,"), followed by your name "Winifred Beukes" and your title "Executive Assistant to Kevin Freese".
 
         CONTEXT:
         ---
         ${websiteContent}
         ---
 
-        **Original Message:**
+        **Original Email:**
         **From:** {{{sender}}}
         **Subject:** {{{subject}}}
 
