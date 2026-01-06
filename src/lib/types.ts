@@ -217,6 +217,12 @@ export type User = {
     user?: string;
     pass?: string;
   },
+  imapDetails?: {
+    host?: string;
+    port?: string;
+    user?: string;
+    pass?: string;
+  },
   wantsOutsourcedWork?: boolean;
   cvUrl?: string;
   certificateUrl?: string;
@@ -224,7 +230,6 @@ export type User = {
   // Client specific fields for task automation & AI Accountant
   yearEnd?: any;
   preparesFinancials?: boolean;
-  financialsDueDate?: any;
   requiresManagementAccounts?: boolean;
   managementAccountsFrequency?: 'Monthly' | 'Quarterly' | 'Bi-Annually' | 'Annually';
   isVatRegistered?: boolean;

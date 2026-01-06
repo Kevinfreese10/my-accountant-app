@@ -24,6 +24,12 @@ const formSchema = z.object({
       user: z.string().min(1, "Username is required."),
       pass: z.string().min(1, "Password is required."),
   }),
+  imapDetails: z.object({
+      host: z.string().min(1, "Host is required."),
+      port: z.string().min(1, "Port is required."),
+      user: z.string().min(1, "Username is required."),
+      pass: z.string().min(1, "Password is required."),
+  }),
 });
 
 export default function EmailSettingsForm() {
@@ -41,6 +47,12 @@ export default function EmailSettingsForm() {
           user: user?.smtpDetails?.user || user?.email || '', 
           pass: user?.smtpDetails?.pass || ''
       },
+      imapDetails: { 
+          host: user?.imapDetails?.host || '', 
+          port: user?.imapDetails?.port || '993', 
+          user: user?.imapDetails?.user || user?.email || '', 
+          pass: user?.imapDetails?.pass || ''
+      },
     },
   });
   
@@ -49,8 +61,11 @@ export default function EmailSettingsForm() {
       setIsSaving(true);
       try {
           const userRef = doc(db, 'users', user.uid);
-          await updateDoc(userRef, { smtpDetails: values.smtpDetails });
-          updateUser({ ...user, smtpDetails: values.smtpDetails });
+          await updateDoc(userRef, { 
+              smtpDetails: values.smtpDetails,
+              imapDetails: values.imapDetails,
+          });
+          updateUser({ ...user, smtpDetails: values.smtpDetails, imapDetails: values.imapDetails });
           toast({ title: 'Settings Saved', description: 'Your email settings have been updated.' });
       } catch (e) {
           console.error(e);
@@ -99,7 +114,7 @@ export default function EmailSettingsForm() {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSave)} className="space-y-8">
         <div className="space-y-4">
-            <h3 className="text-lg font-medium">SMTP Details</h3>
+            <h3 className="text-lg font-medium">SMTP Details (Sending Emails)</h3>
             <p className="text-sm text-muted-foreground">These are your personal email sending credentials. They are stored securely and used only for sending emails on your behalf from within the application.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <FormField control={form.control} name="smtpDetails.host" render={({ field }) => ( <FormItem><FormLabel>SMTP Host</FormLabel><FormControl><Input {...field} placeholder="e.g., smtp.gmail.com" /></FormControl><FormMessage /></FormItem>)} />
@@ -107,16 +122,30 @@ export default function EmailSettingsForm() {
                  <FormField control={form.control} name="smtpDetails.user" render={({ field }) => ( <FormItem><FormLabel>Username (Your Email)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="smtpDetails.pass" render={({ field }) => ( <FormItem><FormLabel>Password / App Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
-             <div className="flex gap-2 pt-2">
-                <Button type="submit" disabled={isSaving}>
-                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save Settings
-                </Button>
-                <Button type="button" variant="outline" onClick={onTestEmail} disabled={isTesting}>
-                    {isTesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Send Test Email
-                </Button>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-4">
+            <h3 className="text-lg font-medium">IMAP Details (Fetching Emails)</h3>
+            <p className="text-sm text-muted-foreground">These credentials are used to connect to your mailbox and fetch incoming emails for the AI Email Inbox.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <FormField control={form.control} name="imapDetails.host" render={({ field }) => ( <FormItem><FormLabel>IMAP Host</FormLabel><FormControl><Input {...field} placeholder="e.g., imap.gmail.com" /></FormControl><FormMessage /></FormItem>)} />
+                 <FormField control={form.control} name="imapDetails.port" render={({ field }) => ( <FormItem><FormLabel>IMAP Port</FormLabel><FormControl><Input {...field} placeholder="e.g., 993" /></FormControl><FormMessage /></FormItem>)} />
+                 <FormField control={form.control} name="imapDetails.user" render={({ field }) => ( <FormItem><FormLabel>Username (Your Email)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                 <FormField control={form.control} name="imapDetails.pass" render={({ field }) => ( <FormItem><FormLabel>Password / App Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
+        </div>
+        
+        <div className="flex gap-2 pt-2">
+            <Button type="submit" disabled={isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Settings
+            </Button>
+            <Button type="button" variant="outline" onClick={onTestEmail} disabled={isTesting}>
+                {isTesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Send Test Email (SMTP)
+            </Button>
         </div>
       </form>
     </Form>
