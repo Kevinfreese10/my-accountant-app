@@ -19,6 +19,7 @@ import MediaLibrary from './MediaLibrary';
 import Image from 'next/image';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { Checkbox } from '../ui/checkbox';
 
 
 const db = getFirestore(firebaseApp);
@@ -35,6 +36,7 @@ const formSchema = z.object({
   description: z.string().min(10, 'Short description is required.'),
   longDescription: z.string().min(20, 'Long description is required.'),
   price: z.preprocess(val => Number(val), z.number().min(0, 'Price must be a positive number.')),
+  isPriceTbc: z.boolean().optional(),
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Reseller price must be a positive number.').optional()),
   imageUrl: z.string().url('Must be a valid URL.'),
   imageHint: z.string().min(1, 'Image hint is required.'),
@@ -90,6 +92,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
       description: service?.description || '',
       longDescription: service?.longDescription || '',
       price: service?.price || 0,
+      isPriceTbc: service?.isPriceTbc || false,
       resellerPrice: service?.resellerPrice || 0,
       imageUrl: service?.imageUrl || 'https://picsum.photos/seed/new/600/400',
       imageHint: service?.imageHint || 'abstract',
@@ -105,6 +108,8 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
       metaKeywords: service?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
     },
   });
+  
+  const isPriceTbc = form.watch('isPriceTbc');
 
   const { fields: includedFields, append: appendIncluded, remove: removeIncluded } = useFieldArray({
     control: form.control,
@@ -225,7 +230,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
             render={({ field }) => (
                 <FormItem>
                 <FormLabel>Public Price (R)</FormLabel>
-                <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                <FormControl><Input type="number" step="0.01" {...field} disabled={isPriceTbc} /></FormControl>
                 <FormMessage />
                 </FormItem>
             )}
@@ -236,7 +241,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
             render={({ field }) => (
                 <FormItem>
                 <FormLabel>Reseller Price (R)</FormLabel>
-                <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                <FormControl><Input type="number" step="0.01" {...field} disabled={isPriceTbc} /></FormControl>
                 <FormMessage />
                 </FormItem>
             )}
@@ -260,6 +265,18 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
             )}
             />
         </div>
+        <FormField
+            control={form.control}
+            name="isPriceTbc"
+            render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-2">
+                <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                </FormControl>
+                <FormLabel className="!mt-0">Price to be confirmed</FormLabel>
+                </FormItem>
+            )}
+        />
          <FormField
             control={form.control}
             name="department"

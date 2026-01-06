@@ -48,6 +48,7 @@ export type Service = {
   description: string;
   longDescription: string;
   price: number;
+  isPriceTbc?: boolean;
   resellerPrice?: number;
   imageUrl: string;
   imageHint: string;
@@ -237,6 +238,7 @@ export type User = {
   submitsIncomeTax?: boolean;
   submitsAnnualReturns?: boolean;
   submitsBeneficialOwnership?: boolean;
+  complianceDueDate?: string;
   chartOfAccounts?: ChartOfAccount[];
   allocationRules?: AllocationRule[];
   hasNumeraProfile?: boolean;

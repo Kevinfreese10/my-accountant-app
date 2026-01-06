@@ -16,6 +16,8 @@ import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { sendEmail } from '@/lib/email';
 import Link from 'next/link';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Contact } from 'lucide-react';
 
 const db = getFirestore(firebaseApp);
 
@@ -27,7 +29,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const [hasPrerequisites, setHasPrerequisites] = useState(false);
   const [agreedToRefundPolicy, setAgreedToRefundPolicy] = useState(false);
 
-  const canPurchase = hasPrerequisites && agreedToRefundPolicy;
+  const canPurchase = service.isPriceTbc ? false : hasPrerequisites && agreedToRefundPolicy;
 
   async function handleCheckout() {
     if (!user) {
@@ -98,6 +100,18 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       });
 
       router.push(`/order-confirmation/${orderId}`);
+  }
+
+  if (service.isPriceTbc) {
+      return (
+          <Alert>
+              <Contact className="h-4 w-4" />
+              <AlertTitle>Price on Request</AlertTitle>
+              <AlertDescription>
+                  Please <Link href="/contact" className="font-semibold underline">contact us</Link> for pricing information for this service.
+              </AlertDescription>
+          </Alert>
+      )
   }
 
   return (

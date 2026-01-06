@@ -1,4 +1,5 @@
 
+
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
@@ -109,7 +110,7 @@ export default async function ProductDetailPage({ params }: Props) {
       '@type': 'Offer',
       url: `https://www.myacc.co.za/products/${service.slug}`,
       priceCurrency: 'ZAR',
-      price: service.price.toString(),
+      price: service.isPriceTbc ? '0' : service.price.toString(),
       availability: 'https://schema.org/InStock',
     },
   };
@@ -131,7 +132,11 @@ export default async function ProductDetailPage({ params }: Props) {
             <div className="space-y-3">
               <Badge variant="secondary" className="w-fit">{service.category}</Badge>
               <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{service.title}</h1>
-              <p className="text-3xl font-bold text-primary">{formatPrice(service.price)}</p>
+               {service.isPriceTbc ? (
+                <p className="text-2xl font-bold text-muted-foreground">To be confirmed</p>
+              ) : (
+                <p className="text-3xl font-bold text-primary">{formatPrice(service.price)}</p>
+              )}
               <div className="flex items-center text-muted-foreground">
                   <Clock className="h-4 w-4 mr-1.5" />
                   <span className="text-sm font-medium">{service.turnaroundTime}</span>
