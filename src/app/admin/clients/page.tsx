@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,9 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { User, Task } from '@/lib/types';
+import { User, Task, Service } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
@@ -41,9 +41,6 @@ const vatCategories: { value: 'A' | 'B' | 'C'; label: string }[] = [
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client/Company name is required.'),
-  contactPerson: z.string().min(2, 'Contact person name is required.'),
-  email: z.string().email('Invalid email address.'),
-  cellNumber: z.string().optional(),
   status: z.enum(clientStatuses).optional(),
   
   yearEnd: z.string().optional(),
@@ -54,7 +51,6 @@ const formSchema = z.object({
   managementAccountsFrequency: z.enum(managementAccountFrequencies).optional(),
 
   isVatRegistered: z.boolean().default(false),
-  vatNumber: z.string().optional(),
   vatCategory: z.enum(['A', 'B', 'C']).optional(),
   
   preparesPayroll: z.boolean().default(false),
@@ -72,9 +68,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            contactPerson: client?.contactPerson || '',
-            email: client?.email || '',
-            cellNumber: client?.cellNumber || '',
             status: client?.status || 'Active',
             yearEnd: client?.yearEnd || undefined,
             preparesFinancials: client?.preparesFinancials || false,
@@ -82,7 +75,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             requiresManagementAccounts: client?.requiresManagementAccounts || false,
             managementAccountsFrequency: client?.managementAccountsFrequency || undefined,
             isVatRegistered: client?.isVatRegistered || false,
-            vatNumber: client?.vatNumber || '',
             vatCategory: client?.vatCategory || undefined,
             preparesPayroll: client?.preparesPayroll || false,
             payrollDueDate: client?.payrollDueDate || undefined,
@@ -104,9 +96,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Client Details</h3>
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="e.g. 0821234567" {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
                  <Separator />
@@ -123,13 +112,12 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                      )}
                      <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
                         <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                            <div className="space-y-0.5"><FormLabel>Is the client registered for VAT?</FormLabel></div>
+                            <div className="space-y-0.5"><FormLabel>Submit VAT201 Returns?</FormLabel></div>
                             <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                         </FormItem>
                     )} />
                     {isVatRegistered && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                              <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                     )}
@@ -143,7 +131,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                             </div>
                         </div>
                     )}
-                    <FormField control={form.control} name="submitsProvisionalTax" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Submit Provisional Tax?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
+                     <FormField control={form.control} name="submitsProvisionalTax" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Submit Provisional Tax?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                     <FormField control={form.control} name="submitsIncomeTax" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Submit Income Tax Return (ITR14)?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                 </div>
                 <div className="flex justify-end gap-2 pt-4">
@@ -159,6 +147,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
 export default function AdminClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [allStaff, setAllStaff] = useState<User[]>([]);
+  const [taskTemplates, setTaskTemplates] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -168,7 +157,7 @@ export default function AdminClientsPage() {
   const fetchClientsAndStaff = async () => {
     setIsLoading(true);
     try {
-        const staffQuery = query(collection(db, "users"));
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const staffSnapshot = await getDocs(staffQuery);
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setAllStaff(fetchedStaff);
@@ -177,6 +166,12 @@ export default function AdminClientsPage() {
         const clientsSnapshot = await getDocs(clientsQuery);
         const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
         setClients(fetchedClients);
+        
+        const templatesQuery = query(collection(db, "taskTemplates"));
+        const templatesSnapshot = await getDocs(templatesQuery);
+        const fetchedTemplates = templatesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
+        setTaskTemplates(fetchedTemplates);
+
     } catch (error) {
         console.error("Error fetching data:", error);
         toast({ title: 'Error', description: 'Could not fetch data from the database.', variant: 'destructive'});
@@ -228,31 +223,39 @@ export default function AdminClientsPage() {
 
   const handleFormSubmit = async (data: any) => {
     if (!currentUser) return;
-    
-    const clientData: Partial<Client> = {
-        ...data,
-        financialsDueDate: data.preparesFinancials ? data.financialsDueDate : null,
-        managementAccountsFrequency: data.requiresManagementAccounts ? data.managementAccountsFrequency : null,
-        vatCategory: data.isVatRegistered ? data.vatCategory : null,
-        payrollDueDate: data.preparesPayroll ? data.payrollDueDate : null,
-        role: 'client',
-        source: 'Client Management',
-    };
-    
-    if (!data.isVatRegistered) {
-        clientData.vatNumber = null;
-        clientData.vatCategory = null;
-    }
 
     try {
+        let clientToUpdate: Client;
+
         if (selectedClient?.id) {
-            await setDoc(doc(db, "clients", selectedClient.id), clientData, { merge: true });
+            clientToUpdate = clients.find(c => c.id === selectedClient.id)!;
+            const updateData: Partial<Client> = {
+                ...data,
+                yearEnd: data.yearEnd || null,
+            };
+            if (!data.isVatRegistered) {
+                updateData.vatCategory = null;
+            }
+            await setDoc(doc(db, "clients", selectedClient.id), updateData, { merge: true });
             toast({ title: 'Client Updated'});
         } else {
-            const newDocRef = await addDoc(collection(db, "clients"), clientData);
+            const newClientData: Partial<Client> = {
+                ...data,
+                yearEnd: data.yearEnd || null,
+                role: 'client',
+                source: 'Client Management',
+            };
+            if (!data.isVatRegistered) {
+                newClientData.vatCategory = null;
+            }
+
+            const newDocRef = await addDoc(collection(db, "clients"), newClientData);
+            clientToUpdate = { ...newClientData, id: newDocRef.id } as Client;
             toast({ title: 'Client Created' });
         }
 
+        await handleTaskAutomation(clientToUpdate, data);
+        
         fetchClientsAndStaff();
         setIsFormOpen(false);
         setSelectedClient(null);
@@ -261,6 +264,85 @@ export default function AdminClientsPage() {
         toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive'});
     }
   };
+
+  const handleTaskAutomation = async (originalClient: Client, formValues: any) => {
+     const batch = writeBatch(db);
+     const automationFlags = [
+        'preparesFinancials', 'requiresManagementAccounts', 'submitsEmp201', 'submitsEmp501', 
+        'submitsProvisionalTax', 'submitsIncomeTax', 'isVatRegistered'
+    ];
+    
+    const settingsChanged = automationFlags.some(flag => originalClient[flag as keyof User] !== formValues[flag as keyof User]) || originalClient.vatCategory !== formValues.vatCategory;
+
+    if (!settingsChanged && originalClient.id) return; // No changes to automation, do nothing
+
+    const getMonthNumber = (monthName: string) => months.indexOf(monthName);
+    const clientYearEndMonth = getMonthNumber(formValues.yearEnd);
+
+    const tasksQuery = query(collection(db, 'tasks'), where('clientId', '==', originalClient.id));
+    const existingTasksSnapshot = await getDocs(tasksQuery);
+    const existingTasks = existingTasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
+    
+    // --- Task Deletion Logic ---
+    for (const flag of automationFlags) {
+        const wasEnabled = !!originalClient[flag as keyof User];
+        const isNowDisabled = !formValues[flag as keyof User];
+        
+        if (wasEnabled && isNowDisabled) {
+             const templatesToDelete = taskTemplates.filter(t => t.triggerField === flag);
+             templatesToDelete.forEach(template => {
+                 const taskToDelete = existingTasks.find(t => t.title === template.title.replace('{clientName}', formValues.name) && t.status !== 'Done');
+                 if(taskToDelete) {
+                     batch.delete(doc(db, 'tasks', taskToDelete.id));
+                 }
+             });
+        }
+    }
+    
+    if (originalClient.isVatRegistered && formValues.isVatRegistered && originalClient.vatCategory !== formValues.vatCategory) {
+        const oldVatTemplate = taskTemplates.find(t => t.triggerField === 'isVatRegistered' && t.vatCategory === originalClient.vatCategory);
+        if (oldVatTemplate) {
+            const taskToDelete = existingTasks.find(t => t.title === oldVatTemplate.title.replace('{clientName}', formValues.name) && t.status !== 'Done');
+            if (taskToDelete) {
+                 batch.delete(doc(db, 'tasks', taskToDelete.id));
+            }
+        }
+    }
+    
+    // --- Task Creation Logic ---
+    for (const template of taskTemplates) {
+        const trigger = template.triggerField as keyof typeof formValues;
+        if (formValues[trigger]) {
+             if (trigger === 'isVatRegistered' && template.vatCategory !== formValues.vatCategory) {
+                continue; // Skip if VAT category doesn't match
+            }
+
+            const taskTitle = template.title.replace('{clientName}', formValues.name);
+            const taskExists = existingTasks.some(t => t.title === taskTitle && t.status !== 'Done');
+            
+            if (!taskExists) {
+                const dueDate = new Date();
+                dueDate.setFullYear(new Date().getFullYear());
+                const month = (clientYearEndMonth + template.dueMonthOffset) % 12;
+                dueDate.setMonth(month, template.dueDay);
+                
+                const newTask: Omit<Task, 'id'> = {
+                    ...template,
+                    title: taskTitle,
+                    description: template.description.replace('{clientName}', formValues.name),
+                    clientId: originalClient.id,
+                    status: 'To-Do',
+                    dueDate: Timestamp.fromDate(dueDate),
+                    createdAt: Timestamp.now(),
+                    createdBy: currentUser?.uid || 'system',
+                };
+                batch.set(doc(collection(db, 'tasks')), newTask);
+            }
+        }
+    }
+
+    await batch.commit();
+  }
   
     const formatYearEnd = (yearEnd: any): string => {
         if (!yearEnd) return 'N/A';
@@ -287,7 +369,7 @@ export default function AdminClientsPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Manage Clients</h1>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <Dialog open={isFormOpen} onOpenChange={(isOpen) => { setIsFormOpen(isOpen); if (!isOpen) setSelectedClient(null); }}>
            <DialogTrigger asChild>
                 <Button onClick={handleAdd}>
                     <PlusCircle className="mr-2 h-4 w-4" />
@@ -324,8 +406,6 @@ export default function AdminClientsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Client</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Cell Number</TableHead>
                 <TableHead>Year End</TableHead>
                 <TableHead>VAT Registered</TableHead>
                 <TableHead>Status</TableHead>
@@ -341,8 +421,6 @@ export default function AdminClientsPage() {
                         {client.contactPerson && <p className="text-xs text-muted-foreground">{client.contactPerson}</p>}
                     </div>
                   </TableCell>
-                  <TableCell>{client.email}</TableCell>
-                  <TableCell>{client.cellNumber}</TableCell>
                    <TableCell>{formatYearEnd(client.yearEnd)}</TableCell>
                     <TableCell>
                       {client.isVatRegistered ? (
