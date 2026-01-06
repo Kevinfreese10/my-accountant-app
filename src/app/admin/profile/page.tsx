@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,7 +16,8 @@ import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { getAuth, updatePassword } from 'firebase/auth';
+import { getAuth, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
+import EmailSettingsForm from '@/components/admin/EmailSettingsForm';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -26,6 +28,7 @@ const profileFormSchema = z.object({
 });
 
 const passwordFormSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required to change it.'),
   newPassword: z.string().min(6, 'Password must be at least 6 characters.'),
   confirmPassword: z.string(),
 }).refine(data => data.newPassword === data.confirmPassword, {
@@ -35,7 +38,7 @@ const passwordFormSchema = z.object({
 
 
 export default function ProfilePage() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, reauthenticate } = useAuth();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isPasswordSaving, setIsPasswordSaving] = useState(false);
@@ -51,6 +54,7 @@ export default function ProfilePage() {
   const passwordForm = useForm<z.infer<typeof passwordFormSchema>>({
     resolver: zodResolver(passwordFormSchema),
     defaultValues: {
+      currentPassword: '',
       newPassword: '',
       confirmPassword: '',
     },
@@ -78,19 +82,27 @@ export default function ProfilePage() {
   const onPasswordSubmit = async (values: z.infer<typeof passwordFormSchema>) => {
     setIsPasswordSaving(true);
     const firebaseUser = auth.currentUser;
-    if (!firebaseUser) {
-        toast({ title: 'Error', description: 'You are not logged in.', variant: 'destructive' });
+    if (!firebaseUser || !firebaseUser.email) {
+        toast({ title: 'Error', description: 'You are not logged in properly.', variant: 'destructive' });
         setIsPasswordSaving(false);
         return;
     }
 
     try {
+        const credential = EmailAuthProvider.credential(firebaseUser.email, values.currentPassword);
+        await reauthenticateWithCredential(firebaseUser, credential);
         await updatePassword(firebaseUser, values.newPassword);
         toast({ title: 'Password Updated', description: 'Your password has been changed successfully.' });
         passwordForm.reset();
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error updating password:", error);
-        toast({ title: 'Error', description: 'Could not update your password. You may need to log in again to perform this action.', variant: 'destructive' });
+        let description = 'Could not update your password.';
+        if(error.code === 'auth/wrong-password') {
+            description = 'The current password you entered is incorrect.';
+        } else if (error.code === 'auth/requires-recent-login') {
+            description = 'This action is sensitive and requires recent authentication. Please log in again and retry.';
+        }
+        toast({ title: 'Error', description, variant: 'destructive' });
     } finally {
         setIsPasswordSaving(false);
     }
@@ -126,6 +138,7 @@ export default function ProfilePage() {
             <CardContent>
                  <Form {...passwordForm}>
                     <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+                        <FormField control={passwordForm.control} name="currentPassword" render={({ field }) => ( <FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={passwordForm.control} name="newPassword" render={({ field }) => ( <FormItem><FormLabel>New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={passwordForm.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirm New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <Button type="submit" disabled={isPasswordSaving}>
@@ -136,6 +149,18 @@ export default function ProfilePage() {
                 </Form>
             </CardContent>
         </Card>
+        
+        {(user.role === 'admin' || user.role === 'staff') && (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Email Settings</CardTitle>
+                    <CardDescription>Configure your email account to send and receive emails through the app.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <EmailSettingsForm />
+                </CardContent>
+            </Card>
+        )}
     </div>
   );
 }

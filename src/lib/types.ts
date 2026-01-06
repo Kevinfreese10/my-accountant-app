@@ -212,10 +212,10 @@ export type User = {
     branchCode?: string;
   },
   smtpDetails?: {
-    host: string;
-    port: string;
-    user: string;
-    pass: string;
+    host?: string;
+    port?: string;
+    user?: string;
+    pass?: string;
   },
   wantsOutsourcedWork?: boolean;
   cvUrl?: string;
