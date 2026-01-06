@@ -10,11 +10,12 @@ import { useToast } from '@/hooks/use-toast';
 import { collection, query, where, orderBy, onSnapshot, getFirestore } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { ProcessedEmail } from '@/lib/types';
-import { format } from 'date-fns';
+import { format, isToday, isThisWeek, isThisYear } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
@@ -81,7 +82,16 @@ export default function AIEmailInboxPage() {
     const formatDate = (timestamp: any): string => {
         if (!timestamp) return 'N/A';
         const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        return format(date, 'dd MMM yyyy, HH:mm');
+        if (isToday(date)) {
+            return format(date, 'HH:mm');
+        }
+        if (isThisWeek(date, { weekStartsOn: 1 })) {
+            return format(date, 'EEE');
+        }
+        if (isThisYear(date)) {
+            return format(date, 'dd MMM');
+        }
+        return format(date, 'dd/MM/yyyy');
     };
 
     return (
@@ -115,7 +125,7 @@ export default function AIEmailInboxPage() {
                                 {emails.map(email => (
                                     <button 
                                         key={email.id} 
-                                        className="w-full text-left p-4 hover:bg-muted/50"
+                                        className={cn("w-full text-left p-4 hover:bg-muted/50", selectedEmail?.id === email.id && "bg-muted")}
                                         onClick={() => setSelectedEmail(email)}
                                     >
                                         <div className="flex justify-between items-start">
@@ -132,34 +142,23 @@ export default function AIEmailInboxPage() {
                     </div>
                     <div className="flex flex-col">
                         {selectedEmail ? (
-                            <>
-                                <div className="p-4 border-b space-y-2">
-                                    <h3 className="text-xl font-bold">{selectedEmail.subject}</h3>
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <p className="text-sm font-semibold">{selectedEmail.from.name}</p>
-                                            <p className="text-xs text-muted-foreground">{selectedEmail.from.address}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-xs text-muted-foreground">{formatDate(selectedEmail.date)}</p>
-                                        </div>
+                            <div className="p-4 border-b space-y-2">
+                                <h3 className="text-xl font-bold">{selectedEmail.subject}</h3>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-sm font-semibold">{selectedEmail.from.name}</p>
+                                        <p className="text-xs text-muted-foreground">{selectedEmail.from.address}</p>
                                     </div>
-                                    <div className="flex gap-2 pt-2">
-                                        <Button size="sm" variant="outline"><Send className="mr-2 h-4 w-4"/>Reply</Button>
-                                        <Button size="sm" variant="outline"><Trash className="mr-2 h-4 w-4"/>Delete</Button>
-                                        <Button size="sm" variant="outline"><Archive className="mr-2 h-4 w-4"/>Archive</Button>
+                                    <div className="text-right">
+                                        <p className="text-xs text-muted-foreground">{formatDate(selectedEmail.date)}</p>
                                     </div>
                                 </div>
-                                <ScrollArea className="flex-grow">
-                                <div className="p-4">
-                                     {selectedEmail.html ? (
-                                        <iframe srcDoc={selectedEmail.html} className="w-full h-[50vh] border-0" />
-                                     ) : (
-                                        <p className="whitespace-pre-wrap">{selectedEmail.text}</p>
-                                     )}
+                                <div className="flex gap-2 pt-2">
+                                    <Button size="sm" variant="outline"><Send className="mr-2 h-4 w-4"/>Reply</Button>
+                                    <Button size="sm" variant="outline"><Trash className="mr-2 h-4 w-4"/>Delete</Button>
+                                    <Button size="sm" variant="outline"><Archive className="mr-2 h-4 w-4"/>Archive</Button>
                                 </div>
-                                </ScrollArea>
-                            </>
+                            </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                                 <Mail className="h-16 w-16 mb-4"/>
