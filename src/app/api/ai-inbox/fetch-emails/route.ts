@@ -113,12 +113,7 @@ export async function POST(req: NextRequest) {
                 html: htmlContent,
                 status: 'new',
                 ownerId: userId,
-                attachments: parsedMail.attachments?.map(att => ({
-                    filename: att.filename || 'attachment',
-                    contentType: att.contentType,
-                    size: att.size,
-                    storagePath: '' // This will be handled differently now
-                }))
+                attachments: attachments, // Save attachments with dataUrl
             };
 
             try {

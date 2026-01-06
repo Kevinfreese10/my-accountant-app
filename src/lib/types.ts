@@ -432,7 +432,7 @@ export type ProcessedEmail = {
     filename: string;
     contentType: string;
     size: number;
-    storagePath: string; // Path in Firebase Storage
+    dataUrl: string;
   }[];
   // AI-generated fields
   aiSummary?: string;

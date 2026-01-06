@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle, Pencil } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle, Pencil, Paperclip } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -337,6 +337,26 @@ export default function AIEmailInboxPage() {
                                              <ReactMarkdown className="text-xs prose prose-sm max-w-none"
                                               components={{ p: ({node, ...props}) => <p className="my-1" {...props} /> }}
                                              >{email.aiSummary}</ReactMarkdown>
+                                             
+                                             {email.attachments && email.attachments.length > 0 && (
+                                                <div className="pt-2">
+                                                     <p className="text-xs font-semibold mb-1">Attachments:</p>
+                                                     <div className="flex flex-wrap gap-2">
+                                                        {email.attachments.map((att, index) => (
+                                                             <a
+                                                                key={index}
+                                                                href={att.dataUrl}
+                                                                download={att.filename || 'attachment'}
+                                                                className="text-xs flex items-center gap-1.5 bg-muted p-1.5 rounded-md hover:bg-muted/80"
+                                                            >
+                                                                <Paperclip className="h-3 w-3"/>
+                                                                {att.filename || 'download'}
+                                                            </a>
+                                                        ))}
+                                                     </div>
+                                                </div>
+                                             )}
+
                                              {(draftReplies[email.id] || email.aiDraftReply) && (
                                                  <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
                                                     <p className="text-xs font-semibold">Suggested Reply:</p>
