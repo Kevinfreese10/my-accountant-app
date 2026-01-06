@@ -342,10 +342,10 @@ export default function AIEmailInboxPage() {
                                                 <div className="pt-2">
                                                      <p className="text-xs font-semibold mb-1">Attachments:</p>
                                                      <div className="flex flex-wrap gap-2">
-                                                        {email.attachments.map((att, index) => (
+                                                        {email.attachments.filter(att => att.filename && !att.filename.toLowerCase().endsWith('.png')).map((att, index) => (
                                                              <a
                                                                 key={index}
-                                                                href={att.dataUrl}
+                                                                href={att.dataUrl || '#'}
                                                                 download={att.filename || 'attachment'}
                                                                 className="text-xs flex items-center gap-1.5 bg-muted p-1.5 rounded-md hover:bg-muted/80"
                                                             >
