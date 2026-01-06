@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { sendEmail } from '@/lib/email';
 import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { Switch } from '../ui/switch';
 
 const db = getFirestore(firebaseApp);
 
@@ -29,6 +30,7 @@ const formSchema = z.object({
       port: z.string().min(1, "Port is required."),
       user: z.string().min(1, "Username is required."),
       pass: z.string().min(1, "Password is required."),
+      secure: z.boolean().default(true),
   }),
 });
 
@@ -51,7 +53,8 @@ export default function EmailSettingsForm() {
           host: user?.imapDetails?.host || '', 
           port: user?.imapDetails?.port || '993', 
           user: user?.imapDetails?.user || user?.email || '', 
-          pass: user?.imapDetails?.pass || ''
+          pass: user?.imapDetails?.pass || '',
+          secure: user?.imapDetails?.secure === undefined ? true : user.imapDetails.secure,
       },
     },
   });
@@ -134,6 +137,24 @@ export default function EmailSettingsForm() {
                  <FormField control={form.control} name="imapDetails.port" render={({ field }) => ( <FormItem><FormLabel>IMAP Port</FormLabel><FormControl><Input {...field} placeholder="e.g., 993" /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="imapDetails.user" render={({ field }) => ( <FormItem><FormLabel>Username (Your Email)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="imapDetails.pass" render={({ field }) => ( <FormItem><FormLabel>Password / App Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField
+                    control={form.control}
+                    name="imapDetails.secure"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm col-span-1 md:col-span-2">
+                            <div className="space-y-0.5">
+                                <FormLabel>Connection Security (SSL/TLS)</FormLabel>
+                                <p className="text-xs text-muted-foreground">Enable for standard secure ports like 993.</p>
+                            </div>
+                            <FormControl>
+                                <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
+                        </FormItem>
+                    )}
+                    />
             </div>
         </div>
         

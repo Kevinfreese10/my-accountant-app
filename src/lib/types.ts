@@ -1,6 +1,4 @@
 
-
-
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -223,6 +221,7 @@ export type User = {
     port?: string;
     user?: string;
     pass?: string;
+    secure?: boolean;
   },
   wantsOutsourcedWork?: boolean;
   cvUrl?: string;

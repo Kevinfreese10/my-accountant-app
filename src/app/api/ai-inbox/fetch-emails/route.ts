@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
         const imapConfig = {
             host: userData.imapDetails?.host || '',
             port: Number(userData.imapDetails?.port) || 993,
-            secure: true,
+            secure: userData.imapDetails?.secure === undefined ? true : userData.imapDetails.secure,
             auth: {
                 user: userData.imapDetails?.user || '',
                 pass: userData.imapDetails?.pass || '',
