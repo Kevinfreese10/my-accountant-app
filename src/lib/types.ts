@@ -109,7 +109,7 @@ export type OrderNote = {
   attachments?: {
     name: string;
     url: string;
-  }[];
+  }[] | null;
 };
 
 export type ItnLog = {
@@ -415,6 +415,30 @@ export type AIAllocationJob = {
     completedAt?: any;
     error?: string;
 }
+
+export type ProcessedEmail = {
+  id: string; // Hash of messageId
+  uid: number; // IMAP UID
+  messageId: string;
+  mailbox: string;
+  date: any; // Firestore Timestamp
+  from: { name: string; address: string };
+  to: { name: string; address: string }[];
+  subject: string;
+  snippet: string;
+  text: string;
+  html: string;
+  status: 'new' | 'processed' | 'archived';
+  category?: 'Account issues' | 'Tax preparation' | 'Service inquiry' | 'Document upload' | 'Spam/Promo' | 'Other';
+  priority?: 'High' | 'Medium' | 'Low';
+  ownerId: string;
+  attachments?: {
+    filename: string;
+    contentType: string;
+    size: number;
+    storagePath: string; // Path in Firebase Storage
+  }[];
+};
 
 import { z } from 'zod';
 

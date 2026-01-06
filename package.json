@@ -65,7 +65,9 @@
     "@react-email/components": "^0.0.21",
     "xlsx": "^0.18.5",
     "react-markdown": "^9.0.1",
-    "@react-pdf/renderer": "^3.4.4"
+    "@react-pdf/renderer": "^3.4.4",
+    "imap-simple": "^5.1.0",
+    "mailparser": "^3.7.1"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.13",
@@ -78,6 +80,8 @@
     "typescript": "^5",
     "@types/nodemailer": "^6.4.15",
     "@types/papaparse": "^5.3.14",
-    "@types/react-pdf": "^7.0.0"
+    "@types/react-pdf": "^7.0.0",
+    "@types/imap-simple": "^4.2.9",
+    "@types/mailparser": "^3.4.4"
   }
 }
