@@ -221,25 +221,25 @@ export default function AdminClientsPage() {
 
   const handleFormSubmit = async (data: any, originalClient: Partial<User> | null) => {
     if (!currentUser) return;
-    
+
     let clientDataForDb: Partial<User> = {
-        name: data.name,
-        status: data.status,
-        yearEnd: data.yearEnd,
-        preparesFinancials: data.preparesFinancials,
-        requiresManagementAccounts: data.requiresManagementAccounts,
-        isVatRegistered: data.isVatRegistered,
-        preparesPayroll: data.preparesPayroll,
-        submitsEmp201: data.submitsEmp201,
-        submitsEmp501: data.submitsEmp501,
-        submitsProvisionalTax: data.submitsProvisionalTax,
-        submitsIncomeTax: data.submitsIncomeTax,
-        submitsAnnualReturns: data.submitsAnnualReturns,
-        submitsBeneficialOwnership: data.submitsBeneficialOwnership,
+      name: data.name,
+      status: data.status,
+      yearEnd: data.yearEnd,
+      preparesFinancials: data.preparesFinancials,
+      requiresManagementAccounts: data.requiresManagementAccounts,
+      isVatRegistered: data.isVatRegistered,
+      preparesPayroll: data.preparesPayroll,
+      submitsEmp201: data.submitsEmp201,
+      submitsEmp501: data.submitsEmp501,
+      submitsProvisionalTax: data.submitsProvisionalTax,
+      submitsIncomeTax: data.submitsIncomeTax,
+      submitsAnnualReturns: data.submitsAnnualReturns,
+      submitsBeneficialOwnership: data.submitsBeneficialOwnership,
     };
     
-    // Set dependent fields to null if their toggle is false
-    clientDataForDb.financialsDueDate = data.preparesFinancials && data.yearEnd 
+    // Explicitly set dependent fields to null if their toggle is false
+    clientDataForDb.financialsDueDate = data.preparesFinancials && data.yearEnd
         ? new Date(new Date().getFullYear(), months.indexOf(data.yearEnd) + 3, 1)
         : null;
 
@@ -338,8 +338,9 @@ export default function AdminClientsPage() {
   };
   
   const createTaskFromTemplate = (batch: ReturnType<typeof writeBatch>, template: Task, clientData: any, clientId: string, currentUserId: string) => {
-    if (!clientData.yearEnd || months.indexOf(clientData.yearEnd) === -1) {
-        console.warn(`Skipping task creation for template "${template.title}" due to invalid or missing year end.`);
+    // Definitive fix: ensure yearEnd is a valid month string before proceeding.
+    if (!clientData.yearEnd || typeof clientData.yearEnd !== 'string' || months.indexOf(clientData.yearEnd) === -1) {
+        console.warn(`Skipping task creation for template "${template.title}" due to invalid or missing year end:`, clientData.yearEnd);
         return; 
     }
 
