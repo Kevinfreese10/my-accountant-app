@@ -63,7 +63,7 @@ const formSchema = z.object({
   submitsBeneficialOwnership: z.boolean().default(false),
 });
 
-function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onSubmit: (data: any, originalClient: Client | null) => void, onCancel: () => void }) {
+function ClientForm({ client, onSubmit, onCancel }: { client: Partial<User> | null, onSubmit: (data: any, originalClient: Partial<User> | null) => void, onCancel: () => void }) {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -101,7 +101,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                 </div>
                 
                 <div className="space-y-4 rounded-md border p-4">
-                    <h3 className="text-lg font-medium">Accounting and Tax</h3>
+                    <h3 className="text-lg font-medium">Accounting & Tax</h3>
                     <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="preparesFinancials" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Prepare Annual Financials?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
                     <FormField control={form.control} name="requiresManagementAccounts" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Prepare Management Accounts?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )}/>
@@ -150,22 +150,16 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
 
 export default function AdminClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
-  const [allStaff, setAllStaff] = useState<User[]>([]);
   const [taskTemplates, setTaskTemplates] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Partial<User> | null>(null);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   
   const fetchClientsAndStaff = async () => {
     setIsLoading(true);
     try {
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
-        const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
-        setAllStaff(fetchedStaff);
-
         const clientsQuery = query(collection(db, "clients"), orderBy("name"));
         const clientsSnapshot = await getDocs(clientsQuery);
         const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
@@ -225,11 +219,10 @@ export default function AdminClientsPage() {
     }
   };
 
-  const handleFormSubmit = async (data: any, originalClient: Client | null) => {
+  const handleFormSubmit = async (data: any, originalClient: Partial<User> | null) => {
     if (!currentUser) return;
     
-    // Sanitize data to prevent saving 'undefined'
-    const clientDataForDb: Partial<User> = {
+    let clientDataForDb: Partial<User> = {
         name: data.name,
         status: data.status,
         yearEnd: data.yearEnd,
@@ -243,13 +236,17 @@ export default function AdminClientsPage() {
         submitsIncomeTax: data.submitsIncomeTax,
         submitsAnnualReturns: data.submitsAnnualReturns,
         submitsBeneficialOwnership: data.submitsBeneficialOwnership,
-        // Set dependent fields to null if their toggle is false
-        financialsDueDate: data.preparesFinancials && data.yearEnd ? new Date(new Date().getFullYear(), months.indexOf(data.yearEnd) + 3, 1) : null,
-        managementAccountsFrequency: data.requiresManagementAccounts ? data.managementAccountsFrequency : null,
-        vatCategory: data.isVatRegistered ? data.vatCategory : null,
-        vatNumber: data.isVatRegistered ? data.vatNumber : null,
-        payrollDueDate: data.preparesPayroll ? data.payrollDueDate : null,
     };
+    
+    // Set dependent fields to null if their toggle is false
+    clientDataForDb.financialsDueDate = data.preparesFinancials && data.yearEnd 
+        ? new Date(new Date().getFullYear(), months.indexOf(data.yearEnd) + 3, 1)
+        : null;
+
+    clientDataForDb.managementAccountsFrequency = data.requiresManagementAccounts ? data.managementAccountsFrequency : null;
+    clientDataForDb.vatCategory = data.isVatRegistered ? data.vatCategory : null;
+    clientDataForDb.vatNumber = data.isVatRegistered ? data.vatNumber : null;
+    clientDataForDb.payrollDueDate = data.preparesPayroll ? data.payrollDueDate : null;
     
     try {
         const batch = writeBatch(db);
@@ -308,8 +305,8 @@ export default function AdminClientsPage() {
 
         } else { // Creating new client
              const newDocRef = doc(db, "clients", clientIdForTasks);
-             const finalClientData = { ...clientDataForDb, role: 'client', source: 'Client Management', createdAt: serverTimestamp() };
-             batch.set(newDocRef, finalClientData);
+             clientDataForDb = { ...clientDataForDb, role: 'client', source: 'Client Management', createdAt: serverTimestamp() };
+             batch.set(newDocRef, clientDataForDb);
 
              const automationFlags: (keyof User)[] = [
                 'preparesFinancials', 'requiresManagementAccounts', 'submitsEmp201', 'submitsEmp501', 
@@ -341,7 +338,10 @@ export default function AdminClientsPage() {
   };
   
   const createTaskFromTemplate = (batch: ReturnType<typeof writeBatch>, template: Task, clientData: any, clientId: string, currentUserId: string) => {
-    if (!clientData.yearEnd) return; // Prevent task creation if yearEnd is not set
+    if (!clientData.yearEnd || months.indexOf(clientData.yearEnd) === -1) {
+        console.warn(`Skipping task creation for template "${template.title}" due to invalid or missing year end.`);
+        return; 
+    }
 
     const taskTitle = template.title.replace('{clientName}', clientData.name);
     
