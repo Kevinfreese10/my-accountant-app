@@ -347,6 +347,8 @@ export default function AIEmailInboxPage() {
                                                                 key={index}
                                                                 href={att.dataUrl || '#'}
                                                                 download={att.filename || 'attachment'}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
                                                                 className="text-xs flex items-center gap-1.5 bg-muted p-1.5 rounded-md hover:bg-muted/80"
                                                             >
                                                                 <Paperclip className="h-3 w-3"/>
