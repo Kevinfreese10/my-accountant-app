@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import ReactMarkdown from 'react-markdown';
 import { generateEmailReply } from '@/ai/flows/generate-email-reply';
 import { Textarea } from '@/components/ui/textarea';
+import { sendEmail } from '@/lib/email';
 
 
 const db = getFirestore(firebaseApp);
@@ -38,6 +39,7 @@ export default function AIEmailInboxPage() {
     const [isViewOpen, setIsViewOpen] = useState(false);
     const [isDrafting, setIsDrafting] = useState<string | null>(null);
     const [draftReplies, setDraftReplies] = useState<Record<string, string>>({});
+    const [isSending, setIsSending] = useState<string | null>(null);
 
     useEffect(() => {
         if (user?.uid) {
@@ -158,37 +160,33 @@ export default function AIEmailInboxPage() {
         }
     };
     
-     const handleSendReply = async (email: ProcessedEmail) => {
+    const handleSendReply = async (email: ProcessedEmail) => {
         const draft = draftReplies[email.id] || email.aiDraftReply;
-        if (!draft || !user) return;
-        
-        const orderIdMatch = email.subject.match(/ORD-\d+/);
-        if (!orderIdMatch) {
-            toast({ title: "Cannot Post Note", description: "Could not find an Order ID in the email subject.", variant: "destructive" });
-            return;
-        }
-        const orderId = orderIdMatch[0];
+        if (!draft || !user || !user.email) return;
+
+        setIsSending(email.id);
+        toast({ title: 'Sending Email...', description: `Sending reply to ${email.from.address}.` });
 
         try {
-            const newNote: OrderNote = {
-                text: draft,
-                authorId: user.uid,
-                date: Timestamp.now(),
-                type: 'note',
+            const emailHtml = draft.replace(/\n/g, '<br/>');
+
+            await sendEmail({
+                to: email.from.address,
                 subject: `Re: ${email.subject}`,
-            };
-            const orderRef = doc(db, 'orders', orderId);
-            await updateDoc(orderRef, {
-                notes: arrayUnion(newNote),
+                html: emailHtml,
+                replyTo: user.email,
             });
 
-            toast({ title: "Reply Sent!", description: "Your note has been posted to the order." });
+            toast({ title: "Reply Sent!", description: "Your email has been sent successfully." });
             await handleArchiveEmail(email.id);
+
         } catch (e) {
-            toast({ title: "Failed to post note", description: "Could not find a matching order to post the note to.", variant: "destructive" });
+            console.error(e);
+            toast({ title: "Failed to send email", description: "Could not send the email. Please check your SMTP settings in your profile.", variant: "destructive" });
+        } finally {
+            setIsSending(null);
         }
     };
-
 
     const ActionButton = ({ email }: { email: ProcessedEmail}) => {
         const action = email.aiSuggestedAction;
@@ -278,8 +276,9 @@ export default function AIEmailInboxPage() {
                                                             className="text-xs h-auto bg-white"
                                                             rows={4}
                                                           />
-                                                          <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }}>
-                                                            <SendIcon className="mr-2 h-4 w-4"/>Post Note Reply
+                                                          <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
+                                                            {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
+                                                            Send Email Reply
                                                           </Button>
                                                      </div>
                                                  )}
