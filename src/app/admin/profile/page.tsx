@@ -18,6 +18,7 @@ import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { getAuth, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import EmailSettingsForm from '@/components/admin/EmailSettingsForm';
+import { Textarea } from '@/components/ui/textarea';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -25,6 +26,7 @@ const auth = getAuth(firebaseApp);
 const profileFormSchema = z.object({
     name: z.string().min(2, 'Name is required.'),
     email: z.string().email(),
+    emailSignature: z.string().optional(),
 });
 
 const passwordFormSchema = z.object({
@@ -48,6 +50,7 @@ export default function ProfilePage() {
     defaultValues: {
       name: user?.name || '',
       email: user?.email || '',
+      emailSignature: user?.emailSignature || '',
     },
   });
 
@@ -68,9 +71,12 @@ export default function ProfilePage() {
     setIsSaving(true);
      try {
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, { name: values.name });
-        updateUser({ ...user, name: values.name });
-        toast({ title: 'Profile Updated', description: 'Your name has been updated.' });
+        await updateDoc(userRef, { 
+            name: values.name,
+            emailSignature: values.emailSignature,
+        });
+        updateUser({ ...user, name: values.name, emailSignature: values.emailSignature });
+        toast({ title: 'Profile Updated', description: 'Your information has been updated.' });
     } catch (error) {
         console.error("Error updating profile:", error);
         toast({ title: 'Error', description: 'Could not update your profile.', variant: 'destructive' });
@@ -121,6 +127,7 @@ export default function ProfilePage() {
                     <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
                         <FormField control={profileForm.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={profileForm.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} readOnly disabled /></FormControl><FormMessage /></FormItem> )} />
+                         <FormField control={profileForm.control} name="emailSignature" render={({ field }) => ( <FormItem><FormLabel>Email Signature</FormLabel><FormControl><Textarea {...field} rows={5} placeholder="e.g., Kind regards,&#10;John Doe" /></FormControl><FormMessage /></FormItem> )} />
                          <Button type="submit" disabled={isSaving}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Save Changes

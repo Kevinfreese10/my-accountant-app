@@ -21,6 +21,7 @@ const GenerateEmailReplyInputSchema = z.object({
   subject: z.string().describe('The subject of the original email.'),
   body: z.string().describe('The body of the original email.'),
   sender: z.string().describe('The name and/or email of the original sender.'),
+  userSignature: z.string().optional().describe("The user's email signature to be appended to the reply."),
 });
 export type GenerateEmailReplyInput = z.infer<typeof GenerateEmailReplyInputSchema>;
 
@@ -62,27 +63,29 @@ const generateEmailReplyFlow = ai.defineFlow(
         KNOWLEDGE BASE:
         ${knowledgeBaseItems.map(item => `Question: ${item.question}, Answer: ${item.answer}`).join('\n\n')}
     `;
+    
+    const defaultSignature = `Kind regards,
+Winifred Beukes
+Executive Assistant to Kevin Freese`;
 
     const prompt = ai.definePrompt({
         name: 'generateEmailReplyPrompt',
         input: { schema: GenerateEmailReplyInputSchema },
         output: { schema: GenerateEmailReplyOutputSchema },
-        prompt: `You are an expert administrative assistant for an accounting firm called "My Accountant". Your name is Winifred Beukes.
+        prompt: `You are an expert administrative assistant for an accounting firm called "My Accountant".
 
         Your task is to draft a professional and helpful reply to an email.
         
         **CRITICAL INSTRUCTIONS:**
         1.  **NO HTML**: Your entire response MUST be plain text. Do NOT use any HTML tags like <p>, <h3>, <ul>, etc.
         2.  **MARKDOWN FORMATTING**: Use Markdown for any formatting. For paragraphs, use double newlines (\n\n). For lists, use a hyphen (-) for each bullet point.
-        3.  **STRUCTURE**: The email MUST follow this exact structure:
+        3.  **SIGNATURE**: The user has provided their own email signature. You MUST use it exactly as provided. If no signature is provided, use the default signature.
+        4.  **STRUCTURE**: The email MUST follow this exact structure:
             - Greeting (e.g., "Hi John,").
             - A single blank line.
             - The main content of the email.
             - A single blank line.
-            - The signature, which must be:
-                Kind regards,
-                Winifred Beukes
-                Executive Assistant to Kevin Freese
+            - The final signature.
 
         **REPLY LOGIC:**
         - Address the sender by their name if it's available.
@@ -94,6 +97,16 @@ const generateEmailReplyFlow = ai.defineFlow(
         CONTEXT:
         ---
         ${websiteContent}
+        ---
+
+        USER'S SIGNATURE:
+        ---
+        {{{userSignature}}}
+        ---
+        
+        DEFAULT SIGNATURE (use if user signature is empty):
+        ---
+        ${defaultSignature}
         ---
 
         **Original Email:**

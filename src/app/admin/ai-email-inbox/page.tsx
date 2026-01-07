@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -178,6 +179,7 @@ export default function AIEmailInboxPage() {
                 subject: email.subject,
                 body: email.text,
                 sender: email.from.name || email.from.address,
+                userSignature: user?.emailSignature || undefined,
             });
             await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: result.draft });
             setDraftReplies(prev => ({...prev, [email.id]: result.draft}));
@@ -301,7 +303,7 @@ export default function AIEmailInboxPage() {
                     </div>
                  )}
 
-                 {(draftReplies[email.id] || email.aiDraftReply) ? (
+                 {(draftReplies[email.id] || email.aiDraftReply) && (
                      <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
                         <p className="text-xs font-semibold">Suggested Reply:</p>
                           <Textarea 
@@ -321,7 +323,7 @@ export default function AIEmailInboxPage() {
                               )}
                           </div>
                      </div>
-                 ) : null }
+                 ) }
 
                  <div className="flex items-center gap-2 pt-2">
                     <Button size="sm" variant="default" onClick={() => {

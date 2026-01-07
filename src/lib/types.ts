@@ -174,7 +174,6 @@ export type SubscriptionData = {
     includeCatchUp: boolean;
     monthlyTotal: number;
     catchUpFee: number;
-    payrollSetupFee: number;
     subscriptionEndDate?: any; // Firestore Timestamp
     subscriptionStatus?: 'active' | 'lapsed';
 };
@@ -251,6 +250,7 @@ export type User = {
   logoUrl?: string;
   nextInvoiceNumber?: number;
   archivedNotifications?: string[];
+  emailSignature?: string;
 };
 
 export type ClientCustomer = {
@@ -429,10 +429,10 @@ export type ProcessedEmail = {
   status: 'new' | 'processed' | 'archived';
   ownerId: string;
   attachments?: {
-    filename: string;
-    contentType: string;
-    size: number;
-    dataUrl: string;
+    filename: string | null;
+    contentType: string | null;
+    size: number | null;
+    dataUrl: string | null;
   }[];
   // AI-generated fields
   aiSummary?: string;
