@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle, Pencil, Paperclip, ArchiveRestore } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle, Pencil, Paperclip, ArchiveRestore, Sparkles } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -22,9 +22,24 @@ import { sendEmail } from '@/lib/email';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import TaskForm from '@/components/admin/TaskForm'; 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { proofreadNote } from '@/ai/flows/proofread-note';
+import { Input } from '@/components/ui/input';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 
 const db = getFirestore(firebaseApp);
+
+const newEmailFormSchema = z.object({
+  to: z.string().email('A valid recipient email is required.'),
+  cc: z.string().optional(),
+  bcc: z.string().optional(),
+  subject: z.string().min(3, 'Subject is required.'),
+  body: z.string().min(10, 'Email body is required.'),
+});
+
 
 export default function AIEmailInboxPage() {
     const { user } = useAuth();
@@ -35,12 +50,20 @@ export default function AIEmailInboxPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
     const [isDrafting, setIsDrafting] = useState<string | null>(null);
-    const [draftReplies, setDraftReplies] = useState<Record<string, string>>({});
+    const [draftReplies, setDraftReplies] = useState<Record<string, { reply: string, cc?: string, bcc?: string }>>({});
     const [isSending, setIsSending] = useState<string | null>(null);
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const [staffByDept, setStaffByDept] = useState<Record<string, User[]>>({});
     const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [isNewEmailOpen, setIsNewEmailOpen] = useState(false);
+    const [isSendingNew, setIsSendingNew] = useState(false);
+    const [isProofreading, setIsProofreading] = useState(false);
+
+    const newEmailForm = useForm<z.infer<typeof newEmailFormSchema>>({
+        resolver: zodResolver(newEmailFormSchema),
+        defaultValues: { to: '', cc: '', bcc: '', subject: '', body: '' },
+    });
 
 
     useEffect(() => {
@@ -179,10 +202,10 @@ export default function AIEmailInboxPage() {
                 subject: email.subject,
                 body: email.text,
                 sender: email.from.name || email.from.address,
-                userSignature: user?.emailSignature || undefined,
             });
-            await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: result.draft });
-            setDraftReplies(prev => ({...prev, [email.id]: result.draft}));
+            const draft = result.draft + `\n\n${user?.emailSignature || ''}`;
+            await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: draft });
+            setDraftReplies(prev => ({...prev, [email.id]: { reply: draft, cc: '', bcc: '' }}));
         } catch (e) {
             toast({ title: 'Failed to draft reply', variant: 'destructive' });
         } finally {
@@ -191,17 +214,19 @@ export default function AIEmailInboxPage() {
     };
     
     const handleSendReply = async (email: ProcessedEmail) => {
-        const draft = draftReplies[email.id] || email.aiDraftReply;
-        if (!draft || !user || !user.email) return;
+        const draftData = draftReplies[email.id] || { reply: email.aiDraftReply || '' };
+        if (!draftData.reply || !user || !user.email) return;
 
         setIsSending(email.id);
         toast({ title: 'Sending Email...', description: `Sending reply to ${email.from.address}.` });
 
         try {
-            const emailHtml = draft.replace(/\n\n/g, '<br/><br/>').replace(/\n/g, '<br/>');
+            const emailHtml = draftData.reply.replace(/\n\n/g, '<br/><br/>').replace(/\n/g, '<br/>');
 
             await sendEmail({
                 to: email.from.address,
+                cc: draftData.cc?.split(',').map(e => e.trim()).filter(Boolean),
+                bcc: draftData.bcc?.split(',').map(e => e.trim()).filter(Boolean),
                 subject: `Re: ${email.subject}`,
                 html: emailHtml,
                 replyTo: user.email,
@@ -243,6 +268,52 @@ export default function AIEmailInboxPage() {
             toast({ title: 'Error', description: 'Could not create task.', variant: 'destructive' });
         }
     };
+    
+    const onNewEmailSubmit = async (values: z.infer<typeof newEmailFormSchema>) => {
+        if (!user?.email) return;
+        setIsSendingNew(true);
+        toast({ title: 'Sending New Email...', description: 'Please wait.' });
+        try {
+            const emailHtml = values.body.replace(/\n\n/g, '<br/><br/>').replace(/\n/g, '<br/>');
+            await sendEmail({
+                to: values.to,
+                cc: values.cc?.split(',').map(e => e.trim()).filter(Boolean),
+                bcc: values.bcc?.split(',').map(e => e.trim()).filter(Boolean),
+                subject: values.subject,
+                html: emailHtml,
+                replyTo: user.email,
+            });
+            toast({ title: 'Email Sent!', description: `Your email to ${values.to} has been sent.` });
+            setIsNewEmailOpen(false);
+            newEmailForm.reset();
+        } catch (e) {
+            toast({ title: 'Failed to send email', variant: 'destructive' });
+        } finally {
+            setIsSendingNew(false);
+        }
+    }
+
+    const handleProofread = async (isNew: boolean, text?: string, formUpdater?: (newText: string) => void) => {
+      const currentText = text;
+      if (!currentText || currentText.trim().length < 10) {
+        toast({ title: "Not enough text", description: "Please write a longer message to proofread.", variant: "destructive" });
+        return;
+      }
+      setIsProofreading(true);
+      try {
+        const result = await proofreadNote({ text: currentText });
+        if (formUpdater) {
+          formUpdater(result.proofreadText);
+        }
+        toast({ title: "Note Proofread", description: "Your message has been improved by AI." });
+      } catch (e) {
+        console.error(e);
+        toast({ title: "Proofreading Failed", variant: "destructive" });
+      } finally {
+        setIsProofreading(false);
+      }
+    };
+
 
     const EmailItem = ({ email }: { email: ProcessedEmail }) => (
         <div className="w-full text-left p-4 space-y-2">
@@ -302,28 +373,36 @@ export default function AIEmailInboxPage() {
                          </div>
                     </div>
                  )}
-
+                 
                  {(draftReplies[email.id] || email.aiDraftReply) && (
                      <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
                         <p className="text-xs font-semibold">Suggested Reply:</p>
-                          <Textarea 
-                              defaultValue={draftReplies[email.id] || email.aiDraftReply}
-                              onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: e.target.value}))}
-                              rows={5}
-                              className="text-xs bg-white"
-                          />
-                          <div className="flex items-center gap-2">
-                              {email.replySent ? (
-                                  <Badge variant="success"><CheckCircle className="mr-2 h-4 w-4"/> Reply Sent</Badge>
-                              ) : (
-                                <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
-                                  {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
-                                  Send Email Reply
-                                </Button>
-                              )}
-                          </div>
+                        <Textarea 
+                            defaultValue={draftReplies[email.id]?.reply || email.aiDraftReply}
+                            onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: {...(prev[email.id] || {reply:''}), reply: e.target.value}}))}
+                            rows={5}
+                            className="text-xs bg-white"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                             <Input placeholder="CC" className="text-xs h-8" value={draftReplies[email.id]?.cc || ''} onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: {...(prev[email.id] || {reply:''}), cc: e.target.value}}))} />
+                            <Input placeholder="BCC" className="text-xs h-8" value={draftReplies[email.id]?.bcc || ''} onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: {...(prev[email.id] || {reply:''}), bcc: e.target.value}}))} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {email.replySent ? (
+                                <Badge variant="success"><CheckCircle className="mr-2 h-4 w-4"/> Reply Sent</Badge>
+                            ) : (
+                              <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
+                                {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
+                                Send Email Reply
+                              </Button>
+                            )}
+                             <Button size="sm" variant="outline" onClick={() => handleProofread(false, draftReplies[email.id]?.reply, (newText) => setDraftReplies(prev => ({...prev, [email.id]: {...(prev[email.id] || {reply:''}), reply: newText}})))} disabled={isProofreading}>
+                                {isProofreading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                                Proofread
+                            </Button>
+                        </div>
                      </div>
-                 ) }
+                 )}
 
                  <div className="flex items-center gap-2 pt-2">
                     <Button size="sm" variant="default" onClick={() => {
@@ -340,7 +419,7 @@ export default function AIEmailInboxPage() {
                     >
                         {email.taskCreated ? <><CheckCircle className="mr-2 h-4 w-4" />Task Created</> : <><PlusCircle className="mr-2 h-4 w-4" />Create Task</>}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id || !!(draftReplies[email.id] || email.aiDraftReply)}>
+                    <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id}>
                         {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />}
                         {isDrafting === email.id ? 'Drafting...' : 'Draft Reply'}
                     </Button>
@@ -375,12 +454,43 @@ export default function AIEmailInboxPage() {
                     />
                 </DialogContent>
             </Dialog>
+            <Dialog open={isNewEmailOpen} onOpenChange={setIsNewEmailOpen}>
+                <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Compose New Email</DialogTitle>
+                    </DialogHeader>
+                    <Form {...newEmailForm}>
+                        <form onSubmit={newEmailForm.handleSubmit(onNewEmailSubmit)} className="space-y-4">
+                             <FormField control={newEmailForm.control} name="to" render={({ field }) => ( <FormItem><FormLabel>To</FormLabel><FormControl><Input placeholder="recipient@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={newEmailForm.control} name="cc" render={({ field }) => ( <FormItem><FormLabel>CC</FormLabel><FormControl><Input placeholder="Optional: cc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={newEmailForm.control} name="bcc" render={({ field }) => ( <FormItem><FormLabel>BCC</FormLabel><FormControl><Input placeholder="Optional: bcc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={newEmailForm.control} name="subject" render={({ field }) => ( <FormItem><FormLabel>Subject</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={newEmailForm.control} name="body" render={({ field }) => ( <FormItem><FormLabel>Body</FormLabel><FormControl><Textarea rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <DialogFooter>
+                                <Button type="button" variant="outline" onClick={() => handleProofread(true, newEmailForm.getValues('body'), (newText) => newEmailForm.setValue('body', newText))} disabled={isProofreading}>
+                                    {isProofreading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                                    Proofread
+                                </Button>
+                                <Button type="submit" disabled={isSendingNew}>
+                                    {isSendingNew ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4"/>}
+                                    Send Email
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </Form>
+                </DialogContent>
+            </Dialog>
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
-                <Button onClick={handleSyncEmails} disabled={isSyncing}>
-                    {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                    Sync Emails
-                </Button>
+                <div className="flex gap-2">
+                    <Button onClick={() => setIsNewEmailOpen(true)}>
+                        <Pencil className="mr-2 h-4 w-4" /> New Email
+                    </Button>
+                    <Button onClick={handleSyncEmails} disabled={isSyncing}>
+                        {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Sync Emails
+                    </Button>
+                </div>
             </div>
             <Tabs defaultValue="inbox">
                  <TabsList>

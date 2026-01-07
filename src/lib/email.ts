@@ -5,16 +5,17 @@ import nodemailer from 'nodemailer';
 
 type EmailPayload = {
     to: string | string[];
+    cc?: string | string[];
+    bcc?: string | string[];
     subject: string;
     html: string;
     from?: string;
-    bcc?: string | string[];
     resellerId?: string;
     attachments?: { filename: string; path: string }[];
     replyTo?: string;
 }
 
-export async function sendEmail({ to, subject, html, from, bcc, resellerId, attachments, replyTo }: EmailPayload) {
+export async function sendEmail({ to, cc, bcc, subject, html, from, resellerId, attachments, replyTo }: EmailPayload) {
   
   const transportConfig = {
     host: process.env.SMTP_HOST,
@@ -42,6 +43,7 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
       const info = await transporter.sendMail({
           from: fromAddress,
           to: Array.isArray(to) ? to.join(', ') : to,
+          cc: cc,
           bcc: bcc,
           subject: subject,
           html: html,
