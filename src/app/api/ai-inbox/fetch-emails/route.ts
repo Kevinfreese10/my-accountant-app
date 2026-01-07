@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, doc, setDoc, getDoc, Timestamp, collection, where, query } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, Timestamp, collection, where, query, updateDoc, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, ProcessedEmail } from '@/lib/types';
 import imaps from 'imap-simple';
@@ -12,9 +12,6 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
-
-// Firestore's 1MiB limit, with a small buffer. Use for inline data URIs.
-const MAX_INLINE_SIZE = 1000000;
 
 // Function to safely extract attachments by uploading them to Cloud Storage
 const getAttachments = async (attachments: any[], userId: string, emailId: string): Promise<any[]> => {
@@ -98,6 +95,25 @@ export async function POST(req: NextRequest) {
             const emailDocRef = doc(db, 'processedEmails', idHash);
             const docSnap = await getDoc(emailDocRef);
 
+            // If it's a PayFast email, process it for order status update
+            if (parsedMail.from?.value[0]?.address === 'noreply@payfast.io') {
+                const orderIdMatch = parsedMail.text?.match(/Order ID:\s*(\S+)/);
+                const orderId = orderIdMatch ? orderIdMatch[1] : null;
+
+                if (orderId) {
+                    const orderQuery = query(collection(db, 'orders'), where('id', '==', orderId));
+                    const orderSnapshot = await getDocs(orderQuery);
+                    if (!orderSnapshot.empty) {
+                        const orderDoc = orderSnapshot.docs[0];
+                        if (orderDoc.data().status === 'Pending Payment') {
+                            await updateDoc(orderDoc.ref, { status: 'Processing' });
+                            console.log(`Order ${orderId} status updated to Processing.`);
+                        }
+                    }
+                }
+            }
+
+
             if (docSnap.exists() && docSnap.data().status !== 'new') {
                 continue;
             }
@@ -106,11 +122,7 @@ export async function POST(req: NextRequest) {
             
             let htmlContent = '';
             if (typeof parsedMail.html === 'string') {
-                if (new Blob([parsedMail.html]).size > MAX_INLINE_SIZE) {
-                    htmlContent = '';
-                } else {
-                    htmlContent = parsedMail.html;
-                }
+                 htmlContent = parsedMail.html;
             }
 
 
