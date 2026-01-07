@@ -20,10 +20,10 @@ const getAttachments = async (attachments: any[]): Promise<any[]> => {
         // The buffer is already available, just convert it to a data URI
         const dataUrl = `data:${attachment.contentType};base64,${attachment.content.toString('base64')}`;
         return {
-            filename: attachment.filename || null,
-            contentType: attachment.contentType || null,
+            filename: attachment.filename || '',
+            contentType: attachment.contentType || '',
             dataUrl: dataUrl,
-            size: attachment.size,
+            size: attachment.size || 0,
         };
     }));
 };
@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
                 emailData.aiCategory = aiResult.category;
                 emailData.aiPriority = aiResult.priority;
                 emailData.aiSuggestedAction = aiResult.suggestedAction;
+                emailData.aiDraftReply = aiResult.draftReply;
 
                 if (aiResult.category === 'Spam/Promo') {
                     emailData.status = 'archived';

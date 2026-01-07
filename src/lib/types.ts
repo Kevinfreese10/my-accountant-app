@@ -429,10 +429,10 @@ export type ProcessedEmail = {
   status: 'new' | 'processed' | 'archived';
   ownerId: string;
   attachments?: {
-    filename: string | null;
-    contentType: string | null;
-    size: number | null;
-    dataUrl: string | null;
+    filename: string;
+    contentType: string;
+    size: number;
+    dataUrl: string;
   }[];
   // AI-generated fields
   aiSummary?: string;
