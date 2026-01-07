@@ -62,6 +62,8 @@ export default function AIEmailInboxPage() {
     const [isSendingNew, setIsSendingNew] = useState(false);
     const [isProofreading, setIsProofreading] = useState(false);
     const [syncStatus, setSyncStatus] = useState<{ lastSync: Date | null, status: string }>({ lastSync: null, status: 'idle' });
+    const [nextSyncCountdown, setNextSyncCountdown] = useState('');
+
 
     const newEmailForm = useForm<z.infer<typeof newEmailFormSchema>>({
         resolver: zodResolver(newEmailFormSchema),
@@ -92,6 +94,21 @@ export default function AIEmailInboxPage() {
         if (!syncStatus.lastSync) return 'never';
         return formatDistanceToNow(syncStatus.lastSync, { addSuffix: true });
     }, [syncStatus.lastSync]);
+    
+    useEffect(() => {
+        const timer = setInterval(() => {
+            const now = new Date();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+            
+            const minutesToNextQuarter = 14 - (minutes % 15);
+            const secondsToNextQuarter = 59 - seconds;
+
+            setNextSyncCountdown(`${String(minutesToNextQuarter).padStart(2, '0')}:${String(secondsToNextQuarter).padStart(2, '0')}`);
+        }, 1000);
+        
+        return () => clearInterval(timer);
+    }, []);
 
 
     useEffect(() => {
@@ -230,7 +247,6 @@ export default function AIEmailInboxPage() {
                 subject: email.subject,
                 body: email.text,
                 sender: email.from.name || email.from.address,
-                userSignature: user?.emailSignature,
             });
             
             await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: result.draft });
@@ -524,7 +540,10 @@ export default function AIEmailInboxPage() {
                             {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                             Sync Emails
                         </Button>
-                         <p className="text-xs text-muted-foreground mt-1">Last synced: {lastSyncText}</p>
+                         <p className="text-xs text-muted-foreground mt-1">
+                            Last synced: {lastSyncText}
+                            {nextSyncCountdown && ` | Next sync in: ${nextSyncCountdown}`}
+                         </p>
                     </div>
                 </div>
             </div>
@@ -562,8 +581,8 @@ export default function AIEmailInboxPage() {
                         <CardHeader>
                             <CardTitle>Compose New Email</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                             <ScrollArea className="h-[calc(100vh-25rem)] pr-4">
+                         <CardContent>
+                            <ScrollArea className="h-[calc(100vh-25rem)] pr-4">
                                 <Form {...newEmailForm}>
                                     <form onSubmit={newEmailForm.handleSubmit(onNewEmailSubmit)} className="space-y-4">
                                         <FormField control={newEmailForm.control} name="to" render={({ field }) => ( <FormItem><FormLabel>To</FormLabel><FormControl><Input placeholder="recipient@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
