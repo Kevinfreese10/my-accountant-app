@@ -16,28 +16,21 @@ const storage = getStorage(firebaseApp);
 // Firestore's 1MiB limit, with a small buffer. Use for inline data URIs.
 const MAX_INLINE_SIZE = 1000000;
 
-// Function to safely extract attachments
+// Function to safely extract attachments by uploading them to Cloud Storage
 const getAttachments = async (attachments: any[], userId: string, emailId: string): Promise<any[]> => {
     return Promise.all(attachments.map(async (attachment) => {
         let dataUrl = '';
-        const attachmentSize = attachment.content?.length || 0;
 
+        // Upload any attachment that has content to Cloud Storage
         if (attachment.content) {
-            // If attachment is small, store it as a data URI directly.
-            if (attachmentSize < MAX_INLINE_SIZE) {
-                dataUrl = `data:${attachment.contentType || 'application/octet-stream'};base64,${attachment.content.toString('base64')}`;
-            } else {
-                // If it's large, upload to Cloud Storage.
-                console.log(`Attachment "${attachment.filename}" is too large (${attachmentSize} bytes). Uploading to Cloud Storage.`);
-                try {
-                    const uniqueFileName = `${Date.now()}-${attachment.filename || 'attachment'}`;
-                    const storageRef = ref(storage, `email-attachments/${userId}/${emailId}/${uniqueFileName}`);
-                    const snapshot = await uploadBytes(storageRef, attachment.content, { contentType: attachment.contentType });
-                    dataUrl = await getDownloadURL(snapshot.ref);
-                } catch (uploadError) {
-                    console.error(`Failed to upload large attachment "${attachment.filename}" to Cloud Storage:`, uploadError);
-                    dataUrl = ''; // Failsafe
-                }
+            try {
+                const uniqueFileName = `${Date.now()}-${attachment.filename || 'attachment'}`;
+                const storageRef = ref(storage, `email-attachments/${userId}/${emailId}/${uniqueFileName}`);
+                const snapshot = await uploadBytes(storageRef, attachment.content, { contentType: attachment.contentType });
+                dataUrl = await getDownloadURL(snapshot.ref);
+            } catch (uploadError) {
+                console.error(`Failed to upload attachment "${attachment.filename}" to Cloud Storage:`, uploadError);
+                dataUrl = ''; // Failsafe
             }
         }
         
