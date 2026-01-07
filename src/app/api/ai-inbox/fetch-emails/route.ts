@@ -17,7 +17,14 @@ const MAX_FIELD_SIZE = 1048000;
 // Function to safely extract attachments
 const getAttachments = async (attachments: any[]): Promise<any[]> => {
     return Promise.all(attachments.map(async (attachment) => {
-        const dataUrl = attachment.content ? `data:${attachment.contentType || 'application/octet-stream'};base64,${attachment.content.toString('base64')}` : '';
+        let dataUrl = '';
+        // Check size before creating data URL to prevent oversized documents
+        if (attachment.content && attachment.content.length * 1.37 < MAX_FIELD_SIZE) { // Base64 is ~37% larger
+            dataUrl = `data:${attachment.contentType || 'application/octet-stream'};base64,${attachment.content.toString('base64')}`;
+        } else if (attachment.content) {
+            console.warn(`Attachment "${attachment.filename}" is too large and its content will be skipped.`);
+        }
+        
         return {
             filename: attachment.filename || '',
             contentType: attachment.contentType || '',
@@ -90,9 +97,8 @@ export async function POST(req: NextRequest) {
             
             let htmlContent = '';
             if (typeof parsedMail.html === 'string') {
-                // Check if the html content exceeds Firestore's limit
                 if (new Blob([parsedMail.html]).size > MAX_FIELD_SIZE) {
-                    htmlContent = ''; // Set to empty if too large
+                    htmlContent = '';
                 } else {
                     htmlContent = parsedMail.html;
                 }
@@ -110,9 +116,9 @@ export async function POST(req: NextRequest) {
                 snippet: parsedMail.text?.substring(0, 150) || '',
                 text: parsedMail.text || '',
                 html: htmlContent,
-                status: 'new', // Default status
+                status: 'new',
                 ownerId: userId,
-                attachments: attachments, // Save attachments with dataUrl
+                attachments: attachments,
             };
 
             try {
