@@ -8,21 +8,37 @@ import { simpleParser } from 'mailparser';
 import { subDays, format } from 'date-fns';
 import { SHA256 } from 'crypto-js';
 import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
-// Firestore's 1MiB limit, with a small buffer.
-const MAX_FIELD_SIZE = 1048000;
+// Firestore's 1MiB limit, with a small buffer. Use for inline data URIs.
+const MAX_INLINE_SIZE = 1000000;
 
 // Function to safely extract attachments
-const getAttachments = async (attachments: any[]): Promise<any[]> => {
+const getAttachments = async (attachments: any[], userId: string, emailId: string): Promise<any[]> => {
     return Promise.all(attachments.map(async (attachment) => {
         let dataUrl = '';
-        // Check size before creating data URL to prevent oversized documents
-        if (attachment.content && attachment.content.length * 1.37 < MAX_FIELD_SIZE) { // Base64 is ~37% larger
-            dataUrl = `data:${attachment.contentType || 'application/octet-stream'};base64,${attachment.content.toString('base64')}`;
-        } else if (attachment.content) {
-            console.warn(`Attachment "${attachment.filename}" is too large and its content will be skipped.`);
+        const attachmentSize = attachment.content?.length || 0;
+
+        if (attachment.content) {
+            // If attachment is small, store it as a data URI directly.
+            if (attachmentSize < MAX_INLINE_SIZE) {
+                dataUrl = `data:${attachment.contentType || 'application/octet-stream'};base64,${attachment.content.toString('base64')}`;
+            } else {
+                // If it's large, upload to Cloud Storage.
+                console.log(`Attachment "${attachment.filename}" is too large (${attachmentSize} bytes). Uploading to Cloud Storage.`);
+                try {
+                    const uniqueFileName = `${Date.now()}-${attachment.filename || 'attachment'}`;
+                    const storageRef = ref(storage, `email-attachments/${userId}/${emailId}/${uniqueFileName}`);
+                    const snapshot = await uploadBytes(storageRef, attachment.content, { contentType: attachment.contentType });
+                    dataUrl = await getDownloadURL(snapshot.ref);
+                } catch (uploadError) {
+                    console.error(`Failed to upload large attachment "${attachment.filename}" to Cloud Storage:`, uploadError);
+                    dataUrl = ''; // Failsafe
+                }
+            }
         }
         
         return {
@@ -93,11 +109,11 @@ export async function POST(req: NextRequest) {
                 continue;
             }
 
-            const attachments = parsedMail.attachments ? await getAttachments(parsedMail.attachments) : [];
+            const attachments = parsedMail.attachments ? await getAttachments(parsedMail.attachments, userId, idHash) : [];
             
             let htmlContent = '';
             if (typeof parsedMail.html === 'string') {
-                if (new Blob([parsedMail.html]).size > MAX_FIELD_SIZE) {
+                if (new Blob([parsedMail.html]).size > MAX_INLINE_SIZE) {
                     htmlContent = '';
                 } else {
                     htmlContent = parsedMail.html;
