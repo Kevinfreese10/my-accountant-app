@@ -32,10 +32,10 @@ const getAttachments = async (attachments: any[], userId: string, emailId: strin
         }
         
         return {
-            filename: attachment.filename || '',
-            contentType: attachment.contentType || '',
-            dataUrl: dataUrl,
-            size: attachment.size || 0,
+            filename: attachment.filename || null,
+            contentType: attachment.contentType || null,
+            dataUrl: dataUrl || null,
+            size: attachment.size || null,
         };
     }));
 };
