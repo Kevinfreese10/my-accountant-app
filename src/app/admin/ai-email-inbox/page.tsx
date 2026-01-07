@@ -336,12 +336,10 @@ export default function AIEmailInboxPage() {
                                 {email.taskCreated ? <><CheckCircle className="mr-2 h-4 w-4" />Task Created</> : <><PlusCircle className="mr-2 h-4 w-4" />Create Task</>}
                             </Button>
                         )}
-                        {email.aiSuggestedAction === 'draft_reply' && !(draftReplies[email.id] || email.aiDraftReply) && (
-                            <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id}>
-                                {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />}
-                                {isDrafting === email.id ? 'Drafting...' : 'Draft Reply'}
-                            </Button>
-                        )}
+                        <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id || !!(draftReplies[email.id] || email.aiDraftReply)}>
+                            {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />}
+                            {isDrafting === email.id ? 'Drafting...' : 'Draft Reply'}
+                        </Button>
                     </div>
                      <div className="flex items-center gap-2 pt-2">
                         {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
@@ -435,4 +433,3 @@ export default function AIEmailInboxPage() {
         </div>
     );
 }
-
