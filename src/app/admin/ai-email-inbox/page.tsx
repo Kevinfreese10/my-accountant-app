@@ -11,7 +11,7 @@ import { collection, query, where, orderBy, onSnapshot, getFirestore, doc, updat
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { OrderNote, ProcessedEmail, User, Task } from '@/lib/types';
-import { format, isToday, isThisWeek, isThisYear } from 'date-fns';
+import { format, isToday, isThisWeek, isThisYear, formatDistanceToNow } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -58,9 +58,10 @@ export default function AIEmailInboxPage() {
     const [staffByDept, setStaffByDept] = useState<Record<string, User[]>>({});
     const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [activeTab, setActiveTab] = useState('inbox');
     const [isSendingNew, setIsSendingNew] = useState(false);
     const [isProofreading, setIsProofreading] = useState(false);
-    const [activeTab, setActiveTab] = useState('inbox');
+    const [syncStatus, setSyncStatus] = useState<{ lastSync: Date | null, status: string }>({ lastSync: null, status: 'idle' });
 
     const newEmailForm = useForm<z.infer<typeof newEmailFormSchema>>({
         resolver: zodResolver(newEmailFormSchema),
@@ -72,6 +73,25 @@ export default function AIEmailInboxPage() {
             newEmailForm.setValue('body', `\n\n${user.emailSignature}`);
         }
     }, [user, newEmailForm]);
+
+    useEffect(() => {
+        const syncStatusRef = doc(db, 'system', 'emailSyncStatus');
+        const unsubscribe = onSnapshot(syncStatusRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                setSyncStatus({
+                    lastSync: data.lastSync?.toDate(),
+                    status: data.status,
+                });
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const lastSyncText = useMemo(() => {
+        if (!syncStatus.lastSync) return 'never';
+        return formatDistanceToNow(syncStatus.lastSync, { addSuffix: true });
+    }, [syncStatus.lastSync]);
 
 
     useEffect(() => {
@@ -210,10 +230,9 @@ export default function AIEmailInboxPage() {
                 subject: email.subject,
                 body: email.text,
                 sender: email.from.name || email.from.address,
-                userSignature: user?.emailSignature,
             });
             
-            const draft = result.draft;
+            const draft = `${result.draft}\n\n${user?.emailSignature || ''}`;
             await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: draft });
             setDraftReplies(prev => ({...prev, [email.id]: { reply: draft, cc: '', bcc: '' }}));
         } catch (e) {
@@ -324,7 +343,7 @@ export default function AIEmailInboxPage() {
         }
     }
 
-    const handleProofread = async (isNew: boolean, text?: string, formUpdater?: (newText: string) => void) => {
+     const handleProofread = async (isNew: boolean, text?: string, formUpdater?: (newText: string) => void) => {
       const currentText = text;
       if (!currentText || currentText.trim().length < 10) {
         toast({ title: "Not enough text", description: "Please write a longer message to proofread.", variant: "destructive" });
@@ -334,18 +353,16 @@ export default function AIEmailInboxPage() {
       try {
         const signature = user?.emailSignature || '';
         let bodyOnly = currentText;
-        let signaturePart = '';
-
+        
         if (signature && currentText.includes(signature)) {
             const sigIndex = currentText.lastIndexOf(signature);
-            bodyOnly = currentText.substring(0, sigIndex);
-            signaturePart = currentText.substring(sigIndex);
-        } else if (isNew) {
-            signaturePart = `\n\n${signature}`;
+            if (sigIndex > -1) {
+              bodyOnly = currentText.substring(0, sigIndex);
+            }
         }
         
         const result = await proofreadNote({ text: bodyOnly });
-        const proofreadWithSignature = `${result.proofreadText}${signaturePart}`;
+        const proofreadWithSignature = `${result.proofreadText}\n\n${signature}`;
 
         if (formUpdater) {
           formUpdater(proofreadWithSignature);
@@ -441,7 +458,7 @@ export default function AIEmailInboxPage() {
                                 Send Email Reply
                               </Button>
                             )}
-                             <Button size="sm" variant="outline" onClick={() => handleProofread(false, draftReplies[email.id]?.reply, (newText) => setDraftReplies(prev => ({...prev, [email.id]: {...(prev[email.id] || {reply:''}), reply: newText}})))} disabled={isProofreading}>
+                             <Button size="sm" variant="outline" onClick={() => handleProofread(false, draftReplies[email.id]?.reply || email.aiDraftReply, (newText) => setDraftReplies(prev => ({...prev, [email.id]: {...(prev[email.id] || {reply:''}), reply: newText}})))} disabled={isProofreading}>
                                 {isProofreading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                                 Proofread
                             </Button>
@@ -501,13 +518,18 @@ export default function AIEmailInboxPage() {
             </Dialog>
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
-                <Button onClick={handleSyncEmails} disabled={isSyncing}>
-                    {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                    Sync Emails
-                </Button>
+                <div className="flex items-center gap-2">
+                    <div className="text-right">
+                        <Button onClick={handleSyncEmails} disabled={isSyncing}>
+                            {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Sync Emails
+                        </Button>
+                         <p className="text-xs text-muted-foreground mt-1">Last synced: {lastSyncText}</p>
+                    </div>
+                </div>
             </div>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-                 <TabsList>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                 <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="inbox">Inbox ({inboxEmails.length})</TabsTrigger>
                     <TabsTrigger value="compose">Compose</TabsTrigger>
                     <TabsTrigger value="archived">Archived ({archivedEmails.length})</TabsTrigger>
@@ -515,7 +537,7 @@ export default function AIEmailInboxPage() {
                 <TabsContent value="inbox">
                     <Card>
                         <CardContent className="p-0">
-                            <ScrollArea className="h-[calc(100vh-18rem)]">
+                             <ScrollArea className="h-[calc(100vh-20rem)]">
                             {isLoading ? (
                                 <div className="flex justify-center items-center h-full">
                                     <Loader2 className="h-6 w-6 animate-spin"/>
@@ -541,45 +563,47 @@ export default function AIEmailInboxPage() {
                             <CardTitle>Compose New Email</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Form {...newEmailForm}>
-                                <form onSubmit={newEmailForm.handleSubmit(onNewEmailSubmit)} className="space-y-4">
-                                    <FormField control={newEmailForm.control} name="to" render={({ field }) => ( <FormItem><FormLabel>To</FormLabel><FormControl><Input placeholder="recipient@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={newEmailForm.control} name="cc" render={({ field }) => ( <FormItem><FormLabel>CC</FormLabel><FormControl><Input placeholder="Optional: cc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={newEmailForm.control} name="bcc" render={({ field }) => ( <FormItem><FormLabel>BCC</FormLabel><FormControl><Input placeholder="Optional: bcc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={newEmailForm.control} name="subject" render={({ field }) => ( <FormItem><FormLabel>Subject</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={newEmailForm.control} name="body" render={({ field }) => ( <FormItem><FormLabel>Body</FormLabel><FormControl><Textarea rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField
-                                        control={newEmailForm.control}
-                                        name="attachments"
-                                        render={({ field: { onChange, value, ...rest }}) => (
-                                            <FormItem>
-                                                <FormLabel>Attachments</FormLabel>
-                                                <FormControl>
-                                                    <Input type="file" multiple onChange={(e) => onChange(e.target.files)} {...rest} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <div className="flex justify-end gap-2">
-                                        <Button type="button" variant="outline" onClick={() => handleProofread(true, newEmailForm.getValues('body'), (newText) => newEmailForm.setValue('body', newText))} disabled={isProofreading}>
-                                            {isProofreading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
-                                            Proofread
-                                        </Button>
-                                        <Button type="submit" disabled={isSendingNew}>
-                                            {isSendingNew ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4"/>}
-                                            Send Email
-                                        </Button>
-                                    </div>
-                                </form>
-                            </Form>
+                             <ScrollArea className="h-[calc(100vh-25rem)] pr-4">
+                                <Form {...newEmailForm}>
+                                    <form onSubmit={newEmailForm.handleSubmit(onNewEmailSubmit)} className="space-y-4">
+                                        <FormField control={newEmailForm.control} name="to" render={({ field }) => ( <FormItem><FormLabel>To</FormLabel><FormControl><Input placeholder="recipient@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                        <FormField control={newEmailForm.control} name="cc" render={({ field }) => ( <FormItem><FormLabel>CC</FormLabel><FormControl><Input placeholder="Optional: cc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                        <FormField control={newEmailForm.control} name="bcc" render={({ field }) => ( <FormItem><FormLabel>BCC</FormLabel><FormControl><Input placeholder="Optional: bcc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                        <FormField control={newEmailForm.control} name="subject" render={({ field }) => ( <FormItem><FormLabel>Subject</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                        <FormField control={newEmailForm.control} name="body" render={({ field }) => ( <FormItem><FormLabel>Body</FormLabel><FormControl><Textarea rows={10} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                        <FormField
+                                            control={newEmailForm.control}
+                                            name="attachments"
+                                            render={({ field: { onChange, value, ...rest }}) => (
+                                                <FormItem>
+                                                    <FormLabel>Attachments</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="file" multiple onChange={(e) => onChange(e.target.files)} {...rest} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                            <Button type="button" variant="outline" onClick={() => handleProofread(true, newEmailForm.getValues('body'), (newText) => newEmailForm.setValue('body', newText))} disabled={isProofreading}>
+                                                {isProofreading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                                                Proofread
+                                            </Button>
+                                            <Button type="submit" disabled={isSendingNew}>
+                                                {isSendingNew ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4"/>}
+                                                Send Email
+                                            </Button>
+                                        </div>
+                                    </form>
+                                </Form>
+                            </ScrollArea>
                         </CardContent>
                     </Card>
                 </TabsContent>
                 <TabsContent value="archived">
                      <Card>
                         <CardContent className="p-0">
-                            <ScrollArea className="h-[calc(100vh-18rem)]">
+                            <ScrollArea className="h-[calc(100vh-20rem)]">
                             {isLoading ? (
                                 <div className="flex justify-center items-center h-full">
                                     <Loader2 className="h-6 w-6 animate-spin"/>

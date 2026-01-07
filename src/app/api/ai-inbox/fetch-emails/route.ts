@@ -51,7 +51,6 @@ async function getUserIdFromRequestOrCron(req: NextRequest): Promise<string | nu
     }
     
     // If no userId in body, assume it's a cron job and fetch the default admin user.
-    console.log("No userId in request body, fetching default admin user for cron job.");
     const adminEmail = 'kev@thinkestry.co.za';
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('email', '==', adminEmail), where('role', '==', 'admin'));
@@ -67,8 +66,9 @@ async function getUserIdFromRequestOrCron(req: NextRequest): Promise<string | nu
 
 
 export async function POST(req: NextRequest) {
+    let userId: string | null = null;
     try {
-        const userId = await getUserIdFromRequestOrCron(req);
+        userId = await getUserIdFromRequestOrCron(req);
 
         if (!userId) {
             return NextResponse.json({ error: 'User ID could not be determined.' }, { status: 400 });
@@ -140,7 +140,6 @@ export async function POST(req: NextRequest) {
                 }
             }
 
-
             if (docSnap.exists() && docSnap.data().status !== 'new') {
                 continue;
             }
@@ -151,7 +150,6 @@ export async function POST(req: NextRequest) {
             if (typeof parsedMail.html === 'string') {
                  htmlContent = parsedMail.html;
             }
-
 
             const emailData: Omit<ProcessedEmail, 'id'> = {
                 uid: id,
@@ -201,11 +199,21 @@ export async function POST(req: NextRequest) {
         }
 
         connection.end();
+        
+        // After successful sync, update the status document
+        const syncStatusRef = doc(db, 'system', 'emailSyncStatus');
+        await setDoc(syncStatusRef, { lastSync: Timestamp.now(), status: 'success' }, { merge: true });
 
         return NextResponse.json({ success: true, message: `Synced ${count} emails from the last 7 days.` });
 
     } catch (error: any) {
         console.error('Email fetch API error:', error);
+        
+        if (userId) {
+            const syncStatusRef = doc(db, 'system', 'emailSyncStatus');
+            await setDoc(syncStatusRef, { lastSync: Timestamp.now(), status: 'error', errorMessage: error.message }, { merge: true });
+        }
+        
         let errorMessage = 'Failed to fetch emails. Please check your IMAP settings.';
         if (error.code === 'ETIMEDOUT') {
             errorMessage = 'Connection to the email server timed out.';
