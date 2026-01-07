@@ -58,14 +58,20 @@ export default function AIEmailInboxPage() {
     const [staffByDept, setStaffByDept] = useState<Record<string, User[]>>({});
     const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-    const [isNewEmailOpen, setIsNewEmailOpen] = useState(false);
     const [isSendingNew, setIsSendingNew] = useState(false);
     const [isProofreading, setIsProofreading] = useState(false);
+    const [activeTab, setActiveTab] = useState('inbox');
 
     const newEmailForm = useForm<z.infer<typeof newEmailFormSchema>>({
         resolver: zodResolver(newEmailFormSchema),
-        defaultValues: { to: '', cc: '', bcc: '', subject: '', body: '' },
+        defaultValues: { to: '', cc: '', bcc: '', subject: '', body: user?.emailSignature || '' },
     });
+
+    useEffect(() => {
+        if(user?.emailSignature) {
+            newEmailForm.setValue('body', `\n\n${user.emailSignature}`);
+        }
+    }, [user, newEmailForm]);
 
 
     useEffect(() => {
@@ -306,8 +312,10 @@ export default function AIEmailInboxPage() {
                 attachments: attachments,
             });
             toast({ title: 'Email Sent!', description: `Your email to ${values.to} has been sent.` });
-            setIsNewEmailOpen(false);
             newEmailForm.reset();
+            if (user?.emailSignature) {
+                newEmailForm.setValue('body', `\n\n${user.emailSignature}`);
+            }
         } catch (e) {
             console.error(e);
             toast({ title: 'Failed to send email', variant: 'destructive' });
@@ -324,15 +332,20 @@ export default function AIEmailInboxPage() {
       }
       setIsProofreading(true);
       try {
-        // Remove signature before proofreading
         const signature = user?.emailSignature || '';
         let bodyOnly = currentText;
-        if (signature && currentText.includes(signature)) {
-            bodyOnly = currentText.substring(0, currentText.lastIndexOf(signature));
-        }
+        let signaturePart = '';
 
+        if (signature && currentText.includes(signature)) {
+            const sigIndex = currentText.lastIndexOf(signature);
+            bodyOnly = currentText.substring(0, sigIndex);
+            signaturePart = currentText.substring(sigIndex);
+        } else if (isNew) {
+            signaturePart = `\n\n${signature}`;
+        }
+        
         const result = await proofreadNote({ text: bodyOnly });
-        const proofreadWithSignature = `${result.proofreadText}\n\n${signature}`;
+        const proofreadWithSignature = `${result.proofreadText}${signaturePart}`;
 
         if (formUpdater) {
           formUpdater(proofreadWithSignature);
@@ -389,7 +402,7 @@ export default function AIEmailInboxPage() {
                     <div className="pt-2">
                          <p className="text-xs font-semibold mb-1">Attachments:</p>
                          <div className="flex flex-wrap gap-2">
-                            {email.attachments.filter(att => att.filename && !att.filename.toLowerCase().endsWith('.png')).map((att, index) => (
+                            {email.attachments.filter(att => att.filename).map((att, index) => (
                                  <a
                                     key={index}
                                     href={att.dataUrl || '#'}
@@ -486,60 +499,17 @@ export default function AIEmailInboxPage() {
                     />
                 </DialogContent>
             </Dialog>
-            <Dialog open={isNewEmailOpen} onOpenChange={setIsNewEmailOpen}>
-                <DialogContent className="sm:max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Compose New Email</DialogTitle>
-                    </DialogHeader>
-                    <Form {...newEmailForm}>
-                        <form onSubmit={newEmailForm.handleSubmit(onNewEmailSubmit)} className="space-y-4">
-                             <FormField control={newEmailForm.control} name="to" render={({ field }) => ( <FormItem><FormLabel>To</FormLabel><FormControl><Input placeholder="recipient@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                             <FormField control={newEmailForm.control} name="cc" render={({ field }) => ( <FormItem><FormLabel>CC</FormLabel><FormControl><Input placeholder="Optional: cc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                             <FormField control={newEmailForm.control} name="bcc" render={({ field }) => ( <FormItem><FormLabel>BCC</FormLabel><FormControl><Input placeholder="Optional: bcc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                             <FormField control={newEmailForm.control} name="subject" render={({ field }) => ( <FormItem><FormLabel>Subject</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                             <FormField control={newEmailForm.control} name="body" render={({ field }) => ( <FormItem><FormLabel>Body</FormLabel><FormControl><Textarea rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                              <FormField
-                                control={newEmailForm.control}
-                                name="attachments"
-                                render={({ field: { onChange, value, ...rest }}) => (
-                                    <FormItem>
-                                        <FormLabel>Attachments</FormLabel>
-                                        <FormControl>
-                                            <Input type="file" multiple onChange={(e) => onChange(e.target.files)} {...rest} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <DialogFooter>
-                                <Button type="button" variant="outline" onClick={() => handleProofread(true, newEmailForm.getValues('body'), (newText) => newEmailForm.setValue('body', newText))} disabled={isProofreading}>
-                                    {isProofreading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
-                                    Proofread
-                                </Button>
-                                <Button type="submit" disabled={isSendingNew}>
-                                    {isSendingNew ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4"/>}
-                                    Send Email
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </Form>
-                </DialogContent>
-            </Dialog>
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
-                <div className="flex gap-2">
-                    <Button onClick={() => setIsNewEmailOpen(true)}>
-                        <Pencil className="mr-2 h-4 w-4" /> New Email
-                    </Button>
-                    <Button onClick={handleSyncEmails} disabled={isSyncing}>
-                        {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                        Sync Emails
-                    </Button>
-                </div>
+                <Button onClick={handleSyncEmails} disabled={isSyncing}>
+                    {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                    Sync Emails
+                </Button>
             </div>
-            <Tabs defaultValue="inbox">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
                  <TabsList>
                     <TabsTrigger value="inbox">Inbox ({inboxEmails.length})</TabsTrigger>
+                    <TabsTrigger value="compose">Compose</TabsTrigger>
                     <TabsTrigger value="archived">Archived ({archivedEmails.length})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="inbox">
@@ -562,6 +532,47 @@ export default function AIEmailInboxPage() {
                                 </div>
                             )}
                             </ScrollArea>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="compose">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Compose New Email</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Form {...newEmailForm}>
+                                <form onSubmit={newEmailForm.handleSubmit(onNewEmailSubmit)} className="space-y-4">
+                                    <FormField control={newEmailForm.control} name="to" render={({ field }) => ( <FormItem><FormLabel>To</FormLabel><FormControl><Input placeholder="recipient@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={newEmailForm.control} name="cc" render={({ field }) => ( <FormItem><FormLabel>CC</FormLabel><FormControl><Input placeholder="Optional: cc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={newEmailForm.control} name="bcc" render={({ field }) => ( <FormItem><FormLabel>BCC</FormLabel><FormControl><Input placeholder="Optional: bcc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={newEmailForm.control} name="subject" render={({ field }) => ( <FormItem><FormLabel>Subject</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={newEmailForm.control} name="body" render={({ field }) => ( <FormItem><FormLabel>Body</FormLabel><FormControl><Textarea rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField
+                                        control={newEmailForm.control}
+                                        name="attachments"
+                                        render={({ field: { onChange, value, ...rest }}) => (
+                                            <FormItem>
+                                                <FormLabel>Attachments</FormLabel>
+                                                <FormControl>
+                                                    <Input type="file" multiple onChange={(e) => onChange(e.target.files)} {...rest} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                        <Button type="button" variant="outline" onClick={() => handleProofread(true, newEmailForm.getValues('body'), (newText) => newEmailForm.setValue('body', newText))} disabled={isProofreading}>
+                                            {isProofreading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                                            Proofread
+                                        </Button>
+                                        <Button type="submit" disabled={isSendingNew}>
+                                            {isSendingNew ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4"/>}
+                                            Send Email
+                                        </Button>
+                                    </div>
+                                </form>
+                            </Form>
                         </CardContent>
                     </Card>
                 </TabsContent>

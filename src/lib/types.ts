@@ -1,5 +1,4 @@
 
-
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -107,6 +106,8 @@ export type OrderNote = {
   type?: 'note' | 'email';
   subject: string | null;
   attachments: { name: string; url: string }[] | null;
+  attachmentUrl?: string | null; // For legacy single attachments
+  attachmentName?: string | null; // For legacy single attachments
 };
 
 export type ItnLog = {
