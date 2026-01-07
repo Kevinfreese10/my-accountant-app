@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle, Pencil, Paperclip } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle, Pencil, Paperclip, ArchiveRestore } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +20,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { sendEmail } from '@/lib/email';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import TaskForm from '@/components/admin/TaskForm'; 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -27,7 +29,8 @@ export default function AIEmailInboxPage() {
     const { user } = useAuth();
     const { toast } = useToast();
     const [isSyncing, setIsSyncing] = useState(false);
-    const [emails, setEmails] = useState<ProcessedEmail[]>([]);
+    const [inboxEmails, setInboxEmails] = useState<ProcessedEmail[]>([]);
+    const [archivedEmails, setArchivedEmails] = useState<ProcessedEmail[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
     const [isDrafting, setIsDrafting] = useState<string | null>(null);
@@ -59,23 +62,40 @@ export default function AIEmailInboxPage() {
                 setStaffByDept(byDept);
             });
 
-            const q = query(
+            const newEmailsQuery = query(
                 collection(db, 'processedEmails'),
                 where('ownerId', '==', user.uid),
                 where('status', '==', 'new'),
                 orderBy('date', 'desc')
             );
-            const unsubscribe = onSnapshot(q, (snapshot) => {
+            const newUnsubscribe = onSnapshot(newEmailsQuery, (snapshot) => {
                 const fetchedEmails = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcessedEmail));
-                setEmails(fetchedEmails);
+                setInboxEmails(fetchedEmails);
                 setIsLoading(false);
             }, (error) => {
-                console.error("Error fetching emails:", error);
-                toast({ title: 'Error', description: 'Could not fetch emails.', variant: 'destructive'});
+                console.error("Error fetching new emails:", error);
+                toast({ title: 'Error', description: 'Could not fetch new emails.', variant: 'destructive'});
                 setIsLoading(false);
             });
 
-            return () => unsubscribe();
+            const archivedEmailsQuery = query(
+                collection(db, 'processedEmails'),
+                where('ownerId', '==', user.uid),
+                where('status', '==', 'archived'),
+                orderBy('date', 'desc')
+            );
+            const archivedUnsubscribe = onSnapshot(archivedEmailsQuery, (snapshot) => {
+                const fetchedEmails = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcessedEmail));
+                setArchivedEmails(fetchedEmails);
+            }, (error) => {
+                console.error("Error fetching archived emails:", error);
+                toast({ title: 'Error', description: 'Could not fetch archived emails.', variant: 'destructive'});
+            });
+
+            return () => {
+                newUnsubscribe();
+                archivedUnsubscribe();
+            };
         }
     }, [user, toast]);
 
@@ -124,18 +144,20 @@ export default function AIEmailInboxPage() {
         return format(date, 'dd/MM/yyyy');
     };
     
-    const handleArchiveEmail = async (emailId: string) => {
+    const handleUpdateStatus = async (emailId: string, status: 'new' | 'archived') => {
         try {
             const emailRef = doc(db, 'processedEmails', emailId);
-            await updateDoc(emailRef, { status: 'archived' });
-            toast({ title: 'Email Archived' });
+            await updateDoc(emailRef, { status: status });
+            const action = status === 'archived' ? 'Archived' : 'Restored';
+            toast({ title: `Email ${action}` });
             if (selectedEmailId === emailId) {
                 setSelectedEmailId(null);
             }
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not archive email.', variant: 'destructive' });
+            toast({ title: 'Error', description: 'Could not update email status.', variant: 'destructive' });
         }
     };
+
 
     const handleReplyToEmail = (email: ProcessedEmail) => {
         const mailtoLink = `mailto:${email.from.address}?subject=Re: ${encodeURIComponent(email.subject)}`;
@@ -207,7 +229,6 @@ export default function AIEmailInboxPage() {
                 comments: [],
             });
             
-            // Flag the email as task created
             await updateDoc(doc(db, 'processedEmails', emailId), {
                 taskCreated: true,
             });
@@ -221,38 +242,115 @@ export default function AIEmailInboxPage() {
         }
     };
 
-
-    const ActionButton = ({ email }: { email: ProcessedEmail}) => {
-
-        const handleCreateTaskClick = () => {
-            if (email.aiTask) {
-                setSelectedTask({
-                    title: email.aiTask.title,
-                    description: email.aiTask.description,
-                    id: email.id, // Pass email id to link it
-                } as unknown as Task);
-                setIsTaskFormOpen(true);
-            }
-        };
-
-        if (email.taskCreated) {
-            return <Badge variant="secondary"><CheckCircle className="mr-2 h-4 w-4" />Task Created</Badge>;
-        }
-
-        return (
-            <div className="flex items-center gap-2 pt-2">
-                {email.aiSuggestedAction === 'create_task' && (
-                    <Button size="sm" variant="default" onClick={handleCreateTaskClick}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Create Task
-                    </Button>
-                )}
-                <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id}>
-                    {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />}
-                    {isDrafting === email.id ? 'Drafting...' : 'Draft Reply'}
-                </Button>
+    const EmailItem = ({ email }: { email: ProcessedEmail }) => (
+        <div className="w-full text-left p-4 space-y-2">
+            <div className="flex justify-between items-start gap-4">
+                <div className="flex-grow space-y-1 overflow-hidden">
+                    <div className="flex justify-between items-start">
+                        <p className="font-semibold truncate">{email.from.name || email.from.address}</p>
+                        <p className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formatDate(email.date)}</p>
+                    </div>
+                    <p className="text-sm truncate font-medium">{email.subject}</p>
+                    <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
+                </div>
             </div>
-        );
-    }
+             {email.aiSummary && (
+                <div className="p-3 bg-background rounded-md border space-y-2">
+                     <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Bot className="h-4 w-4 text-primary" />
+                            <h4 className="text-sm font-semibold">AI Summary & Actions</h4>
+                        </div>
+                         <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleReplyToEmail(email)}><Mail className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleForwardEmail(email)}><Forward className="h-4 w-4" /></Button>
+                            {email.status === 'new' && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(email.id, 'archived')}><Archive className="h-4 w-4" /></Button>
+                            )}
+                            {email.status === 'archived' && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(email.id, 'new')}><ArchiveRestore className="h-4 w-4" /></Button>
+                            )}
+                        </div>
+                     </div>
+                     <ReactMarkdown className="text-xs prose prose-sm max-w-none"
+                      components={{ p: ({node, ...props}) => <p className="my-1" {...props} /> }}
+                     >{email.aiSummary}</ReactMarkdown>
+                     
+                     {email.attachments && email.attachments.length > 0 && (
+                        <div className="pt-2">
+                             <p className="text-xs font-semibold mb-1">Attachments:</p>
+                             <div className="flex flex-wrap gap-2">
+                                {email.attachments.filter(att => att.filename && !att.filename.toLowerCase().endsWith('.png')).map((att, index) => (
+                                     <a
+                                        key={index}
+                                        href={att.dataUrl || '#'}
+                                        download={att.filename || 'attachment'}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs flex items-center gap-1.5 bg-muted p-1.5 rounded-md hover:bg-muted/80"
+                                    >
+                                        <Paperclip className="h-3 w-3"/>
+                                        {att.filename || 'download'}
+                                    </a>
+                                ))}
+                             </div>
+                        </div>
+                     )}
+
+                     {(draftReplies[email.id] || email.aiDraftReply) ? (
+                         <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
+                            <p className="text-xs font-semibold">Suggested Reply:</p>
+                              <Textarea 
+                                  defaultValue={draftReplies[email.id] || email.aiDraftReply}
+                                  onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: e.target.value}))}
+                                  rows={5}
+                                  className="text-xs bg-white"
+                              />
+                              <div className="flex items-center gap-2">
+                                  {email.replySent ? (
+                                      <Badge variant="success"><CheckCircle className="mr-2 h-4 w-4"/> Reply Sent</Badge>
+                                  ) : (
+                                    <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
+                                      {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
+                                      Send Email Reply
+                                    </Button>
+                                  )}
+                              </div>
+                         </div>
+                     ) : null }
+
+                     <div className="flex items-center gap-2 pt-2">
+                        {email.aiSuggestedAction === 'create_task' && (
+                            <Button size="sm" variant="default" onClick={() => {
+                                if (email.aiTask) {
+                                    setSelectedTask({
+                                        title: email.aiTask.title,
+                                        description: email.aiTask.description,
+                                        id: email.id, 
+                                    } as unknown as Task);
+                                    setIsTaskFormOpen(true);
+                                }
+                            }}
+                            disabled={email.taskCreated}
+                            >
+                                {email.taskCreated ? <><CheckCircle className="mr-2 h-4 w-4" />Task Created</> : <><PlusCircle className="mr-2 h-4 w-4" />Create Task</>}
+                            </Button>
+                        )}
+                        {email.aiSuggestedAction === 'draft_reply' && !(draftReplies[email.id] || email.aiDraftReply) && (
+                            <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id}>
+                                {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />}
+                                {isDrafting === email.id ? 'Drafting...' : 'Draft Reply'}
+                            </Button>
+                        )}
+                    </div>
+                     <div className="flex items-center gap-2 pt-2">
+                        {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
+                        {email.aiPriority && <Badge variant={email.aiPriority === 'High' ? 'destructive' : 'outline'}>{email.aiPriority}</Badge>}
+                     </div>
+                </div>
+             )}
+        </div>
+    );
 
     return (
         <div className="space-y-8">
@@ -283,112 +381,58 @@ export default function AIEmailInboxPage() {
                     Sync Emails
                 </Button>
             </div>
-            <Card>
-                <CardHeader className="p-4 border-b">
-                    <h2 className="text-lg font-semibold">Inbox ({emails.length})</h2>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <ScrollArea className="h-[calc(100vh-18rem)]">
-                    {isLoading ? (
-                        <div className="flex justify-center items-center h-full">
-                            <Loader2 className="h-6 w-6 animate-spin"/>
-                        </div>
-                    ) : emails.length === 0 ? (
-                        <div className="text-center p-8 text-muted-foreground">
-                            <Inbox className="mx-auto h-12 w-12" />
-                            <p className="mt-4 text-sm">Your inbox is empty.</p>
-                            <p className="text-xs">Click "Sync Emails" to get started.</p>
-                        </div>
-                    ) : (
-                        <div className="divide-y">
-                            {emails.map(email => (
-                                <div 
-                                    key={email.id} 
-                                    className="w-full text-left p-4 space-y-2"
-                                >
-                                    <div className="flex justify-between items-start gap-4">
-                                        <div className="flex-grow space-y-1 overflow-hidden">
-                                            <div className="flex justify-between items-start">
-                                                <p className="font-semibold truncate">{email.from.name || email.from.address}</p>
-                                                <p className="text-xs text-muted-foreground flex-shrink-0 ml-2">{formatDate(email.date)}</p>
-                                            </div>
-                                            <p className="text-sm truncate font-medium">{email.subject}</p>
-                                            <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
-                                        </div>
-                                    </div>
-                                     {email.aiSummary && (
-                                        <div className="p-3 bg-background rounded-md border space-y-2">
-                                             <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <Bot className="h-4 w-4 text-primary" />
-                                                    <h4 className="text-sm font-semibold">AI Summary & Actions</h4>
-                                                </div>
-                                                 <div className="flex items-center gap-2">
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleReplyToEmail(email)}><Mail className="h-4 w-4" /></Button>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleForwardEmail(email)}><Forward className="h-4 w-4" /></Button>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleArchiveEmail(email.id)}><Archive className="h-4 w-4" /></Button>
-                                                </div>
-                                             </div>
-                                             <ReactMarkdown className="text-xs prose prose-sm max-w-none"
-                                              components={{ p: ({node, ...props}) => <p className="my-1" {...props} /> }}
-                                             >{email.aiSummary}</ReactMarkdown>
-                                             
-                                             {email.attachments && email.attachments.length > 0 && (
-                                                <div className="pt-2">
-                                                     <p className="text-xs font-semibold mb-1">Attachments:</p>
-                                                     <div className="flex flex-wrap gap-2">
-                                                        {email.attachments.filter(att => att.filename && !att.filename.toLowerCase().endsWith('.png')).map((att, index) => (
-                                                             <a
-                                                                key={index}
-                                                                href={att.dataUrl || '#'}
-                                                                download={att.filename || 'attachment'}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="text-xs flex items-center gap-1.5 bg-muted p-1.5 rounded-md hover:bg-muted/80"
-                                                            >
-                                                                <Paperclip className="h-3 w-3"/>
-                                                                {att.filename || 'download'}
-                                                            </a>
-                                                        ))}
-                                                     </div>
-                                                </div>
-                                             )}
-
-                                             {(draftReplies[email.id] || email.aiDraftReply) && (
-                                                 <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
-                                                    <p className="text-xs font-semibold">Suggested Reply:</p>
-                                                      <Textarea 
-                                                          defaultValue={draftReplies[email.id] || email.aiDraftReply}
-                                                          onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: e.target.value}))}
-                                                          rows={5}
-                                                          className="text-xs bg-white"
-                                                      />
-                                                      <div className="flex items-center gap-2">
-                                                          {email.replySent ? (
-                                                              <Badge variant="success"><CheckCircle className="mr-2 h-4 w-4"/> Reply Sent</Badge>
-                                                          ) : (
-                                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
-                                                              {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
-                                                              Send Email Reply
-                                                            </Button>
-                                                          )}
-                                                      </div>
-                                                 </div>
-                                             )}
-                                             <ActionButton email={email} />
-                                             <div className="flex items-center gap-2 pt-2">
-                                                {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
-                                                {email.aiPriority && <Badge variant={email.aiPriority === 'High' ? 'destructive' : 'outline'}>{email.aiPriority}</Badge>}
-                                             </div>
-                                        </div>
-                                     )}
+            <Tabs defaultValue="inbox">
+                 <TabsList>
+                    <TabsTrigger value="inbox">Inbox ({inboxEmails.length})</TabsTrigger>
+                    <TabsTrigger value="archived">Archived ({archivedEmails.length})</TabsTrigger>
+                </TabsList>
+                <TabsContent value="inbox">
+                    <Card>
+                        <CardContent className="p-0">
+                            <ScrollArea className="h-[calc(100vh-18rem)]">
+                            {isLoading ? (
+                                <div className="flex justify-center items-center h-full">
+                                    <Loader2 className="h-6 w-6 animate-spin"/>
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                    </ScrollArea>
-                </CardContent>
-            </Card>
+                            ) : inboxEmails.length === 0 ? (
+                                <div className="text-center p-8 text-muted-foreground">
+                                    <Inbox className="mx-auto h-12 w-12" />
+                                    <p className="mt-4 text-sm">Your inbox is empty.</p>
+                                    <p className="text-xs">Click "Sync Emails" to get started.</p>
+                                </div>
+                            ) : (
+                                <div className="divide-y">
+                                    {inboxEmails.map(email => <EmailItem key={email.id} email={email} />)}
+                                </div>
+                            )}
+                            </ScrollArea>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="archived">
+                     <Card>
+                        <CardContent className="p-0">
+                            <ScrollArea className="h-[calc(100vh-18rem)]">
+                            {isLoading ? (
+                                <div className="flex justify-center items-center h-full">
+                                    <Loader2 className="h-6 w-6 animate-spin"/>
+                                </div>
+                            ) : archivedEmails.length === 0 ? (
+                                <div className="text-center p-8 text-muted-foreground">
+                                    <Archive className="mx-auto h-12 w-12" />
+                                    <p className="mt-4 text-sm">No archived emails.</p>
+                                </div>
+                            ) : (
+                                <div className="divide-y">
+                                    {archivedEmails.map(email => <EmailItem key={email.id} email={email} />)}
+                                </div>
+                            )}
+                            </ScrollArea>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
+
