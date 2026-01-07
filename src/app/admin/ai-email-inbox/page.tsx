@@ -320,22 +320,20 @@ export default function AIEmailInboxPage() {
                      ) : null }
 
                      <div className="flex items-center gap-2 pt-2">
-                        {email.aiSuggestedAction === 'create_task' && (
-                            <Button size="sm" variant="default" onClick={() => {
-                                if (email.aiTask) {
-                                    setSelectedTask({
-                                        title: email.aiTask.title,
-                                        description: email.aiTask.description,
-                                        id: email.id, 
-                                    } as unknown as Task);
-                                    setIsTaskFormOpen(true);
-                                }
-                            }}
-                            disabled={email.taskCreated}
-                            >
-                                {email.taskCreated ? <><CheckCircle className="mr-2 h-4 w-4" />Task Created</> : <><PlusCircle className="mr-2 h-4 w-4" />Create Task</>}
-                            </Button>
-                        )}
+                        <Button size="sm" variant="default" onClick={() => {
+                            const taskTitle = email.aiTask?.title || email.subject;
+                            const taskDescription = email.aiTask?.description || `Follow up on email from ${email.from.name || email.from.address}:\n\n${email.text}`;
+                            setSelectedTask({
+                                title: taskTitle,
+                                description: taskDescription,
+                                id: email.id,
+                            } as unknown as Task);
+                            setIsTaskFormOpen(true);
+                        }}
+                        disabled={email.taskCreated}
+                        >
+                            {email.taskCreated ? <><CheckCircle className="mr-2 h-4 w-4" />Task Created</> : <><PlusCircle className="mr-2 h-4 w-4" />Create Task</>}
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id || !!(draftReplies[email.id] || email.aiDraftReply)}>
                             {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />}
                             {isDrafting === email.id ? 'Drafting...' : 'Draft Reply'}
@@ -357,7 +355,7 @@ export default function AIEmailInboxPage() {
                     <DialogHeader>
                         <DialogTitle>Create New Task</DialogTitle>
                         <DialogDescription>
-                            A new task will be created based on the AI's suggestion. You can edit the details below.
+                            A new task will be created based on the email content. You can edit the details below.
                         </DialogDescription>
                     </DialogHeader>
                     <TaskForm 
