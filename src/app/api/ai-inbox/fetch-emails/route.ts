@@ -18,7 +18,7 @@ const MAX_FIELD_SIZE = 1048000;
 const getAttachments = async (attachments: any[]): Promise<any[]> => {
     return Promise.all(attachments.map(async (attachment) => {
         // The buffer is already available, just convert it to a data URI
-        const dataUrl = `data:${attachment.contentType};base64,${attachment.content.toString('base64')}`;
+        const dataUrl = `data:${attachment.contentType || 'application/octet-stream'};base64,${attachment.content.toString('base64')}`;
         return {
             filename: attachment.filename || '',
             contentType: attachment.contentType || '',
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
                 emailData.aiCategory = aiResult.category;
                 emailData.aiPriority = aiResult.priority;
                 emailData.aiSuggestedAction = aiResult.suggestedAction;
-                emailData.aiDraftReply = aiResult.draftReply;
+                emailData.aiDraftReply = aiResult.draftReply || null;
 
                 if (aiResult.category === 'Spam/Promo') {
                     emailData.status = 'archived';
