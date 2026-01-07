@@ -223,7 +223,6 @@ export default function AIEmailInboxPage() {
 
 
     const ActionButton = ({ email }: { email: ProcessedEmail}) => {
-        const action = email.aiSuggestedAction;
 
         const handleCreateTaskClick = () => {
             if (email.aiTask) {
@@ -240,23 +239,19 @@ export default function AIEmailInboxPage() {
             return <Badge variant="secondary"><CheckCircle className="mr-2 h-4 w-4" />Task Created</Badge>;
         }
 
-        if (action === 'create_task') {
-            return (
-                <Button size="sm" variant="default" onClick={handleCreateTaskClick}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Create Task
-                </Button>
-            );
-        }
-        
-        if (action === 'draft_reply') {
-            return (
-                 <Button size="sm" variant="default" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id}>
+        return (
+            <div className="flex items-center gap-2 pt-2">
+                {email.aiSuggestedAction === 'create_task' && (
+                    <Button size="sm" variant="default" onClick={handleCreateTaskClick}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Create Task
+                    </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id}>
                     {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />}
                     {isDrafting === email.id ? 'Drafting...' : 'Draft Reply'}
                 </Button>
-            )
-        }
-        return null;
+            </div>
+        );
     }
 
     return (
@@ -362,17 +357,12 @@ export default function AIEmailInboxPage() {
                                              {(draftReplies[email.id] || email.aiDraftReply) && (
                                                  <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
                                                     <p className="text-xs font-semibold">Suggested Reply:</p>
-                                                     <ReactMarkdown
-                                                        className="text-xs bg-white p-2 rounded-md border prose prose-sm max-w-none"
-                                                        components={{
-                                                            p: ({node, ...props}) => <p className="my-1" {...props} />,
-                                                            ul: ({node, ...props}) => <ul className="my-1 list-disc pl-4" {...props} />,
-                                                            li: ({node, ...props}) => <li className="my-0.5" {...props} />
-                                                        }}
-                                                    >
-                                                        {draftReplies[email.id] || email.aiDraftReply}
-                                                    </ReactMarkdown>
-
+                                                      <Textarea 
+                                                          defaultValue={draftReplies[email.id] || email.aiDraftReply}
+                                                          onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: e.target.value}))}
+                                                          rows={5}
+                                                          className="text-xs bg-white"
+                                                      />
                                                       <div className="flex items-center gap-2">
                                                           {email.replySent ? (
                                                               <Badge variant="success"><CheckCircle className="mr-2 h-4 w-4"/> Reply Sent</Badge>
@@ -382,15 +372,11 @@ export default function AIEmailInboxPage() {
                                                               Send Email Reply
                                                             </Button>
                                                           )}
-                                                          <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id}>
-                                                              {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Pencil className="mr-2 h-4 w-4" />}
-                                                              Fix Format / Regenerate
-                                                          </Button>
                                                       </div>
                                                  </div>
                                              )}
+                                             <ActionButton email={email} />
                                              <div className="flex items-center gap-2 pt-2">
-                                                <ActionButton email={email} />
                                                 {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
                                                 {email.aiPriority && <Badge variant={email.aiPriority === 'High' ? 'destructive' : 'outline'}>{email.aiPriority}</Badge>}
                                              </div>

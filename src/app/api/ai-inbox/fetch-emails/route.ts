@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
                 snippet: parsedMail.text?.substring(0, 150) || '',
                 text: parsedMail.text || '',
                 html: htmlContent,
-                status: 'new',
+                status: 'new', // Default status
                 ownerId: userId,
                 attachments: attachments, // Save attachments with dataUrl
             };
@@ -127,6 +127,11 @@ export async function POST(req: NextRequest) {
                 emailData.aiCategory = aiResult.category;
                 emailData.aiPriority = aiResult.priority;
                 emailData.aiSuggestedAction = aiResult.suggestedAction;
+
+                if (aiResult.category === 'Spam/Promo') {
+                    emailData.status = 'archived';
+                }
+
                 if(aiResult.task?.shouldCreate) {
                     emailData.aiTask = {
                         title: aiResult.task.title || 'Untitled Task',
