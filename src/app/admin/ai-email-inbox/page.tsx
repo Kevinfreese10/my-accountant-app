@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -19,7 +18,7 @@ import ReactMarkdown from 'react-markdown';
 import { generateEmailReply } from '@/ai/flows/generate-email-reply';
 import { Textarea } from '@/components/ui/textarea';
 import { sendEmail } from '@/lib/email';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import TaskForm from '@/components/admin/TaskForm'; 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useForm, Controller } from 'react-hook-form';
@@ -202,8 +201,10 @@ export default function AIEmailInboxPage() {
                 subject: email.subject,
                 body: email.text,
                 sender: email.from.name || email.from.address,
+                userSignature: user?.emailSignature || '',
             });
-            const draft = result.draft + `\n\n${user?.emailSignature || ''}`;
+            
+            const draft = result.draft;
             await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: draft });
             setDraftReplies(prev => ({...prev, [email.id]: { reply: draft, cc: '', bcc: '' }}));
         } catch (e) {
@@ -546,3 +547,5 @@ export default function AIEmailInboxPage() {
         </div>
     );
 }
+
+    
