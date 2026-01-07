@@ -254,97 +254,100 @@ export default function AIEmailInboxPage() {
                     <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
                 </div>
             </div>
-             {email.aiSummary && (
-                <div className="p-3 bg-background rounded-md border space-y-2">
-                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Bot className="h-4 w-4 text-primary" />
-                            <h4 className="text-sm font-semibold">AI Summary & Actions</h4>
-                        </div>
-                         <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleReplyToEmail(email)}><Mail className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleForwardEmail(email)}><Forward className="h-4 w-4" /></Button>
-                            {email.status === 'new' && (
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(email.id, 'archived')}><Archive className="h-4 w-4" /></Button>
-                            )}
-                            {email.status === 'archived' && (
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(email.id, 'new')}><ArchiveRestore className="h-4 w-4" /></Button>
-                            )}
-                        </div>
-                     </div>
-                     <ReactMarkdown className="text-xs prose prose-sm max-w-none"
-                      components={{ p: ({node, ...props}) => <p className="my-1" {...props} /> }}
-                     >{email.aiSummary}</ReactMarkdown>
-                     
-                     {email.attachments && email.attachments.length > 0 && (
-                        <div className="pt-2">
-                             <p className="text-xs font-semibold mb-1">Attachments:</p>
-                             <div className="flex flex-wrap gap-2">
-                                {email.attachments.filter(att => att.filename && !att.filename.toLowerCase().endsWith('.png')).map((att, index) => (
-                                     <a
-                                        key={index}
-                                        href={att.dataUrl || '#'}
-                                        download={att.filename || 'attachment'}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs flex items-center gap-1.5 bg-muted p-1.5 rounded-md hover:bg-muted/80"
-                                    >
-                                        <Paperclip className="h-3 w-3"/>
-                                        {att.filename || 'download'}
-                                    </a>
-                                ))}
-                             </div>
-                        </div>
-                     )}
-
-                     {(draftReplies[email.id] || email.aiDraftReply) ? (
-                         <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
-                            <p className="text-xs font-semibold">Suggested Reply:</p>
-                              <Textarea 
-                                  defaultValue={draftReplies[email.id] || email.aiDraftReply}
-                                  onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: e.target.value}))}
-                                  rows={5}
-                                  className="text-xs bg-white"
-                              />
-                              <div className="flex items-center gap-2">
-                                  {email.replySent ? (
-                                      <Badge variant="success"><CheckCircle className="mr-2 h-4 w-4"/> Reply Sent</Badge>
-                                  ) : (
-                                    <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
-                                      {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
-                                      Send Email Reply
-                                    </Button>
-                                  )}
-                              </div>
-                         </div>
-                     ) : null }
-
-                     <div className="flex items-center gap-2 pt-2">
-                        <Button size="sm" variant="default" onClick={() => {
-                            const taskTitle = email.aiTask?.title || email.subject;
-                            const taskDescription = email.aiTask?.description || `Follow up on email from ${email.from.name || email.from.address}:\n\n${email.text}`;
-                            setSelectedTask({
-                                title: taskTitle,
-                                description: taskDescription,
-                                id: email.id,
-                            } as unknown as Task);
-                            setIsTaskFormOpen(true);
-                        }}
-                        disabled={email.taskCreated}
-                        >
-                            {email.taskCreated ? <><CheckCircle className="mr-2 h-4 w-4" />Task Created</> : <><PlusCircle className="mr-2 h-4 w-4" />Create Task</>}
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id || !!(draftReplies[email.id] || email.aiDraftReply)}>
-                            {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />}
-                            {isDrafting === email.id ? 'Drafting...' : 'Draft Reply'}
-                        </Button>
+             <div className="p-3 bg-background rounded-md border space-y-2">
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Bot className="h-4 w-4 text-primary" />
+                        <h4 className="text-sm font-semibold">AI Summary & Actions</h4>
                     </div>
-                     <div className="flex items-center gap-2 pt-2">
-                        {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
-                        {email.aiPriority && <Badge variant={email.aiPriority === 'High' ? 'destructive' : 'outline'}>{email.aiPriority}</Badge>}
+                     <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleReplyToEmail(email)}><Mail className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleForwardEmail(email)}><Forward className="h-4 w-4" /></Button>
+                        {email.status === 'new' && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(email.id, 'archived')}><Archive className="h-4 w-4" /></Button>
+                        )}
+                        {email.status === 'archived' && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(email.id, 'new')}><ArchiveRestore className="h-4 w-4" /></Button>
+                        )}
+                    </div>
+                 </div>
+
+                 {email.aiSummary ? (
+                    <ReactMarkdown className="text-xs prose prose-sm max-w-none"
+                    components={{ p: ({node, ...props}) => <p className="my-1" {...props} /> }}
+                    >{email.aiSummary}</ReactMarkdown>
+                 ) : (
+                    <p className="text-xs text-muted-foreground">No AI summary available for this email.</p>
+                 )}
+                 
+                 {email.attachments && email.attachments.length > 0 && (
+                    <div className="pt-2">
+                         <p className="text-xs font-semibold mb-1">Attachments:</p>
+                         <div className="flex flex-wrap gap-2">
+                            {email.attachments.filter(att => att.filename && !att.filename.toLowerCase().endsWith('.png')).map((att, index) => (
+                                 <a
+                                    key={index}
+                                    href={att.dataUrl || '#'}
+                                    download={att.filename || 'attachment'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs flex items-center gap-1.5 bg-muted p-1.5 rounded-md hover:bg-muted/80"
+                                >
+                                    <Paperclip className="h-3 w-3"/>
+                                    {att.filename || 'download'}
+                                </a>
+                            ))}
+                         </div>
+                    </div>
+                 )}
+
+                 {(draftReplies[email.id] || email.aiDraftReply) ? (
+                     <div className="p-2 border-l-2 border-primary bg-primary/10 space-y-2">
+                        <p className="text-xs font-semibold">Suggested Reply:</p>
+                          <Textarea 
+                              defaultValue={draftReplies[email.id] || email.aiDraftReply}
+                              onChange={(e) => setDraftReplies(prev => ({...prev, [email.id]: e.target.value}))}
+                              rows={5}
+                              className="text-xs bg-white"
+                          />
+                          <div className="flex items-center gap-2">
+                              {email.replySent ? (
+                                  <Badge variant="success"><CheckCircle className="mr-2 h-4 w-4"/> Reply Sent</Badge>
+                              ) : (
+                                <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSendReply(email); }} disabled={isSending === email.id}>
+                                  {isSending === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4" />}
+                                  Send Email Reply
+                                </Button>
+                              )}
+                          </div>
                      </div>
+                 ) : null }
+
+                 <div className="flex items-center gap-2 pt-2">
+                    <Button size="sm" variant="default" onClick={() => {
+                        const taskTitle = email.aiTask?.title || email.subject;
+                        const taskDescription = email.aiTask?.description || `Follow up on email from ${email.from.name || email.from.address}:\n\n${email.text}`;
+                        setSelectedTask({
+                            title: taskTitle,
+                            description: taskDescription,
+                            id: email.id,
+                        } as unknown as Task);
+                        setIsTaskFormOpen(true);
+                    }}
+                    disabled={email.taskCreated}
+                    >
+                        {email.taskCreated ? <><CheckCircle className="mr-2 h-4 w-4" />Task Created</> : <><PlusCircle className="mr-2 h-4 w-4" />Create Task</>}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleDraftReply(email)} disabled={isDrafting === email.id || !!(draftReplies[email.id] || email.aiDraftReply)}>
+                        {isDrafting === email.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4" />}
+                        {isDrafting === email.id ? 'Drafting...' : 'Draft Reply'}
+                    </Button>
                 </div>
-             )}
+                 <div className="flex items-center gap-2 pt-2">
+                    {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
+                    {email.aiPriority && <Badge variant={email.aiPriority === 'High' ? 'destructive' : 'outline'}>{email.aiPriority}</Badge>}
+                 </div>
+            </div>
         </div>
     );
 
