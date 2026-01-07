@@ -122,8 +122,11 @@ export async function POST(req: NextRequest) {
             const emailDocRef = doc(db, 'processedEmails', idHash);
             const docSnap = await getDoc(emailDocRef);
 
-            // If it's a PayFast email, process it for order status update
-            if (parsedMail.from?.value[0]?.address === 'noreply@payfast.io') {
+            // If it's a trusted email, process it for order status update
+            const fromAddress = parsedMail.from?.value[0]?.address;
+            const trustedSenders = ['noreply@payfast.io', 'kev@thinkestry.co.za'];
+            
+            if (fromAddress && trustedSenders.includes(fromAddress)) {
                 const orderIdMatch = parsedMail.text?.match(/Order ID:\s*(\S+)/);
                 const orderId = orderIdMatch ? orderIdMatch[1] : null;
 
