@@ -13,6 +13,8 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 
+export const dynamic = 'force-dynamic';
+
 // Function to safely extract attachments by uploading them to Cloud Storage
 const getAttachments = async (attachments: any[], userId: string, emailId: string): Promise<any[]> => {
     return Promise.all(attachments.map(async (attachment) => {
@@ -67,6 +69,7 @@ async function getUserIdFromRequestOrCron(req: NextRequest): Promise<string | nu
 
 export async function POST(req: NextRequest) {
     let userId: string | null = null;
+    let connection: imaps.ImapSimple | null = null;
     try {
         userId = await getUserIdFromRequestOrCron(req);
 
@@ -96,7 +99,7 @@ export async function POST(req: NextRequest) {
             },
         };
 
-        const connection = await imaps.connect(imapConfig);
+        connection = await imaps.connect(imapConfig);
         await connection.openBox('INBOX');
 
         let count = 0;
@@ -200,8 +203,6 @@ export async function POST(req: NextRequest) {
             await setDoc(emailDocRef, emailData, { merge: true });
             count++;
         }
-
-        connection.end();
         
         // After successful sync, update the status document
         const syncStatusRef = doc(db, 'system', 'emailSyncStatus');
@@ -230,5 +231,9 @@ export async function POST(req: NextRequest) {
             { error: 'Failed to fetch emails.', details: errorMessage },
             { status: 500 }
         );
+    } finally {
+        if (connection) {
+            connection.end();
+        }
     }
 }
