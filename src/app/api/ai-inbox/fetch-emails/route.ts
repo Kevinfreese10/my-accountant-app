@@ -129,20 +129,18 @@ export async function POST(req: NextRequest) {
             const trustedSenders = ['noreply@payfast.io', 'kev@thinkestry.co.za'];
             
             if (fromAddress && trustedSenders.includes(fromAddress)) {
-                // Improved Order ID detection
                 const combinedText = `${parsedMail.subject || ''} ${parsedMail.text || ''}`;
-                const orderIdMatch = combinedText.match(/(?:Order ID|ID|m_payment_id=):\s*(\w+)/i);
+                // Regex to find "Order ID: XXXX", "m_payment_id=XXXX", or "(ID: XXXX)"
+                const orderIdMatch = combinedText.match(/(?:Order ID:|m_payment_id=|\(ID:)\s*(\d+)/i);
                 const orderId = orderIdMatch ? orderIdMatch[1] : null;
 
                 if (orderId) {
-                    const orderQuery = query(collection(db, 'orders'), where('id', '==', orderId));
-                    const orderSnapshot = await getDocs(orderQuery);
-                    if (!orderSnapshot.empty) {
-                        const orderDoc = orderSnapshot.docs[0];
-                        if (orderDoc.data().status === 'Pending Payment') {
-                            await updateDoc(orderDoc.ref, { status: 'Processing' });
-                            console.log(`Order ${orderId} status updated to Processing.`);
-                        }
+                    const orderRef = doc(db, 'orders', orderId);
+                    const orderDoc = await getDoc(orderRef);
+
+                    if (orderDoc.exists() && orderDoc.data().status === 'Pending Payment') {
+                        await updateDoc(orderRef, { status: 'Processing' });
+                        console.log(`Order ${orderId} status updated to Processing.`);
                     }
                 }
             }
