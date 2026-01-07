@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
@@ -30,25 +31,55 @@ type Client = User & { status: 'Active' | 'Inactive' | 'Archived'; };
 
 const clientStatuses: ('Active' | 'Inactive' | 'Archived')[] = ['Active', 'Inactive', 'Archived'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
-
+const vatCategories: { value: 'A' | 'B' | 'C'; label: string }[] = [
+    { value: 'A', label: 'Category A (Odd Months)' },
+    { value: 'B', label: 'Category B (Even Months)' },
+    { value: 'C', label: 'Category C (Monthly)' },
+];
 
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client/Company name is required.'),
   status: z.enum(clientStatuses).optional(),
   yearEnd: z.string().min(1, 'Financial Year End is required.'),
+  // Automation settings
+  isVatRegistered: z.boolean().default(false),
+  vatCategory: z.enum(['A', 'B', 'C']).optional(),
+  submitsEmp201: z.boolean().default(false),
+  submitsEmp501: z.boolean().default(false),
+  submitsProvisionalTax: z.boolean().default(false),
+  submitsIncomeTax: z.boolean().default(false),
+  preparesFinancials: z.boolean().default(false),
+  submitsAnnualReturns: z.boolean().default(false),
+  submitsBeneficialOwnership: z.boolean().default(false),
+  requiresManagementAccounts: z.boolean().default(false),
+  managementAccountsFrequency: z.enum(['Monthly', 'Quarterly', 'Bi-Annually', 'Annually']).optional(),
 });
 
-function ClientForm({ client, onSubmit, onCancel }: { client: Partial<User> | null, onSubmit: (data: any, originalClient: Partial<User> | null) => void, onCancel: () => void }) {
+function ClientForm({ client, onSubmit, onCancel, taskTemplates }: { client: Partial<User> | null, onSubmit: (data: any, originalClient: Partial<User> | null) => void, onCancel: () => void, taskTemplates: Task[] }) {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
             status: client?.status || 'Active',
-            yearEnd: client?.yearEnd || '',
+            yearEnd: client?.yearEnd || 'February',
+            isVatRegistered: client?.isVatRegistered || false,
+            vatCategory: client?.vatCategory || undefined,
+            submitsEmp201: client?.submitsEmp201 || false,
+            submitsEmp501: client?.submitsEmp501 || false,
+            submitsProvisionalTax: client?.submitsProvisionalTax || false,
+            submitsIncomeTax: client?.submitsIncomeTax || false,
+            preparesFinancials: client?.preparesFinancials || false,
+            submitsAnnualReturns: client?.submitsAnnualReturns || false,
+            submitsBeneficialOwnership: client?.submitsBeneficialOwnership || false,
+            requiresManagementAccounts: client?.requiresManagementAccounts || false,
+            managementAccountsFrequency: client?.managementAccountsFrequency || undefined,
         },
     });
+
+    const isVatRegistered = form.watch('isVatRegistered');
+    const requiresManagementAccounts = form.watch('requiresManagementAccounts');
 
     return (
         <Form {...form}>
@@ -58,6 +89,50 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Partial<User> | nu
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
+                
+                <Separator />
+                
+                <div>
+                  <h3 className="text-lg font-medium">Automation Settings</h3>
+                  <p className="text-sm text-muted-foreground">Select the services this client requires to automate task creation.</p>
+                </div>
+                
+                <div className="space-y-4 rounded-lg border p-4">
+                    <FormField
+                        control={form.control}
+                        name="isVatRegistered"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5"><FormLabel>VAT Submissions</FormLabel></div>
+                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            </FormItem>
+                        )}
+                    />
+                     {isVatRegistered && (
+                        <div className="pl-4">
+                            <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                         </div>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="submitsEmp201" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>EMP201 (PAYE)</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="submitsEmp501" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>EMP501</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="submitsProvisionalTax" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Provisional Tax</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="submitsIncomeTax" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Income Tax (ITR14)</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="preparesFinancials" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Annual Financials</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="submitsAnnualReturns" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>CIPC Annual Returns</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="submitsBeneficialOwnership" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Beneficial Ownership</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                </div>
+                 <div className="space-y-4 rounded-lg border p-4">
+                     <FormField control={form.control} name="requiresManagementAccounts" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between"><div className="space-y-0.5"><FormLabel>Management Accounts</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                    {requiresManagementAccounts && (
+                        <div className="pl-4">
+                           <FormField control={form.control} name="managementAccountsFrequency" render={({ field }) => ( <FormItem><FormLabel>Frequency</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger></FormControl><SelectContent>{['Monthly', 'Quarterly', 'Bi-Annually', 'Annually'].map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        </div>
+                    )}
+                 </div>
+
                 
                 <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
@@ -147,20 +222,64 @@ export default function AdminClientsPage() {
       name: data.name,
       status: data.status,
       yearEnd: data.yearEnd,
+      isVatRegistered: data.isVatRegistered,
+      vatCategory: data.isVatRegistered ? data.vatCategory : undefined,
+      submitsEmp201: data.submitsEmp201,
+      submitsEmp501: data.submitsEmp501,
+      submitsProvisionalTax: data.submitsProvisionalTax,
+      submitsIncomeTax: data.submitsIncomeTax,
+      preparesFinancials: data.preparesFinancials,
+      submitsAnnualReturns: data.submitsAnnualReturns,
+      submitsBeneficialOwnership: data.submitsBeneficialOwnership,
+      requiresManagementAccounts: data.requiresManagementAccounts,
+      managementAccountsFrequency: data.requiresManagementAccounts ? data.managementAccountsFrequency : undefined,
     };
     
     try {
+        let clientId: string;
         if (originalClient?.id) { 
-            const clientRef = doc(db, "clients", originalClient.id);
+            clientId = originalClient.id;
+            const clientRef = doc(db, "clients", clientId);
             await updateDoc(clientRef, clientDataForDb);
             toast({ title: 'Client Updated' });
         } else { // Creating new client
-            const clientIdForTasks = doc(collection(db, "clients")).id;
-            const newDocRef = doc(db, "clients", clientIdForTasks);
+            clientId = doc(collection(db, "clients")).id;
+            const newDocRef = doc(db, "clients", clientId);
             await setDoc(newDocRef, { ...clientDataForDb, role: 'client', source: 'Client Management', createdAt: serverTimestamp() });
             toast({ title: 'Client Created' });
         }
         
+        // Task Sync Logic
+        const batch = writeBatch(db);
+        const existingTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId));
+        const existingTasksSnapshot = await getDocs(existingTasksQuery);
+        const existingTasks = existingTasksSnapshot.docs.map(d => ({id: d.id, ...d.data()}));
+        
+        for (const template of taskTemplates) {
+            const isApplicableNow = !!clientDataForDb[template.triggerField as keyof typeof clientDataForDb];
+            const wasApplicable = originalClient ? !!originalClient[template.triggerField as keyof typeof originalClient] : false;
+            
+            const existingTask = existingTasks.find(t => t.title === template.title.replace('{clientName}', clientDataForDb.name!));
+
+            if (isApplicableNow && !existingTask) {
+                // Create new task
+                const newTaskRef = doc(collection(db, 'tasks'));
+                batch.set(newTaskRef, {
+                    ...template,
+                    clientId: clientId,
+                    title: template.title.replace('{clientName}', clientDataForDb.name!),
+                    status: 'To-Do',
+                    assignedTo: [], // Assign later or based on dept
+                    createdAt: serverTimestamp(),
+                });
+            } else if (!isApplicableNow && wasApplicable && existingTask) {
+                // Delete task
+                const taskRef = doc(db, 'tasks', existingTask.id);
+                batch.delete(taskRef);
+            }
+        }
+        await batch.commit();
+
         fetchClientsAndStaff();
         setIsFormOpen(false);
         setSelectedClient(null);
@@ -214,6 +333,7 @@ export default function AdminClientsPage() {
                     client={selectedClient} 
                     onSubmit={handleFormSubmit}
                     onCancel={() => setIsFormOpen(false)}
+                    taskTemplates={taskTemplates}
                 />
            </DialogContent>
         </Dialog>
