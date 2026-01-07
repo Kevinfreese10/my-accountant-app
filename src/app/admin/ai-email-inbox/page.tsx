@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Inbox, Loader2, RefreshCw, Send, Trash, Archive, Bot, MoreHorizontal, Eye, PlusCircle, Mail, Send as SendIcon, Forward, CheckCircle, Pencil, Paperclip, ArchiveRestore, Sparkles } from "lucide-react";
 import { Button } from '@/components/ui/button';
@@ -230,11 +230,11 @@ export default function AIEmailInboxPage() {
                 subject: email.subject,
                 body: email.text,
                 sender: email.from.name || email.from.address,
+                userSignature: user?.emailSignature,
             });
             
-            const draft = `${result.draft}\n\n${user?.emailSignature || ''}`;
-            await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: draft });
-            setDraftReplies(prev => ({...prev, [email.id]: { reply: draft, cc: '', bcc: '' }}));
+            await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: result.draft });
+            setDraftReplies(prev => ({...prev, [email.id]: { reply: result.draft, cc: '', bcc: '' }}));
         } catch (e) {
             toast({ title: 'Failed to draft reply', variant: 'destructive' });
         } finally {
