@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, where, orderBy, onSnapshot, getFirestore, doc, updateDoc, Timestamp, arrayUnion, addDoc, getDocs } from 'firebase/firestore';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { OrderNote, ProcessedEmail, User, Task } from '@/lib/types';
 import { format, isToday, isThisWeek, isThisYear } from 'date-fns';
@@ -30,6 +31,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 
 
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 const newEmailFormSchema = z.object({
   to: z.string().email('A valid recipient email is required.'),
@@ -37,6 +39,7 @@ const newEmailFormSchema = z.object({
   bcc: z.string().optional(),
   subject: z.string().min(3, 'Subject is required.'),
   body: z.string().min(10, 'Email body is required.'),
+  attachments: z.any().optional(),
 });
 
 
@@ -274,7 +277,24 @@ export default function AIEmailInboxPage() {
         if (!user?.email) return;
         setIsSendingNew(true);
         toast({ title: 'Sending New Email...', description: 'Please wait.' });
+
         try {
+            let attachments: { filename: string; path: string }[] = [];
+            const files = values.attachments || [];
+
+            if (files.length > 0) {
+                 toast({ title: `Uploading ${files.length} attachment(s)...` });
+                 const uploadPromises = Array.from(files).map(async (file: any) => {
+                    const uniqueFileName = `${Date.now()}-${file.name}`;
+                    const storageRef = ref(storage, `email-attachments/${user.uid}/${uniqueFileName}`);
+                    const uploadTask = uploadBytesResumable(storageRef, file);
+                    const snapshot = await uploadTask;
+                    const downloadURL = await getDownloadURL(snapshot.ref);
+                    return { filename: file.name, path: downloadURL };
+                });
+                attachments = await Promise.all(uploadPromises);
+            }
+
             const emailHtml = values.body.replace(/\n\n/g, '<br/><br/>').replace(/\n/g, '<br/>');
             await sendEmail({
                 to: values.to,
@@ -283,11 +303,13 @@ export default function AIEmailInboxPage() {
                 subject: values.subject,
                 html: emailHtml,
                 replyTo: user.email,
+                attachments: attachments,
             });
             toast({ title: 'Email Sent!', description: `Your email to ${values.to} has been sent.` });
             setIsNewEmailOpen(false);
             newEmailForm.reset();
         } catch (e) {
+            console.error(e);
             toast({ title: 'Failed to send email', variant: 'destructive' });
         } finally {
             setIsSendingNew(false);
@@ -467,6 +489,19 @@ export default function AIEmailInboxPage() {
                              <FormField control={newEmailForm.control} name="bcc" render={({ field }) => ( <FormItem><FormLabel>BCC</FormLabel><FormControl><Input placeholder="Optional: bcc@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
                              <FormField control={newEmailForm.control} name="subject" render={({ field }) => ( <FormItem><FormLabel>Subject</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                              <FormField control={newEmailForm.control} name="body" render={({ field }) => ( <FormItem><FormLabel>Body</FormLabel><FormControl><Textarea rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                              <FormField
+                                control={newEmailForm.control}
+                                name="attachments"
+                                render={({ field: { onChange, value, ...rest }}) => (
+                                    <FormItem>
+                                        <FormLabel>Attachments</FormLabel>
+                                        <FormControl>
+                                            <Input type="file" multiple onChange={(e) => onChange(e.target.files)} {...rest} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                             <DialogFooter>
                                 <Button type="button" variant="outline" onClick={() => handleProofread(true, newEmailForm.getValues('body'), (newText) => newEmailForm.setValue('body', newText))} disabled={isProofreading}>
                                     {isProofreading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
