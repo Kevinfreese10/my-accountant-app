@@ -204,7 +204,7 @@ export default function AIEmailInboxPage() {
                 subject: email.subject,
                 body: email.text,
                 sender: email.from.name || email.from.address,
-                userSignature: user?.emailSignature || '',
+                userSignature: user?.emailSignature,
             });
             
             const draft = result.draft;
@@ -324,9 +324,18 @@ export default function AIEmailInboxPage() {
       }
       setIsProofreading(true);
       try {
-        const result = await proofreadNote({ text: currentText });
+        // Remove signature before proofreading
+        const signature = user?.emailSignature || '';
+        let bodyOnly = currentText;
+        if (signature && currentText.includes(signature)) {
+            bodyOnly = currentText.substring(0, currentText.lastIndexOf(signature));
+        }
+
+        const result = await proofreadNote({ text: bodyOnly });
+        const proofreadWithSignature = `${result.proofreadText}\n\n${signature}`;
+
         if (formUpdater) {
-          formUpdater(result.proofreadText);
+          formUpdater(proofreadWithSignature);
         }
         toast({ title: "Note Proofread", description: "Your message has been improved by AI." });
       } catch (e) {
@@ -582,7 +591,3 @@ export default function AIEmailInboxPage() {
         </div>
     );
 }
-
-    
-
-
