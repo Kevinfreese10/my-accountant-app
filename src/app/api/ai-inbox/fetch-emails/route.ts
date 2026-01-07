@@ -40,11 +40,38 @@ const getAttachments = async (attachments: any[], userId: string, emailId: strin
     }));
 };
 
+async function getUserIdFromRequestOrCron(req: NextRequest): Promise<string | null> {
+    try {
+        const body = await req.json();
+        if (body.userId) {
+            return body.userId;
+        }
+    } catch (e) {
+        // Body is likely empty, which is expected for a cron job.
+    }
+    
+    // If no userId in body, assume it's a cron job and fetch the default admin user.
+    console.log("No userId in request body, fetching default admin user for cron job.");
+    const adminEmail = 'kev@thinkestry.co.za';
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('email', '==', adminEmail), where('role', '==', 'admin'));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+        console.error("Cron job failed: Default admin user not found.");
+        return null;
+    }
+    
+    return querySnapshot.docs[0].id;
+}
+
+
 export async function POST(req: NextRequest) {
     try {
-        const { userId } = await req.json();
+        const userId = await getUserIdFromRequestOrCron(req);
+
         if (!userId) {
-            return NextResponse.json({ error: 'User ID is required.' }, { status: 400 });
+            return NextResponse.json({ error: 'User ID could not be determined.' }, { status: 400 });
         }
 
         const userDocRef = doc(db, 'users', userId);
