@@ -17,8 +17,7 @@ const MAX_FIELD_SIZE = 1048000;
 // Function to safely extract attachments
 const getAttachments = async (attachments: any[]): Promise<any[]> => {
     return Promise.all(attachments.map(async (attachment) => {
-        // The buffer is already available, just convert it to a data URI
-        const dataUrl = `data:${attachment.contentType || 'application/octet-stream'};base64,${attachment.content.toString('base64')}`;
+        const dataUrl = attachment.content ? `data:${attachment.contentType || 'application/octet-stream'};base64,${attachment.content.toString('base64')}` : '';
         return {
             filename: attachment.filename || '',
             contentType: attachment.contentType || '',

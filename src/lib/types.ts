@@ -443,7 +443,7 @@ export type ProcessedEmail = {
     title: string;
     description: string;
   };
-  aiDraftReply?: string;
+  aiDraftReply?: string | null;
   taskCreated?: boolean;
   replySent?: boolean;
 };

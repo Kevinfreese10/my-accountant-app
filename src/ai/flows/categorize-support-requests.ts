@@ -14,10 +14,10 @@ import {z} from 'genkit';
 import { websiteQAndA } from './website-q-and-a';
 
 const AttachmentSchema = z.object({
-  filename: z.string().nullable(),
-  contentType: z.string().nullable(),
-  dataUrl: z.string().nullable(),
-  size: z.number().nullable(),
+  filename: z.string(),
+  contentType: z.string(),
+  dataUrl: z.string(),
+  size: z.number(),
 });
 
 const CategorizeSupportRequestInputSchema = z.object({
