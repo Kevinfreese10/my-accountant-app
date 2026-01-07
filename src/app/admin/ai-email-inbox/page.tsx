@@ -63,6 +63,7 @@ export default function AIEmailInboxPage() {
     const [isProofreading, setIsProofreading] = useState(false);
     const [syncStatus, setSyncStatus] = useState<{ lastSync: Date | null, status: string }>({ lastSync: null, status: 'idle' });
     const [nextSyncCountdown, setNextSyncCountdown] = useState('');
+    const syncTriggeredRef = useRef(false);
 
 
     const newEmailForm = useForm<z.infer<typeof newEmailFormSchema>>({
@@ -95,6 +96,35 @@ export default function AIEmailInboxPage() {
         return formatDistanceToNow(syncStatus.lastSync, { addSuffix: true });
     }, [syncStatus.lastSync]);
     
+    const handleSyncEmails = async () => {
+        if (!user?.uid) {
+            toast({ title: 'Error', description: 'You must be logged in to sync emails.', variant: 'destructive' });
+            return;
+        }
+
+        setIsSyncing(true);
+        toast({ title: 'Syncing Emails...', description: 'Please wait, this may take a moment.' });
+
+        try {
+            const response = await fetch('/api/ai-inbox/fetch-emails', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.details || 'Failed to sync emails.');
+            }
+
+            toast({ title: 'Sync Complete', description: data.message });
+        } catch (error: any) {
+            toast({ title: 'Sync Failed', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     useEffect(() => {
         const timer = setInterval(() => {
             const now = new Date();
@@ -103,8 +133,18 @@ export default function AIEmailInboxPage() {
             
             const minutesToNextQuarter = 14 - (minutes % 15);
             const secondsToNextQuarter = 59 - seconds;
+            
+            const countdownString = `${String(minutesToNextQuarter).padStart(2, '0')}:${String(secondsToNextQuarter).padStart(2, '0')}`;
+            setNextSyncCountdown(countdownString);
 
-            setNextSyncCountdown(`${String(minutesToNextQuarter).padStart(2, '0')}:${String(secondsToNextQuarter).padStart(2, '0')}`);
+            if (minutesToNextQuarter === 0 && secondsToNextQuarter < 2) {
+                if (!syncTriggeredRef.current) {
+                    syncTriggeredRef.current = true;
+                    handleSyncEmails();
+                }
+            } else {
+                syncTriggeredRef.current = false;
+            }
         }, 1000);
         
         return () => clearInterval(timer);
@@ -168,36 +208,6 @@ export default function AIEmailInboxPage() {
         }
     }, [user, toast]);
 
-    const handleSyncEmails = async () => {
-        if (!user?.uid) {
-            toast({ title: 'Error', description: 'You must be logged in to sync emails.', variant: 'destructive' });
-            return;
-        }
-
-        setIsSyncing(true);
-        toast({ title: 'Syncing Emails...', description: 'Please wait, this may take a moment.' });
-
-        try {
-            const response = await fetch('/api/ai-inbox/fetch-emails', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user.uid }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.details || 'Failed to sync emails.');
-            }
-
-            toast({ title: 'Sync Complete', description: data.message });
-        } catch (error: any) {
-            toast({ title: 'Sync Failed', description: error.message, variant: 'destructive' });
-        } finally {
-            setIsSyncing(false);
-        }
-    };
-    
     const formatDate = (timestamp: any): string => {
         if (!timestamp) return 'N/A';
         const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -247,6 +257,7 @@ export default function AIEmailInboxPage() {
                 subject: email.subject,
                 body: email.text,
                 sender: email.from.name || email.from.address,
+                userSignature: user?.emailSignature || '',
             });
             
             await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: result.draft });
@@ -581,7 +592,7 @@ export default function AIEmailInboxPage() {
                         <CardHeader>
                             <CardTitle>Compose New Email</CardTitle>
                         </CardHeader>
-                         <CardContent>
+                        <CardContent>
                             <ScrollArea className="h-[calc(100vh-25rem)] pr-4">
                                 <Form {...newEmailForm}>
                                     <form onSubmit={newEmailForm.handleSubmit(onNewEmailSubmit)} className="space-y-4">
@@ -645,3 +656,4 @@ export default function AIEmailInboxPage() {
         </div>
     );
 }
+

@@ -76,7 +76,7 @@ const generateEmailReplyFlow = ai.defineFlow(
         
         **CRITICAL INSTRUCTIONS:**
         1.  **NO HTML**: Your entire response MUST be plain text. Do NOT use any HTML tags like <p>, <h3>, <ul>, etc.
-        2.  **MARKDOWN FORMATTING**: Use Markdown for any formatting. For paragraphs, use double newlines (\\n\\n). For lists, use a hyphen (-) for each bullet point.
+        2.  **MARKDOWN FORMATTING**: Use Markdown for any formatting. For paragraphs, use double newlines (\n\n). For lists, use a hyphen (-) for each bullet point.
         3.  **SIGNATURE**: The user has provided their own email signature. You MUST use it exactly as provided. If no signature is provided, use the default signature.
         4.  **STRUCTURE**: The email MUST follow this exact structure:
             - Greeting (e.g., "Hi John,").
