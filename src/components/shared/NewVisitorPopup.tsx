@@ -21,13 +21,13 @@ export default function NewVisitorPopup() {
   const router = useRouter();
 
   useEffect(() => {
-    const hasSeenPopup = localStorage.getItem(POPUP_STORAGE_KEY);
-    if (!hasSeenPopup) {
+    // const hasSeenPopup = localStorage.getItem(POPUP_STORAGE_KEY);
+    // if (!hasSeenPopup) {
       const timer = setTimeout(() => {
         setIsOpen(true);
       }, 3000); // Show popup after 3 seconds
       return () => clearTimeout(timer);
-    }
+    // }
   }, []);
 
   const handleClose = () => {
