@@ -1,5 +1,4 @@
 
-
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -144,7 +143,7 @@ export type Order = {
   itnHistory?: ItnLog[];
   source?: 'Client' | 'Staff' | 'Partner' | 'AI Accountant Signup';
   renewalForClientId?: string;
-  documentContact?: 'reseller' | 'client';
+  documentContact?: 'partner' | 'client';
 };
 
 export type Invoice = {
@@ -186,7 +185,7 @@ export type User = {
   name: string;
   surname?: string;
   email: string;
-  role: 'client' | 'admin' | 'staff' | 'reseller' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor';
+  role: 'client' | 'admin' | 'staff' | 'partner' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor';
   createdAt?: any;
   source?: 'AI Accountant' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';

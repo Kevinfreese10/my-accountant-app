@@ -71,7 +71,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const basePath = user.role === 'client' || user.role === 'ai_accountant'
     ? '/dashboard'
-    : user.role === 'reseller'
+    : user.role === 'partner'
     ? '/partner'
     : '/admin';
     
@@ -88,7 +88,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/ai-email-inbox', label: 'Email Inbox', icon: Inbox, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
-    { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
+    { href: '/admin/partners', label: 'Manage Partners', icon: Users, roles: ['admin'] },
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
@@ -110,10 +110,10 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const partnerNavItems = [
-    { href: '/partner/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['reseller'] },
-    { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['reseller'] },
-    { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['reseller'] },
-    { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['reseller'] },
+    { href: '/partner/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['partner'] },
+    { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['partner'] },
+    { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['partner'] },
+    { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['partner'] },
   ];
 
   const hasAIAccountantAccess = user.hasNumeraProfile || user.source === 'AI Accountant' || (user.sharedWith && user.sharedWith.length > 0);
@@ -177,7 +177,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuItem>
         ))}
 
-        {user.role === 'reseller' && visiblePartnerNavItems.map((item) => (
+        {user.role === 'partner' && visiblePartnerNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>
             <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                 <Link href={item.href}>

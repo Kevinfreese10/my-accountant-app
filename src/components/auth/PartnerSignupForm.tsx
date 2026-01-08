@@ -158,7 +158,7 @@ export default function PartnerSignupForm() {
             name: contactPersonFullName,
             id: authUid,
             uid: authUid,
-            role: 'reseller',
+            role: 'partner',
             status: 'Active',
             createdAt: serverTimestamp(),
             cvUrl: cvUrl,

@@ -101,7 +101,7 @@ const Header = () => {
                   <div className="mt-auto">
                   {isAuthenticated && user ? (
                       <div className="space-y-4">
-                          <Link href={user.role === 'reseller' ? '/reseller/dashboard' : '/admin/dashboard'} className="text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
+                          <Link href={user.role === 'partner' ? '/partner/dashboard' : '/admin/dashboard'} className="text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
                           <Button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full">Logout</Button>
                       </div>
                     ) : (
@@ -138,10 +138,10 @@ const UserMenu = ({ user, onLogout }: { user: any; onLogout: () => void }) => (
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
        <DropdownMenuItem asChild>
-        <Link href={user.role === 'reseller' ? '/reseller/dashboard' : '/admin/dashboard'}>Dashboard</Link>
+        <Link href={user.role === 'partner' ? '/partner/dashboard' : '/admin/dashboard'}>Dashboard</Link>
       </DropdownMenuItem>
        <DropdownMenuItem asChild>
-        <Link href={user.role === 'reseller' ? '/reseller/profile' : '/admin/staff'}>Profile</Link>
+        <Link href={user.role === 'partner' ? '/partner/profile' : '/admin/staff'}>Profile</Link>
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem onClick={onLogout}>
