@@ -20,6 +20,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Service } from '@/lib/types';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import PartnerWelcomeEmail from '../emails/PartnerWelcomeEmail';
 
 
 const auth = getAuth(firebaseApp);
@@ -163,6 +166,13 @@ export default function PartnerSignupForm() {
             createdAt: serverTimestamp(),
             cvUrl: cvUrl,
             certificateUrl: certificateUrl,
+        });
+
+        const emailHtml = render(<PartnerWelcomeEmail partnerName={values.name} dashboardUrl={`${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`} />);
+        await sendEmail({
+            to: values.email,
+            subject: 'Welcome to the My Accountant Partner Program!',
+            html: emailHtml,
         });
         
         await login(values.email, values.password);
