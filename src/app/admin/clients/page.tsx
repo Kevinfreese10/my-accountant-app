@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { User, Task } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
@@ -47,7 +47,7 @@ const formSchema = z.object({
   name: z.string().min(2, 'Client/Company name is required.'),
   entityType: z.enum(['Company', 'Trust', 'Individual']).default('Company'),
   status: z.enum(clientStatuses).optional(),
-  yearEnd: z.date().optional(),
+  yearEnd: z.date().optional().nullable(),
   // Automation settings
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(['A', 'B', 'C']).optional(),
@@ -60,21 +60,23 @@ const formSchema = z.object({
   submitsBeneficialOwnership: z.boolean().default(false),
   requiresManagementAccounts: z.boolean().default(false),
   managementAccountsFrequency: z.enum(['Monthly', 'Quarterly', 'Bi-Annually', 'Annually']).optional(),
-  cipcDueDate: z.date().optional(),
+  cipcDueDate: z.date().optional().nullable(),
 });
 
 function ClientForm({ client, onSubmit, onCancel, taskTemplates }: { client: Partial<User> | null, onSubmit: (data: any, originalClient: Partial<User> | null) => void, onCancel: () => void, taskTemplates: Task[] }) {
     
-    let yearEndAsDate: Date | undefined = undefined;
+    let yearEndAsDate: Date | null = null;
     if (client?.yearEnd) {
         if (client.yearEnd instanceof Date) {
             yearEndAsDate = client.yearEnd;
         } else if (typeof client.yearEnd === 'string') {
+            // This is now legacy, but we keep it for old data.
             const monthIndex = months.indexOf(client.yearEnd);
             if (monthIndex !== -1) {
+                // Default to current year, the exact year doesn't matter as much as month/day
                 yearEndAsDate = new Date(new Date().getFullYear(), monthIndex, 28);
             }
-        } else if ((client.yearEnd as any).toDate) {
+        } else if ((client.yearEnd as any)?.toDate) {
              yearEndAsDate = (client.yearEnd as any).toDate();
         }
     }
@@ -142,9 +144,9 @@ function ClientForm({ client, onSubmit, onCancel, taskTemplates }: { client: Par
                         />
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>{entityType} Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Financial Year End</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Financial Year End</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ?? undefined} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
                     {entityType === 'Company' && (
-                        <FormField control={form.control} name="cipcDueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>CIPC Annual Return Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="cipcDueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>CIPC Annual Return Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ?? undefined} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
                     )}
                 </div>
                 
@@ -280,7 +282,7 @@ export default function AdminClientsPage() {
   const handleFormSubmit = async (data: any, originalClient: Partial<User> | null) => {
     if (!currentUser) return;
     
-    let clientDataForDb: Partial<User> = {
+    const clientDataForDb: Partial<User> = {
       name: data.name,
       status: data.status,
       entityType: data.entityType,
@@ -354,15 +356,28 @@ export default function AdminClientsPage() {
     }
   };
   
-
-    const formatYearEnd = (yearEnd: any): string => {
-        if (!yearEnd) return 'N/A';
-        const date = yearEnd.toDate ? yearEnd.toDate() : new Date(yearEnd);
-        if (!isNaN(date.getTime())) {
-            return format(date, 'MMMM');
+  const formatYearEnd = (yearEnd: any): string => {
+    if (!yearEnd) return 'N/A';
+    if (yearEnd instanceof Date) {
+        return format(yearEnd, 'MMMM');
+    }
+    if (yearEnd.toDate && typeof yearEnd.toDate === 'function') {
+      const date = yearEnd.toDate();
+      return format(date, 'MMMM');
+    }
+    if(typeof yearEnd === 'string' && months.includes(yearEnd)) {
+        return yearEnd;
+    }
+    try {
+        const d = new Date(yearEnd);
+        if (!isNaN(d.getTime())) {
+             return format(d, 'MMMM');
         }
-        return 'Invalid Date';
-    };
+    } catch (e) {
+        // fall through
+    }
+    return 'Invalid Date';
+  };
 
 
   return (
