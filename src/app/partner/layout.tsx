@@ -13,12 +13,12 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   
   useEffect(() => {
-    if (isAuthenticated && user?.role !== 'reseller') {
+    if (isAuthenticated && user?.role !== 'partner') {
       router.push('/login');
     }
   }, [isAuthenticated, user, router]);
 
-  if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'reseller')) {
+  if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'partner')) {
      return (
         <div className="flex min-h-screen">
             <Skeleton className="hidden md:block w-16 lg:w-64" />
