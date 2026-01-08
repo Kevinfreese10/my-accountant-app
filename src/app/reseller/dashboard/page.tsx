@@ -206,7 +206,6 @@ export default function ResellerDashboardPage() {
     
             fetchOrdersAndStaff();
             
-            setOutsourcedOrderDetails(newOrderData as Order);
             router.push(`/order-confirmation/${newOrderId}`);
     
         } catch (error) {
@@ -295,7 +294,7 @@ export default function ResellerDashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card className="lg:col-span-1">
+                <Card className="lg:col-span-2">
                     <CardHeader>
                         <CardTitle>Notifications</CardTitle>
                         <CardDescription>Recent notes from My Accountant on your outsourced orders.</CardDescription>
@@ -347,7 +346,7 @@ export default function ResellerDashboardPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="lg:col-span-1">
+                <Card className="lg:col-span-2">
                     <CardHeader>
                         <CardTitle>Latest News</CardTitle>
                         <CardDescription>Stay up-to-date with the latest tax tips and articles.</CardDescription>
@@ -358,11 +357,11 @@ export default function ResellerDashboardPage() {
                                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {latestNews.map(post => (
-                                    <div key={post.id} className="group flex items-start gap-4">
-                                        <Link href={`/blog/${post.slug}`} className="block flex-shrink-0">
-                                            <div className="relative h-20 w-20 overflow-hidden rounded-lg">
+                                    <div key={post.id} className="group">
+                                        <Link href={`/blog/${post.slug}`} className="block">
+                                            <div className="relative h-40 w-full overflow-hidden rounded-lg">
                                                 <Image
                                                     src={post.imageUrl}
                                                     alt={post.title}
@@ -371,13 +370,11 @@ export default function ResellerDashboardPage() {
                                                     data-ai-hint={post.imageHint}
                                                 />
                                             </div>
+                                            <div className="mt-3">
+                                                <p className="text-sm font-semibold group-hover:text-primary">{post.title}</p>
+                                                <p className="text-xs text-muted-foreground mt-1">{format(new Date(post.date), 'dd/MM/yyyy')}</p>
+                                            </div>
                                         </Link>
-                                        <div className="flex-grow">
-                                            <p className="text-sm font-semibold leading-tight group-hover:text-primary">
-                                                <Link href={`/blog/${post.slug}`}>{post.title}</Link>
-                                            </p>
-                                            <p className="text-xs text-muted-foreground mt-1">{format(new Date(post.date), 'dd/MM/yyyy')}</p>
-                                        </div>
                                     </div>
                                 ))}
                             </div>
