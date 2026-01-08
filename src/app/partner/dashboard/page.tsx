@@ -282,7 +282,6 @@ export default function PartnerDashboardPage() {
         fetchOrdersAndStaff();
     };
 
-    const latestNews = blogPosts.slice(0, 3);
     const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
     const activeOutsourcedOrders = outsourcedOrders.filter(o => o.status !== 'Pending Payment');
 
@@ -293,8 +292,8 @@ export default function PartnerDashboardPage() {
                 <p className="text-lg text-muted-foreground">{user?.companyName}</p>
             </div>
             
-            <section>
-                <Card>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <Card className="lg:col-span-2">
                     <CardHeader>
                         <CardTitle>Notifications</CardTitle>
                         <CardDescription>Recent notes from My Accountant on your outsourced orders.</CardDescription>
@@ -345,45 +344,27 @@ export default function PartnerDashboardPage() {
                         )}
                     </CardContent>
                 </Card>
-            </section>
-
-            <section>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Latest News</CardTitle>
-                        <CardDescription>Stay up-to-date with the latest tax tips and articles.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isBlogLoading ? (
-                            <div className="flex justify-center items-center h-40">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {latestNews.map(post => (
-                                    <div key={post.id} className="group">
-                                        <Link href={`/blog/${post.slug}`} className="block">
-                                            <div className="relative h-40 w-full overflow-hidden rounded-lg">
-                                                <Image
-                                                    src={post.imageUrl}
-                                                    alt={post.title}
-                                                    fill
-                                                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                                                    data-ai-hint={post.imageHint}
-                                                />
-                                            </div>
-                                            <div className="mt-3">
-                                                <p className="text-sm font-semibold group-hover:text-primary">{post.title}</p>
-                                                <p className="text-xs text-muted-foreground mt-1">{format(new Date(post.date), 'dd/MM/yyyy')}</p>
-                                            </div>
-                                        </Link>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </section>
+                <div className="space-y-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Quick Actions</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <Button className="w-full justify-start" asChild><Link href="/partner/services"><Briefcase className="mr-2"/>View Services & Pricing</Link></Button>
+                            <Button className="w-full justify-start" asChild><Link href="/partner/ai-accountant/clients"><BrainCircuit className="mr-2"/>AI Accountant</Link></Button>
+                            <Button className="w-full justify-start" asChild><Link href="/partner/profile"><Users className="mr-2"/>Manage Profile</Link></Button>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Your Earnings</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground">Coming soon...</p>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
       
         </div>
     );
