@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 
 const db = getFirestore(firebaseApp);
 
-export default function ResellerServicesPage() {
+export default function PartnerServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewingService, setViewingService] = useState<Service | null>(null);
@@ -66,7 +66,7 @@ export default function ResellerServicesPage() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <CardTitle>Service & Price List</CardTitle>
-              <CardDescription>A complete list of all services available for you to resell.</CardDescription>
+              <CardDescription>A complete list of all services available for you to partner with us on.</CardDescription>
             </div>
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

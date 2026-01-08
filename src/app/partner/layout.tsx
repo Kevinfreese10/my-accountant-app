@@ -8,7 +8,7 @@ import DashboardNav from '@/components/dashboard/DashboardNav';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
 
-export default function ResellerLayout({ children }: { children: ReactNode }) {
+export default function PartnerLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   

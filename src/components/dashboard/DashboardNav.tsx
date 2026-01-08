@@ -1,5 +1,4 @@
 
-
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -63,7 +62,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const { logout } = useAuth();
   const { state, toggleSidebar } = useSidebar();
   const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/staff'));
-  const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant') || pathname.startsWith('/reseller/ai-accountant'));
+  const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant') || pathname.startsWith('/partner/ai-accountant'));
 
   const handleLogout = () => {
     logout();
@@ -73,7 +72,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const basePath = user.role === 'client' || user.role === 'ai_accountant'
     ? '/dashboard'
     : user.role === 'reseller'
-    ? '/reseller'
+    ? '/partner'
     : '/admin';
     
   const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3] || user.id;
@@ -89,7 +88,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/ai-email-inbox', label: 'Email Inbox', icon: Inbox, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
-    { href: '/admin/resellers', label: 'Manage Resellers', icon: Users, roles: ['admin'] },
+    { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
@@ -110,11 +109,11 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/seo', label: 'SEO Management', icon: Search, roles: ['admin'] },
   ];
 
-  const resellerNavItems = [
-    { href: '/reseller/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['reseller'] },
-    { href: '/reseller/services', label: 'View Products', icon: Briefcase, roles: ['reseller'] },
-    { href: '/reseller/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['reseller'] },
-    { href: '/reseller/profile', label: 'My Profile', icon: User, roles: ['reseller'] },
+  const partnerNavItems = [
+    { href: '/partner/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['reseller'] },
+    { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['reseller'] },
+    { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['reseller'] },
+    { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['reseller'] },
   ];
 
   const hasAIAccountantAccess = user.hasNumeraProfile || user.source === 'AI Accountant' || (user.sharedWith && user.sharedWith.length > 0);
@@ -122,7 +121,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
-  const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
+  const visiblePartnerNavItems = partnerNavItems.filter(item => item.roles.includes(user.role));
 
   return (
     <>
@@ -130,7 +129,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         <div className={cn("flex items-center gap-3 p-2", state === 'collapsed' && 'p-0')}>
             <div className={cn("flex-1 overflow-hidden", state === 'collapsed' && 'hidden')}>
                 <p className="font-semibold text-sm truncate">{user.companyName || user.name}</p>
-                <p className="text-xs text-muted-foreground capitalize truncate">{user.role.replace('_', ' ')}</p>
+                <p className="text-xs text-muted-foreground capitalize">{user.role.replace('_', ' ')}</p>
             </div>
              <Button
                 variant="ghost"
@@ -178,7 +177,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuItem>
         ))}
 
-        {user.role === 'reseller' && visibleResellerNavItems.map((item) => (
+        {user.role === 'reseller' && visiblePartnerNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>
             <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                 <Link href={item.href}>

@@ -35,7 +35,7 @@ const formSchema = z.object({
   }),
 });
 
-export default function ResellerProfile() {
+export default function PartnerProfile() {
   const router = useRouter();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -67,7 +67,7 @@ export default function ResellerProfile() {
   function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSaving(true);
     // In a real app, you would submit this to your backend
-    console.log('Updating reseller profile:', values);
+    console.log('Updating partner profile:', values);
     setTimeout(() => {
         toast({
             title: 'Profile Updated!',

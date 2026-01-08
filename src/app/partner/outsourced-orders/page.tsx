@@ -60,7 +60,7 @@ export default function OutsourcedOrdersPage() {
         setAllStaff(fetchedStaff);
 
         const ordersRef = collection(db, 'orders');
-        // Query for orders that belong to this reseller AND have an originalOrderId,
+        // Query for orders that belong to this partner AND have an originalOrderId,
         // which marks them as outsourced orders.
         const q = query(ordersRef, where('resellerId', '==', user.id), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
 
@@ -135,7 +135,7 @@ export default function OutsourcedOrdersPage() {
                 <div className="text-center py-10">
                     <p className="text-muted-foreground">You haven't outsourced any orders yet.</p>
                      <Button asChild className="mt-4">
-                        <Link href="/reseller/orders">View Client Orders</Link>
+                        <Link href="/partner/orders">View Client Orders</Link>
                     </Button>
                 </div>
              ) : (
@@ -160,7 +160,7 @@ export default function OutsourcedOrdersPage() {
                         <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell>
                             <Button variant="link" asChild className="p-0 h-auto font-semibold">
-                                <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
+                                <Link href={`/partner/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
                             </Button>
                         </TableCell>
                          <TableCell>
@@ -190,7 +190,7 @@ export default function OutsourcedOrdersPage() {
                         <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
                         <TableCell className="text-right">
                          <Button variant="ghost" size="icon" asChild>
-                            <Link href={`/reseller/outsourced-orders/${order.id}`}>
+                            <Link href={`/partner/outsourced-orders/${order.id}`}>
                                 <ArrowRight className="h-4 w-4" />
                             </Link>
                         </Button>

@@ -1,48 +1,70 @@
 
 'use client';
-import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
-import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus } from 'lucide-react';
-import Image from 'next/image';
-import { format } from 'date-fns';
-import { Order, Service, User } from '@/lib/types';
+
 import { useState, useEffect, useRef } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
+import Link from 'next/link';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useToast } from '@/hooks/use-toast';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
+import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
+import { useAuth } from '@/contexts/AuthContext';
 import { services as allServices } from '@/lib/data';
-import { Separator } from '@/components/ui/separator';
-import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderForm';
-import CommunityQnA from '@/components/reseller/CommunityQnA';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { MoreHorizontal, Loader2, PlusCircle, MessageSquare } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from '@/components/ui/dropdown-menu';
+import { format, formatDistanceToNow } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import PaymentConfirmationEmail from '@/components/emails/PaymentConfirmationEmail';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import CreatePartnerOrderForm from '@/components/partner/CreatePartnerOrderForm';
 import { useRouter } from 'next/navigation';
+
 
 const db = getFirestore(firebaseApp);
 
-export default function ResellerDashboardPage() {
-    const { user } = useAuth();
-    const router = useRouter();
-    const { blogPosts, isLoading: isBlogLoading } = useBlog();
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const { toast } = useToast();
-    const [isOutsourceModalOpen, setIsOutsourceModalOpen] = useState(false);
-    const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
-    const [outsourcedOrderDetails, setOutsourcedOrderDetails] = useState<Order | null>(null);
-    const [allStaff, setAllStaff] = useState<User[]>([]);
-    const staffCounters = useRef<{ [key: string]: number }>({});
+export default function PartnerOrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
+  const [allStaff, setAllStaff] = useState<User[]>([]);
+  const staffCounters = useRef<{ [key: string]: number }>({});
     
-    const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
+  const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
 
-    const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
+  const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
       const staffInDept = allStaff.filter(u => u.role === 'staff' && u.department === department);
       if (staffInDept.length === 0) return undefined;
 
@@ -52,9 +74,19 @@ export default function ResellerDashboardPage() {
       staffCounters.current[department] = (currentIndex + 1) % staffInDept.length;
       
       return nextStaff;
-    };
+  };
 
-    const fetchOrdersAndStaff = async () => {
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+  };
+
+
+  const fetchOrdersAndStaff = async () => {
       if (!user?.uid) {
         setIsLoading(false);
         return;
@@ -75,22 +107,25 @@ export default function ResellerDashboardPage() {
           return {
             ...data,
             id: doc.id,
-            date: data.date.toDate(),
+            date: data.date.toDate().toISOString(),
           } as Order;
         });
-        setOrders(clientOrders.filter(order => order.status !== 'Cancelled'));
-
-        const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
-        const outsourcedOrdersSnapshot = await getDocs(outsourcedOrdersQuery);
-        let fetchedOutsourcedOrders = outsourcedOrdersSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                ...data,
-                id: doc.id,
-                date: data.date.toDate(),
-            } as Order;
-        });
-        setOutsourcedOrders(fetchedOutsourcedOrders);
+        
+        // Fetch original order details if necessary
+        const ordersWithClientDetails = await Promise.all(clientOrders.map(async (order) => {
+            if (order.resellerId && !order.endCustomerEmail) { // Assuming if email is missing, so is name
+                const originalOrderRef = doc(db, 'orders', order.id); // The created order is the "original" in this context
+                const originalOrderSnap = await getDoc(originalOrderRef);
+                if (originalOrderSnap.exists()) {
+                    const originalOrderData = originalOrderSnap.data();
+                    order.endCustomerName = originalOrderData.customerName;
+                    order.endCustomerEmail = originalOrderData.customerEmail;
+                }
+            }
+            return order;
+        }));
+        
+        setOrders(ordersWithClientDetails.filter(order => order.status !== 'Cancelled'));
 
       } catch (error) {
         console.error("Error fetching orders: ", error);
@@ -162,7 +197,6 @@ export default function ResellerDashboardPage() {
     
             fetchOrdersAndStaff();
             
-            setOutsourcedOrderDetails(newOrderData as Order);
             router.push(`/order-confirmation/${newOrderId}`);
     
         } catch (error) {
@@ -208,15 +242,6 @@ export default function ResellerDashboardPage() {
     }
   };
 
-    const formatPrice = (price: number) => {
-        return new Intl.NumberFormat('en-ZA', {
-        style: 'currency',
-        currency: 'ZAR',
-        minimumFractionDigits: price % 1 === 0 ? 0 : 2,
-        maximumFractionDigits: 2,
-        }).format(price);
-    };
-
     const getStatusVariant = (status: Order['status']) => {
         switch (status) {
         case 'Completed':
@@ -239,59 +264,8 @@ export default function ResellerDashboardPage() {
         fetchOrdersAndStaff();
     };
 
-    const latestNews = blogPosts.slice(0, 3);
-    const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
-    const activeOutsourcedOrders = outsourcedOrders.filter(o => o.status !== 'Pending Payment');
-
     return (
         <div className="space-y-8">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.contactPerson}!</h1>
-                <p className="text-lg text-muted-foreground">{user?.companyName}</p>
-            </div>
-            
-            <section>
-              <CommunityQnA />
-            </section>
-
-            <section>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Latest News</CardTitle>
-                        <CardDescription>Stay up-to-date with the latest tax tips and articles.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isBlogLoading ? (
-                            <div className="flex justify-center items-center h-40">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {latestNews.map(post => (
-                                    <div key={post.id} className="group">
-                                        <Link href={`/blog/${post.slug}`} className="block">
-                                            <div className="relative h-40 w-full overflow-hidden rounded-lg">
-                                                <Image
-                                                    src={post.imageUrl}
-                                                    alt={post.title}
-                                                    fill
-                                                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                                                    data-ai-hint={post.imageHint}
-                                                />
-                                            </div>
-                                            <div className="mt-3">
-                                                <p className="text-sm font-semibold group-hover:text-primary">{post.title}</p>
-                                                <p className="text-xs text-muted-foreground">{format(new Date(post.date), 'dd/MM/yyyy')}</p>
-                                            </div>
-                                        </Link>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </section>
-
              <Card>
                 <CardHeader>
                 <div className="flex items-center justify-between">
@@ -313,7 +287,7 @@ export default function ResellerDashboardPage() {
                                 <DialogTitle>New Order Details</DialogTitle>
                                 <DialogDescription>Fill out the form below to create a new order for a client.</DialogDescription>
                             </DialogHeader>
-                            <CreateResellerOrderForm onOrderCreated={handleOrderCreated} />
+                            <CreatePartnerOrderForm onOrderCreated={handleOrderCreated} />
                         </DialogContent>
                     </Dialog>
                 </div>
@@ -343,7 +317,12 @@ export default function ResellerDashboardPage() {
                         <TableRow key={order.id}>
                             <TableCell className="font-medium">{order.id}</TableCell>
                             <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell>{order.customerName}</TableCell>
+                            <TableCell>
+                                <div>
+                                    <p className="font-medium">{order.endCustomerName || order.customerName}</p>
+                                    <p className="text-xs text-muted-foreground">{order.endCustomerEmail || order.customerEmail}</p>
+                                </div>
+                            </TableCell>
                             <TableCell>
                             <Badge variant={getStatusVariant(order.status)}>
                                 {order.status}
@@ -369,7 +348,7 @@ export default function ResellerDashboardPage() {
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem asChild>
-                                    <Link href={`/reseller/orders/${order.id}`}>View/Add Notes</Link>
+                                    <Link href={`/partner/orders/${order.id}`}>View/Add Notes</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuSub>
@@ -416,124 +395,6 @@ export default function ResellerDashboardPage() {
                 )}
                 </CardContent>
             </Card>
-      
-       <Card>
-        <CardHeader>
-          <CardTitle>Pending Approval</CardTitle>
-          <CardDescription>
-            These outsourced orders are awaiting your payment to be processed by My Accountant.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             </div>
-          ) : pendingApprovalOrders.length === 0 ? (
-             <p className="text-center text-muted-foreground py-4">No orders are pending approval.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Original Order</TableHead>
-                  <TableHead>Outsourced Date</TableHead>
-                  <TableHead className="text-right">Amount Due</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pendingApprovalOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>
-                      <Button variant="link" asChild className="p-0 h-auto">
-                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
-                      </Button>
-                    </TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
-                    <TableCell className="text-right">
-                       <Button asChild>
-                           <Link href={`/order-confirmation/${order.id}`}>Pay Now</Link>
-                        </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-       <Card>
-        <CardHeader>
-          <CardTitle>My Outsourced Orders</CardTitle>
-          <CardDescription>
-            These are the orders you have sent to My Accountant for fulfillment.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             </div>
-          ) : activeOutsourcedOrders.length === 0 ? (
-             <p className="text-center text-muted-foreground py-4">You have no active outsourced orders.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Original Order</TableHead>
-                  <TableHead>Outsourced Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount Paid</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeOutsourcedOrders.map((order) => {
-                  return (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>
-                      <Button variant="link" asChild className="p-0 h-auto">
-                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
-                      </Button>
-                    </TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusVariant(order.status)}>
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/reseller/outsourced-orders/${order.id}`}>
-                                <ArrowRight className="mr-2 h-4 w-4" />
-                                View Details & History
-                            </Link>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )})}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
+        </div>
+    );
 }

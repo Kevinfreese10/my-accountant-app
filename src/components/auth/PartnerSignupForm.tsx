@@ -58,7 +58,7 @@ type Category = {
 };
 
 
-export default function ResellerSignupForm() {
+export default function PartnerSignupForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -134,7 +134,7 @@ export default function ResellerSignupForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-        const { password, cv, certificate, ...resellerData } = values;
+        const { password, cv, certificate, ...partnerData } = values;
 
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const newFirebaseUser = userCredential.user;
@@ -145,15 +145,15 @@ export default function ResellerSignupForm() {
 
         if (values.wantsOutsourcedWork && values.cv?.[0] && values.certificate?.[0]) {
             toast({ title: 'Uploading Documents...', description: 'Please wait while we upload your files.' });
-            cvUrl = await uploadFile(values.cv[0], `reseller-applications/${authUid}/cv-${values.cv[0].name}`);
-            certificateUrl = await uploadFile(values.certificate[0], `reseller-applications/${authUid}/certificate-${values.certificate[0].name}`);
+            cvUrl = await uploadFile(values.cv[0], `partner-applications/${authUid}/cv-${values.cv[0].name}`);
+            certificateUrl = await uploadFile(values.certificate[0], `partner-applications/${authUid}/certificate-${values.certificate[0].name}`);
         }
         
         const contactPersonFullName = `${values.name} ${values.surname}`;
 
         const newUserDocRef = doc(db, "users", authUid);
         await setDoc(newUserDocRef, {
-            ...resellerData,
+            ...partnerData,
             contactPerson: contactPersonFullName,
             name: contactPersonFullName,
             id: authUid,
@@ -169,13 +169,13 @@ export default function ResellerSignupForm() {
 
         toast({
             title: 'Application Received!',
-            description: `Thank you, ${values.name}. Your reseller account has been created. Redirecting to your dashboard...`,
+            description: `Thank you, ${values.name}. Your partner account has been created. Redirecting to your dashboard...`,
         });
         
-        router.push('/reseller/dashboard');
+        router.push('/partner/dashboard');
 
     } catch (error: any) {
-        console.error("Reseller signup error:", error);
+        console.error("Partner signup error:", error);
         let description = 'There was a problem creating your account. Please try again.';
         if (error.code === 'auth/email-already-in-use') {
             description = 'An account with this email address already exists. Please log in instead.';
@@ -336,7 +336,7 @@ export default function ResellerSignupForm() {
                 </FormControl>
                 <div className="space-y-1 leading-none">
                     <FormLabel>
-                        I agree to the <Link href="/terms" className="underline" target="_blank">terms and conditions</Link> of the reseller program.
+                        I agree to the <Link href="/terms" className="underline" target="_blank">terms and conditions</Link> of the partner program.
                     </FormLabel>
                     <FormMessage />
                 </div>

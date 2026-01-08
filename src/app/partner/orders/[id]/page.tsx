@@ -41,7 +41,7 @@ const noteFormSchema = z.object({
   noteText: z.string().min(3, "Note must be at least 3 characters."),
 });
 
-export default function ResellerOrderDetailsPage() {
+export default function PartnerOrderDetailsPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const params = useParams();
@@ -181,15 +181,15 @@ export default function ResellerOrderDetailsPage() {
     if (!order || !currentUser) return;
     
     const isOutsourced = !!order.resellerId;
-    const resellerDetails = isOutsourced ? allStaff.find(u => u.uid === order.resellerId) : null;
+    const partnerDetails = isOutsourced ? allStaff.find(u => u.uid === order.resellerId) : null;
     
     let emailTo: string | undefined;
     let customerNameToUse: string;
 
     if (isOutsourced) {
-        // For a reseller order, we always contact the reseller, not the end client
-        emailTo = resellerDetails?.email;
-        customerNameToUse = resellerDetails?.companyName || resellerDetails?.name || 'Valued Partner';
+        // For a partner order, we always contact the partner, not the end client
+        emailTo = partnerDetails?.email;
+        customerNameToUse = partnerDetails?.companyName || partnerDetails?.name || 'Valued Partner';
     } else {
         emailTo = order.customerEmail;
         customerNameToUse = order.customerName;
@@ -211,15 +211,15 @@ export default function ResellerOrderDetailsPage() {
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
         
-        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={resellerDetails || undefined} replyTo={currentUser.email || 'info@myacc.co.za'} />);
+        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={partnerDetails || undefined} replyTo={currentUser.email || 'info@myacc.co.za'} />);
         subject = `Action Required for Your Order #${orderForEmail.id}`;
         message = `Sent 'Request Documents' email to ${emailTo}.`;
     } else if (type === 'payment') {
-         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={resellerDetails || undefined} />);
+         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={partnerDetails || undefined} />);
          subject = `Payment Reminder for Your Order: #${orderForEmail.id}`;
          message = `Sent 'Payment Follow-up' email to ${emailTo}.`;
     } else if (type === 'review') {
-         emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={resellerDetails || undefined} />);
+         emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={partnerDetails || undefined} />);
          subject = `We'd love your feedback on order #${orderForEmail.id}`;
          message = `Sent 'Request a Review' email to ${emailTo}.`;
     }
@@ -252,7 +252,7 @@ export default function ResellerOrderDetailsPage() {
     <div className="space-y-8">
         <div>
             <Button variant="outline" asChild>
-                <Link href="/reseller/orders">
+                <Link href="/partner/orders">
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Orders
                 </Link>
@@ -326,7 +326,7 @@ export default function ResellerOrderDetailsPage() {
                                             <div className="bg-muted p-3 rounded-lg w-full">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <p className="text-xs font-semibold">{author?.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd MMM yyyy, HH:mm')}</p>
+                                                    <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd/MM/yyyy, HH:mm')}</p>
                                                 </div>
                                                 <p className="text-sm">{note.text}</p>
                                             </div>

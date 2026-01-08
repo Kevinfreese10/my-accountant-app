@@ -26,7 +26,7 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-export default function ResellerOutsourcedOrderDetailsPage() {
+export default function PartnerOutsourcedOrderDetailsPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const params = useParams();
@@ -48,7 +48,7 @@ export default function ResellerOutsourcedOrderDetailsPage() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-           // Security check: ensure the fetched order belongs to the reseller
+           // Security check: ensure the fetched order belongs to the partner
           if (data.resellerId !== currentUser.id) {
              notFound();
              return;
@@ -120,7 +120,7 @@ export default function ResellerOutsourcedOrderDetailsPage() {
     <div className="space-y-8">
         <div>
             <Button variant="outline" asChild>
-                <Link href="/reseller/orders">
+                <Link href="/partner/orders">
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Orders
                 </Link>
@@ -209,7 +209,7 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                            <CardTitle className="text-lg">Fulfillment Details</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                           <p className="text-sm text-muted-foreground">This order is being processed by My Accountant. Your original order ID for your client is <Button variant="link" asChild className="p-0 h-auto font-semibold"><Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link></Button>.</p>
+                           <p className="text-sm text-muted-foreground">This order is being processed by My Accountant. Your original order ID for your client is <Button variant="link" asChild className="p-0 h-auto font-semibold"><Link href={`/partner/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link></Button>.</p>
                            {assignee ? (
                                 <div className="space-y-4 pt-2">
                                      <h4 className="font-semibold text-sm">Assigned To</h4>

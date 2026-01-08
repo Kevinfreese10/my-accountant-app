@@ -47,9 +47,9 @@ const formSchema = z.object({
 
 type CreateOrderFormValues = z.infer<typeof formSchema>;
 
-export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCreated: () => void }) {
+export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCreated: () => void }) {
   const router = useRouter();
-  const { user: reseller } = useAuth();
+  const { user: partner } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -144,7 +144,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
             merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
             merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
             return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/reseller/orders`,
+            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/orders`,
             notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
             name_first: order.customerName.split(' ')[0],
             name_last: order.customerName.split(' ').slice(1).join(' '),
@@ -170,7 +170,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
 
 
   async function onSubmit(values: CreateOrderFormValues) {
-    if (!reseller) {
+    if (!partner) {
         toast({ title: 'Error', description: 'You must be logged in to create an order.', variant: 'destructive'});
         return;
     }
@@ -187,10 +187,10 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       
       const orderData: Order = {
         id: orderId,
-        resellerId: reseller.uid,
-        customerName: reseller.companyName || `${reseller.name} ${reseller.surname}`,
-        customerEmail: reseller.email,
-        customerPhone: reseller.contactNumber,
+        resellerId: partner.uid,
+        customerName: partner.companyName || `${partner.name} ${partner.surname}`,
+        customerEmail: partner.email,
+        customerPhone: partner.contactNumber,
         endCustomerName: `${values.customerFirstName} ${values.customerLastName}`,
         endCustomerEmail: values.customerEmail,
         documentContact: values.documentContact,
@@ -215,16 +215,16 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
 
       try {
         const confirmationEmailSubject = `Your Order Confirmation: #${orderId}`;
-        const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={reseller} />);
+        const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={partner} />);
         await sendEmail({
-          to: reseller.email,
+          to: partner.email,
           bcc: 'kev@thinkestry.co.za',
           subject: confirmationEmailSubject,
           html: emailHtml,
-          resellerId: reseller.uid,
+          resellerId: partner.uid,
         });
       } catch (emailError) {
-        console.error("Failed to send reseller email:", emailError);
+        console.error("Failed to send partner email:", emailError);
         toast({
           title: 'Order Created, But Email Failed',
           description: 'The order was saved, but the confirmation email could not be sent.',
@@ -314,7 +314,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                             >
                             <FormItem className="flex items-center space-x-2 space-y-0">
                                 <FormControl><RadioGroupItem value="reseller" /></FormControl>
-                                <FormLabel className="font-normal">Contact me (the reseller)</FormLabel>
+                                <FormLabel className="font-normal">Contact me (the partner)</FormLabel>
                             </FormItem>
                             <FormItem className="flex items-center space-x-2 space-y-0">
                                 <FormControl><RadioGroupItem value="client" /></FormControl>
@@ -334,8 +334,6 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
             <h3 className="text-lg font-medium mb-2">Order Items</h3>
             <div className="space-y-4">
                 {fields.map((field, index) => {
-                    const resellerPrice = form.watch(`items.${index}.resellerPrice`);
-                    const clientPrice = form.watch(`items.${index}.clientPrice`);
                     const serviceId = form.watch(`items.${index}.serviceId`);
                     const selectedService = serviceId ? allServices.find(s => s.id === serviceId) : null;
                     
@@ -367,14 +365,6 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                                             <Clock className="h-4 w-4" />
                                             <span>{selectedService.turnaroundTime}</span>
                                         </div>
-                                        {selectedService.clientRequirements.length > 0 && (
-                                            <div className="space-y-1">
-                                                <p className="font-medium">Prerequisites:</p>
-                                                <ul className="list-disc pl-5">
-                                                    {selectedService.clientRequirements.map((req, i) => <li key={i}>{req}</li>)}
-                                                </ul>
-                                            </div>
-                                        )}
                                     </div>
                                 )}
                             </div>

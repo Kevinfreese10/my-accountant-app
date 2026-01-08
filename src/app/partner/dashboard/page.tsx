@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
-import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderForm';
+import CreatePartnerOrderForm from '@/components/partner/CreatePartnerOrderForm';
 import { useRouter } from 'next/navigation';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -38,7 +38,7 @@ const getUserColor = (userId: string) => {
   return userColors[hash % userColors.length];
 };
 
-export default function ResellerDashboardPage() {
+export default function PartnerDashboardPage() {
     const { user, updateUser } = useAuth();
     const router = useRouter();
     const { blogPosts, isLoading: isBlogLoading } = useBlog();
@@ -292,9 +292,9 @@ export default function ResellerDashboardPage() {
                 <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.contactPerson}!</h1>
                 <p className="text-lg text-muted-foreground">{user?.companyName}</p>
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card className="lg:col-span-2">
+            
+            <section>
+                <Card>
                     <CardHeader>
                         <CardTitle>Notifications</CardTitle>
                         <CardDescription>Recent notes from My Accountant on your outsourced orders.</CardDescription>
@@ -317,7 +317,7 @@ export default function ResellerDashboardPage() {
                                             <p className="text-sm">
                                                 <span className="font-semibold">{author?.name || 'Unknown User'}</span>
                                                 <span className="text-muted-foreground"> left a note on order </span>
-                                                <Link href={`/reseller/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                                <Link href={`/partner/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
                                             </p>
                                             <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
                                                 "{note.text}"
@@ -345,8 +345,10 @@ export default function ResellerDashboardPage() {
                         )}
                     </CardContent>
                 </Card>
+            </section>
 
-                <Card className="lg:col-span-2">
+            <section>
+                <Card>
                     <CardHeader>
                         <CardTitle>Latest News</CardTitle>
                         <CardDescription>Stay up-to-date with the latest tax tips and articles.</CardDescription>
@@ -381,7 +383,7 @@ export default function ResellerDashboardPage() {
                         )}
                     </CardContent>
                 </Card>
-            </div>
+            </section>
       
         </div>
     );

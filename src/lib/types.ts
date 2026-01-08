@@ -1,4 +1,5 @@
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -124,8 +125,8 @@ export type Order = {
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
-  endCustomerName?: string; // Added for reseller's client
-  endCustomerEmail?: string; // Added for reseller's client
+  endCustomerName?: string; // Added for partner's client
+  endCustomerEmail?: string; // Added for partner's client
   date: any;
   items: any[];
   total: number;
@@ -141,7 +142,7 @@ export type Order = {
   notes?: OrderNote[];
   documentUploads?: DocumentUpload[];
   itnHistory?: ItnLog[];
-  source?: 'Client' | 'Staff' | 'Reseller' | 'AI Accountant Signup';
+  source?: 'Client' | 'Staff' | 'Partner' | 'AI Accountant Signup';
   renewalForClientId?: string;
   documentContact?: 'reseller' | 'client';
 };
@@ -191,7 +192,7 @@ export type User = {
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   entityType?: 'Company' | 'Trust' | 'Individual';
   status?: 'Active' | 'Inactive' | 'Archived';
-  // Reseller specific fields or contact person for AI Accountant
+  // Partner specific fields or contact person for AI Accountant
   companyName?: string;
   contactPerson?: string;
   contactEmail?: string;
