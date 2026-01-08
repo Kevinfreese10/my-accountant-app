@@ -16,7 +16,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const isDashboardPage =
     pathname.startsWith('/admin') ||
     pathname.startsWith('/dashboard') ||
-    pathname.startsWith('/reseller');
+    pathname.startsWith('/partner');
 
   const shouldShowHeaderFooter = !isDashboardPage;
 
