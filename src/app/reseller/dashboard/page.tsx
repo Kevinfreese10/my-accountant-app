@@ -21,7 +21,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderForm';
-import CommunityQnA from '@/components/reseller/CommunityQnA';
 import { useRouter } from 'next/navigation';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -350,11 +349,39 @@ export default function ResellerDashboardPage() {
 
                 <Card className="lg:col-span-1">
                     <CardHeader>
-                        <CardTitle>Community Q&amp;A</CardTitle>
-                        <CardDescription>Ask questions and share your knowledge with other Accountants</CardDescription>
+                        <CardTitle>Latest News</CardTitle>
+                        <CardDescription>Stay up-to-date with the latest tax tips and articles.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <CommunityQnA />
+                        {isBlogLoading ? (
+                            <div className="flex justify-center items-center h-40">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-6">
+                                {latestNews.map(post => (
+                                    <div key={post.id} className="group flex items-start gap-4">
+                                        <Link href={`/blog/${post.slug}`} className="block flex-shrink-0">
+                                            <div className="relative h-20 w-20 overflow-hidden rounded-lg">
+                                                <Image
+                                                    src={post.imageUrl}
+                                                    alt={post.title}
+                                                    fill
+                                                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                                                    data-ai-hint={post.imageHint}
+                                                />
+                                            </div>
+                                        </Link>
+                                        <div className="flex-grow">
+                                            <p className="text-sm font-semibold leading-tight group-hover:text-primary">
+                                                <Link href={`/blog/${post.slug}`}>{post.title}</Link>
+                                            </p>
+                                            <p className="text-xs text-muted-foreground mt-1">{format(new Date(post.date), 'dd/MM/yyyy')}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>
