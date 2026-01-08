@@ -24,6 +24,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CalendarIcon } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const db = getFirestore(firebaseApp);
 
@@ -40,8 +45,9 @@ const vatCategories: { value: 'A' | 'B' | 'C'; label: string }[] = [
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client/Company name is required.'),
+  entityType: z.enum(['Company', 'Trust', 'Individual']).default('Company'),
   status: z.enum(clientStatuses).optional(),
-  yearEnd: z.string().min(1, 'Financial Year End is required.'),
+  yearEnd: z.date().optional(),
   // Automation settings
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(['A', 'B', 'C']).optional(),
@@ -54,16 +60,33 @@ const formSchema = z.object({
   submitsBeneficialOwnership: z.boolean().default(false),
   requiresManagementAccounts: z.boolean().default(false),
   managementAccountsFrequency: z.enum(['Monthly', 'Quarterly', 'Bi-Annually', 'Annually']).optional(),
+  cipcDueDate: z.date().optional(),
 });
 
 function ClientForm({ client, onSubmit, onCancel, taskTemplates }: { client: Partial<User> | null, onSubmit: (data: any, originalClient: Partial<User> | null) => void, onCancel: () => void, taskTemplates: Task[] }) {
+    
+    let yearEndAsDate: Date | undefined = undefined;
+    if (client?.yearEnd) {
+        if (client.yearEnd instanceof Date) {
+            yearEndAsDate = client.yearEnd;
+        } else if (typeof client.yearEnd === 'string') {
+            const monthIndex = months.indexOf(client.yearEnd);
+            if (monthIndex !== -1) {
+                yearEndAsDate = new Date(new Date().getFullYear(), monthIndex, 28);
+            }
+        } else if ((client.yearEnd as any).toDate) {
+             yearEndAsDate = (client.yearEnd as any).toDate();
+        }
+    }
+    
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
+            entityType: client?.entityType || 'Company',
             status: client?.status || 'Active',
-            yearEnd: client?.yearEnd || 'February',
+            yearEnd: yearEndAsDate,
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
             submitsEmp201: client?.submitsEmp201 || false,
@@ -75,19 +98,54 @@ function ClientForm({ client, onSubmit, onCancel, taskTemplates }: { client: Par
             submitsBeneficialOwnership: client?.submitsBeneficialOwnership || false,
             requiresManagementAccounts: client?.requiresManagementAccounts || false,
             managementAccountsFrequency: client?.managementAccountsFrequency || undefined,
+            cipcDueDate: client?.cipcDueDate ? (client.cipcDueDate as any).toDate() : undefined,
         },
     });
 
     const isVatRegistered = form.watch('isVatRegistered');
     const requiresManagementAccounts = form.watch('requiresManagementAccounts');
+    const entityType = form.watch('entityType');
 
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(data => onSubmit(data, client))} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
                 <div className="space-y-4">
-                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     <FormField
+                        control={form.control}
+                        name="entityType"
+                        render={({ field }) => (
+                            <FormItem className="space-y-3">
+                            <FormLabel>Type of Entity</FormLabel>
+                            <FormControl>
+                                <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4"
+                                >
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl><RadioGroupItem value="Company" /></FormControl>
+                                    <FormLabel className="font-normal">Company</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl><RadioGroupItem value="Trust" /></FormControl>
+                                    <FormLabel className="font-normal">Trust</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl><RadioGroupItem value="Individual" /></FormControl>
+                                    <FormLabel className="font-normal">Individual</FormLabel>
+                                </FormItem>
+                                </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>{entityType} Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Financial Year End</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                    {entityType === 'Company' && (
+                        <FormField control={form.control} name="cipcDueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>CIPC Annual Return Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                    )}
                 </div>
                 
                 <Separator />
@@ -119,10 +177,14 @@ function ClientForm({ client, onSubmit, onCancel, taskTemplates }: { client: Par
                     <FormField control={form.control} name="submitsEmp201" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>EMP201 (PAYE)</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                     <FormField control={form.control} name="submitsEmp501" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>EMP501</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                     <FormField control={form.control} name="submitsProvisionalTax" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Provisional Tax</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                    <FormField control={form.control} name="submitsIncomeTax" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Income Tax (ITR14)</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="submitsIncomeTax" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Income Tax (ITR14/ITR12)</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                     <FormField control={form.control} name="preparesFinancials" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Annual Financials</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                    <FormField control={form.control} name="submitsAnnualReturns" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>CIPC Annual Returns</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                    <FormField control={form.control} name="submitsBeneficialOwnership" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Beneficial Ownership</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                    {entityType === 'Company' && (
+                        <>
+                         <FormField control={form.control} name="submitsAnnualReturns" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>CIPC Annual Returns</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                         <FormField control={form.control} name="submitsBeneficialOwnership" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Beneficial Ownership</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                        </>
+                    )}
                 </div>
                  <div className="space-y-4 rounded-lg border p-4">
                      <FormField control={form.control} name="requiresManagementAccounts" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between"><div className="space-y-0.5"><FormLabel>Management Accounts</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
@@ -221,7 +283,9 @@ export default function AdminClientsPage() {
     let clientDataForDb: Partial<User> = {
       name: data.name,
       status: data.status,
-      yearEnd: data.yearEnd,
+      entityType: data.entityType,
+      yearEnd: data.yearEnd ? Timestamp.fromDate(data.yearEnd) : null,
+      cipcDueDate: data.cipcDueDate ? Timestamp.fromDate(data.cipcDueDate) : null,
       isVatRegistered: data.isVatRegistered,
       vatCategory: data.isVatRegistered ? data.vatCategory : undefined,
       submitsEmp201: data.submitsEmp201,
@@ -251,7 +315,7 @@ export default function AdminClientsPage() {
         
         // Task Sync Logic
         const batch = writeBatch(db);
-        const existingTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId));
+        const existingTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId), where('createdBy', '==', 'system'));
         const existingTasksSnapshot = await getDocs(existingTasksQuery);
         const existingTasks = existingTasksSnapshot.docs.map(d => ({id: d.id, ...d.data()}));
         
@@ -259,7 +323,7 @@ export default function AdminClientsPage() {
             const isApplicableNow = !!clientDataForDb[template.triggerField as keyof typeof clientDataForDb];
             const wasApplicable = originalClient ? !!originalClient[template.triggerField as keyof typeof originalClient] : false;
             
-            const existingTask = existingTasks.find(t => t.title === template.title.replace('{clientName}', clientDataForDb.name!));
+            const existingTask = existingTasks.find(t => t.triggerField === template.triggerField);
 
             if (isApplicableNow && !existingTask) {
                 // Create new task
@@ -269,7 +333,8 @@ export default function AdminClientsPage() {
                     clientId: clientId,
                     title: template.title.replace('{clientName}', clientDataForDb.name!),
                     status: 'To-Do',
-                    assignedTo: [], // Assign later or based on dept
+                    createdBy: 'system',
+                    assignedTo: [],
                     createdAt: serverTimestamp(),
                 });
             } else if (!isApplicableNow && wasApplicable && existingTask) {
@@ -292,20 +357,9 @@ export default function AdminClientsPage() {
 
     const formatYearEnd = (yearEnd: any): string => {
         if (!yearEnd) return 'N/A';
-        if (typeof yearEnd === 'string') {
-          return yearEnd;
-        }
-        if (yearEnd.toDate && typeof yearEnd.toDate === 'function') {
-          const date = yearEnd.toDate();
-          return format(date, 'MMMM');
-        }
-        try {
-            const d = new Date(yearEnd);
-            if (!isNaN(d.getTime())) {
-                 return format(d, 'MMMM');
-            }
-        } catch (e) {
-            // fall through
+        const date = yearEnd.toDate ? yearEnd.toDate() : new Date(yearEnd);
+        if (!isNaN(date.getTime())) {
+            return format(date, 'MMMM');
         }
         return 'Invalid Date';
     };

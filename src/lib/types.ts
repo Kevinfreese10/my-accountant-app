@@ -189,6 +189,7 @@ export type User = {
   createdAt?: any;
   source?: 'AI Accountant' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
+  entityType?: 'Company' | 'Trust' | 'Individual';
   status?: 'Active' | 'Inactive' | 'Archived';
   // Reseller specific fields or contact person for AI Accountant
   companyName?: string;
@@ -227,6 +228,7 @@ export type User = {
   capableServices?: string[];
   // Client specific fields for task automation & AI Accountant
   yearEnd?: any;
+  cipcDueDate?: any;
   preparesFinancials?: boolean;
   requiresManagementAccounts?: boolean;
   managementAccountsFrequency?: 'Monthly' | 'Quarterly' | 'Bi-Annually' | 'Annually';
