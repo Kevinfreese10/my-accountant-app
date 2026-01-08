@@ -143,7 +143,7 @@ export default function BecomeAPartnerPage() {
                 Partner with My Accountant – Grow Smarter, Earn More, Work Freely.
             </p>
             <Button asChild size="lg" className="mt-8">
-            <Link href="/reseller-signup">Join the Initiative — It's Free</Link>
+            <Link href="/partner-signup">Join the Initiative — It's Free</Link>
             </Button>
         </div>
       </section>
@@ -211,7 +211,7 @@ export default function BecomeAPartnerPage() {
       <section className="container mx-auto px-4">
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button asChild size="lg">
-                <Link href="/reseller-signup">Sign Up Now</Link>
+                <Link href="/partner-signup">Sign Up Now</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
                 <Link href="/login">Access Demo Dashboard</Link>
