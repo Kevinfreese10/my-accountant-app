@@ -6,14 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Metadata } from 'next';
-
-// This is a client component, but we can export metadata from it.
-// Next.js will still be able to read it for static generation.
-export const metadata: Metadata = {
-  title: 'Portal Login',
-  description: 'Access your My Accountant client dashboard to manage your services, orders, and documents securely.',
-};
 
 function LoginFormWrapper() {
   return (
