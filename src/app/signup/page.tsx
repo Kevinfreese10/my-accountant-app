@@ -4,6 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Create an Account',
+  description: 'Sign up for a free My Accountant account to manage your services, track your orders, and communicate with our team.',
+};
 
 function SignupFormWrapper() {
   return (

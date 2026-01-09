@@ -2,6 +2,12 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import PartnerSignupForm from '@/components/auth/PartnerSignupForm';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Become a Partner',
+  description: 'Join the My Accountant partner program to grow your practice, access new opportunities, and leverage our expert team and technology.',
+};
 
 export default function PartnerSignupPage() {
   return (

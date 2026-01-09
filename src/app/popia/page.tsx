@@ -1,5 +1,11 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'POPIA Compliance Policy',
+  description: 'Read the My Accountant (Pty) Ltd policy on the Protection of Personal Information Act (POPIA), detailing how we collect, process, and safeguard your data.',
+};
 
 export default function PopiaPage() {
   return (

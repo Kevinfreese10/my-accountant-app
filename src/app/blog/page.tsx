@@ -14,6 +14,12 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { useBlog } from '@/contexts/BlogContext';
 import { format } from 'date-fns';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Tax Tip Blog',
+  description: 'Stay informed with our latest articles, tips, and updates on tax-related topics relevant to South African individuals and businesses.',
+};
 
 export default function BlogPage() {
   const { blogPosts, isLoading } = useBlog();

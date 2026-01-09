@@ -1,6 +1,12 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Refund Policy',
+  description: 'Understand the terms and conditions for refunds on services purchased from My Accountant. Learn about our 48-hour request window and non-refundable policy once work has commenced.',
+};
 
 export default function RefundPolicyPage() {
   return (

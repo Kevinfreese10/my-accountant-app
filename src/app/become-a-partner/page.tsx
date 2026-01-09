@@ -8,6 +8,12 @@ import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText
 import { Separator } from '@/components/ui/separator';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import dynamic from 'next/dynamic';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Bookkeeper Empowerment Initiative',
+  description: 'Partner with My Accountant to grow your practice. Our Bookkeeper Empowerment Initiative (BEI) provides the tools, mentorship, and opportunities you need.',
+};
 
 const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWidget'), {
   ssr: false,
