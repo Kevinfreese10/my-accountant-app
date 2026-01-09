@@ -1,35 +1,33 @@
 
-'use client';
-
-import LoginForm from '@/components/auth/LoginForm';
+import SignupForm from '@/components/auth/SignupForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Metadata } from 'next';
 
-function LoginFormWrapper() {
+function SignupFormWrapper() {
   return (
     <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
-      <LoginForm />
+      <SignupForm />
     </Suspense>
   );
 }
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Portal Login</CardTitle>
-          <CardDescription>Enter your email and password to access your dashboard.</CardDescription>
+          <CardTitle className="text-2xl">Create an Account</CardTitle>
+          <CardDescription>Join My Accountant to manage your services and orders.</CardDescription>
         </CardHeader>
         <CardContent>
-          <LoginFormWrapper />
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            Don't have an account?{' '}
-            <Link href="/signup" className="font-semibold text-primary underline-offset-4 hover:underline">
-              Sign up
+          <SignupFormWrapper />
+           <div className="mt-6 text-center text-sm text-muted-foreground">
+            Already have an account?{' '}
+            <Link href="/login" className="font-semibold text-primary underline-offset-4 hover:underline">
+              Log in
             </Link>
           </div>
         </CardContent>
