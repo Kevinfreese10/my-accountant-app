@@ -17,6 +17,8 @@ import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/fire
 import { firebaseApp } from '@/lib/firebase';
 import { Service } from '@/lib/types';
 import SeoPageForm from '@/components/admin/SeoPageForm';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
 
@@ -72,14 +74,11 @@ export default function SeoManagementPage() {
   
   useEffect(() => {
     const initialSeoData = [
-        { id: 'home', path: '/home', title: 'My Accountant | Professional Accounting & Tax Services', description: 'Your trusted partner for professional financial services in South Africa. We simplify your finances so you can focus on what matters.', keywords: [{value: 'accounting'}, {value: 'tax services'}] },
-        { id: 'services', path: '/services', title: 'Our Services | My Accountant', description: 'Comprehensive solutions to meet all your financial needs. We offer a range of services for individuals and businesses.', keywords: [] },
-        { id: 'blog', path: '/blog', title: 'Tax Tip Blog | My Accountant', description: 'Stay informed with our latest articles, tips, and updates on tax-related topics for South Africans.', keywords: [] },
-        { id: 'contact', path: '/contact', title: 'Contact Us | My Accountant', description: 'Have a question? Fill out the form below and we\'ll get back to you.', keywords: [] },
-        { id: 'support', path: '/support', title: 'Support Center | My Accountant', description: 'Find answers to common questions or contact our support team.', keywords: [] },
+        { id: 'home', path: '/', title: 'My Accountant | Professional Accounting & Tax Services', description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.', keywords: [{value: 'accounting'}, {value: 'tax services'}] },
+        { id: 'services-page', path: '/products', title: 'Our Products | My Accountant', description: 'Comprehensive solutions to meet all your financial needs. We offer a range of services for individuals and businesses.', keywords: [] },
         ...services.map(s => ({
             id: `service-${s.id}`,
-            path: `/services/${s.slug}`,
+            path: `/products/${s.slug}`,
             title: s.metaTitle || `${s.title} | My Accountant`,
             description: s.metaDescription || s.description,
             keywords: s.metaKeywords?.map(k => ({ value: k })) || [],
@@ -108,10 +107,24 @@ export default function SeoManagementPage() {
   const pages = form.watch('pages');
 
   const pageGroups = {
-    'Static Pages': pages.filter(f => !f.path.startsWith('/services/') && !f.path.startsWith('/blog/')),
-    'Service Pages': pages.filter(f => f.path.startsWith('/services/')),
+    'Static Pages': pages.filter(f => !f.path.startsWith('/products/') && !f.path.startsWith('/blog/')),
+    'Service Pages': pages.filter(f => f.path.startsWith('/products/')),
     'Blog Posts': pages.filter(f => f.path.startsWith('/blog/')),
   };
+
+  const duplicateTitleGroups = Object.values(
+    pages.reduce((acc, page, index) => {
+      const title = page.title.trim().toLowerCase();
+      if (title) {
+        if (!acc[title]) {
+          acc[title] = [];
+        }
+        acc[title].push({ ...page, originalIndex: index });
+      }
+      return acc;
+    }, {} as Record<string, (typeof pages[0] & { originalIndex: number })[]>)
+  ).filter(group => group.length > 1);
+
 
   const handleAiUpdate = async (groupName: string) => {
     setIsAiUpdating(groupName);
@@ -187,40 +200,76 @@ export default function SeoManagementPage() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form className="space-y-8">
-               <Accordion type="multiple" defaultValue={['Static Pages']} className="w-full">
-                {Object.entries(pageGroups).map(([groupName, groupPages]) => (
-                  <AccordionItem key={groupName} value={groupName}>
-                    <div className="flex items-center">
-                      <AccordionTrigger className="text-xl font-semibold flex-grow">{groupName} ({groupPages.length})</AccordionTrigger>
-                      {(groupName !== 'Static Pages') && (
-                        <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating}>
-                            {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2" />}
-                            Update with AI
-                        </Button>
-                      )}
-                    </div>
-                    <AccordionContent className="space-y-6 pt-4">
-                       {groupPages.map((page) => {
-                         const originalIndex = pages.findIndex(p => p.id === page.id);
-                         if (originalIndex === -1) return null;
-                         return (
-                            <SeoPageForm
-                                key={page.id}
-                                form={form}
-                                control={control}
-                                index={originalIndex}
-                                page={page}
-                            />
-                        )})}
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            </form>
+            <Tabs defaultValue="all">
+                <TabsList>
+                    <TabsTrigger value="all">All Pages</TabsTrigger>
+                    <TabsTrigger value="duplicates">Duplicate Titles ({duplicateTitleGroups.length})</TabsTrigger>
+                </TabsList>
+                <TabsContent value="all" className="pt-4">
+                    <form className="space-y-8">
+                    <Accordion type="multiple" defaultValue={['Static Pages']} className="w-full">
+                        {Object.entries(pageGroups).map(([groupName, groupPages]) => (
+                        <AccordionItem key={groupName} value={groupName}>
+                            <div className="flex items-center">
+                            <AccordionTrigger className="text-xl font-semibold flex-grow">{groupName} ({groupPages.length})</AccordionTrigger>
+                            {(groupName !== 'Static Pages') && (
+                                <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating}>
+                                    {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2" />}
+                                    Update with AI
+                                </Button>
+                            )}
+                            </div>
+                            <AccordionContent className="space-y-6 pt-4">
+                            {groupPages.map((page) => {
+                                const originalIndex = pages.findIndex(p => p.id === page.id);
+                                if (originalIndex === -1) return null;
+                                return (
+                                    <SeoPageForm
+                                        key={page.id}
+                                        form={form}
+                                        control={control}
+                                        index={originalIndex}
+                                        page={page}
+                                    />
+                                )})}
+                            </AccordionContent>
+                        </AccordionItem>
+                        ))}
+                    </Accordion>
+                    </form>
+                </TabsContent>
+                 <TabsContent value="duplicates" className="pt-4">
+                     {duplicateTitleGroups.length > 0 ? (
+                        <Accordion type="multiple" className="w-full">
+                        {duplicateTitleGroups.map((group, index) => (
+                            <AccordionItem key={index} value={`duplicate-${index}`}>
+                                <AccordionTrigger className="text-lg font-semibold flex-grow">
+                                    {group[0].title} ({group.length} pages)
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-6 pt-4">
+                                    {group.map(page => (
+                                        <SeoPageForm
+                                            key={page.id}
+                                            form={form}
+                                            control={control}
+                                            index={page.originalIndex}
+                                            page={page}
+                                        />
+                                    ))}
+                                </AccordionContent>
+                            </AccordionItem>
+                        ))}
+                        </Accordion>
+                     ) : (
+                        <p className="text-center text-muted-foreground py-8">No duplicate titles found. Great job!</p>
+                     )}
+                </TabsContent>
+            </Tabs>
           </Form>
         </CardContent>
       </Card>
     </div>
   );
 }
+
+    
