@@ -3,9 +3,6 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  experimental: {
-    serverActions: true,
-  },
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
