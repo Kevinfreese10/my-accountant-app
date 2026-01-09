@@ -21,7 +21,6 @@ import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { AnimatePresence, motion } from 'framer-motion';
 import { Order } from '@/lib/types';
 import { getNextOrderId } from '@/lib/sequence';
 import { Timestamp } from 'firebase/firestore';
@@ -187,14 +186,7 @@ export default function AIAccountantSignupForm() {
     <>
         <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={step}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.3 }}
-                >
+                <div>
                     {step === 1 && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -247,8 +239,7 @@ export default function AIAccountantSignupForm() {
                             </div>
                         </div>
                     )}
-                </motion.div>
-            </AnimatePresence>
+                </div>
         </form>
         </Form>
     </>
