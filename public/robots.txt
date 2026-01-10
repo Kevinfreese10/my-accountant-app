@@ -1,4 +1,5 @@
 User-agent: *
-Allow: /
+Disallow: /login
+Disallow: /login?
 
-Sitemap: https://my-accountant-app.com/sitemap.xml
+Sitemap: https://www.myacc.co.za/sitemap.xml
