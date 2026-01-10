@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -53,6 +54,13 @@ const formSchema = z.object({
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
   metaKeywords: z.array(z.object({ value: z.string() })).optional(),
+  // Google Merchant Center Fields
+  brand: z.string().optional(),
+  availability: z.enum(['in_stock', 'out_of_stock', 'preorder']).default('in_stock'),
+  condition: z.enum(['new', 'refurbished', 'used']).default('new'),
+  product_type: z.string().optional(),
+  google_product_category: z.string().optional(),
+  currency: z.string().default('ZAR'),
 });
 
 type ServiceFormProps = {
@@ -106,6 +114,12 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
       metaTitle: service?.metaTitle || '',
       metaDescription: service?.metaDescription || '',
       metaKeywords: service?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
+      brand: service?.brand || 'My Accountant',
+      availability: service?.availability || 'in_stock',
+      condition: service?.condition || 'new',
+      product_type: service?.product_type || 'Accounting > Tax Services',
+      google_product_category: service?.google_product_category || 'Business & Industrial > Business Services',
+      currency: service?.currency || 'ZAR',
     },
   });
   
@@ -440,7 +454,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
                     />
                 </DialogContent>
             </Dialog>
-            <h3 className="text-lg font-medium">SEO & Content</h3>
+            <h3 className="text-lg font-medium">Marketing & SEO</h3>
              <FormField
                 control={form.control}
                 name="imageUrl"
@@ -498,6 +512,12 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
                     </FormItem>
                 )}
             />
+            <Separator className="my-4" />
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <FormField control={form.control} name="brand" render={({ field }) => ( <FormItem><FormLabel>Brand</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                 <FormField control={form.control} name="product_type" render={({ field }) => ( <FormItem><FormLabel>Product Type</FormLabel><FormControl><Input {...field} placeholder="e.g. Accounting > Tax" /></FormControl><FormMessage /></FormItem> )} />
+                 <FormField control={form.control} name="google_product_category" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel>Google Product Category</FormLabel><FormControl><Input {...field} placeholder="e.g. Business & Industrial > Business Services" /></FormControl><FormMessage /></FormItem> )} />
+            </div>
             <Separator className="my-4" />
             <FormField
                 control={form.control}

@@ -103,16 +103,18 @@ export default async function ProductDetailPage({ params }: Props) {
     description: service.description,
     brand: {
       '@type': 'Brand',
-      name: 'My Accountant',
+      name: service.brand || 'My Accountant',
     },
     sku: service.id,
     offers: {
       '@type': 'Offer',
       url: `https://www.myacc.co.za/products/${service.slug}`,
-      priceCurrency: 'ZAR',
+      priceCurrency: service.currency || 'ZAR',
       price: service.isPriceTbc ? '0' : service.price.toString(),
-      availability: 'https://schema.org/InStock',
+      availability: `https://schema.org/${service.availability === 'in_stock' ? 'InStock' : 'OutOfStock'}`,
+      itemCondition: `https://schema.org/${service.condition === 'new' ? 'NewCondition' : 'UsedCondition'}`,
     },
+     ...(service.google_product_category && { google_product_category: service.google_product_category }),
   };
 
   return (
