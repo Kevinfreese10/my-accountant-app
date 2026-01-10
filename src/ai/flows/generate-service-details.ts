@@ -24,8 +24,8 @@ const GenerateServiceDetailsOutputSchema = z.object({
   turnaroundTime: z.string().describe('A typical turnaround time for this service (e.g., "5-7 working days").'),
   whatsIncluded: z.array(z.string()).describe("A bulleted list of what is included in the service package."),
   clientRequirements: z.array(z.string()).describe("A bulleted list of documents or information required from the client before work can begin."),
-  metaTitle: z.string().describe('An SEO-optimized meta title, under 60 characters. It should be compelling, include the main keyword (service title), and end with the brand name "| My Accountant".'),
-  metaDescription: z.string().describe('An SEO-optimized meta description, between 140-160 characters. It should be a compelling, actionable summary that encourages clicks.'),
+  metaTitle: z.string().describe('An SEO-optimized meta title. CRITICAL: It must be under 60 characters.'),
+  metaDescription: z.string().describe('An SEO-optimized meta description. CRITICAL: It must be under 160 characters.'),
   metaKeywords: z.array(z.string()).describe('A list of 3-5 relevant SEO keywords or keyphrases.'),
 });
 export type GenerateServiceDetailsOutput = z.infer<typeof GenerateServiceDetailsOutputSchema>;
@@ -63,7 +63,7 @@ const prompt = ai.definePrompt({
   - **Meta Title (Title Tag)**:
     - **Purpose**: The main clickable headline shown in search results.
     - **Rules**:
-      - Must be between 50–60 characters.
+      - CRITICAL: Must be **under 60 characters**.
       - Place the primary keyword (from the service title) near the start.
       - End with the brand name: " | My Accountant".
       - Must be unique and written in natural language.
@@ -72,7 +72,7 @@ const prompt = ai.definePrompt({
   - **Meta Description**:
     - **Purpose**: The snippet below the title in search results.
     - **Rules**:
-      - Must be between 140–160 characters long.
+      - CRITICAL: Must be **under 160 characters long**.
       - Include primary and secondary keywords naturally.
       - Make it actionable and compelling (use verbs like "get", "order", "ensure").
       - Must accurately match the service content.

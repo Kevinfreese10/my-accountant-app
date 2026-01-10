@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for generating blog post SEO content.
@@ -16,8 +17,8 @@ const GenerateBlogPostSeoInputSchema = z.object({
 export type GenerateBlogPostSeoInput = z.infer<typeof GenerateBlogPostSeoInputSchema>;
 
 const GenerateBlogPostSeoOutputSchema = z.object({
-  metaTitle: z.string().describe('An SEO-optimized meta title, under 60 characters. It should be compelling, include the main keyword (post title), and end with the brand name "| My Accountant".'),
-  metaDescription: z.string().describe('An SEO-optimized meta description, between 140-160 characters. It should be a compelling, actionable summary that encourages clicks.'),
+  metaTitle: z.string().describe('An SEO-optimized meta title. CRITICAL: It must be under 60 characters.'),
+  metaDescription: z.string().describe('An SEO-optimized meta description. CRITICAL: It must be under 160 characters.'),
   metaKeywords: z.array(z.string()).describe('A list of 3-5 relevant SEO keywords or keyphrases.'),
 });
 export type GenerateBlogPostSeoOutput = z.infer<typeof GenerateBlogPostSeoOutputSchema>;
@@ -45,7 +46,7 @@ const prompt = ai.definePrompt({
   - **Meta Title (Title Tag)**:
     - **Purpose**: The main clickable headline shown in search results.
     - **Rules**:
-      - Must be between 50–60 characters.
+      - CRITICAL: Must be **under 60 characters**.
       - Place the primary keyword (from the post title) near the start.
       - End with the brand name: " | My Accountant".
       - Must be unique and written in natural language.
@@ -54,7 +55,7 @@ const prompt = ai.definePrompt({
   - **Meta Description**:
     - **Purpose**: The snippet below the title in search results.
     - **Rules**:
-      - Must be between 140–160 characters long.
+      - CRITICAL: Must be **under 160 characters long**.
       - Include primary and secondary keywords naturally.
       - Make it actionable and compelling.
       - Must accurately match the blog post content.
