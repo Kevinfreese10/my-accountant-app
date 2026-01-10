@@ -11,7 +11,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useBlog } from '@/contexts/BlogContext';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Sparkles, Loader2 } from 'lucide-react';
-import { generateServiceDetails } from '@/ai/flows/generate-service-details';
 import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -25,7 +24,7 @@ const db = getFirestore(firebaseApp);
 const seoSchema = z.object({
   id: z.string(),
   path: z.string(),
-  title: z.string().max(70, "Title should be 70 characters or less."),
+  title: z.string().max(60, "Title must be 60 characters or less."),
   description: z.string().max(160, "Description must be 160 characters or less."),
   keywords: z.array(z.object({ value: z.string() })).optional(),
 });
@@ -112,7 +111,6 @@ export default function SeoManagementPage() {
     toast({ title: 'Saving SEO data...', description: 'Please wait.' });
 
     try {
-        const batch = getFirestore(firebaseApp);
         const writePromises: Promise<void>[] = [];
 
         data.pages.forEach(page => {
@@ -196,8 +194,6 @@ export default function SeoManagementPage() {
             } else if (groupName === 'Blog Posts') {
                 const originalPost = blogPosts.find(p => `blog-${p.id}` === page.id);
                  if (originalPost) originalTitle = originalPost.title;
-            } else {
-                 originalTitle = page.title.split('|')[0].trim();
             }
 
             if (originalTitle) {
@@ -263,7 +259,7 @@ export default function SeoManagementPage() {
                             <div className="flex items-center">
                             <AccordionTrigger className="text-xl font-semibold flex-grow">{groupName} ({groupPages.length})</AccordionTrigger>
                            
-                                <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating}>
+                                <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating || groupName === 'Static Pages'}>
                                     {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2" />}
                                     Update with AI
                                 </Button>
