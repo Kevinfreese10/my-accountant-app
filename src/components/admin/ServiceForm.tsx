@@ -51,8 +51,8 @@ const formSchema = z.object({
     label: z.string().min(1, 'Label cannot be empty.'),
     type: z.enum(['text', 'pdf']).optional(),
   })),
-  metaTitle: z.string().optional(),
-  metaDescription: z.string().optional(),
+  metaTitle: z.string().max(60, "Title must be 60 characters or less.").optional(),
+  metaDescription: z.string().max(160, "Description must be 160 characters or less.").optional(),
   metaKeywords: z.array(z.object({ value: z.string() })).optional(),
   // Google Merchant Center Fields
   brand: z.string().optional(),
@@ -115,11 +115,11 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
       metaDescription: service?.metaDescription || '',
       metaKeywords: service?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
       brand: service?.brand || 'My Accountant',
-      availability: service?.availability || 'in_stock',
-      condition: service?.condition || 'new',
+      availability: 'in_stock',
+      condition: 'new',
       product_type: service?.product_type || 'Accounting > Tax Services',
       google_product_category: service?.google_product_category || 'Business & Industrial > Business Services',
-      currency: service?.currency || 'ZAR',
+      currency: 'ZAR',
     },
   });
   
