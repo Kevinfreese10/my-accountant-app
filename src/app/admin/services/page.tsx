@@ -220,7 +220,8 @@ export default function AdminServicesPage() {
                 <TableHead className="w-16">Image</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Client Requirements</TableHead>
-                <TableHead>Turnaround</TableHead>
+                <TableHead>Condition</TableHead>
+                <TableHead>Availability</TableHead>
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="text-right">Reseller Price</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -280,11 +281,11 @@ export default function AdminServicesPage() {
                         <span className="text-xs text-muted-foreground">N/A</span>
                       )}
                   </TableCell>
-                   <TableCell>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        <span>{service.turnaroundTime}</span>
-                      </div>
+                   <TableCell className="capitalize">
+                      {service.condition || 'new'}
+                  </TableCell>
+                  <TableCell className="capitalize">
+                      {service.availability?.replace('_', ' ') || 'in stock'}
                   </TableCell>
                   <TableCell className="text-right">
                     {service.isPriceTbc ? 'TBC' : `R ${service.price.toFixed(2)}`}
