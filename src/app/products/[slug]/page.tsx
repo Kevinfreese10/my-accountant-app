@@ -95,6 +95,18 @@ export default async function ProductDetailPage({ params }: Props) {
     notFound();
   }
 
+  const offers: any = {
+    '@type': 'Offer',
+    url: `https://www.myacc.co.za/products/${service.slug}`,
+    priceCurrency: service.currency || 'ZAR',
+    availability: `https://schema.org/${service.availability === 'in_stock' ? 'InStock' : 'OutOfStock'}`,
+    itemCondition: `https://schema.org/${service.condition === 'new' ? 'NewCondition' : 'UsedCondition'}`,
+  };
+
+  if (!service.isPriceTbc) {
+      offers.price = service.price.toString();
+  }
+
   const jsonLd = {
     '@context': 'https://schema.org/',
     '@type': 'Product',
@@ -106,14 +118,7 @@ export default async function ProductDetailPage({ params }: Props) {
       name: service.brand || 'My Accountant',
     },
     sku: service.id,
-    offers: {
-      '@type': 'Offer',
-      url: `https://www.myacc.co.za/products/${service.slug}`,
-      priceCurrency: service.currency || 'ZAR',
-      price: service.isPriceTbc ? '0' : service.price.toString(),
-      availability: `https://schema.org/${service.availability === 'in_stock' ? 'InStock' : 'OutOfStock'}`,
-      itemCondition: `https://schema.org/${service.condition === 'new' ? 'NewCondition' : 'UsedCondition'}`,
-    },
+    offers,
      ...(service.google_product_category && { google_product_category: service.google_product_category }),
   };
 

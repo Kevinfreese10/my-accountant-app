@@ -49,7 +49,7 @@ const formSchema = z.object({
   clientRequirements: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
   informationToProvide: z.array(z.object({
     label: z.string().min(1, 'Label cannot be empty.'),
-    type: z.enum(['text', 'pdf']),
+    type: z.enum(['text', 'pdf']).optional(),
   })),
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),

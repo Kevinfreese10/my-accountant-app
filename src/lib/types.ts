@@ -52,7 +52,7 @@ export type Service = {
   resellerPrice?: number;
   imageUrl: string;
   imageHint: string;
-  seoImageUrl: string;
+  seoImageUrl?: string;
   category: string;
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   whatsIncluded: string[];
@@ -60,7 +60,7 @@ export type Service = {
   clientRequirements: string[];
   informationToProvide: {
     label: string;
-    type: 'text' | 'pdf';
+    type?: 'text' | 'pdf';
   }[];
   attachmentUrl?: string;
   metaTitle?: string;
