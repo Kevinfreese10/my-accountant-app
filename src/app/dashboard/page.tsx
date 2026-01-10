@@ -91,7 +91,7 @@ export default function DashboardPage() {
         },
         {
             title: 'Monthly Accounting (VAT Registered)',
-            price: 'R2450',
+            price: 'R3950',
             priceDetail: '/month',
             features: [
                 'Annual financial statements',
@@ -106,8 +106,8 @@ export default function DashboardPage() {
         },
         {
             title: 'Monthly Payroll',
-            price: 'R550',
-            priceDetail: '/month + R110 / employee',
+            price: 'R950',
+            priceDetail: '/month + R140 / employee',
             features: [
                 'Monthly payslips',
                 'EMP201 submissions (PAYE, UIF, SDL)',
