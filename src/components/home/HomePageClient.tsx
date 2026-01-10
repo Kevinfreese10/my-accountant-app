@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import Link from 'next/link';
@@ -165,6 +166,7 @@ export default function HomePageClient({ services, categories }: { services: Ser
                         </CardHeader>
                         <CardContent className="flex-grow">
                             <CardDescription>{service.description}</CardDescription>
+                             <p className="text-xs text-muted-foreground mt-2">Brand: {service.brand || 'My Accountant'}</p>
                         </CardContent>
                         <CardFooter>
                             <Button asChild className="w-full">

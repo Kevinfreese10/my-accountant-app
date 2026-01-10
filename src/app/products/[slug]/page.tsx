@@ -135,7 +135,7 @@ export default async function ProductDetailPage({ params }: Props) {
               <Badge variant="secondary" className="w-fit">{service.category}</Badge>
               <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{service.title}</h1>
                {service.isPriceTbc ? (
-                <p className="text-2xl font-bold text-muted-foreground">To be confirmed</p>
+                <p className="text-2xl font-bold text-muted-foreground">Price on request</p>
               ) : (
                 <p className="text-3xl font-bold text-primary">{formatPrice(service.price)}</p>
               )}
