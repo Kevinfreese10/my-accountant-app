@@ -1,10 +1,8 @@
 
 User-agent: *
-Allow: /
 Disallow: /login
 Disallow: /login?
-Disallow: /admin/
-Disallow: /dashboard/
-Disallow: /partner/
+Disallow: /signup
+Disallow: /signup?
 
 Sitemap: https://www.myacc.co.za/sitemap.xml

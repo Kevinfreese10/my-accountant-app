@@ -1,17 +1,36 @@
 
+'use client';
 import SignupForm from '@/components/auth/SignupForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Metadata } from 'next';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 export const metadata: Metadata = {
   title: 'Create an Account',
   description: 'Sign up for a free My Accountant account to manage your services, track your orders, and communicate with our team.',
+  robots: {
+    index: false,
+    follow: false,
+    noimageindex: true,
+  },
+  alternates: {
+    canonical: 'https://www.myacc.co.za/signup',
+  }
 };
 
 function SignupFormWrapper() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (searchParams.has("redirect")) {
+      router.replace('/signup', { scroll: false });
+    }
+  }, [searchParams, router]);
+
   return (
     <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
       <SignupForm />
