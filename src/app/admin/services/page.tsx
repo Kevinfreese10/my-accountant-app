@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Loader2, Clock, Copy, Info, AlertTriangle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import Papa from 'papaparse';
 
 const db = getFirestore(firebaseApp);
 
@@ -146,32 +147,63 @@ export default function AdminServicesPage() {
     }
   };
 
+  const handleDownloadCsv = () => {
+    const dataForCsv = services.map(service => ({
+      id: service.id,
+      title: service.title,
+      description: service.longDescription,
+      price: !service.isPriceTbc ? `${service.price.toFixed(2)} ${service.currency || 'ZAR'}` : '',
+      availability: service.availability,
+      condition: service.condition,
+      link: `${process.env.NEXT_PUBLIC_APP_URL}/products/${service.slug}`,
+      image_link: service.imageUrl,
+      brand: service.brand || 'My Accountant',
+      google_product_category: service.google_product_category || 'Business & Industrial > Business Services',
+      product_type: service.product_type || `Accounting > ${service.category}`,
+    }));
+
+    const csv = Papa.unparse(dataForCsv);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', 'google-merchant-products.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Manage Products</h1>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-           <DialogTrigger asChild>
-                <Button onClick={handleAddService}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Product
-                </Button>
-           </DialogTrigger>
-           <DialogContent className="sm:max-w-xl">
-                <DialogHeader>
-                    <DialogTitle>{selectedService ? 'Edit Product' : 'Create New Product'}</DialogTitle>
-                    <DialogDescription>
-                        {selectedService ? 'Update the details of this product.' : 'Fill out the form to add a new product.'}
-                    </DialogDescription>
-                </DialogHeader>
-                <ServiceForm 
-                    service={selectedService} 
-                    allServices={services}
-                    onSubmit={handleFormSubmit}
-                />
-           </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleDownloadCsv} disabled={services.length === 0}>
+              <Download className="mr-2 h-4 w-4" />
+              Download CSV
+            </Button>
+            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogTrigger asChild>
+                    <Button onClick={handleAddService}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Create Product
+                    </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>{selectedService ? 'Edit Product' : 'Create New Product'}</DialogTitle>
+                        <DialogDescription>
+                            {selectedService ? 'Update the details of this product.' : 'Fill out the form to add a new product.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ServiceForm 
+                        service={selectedService} 
+                        allServices={services}
+                        onSubmit={handleFormSubmit}
+                    />
+            </DialogContent>
+            </Dialog>
+        </div>
       </div>
       <Card>
         <CardHeader>
@@ -219,7 +251,6 @@ export default function AdminServicesPage() {
               <TableRow>
                 <TableHead className="w-16">Image</TableHead>
                 <TableHead>Title</TableHead>
-                <TableHead>Client Requirements</TableHead>
                 <TableHead>Condition</TableHead>
                 <TableHead>Availability</TableHead>
                 <TableHead className="text-right">Price</TableHead>
@@ -260,26 +291,6 @@ export default function AdminServicesPage() {
                           </TooltipProvider>
                       )}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                      {service.informationToProvide && service.informationToProvide.length > 0 ? (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Info className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <ul className="list-disc pl-4">
-                                {service.informationToProvide.map((info, i) => <li key={i}>{info.label} ({info.type})</li>)}
-                              </ul>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">N/A</span>
-                      )}
                   </TableCell>
                    <TableCell className="capitalize">
                       {service.condition || 'new'}
