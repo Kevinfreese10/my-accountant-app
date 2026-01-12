@@ -339,8 +339,8 @@ export default function ClientOrderDetailsPage() {
             </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div className="lg:col-span-2 space-y-8">
+        <div className="grid grid-cols-1 gap-8 items-start">
+            <div className="space-y-8">
                 <Card>
                     <CardHeader>
                         <CardTitle>Order {order.id}</CardTitle>
@@ -486,40 +486,39 @@ export default function ClientOrderDetailsPage() {
                             )}
                         </div>
                          <Form {...noteForm}>
-                          <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="flex items-start gap-2 pt-4">
-                            <FormField
-                              control={noteForm.control}
-                              name="noteText"
-                              render={({ field }) => (
-                                <FormItem className="flex-grow">
-                                  <Textarea placeholder="Add a new note..." {...field} rows={2} />
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
+                            <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4 pt-4">
+                                <FormField
                                 control={noteForm.control}
-                                name="attachment"
+                                name="noteText"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormControl>
-                                            <Input type="file" onChange={(e) => field.onChange(e.target.files)} />
-                                        </FormControl>
-                                        <FormMessage />
+                                    <Textarea placeholder="Add a new note..." {...field} rows={3} />
+                                    <FormMessage />
                                     </FormItem>
                                 )}
-                            />
-                            <Button type="submit" size="icon" className="flex-shrink-0 mt-1">
-                              <Send className="h-4 w-4" />
-                            </Button>
-                          </form>
+                                />
+                                <div className="flex items-center gap-2">
+                                    <FormField
+                                        control={noteForm.control}
+                                        name="attachment"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormControl>
+                                                    <Input type="file" onChange={(e) => field.onChange(e.target.files)} className="max-w-xs" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <Button type="submit" size="sm" disabled={isSubmitting}>
+                                      <Send className="h-4 w-4 mr-2" />
+                                      Post Note
+                                    </Button>
+                                </div>
+                            </form>
                         </Form>
                     </CardContent>
                 </Card>
-
-            </div>
-            <div className="lg:col-span-1 space-y-6 sticky top-24">
-              {/* This column is intentionally empty now */}
             </div>
         </div>
     </div>
