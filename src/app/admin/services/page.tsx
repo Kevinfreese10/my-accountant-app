@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
 import { useToast } from '@/hooks/use-toast';
 import ServicePreview from '@/components/admin/ServicePreview';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, serverTimestamp, query, orderBy, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -41,6 +41,7 @@ export default function AdminServicesPage() {
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [viewingService, setViewingService] = useState<Service | null>(null);
   const { toast } = useToast();
+  const [isUpdatingDefaults, setIsUpdatingDefaults] = useState(false);
 
   const [titleFilter, setTitleFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -171,6 +172,41 @@ export default function AdminServicesPage() {
     link.click();
     document.body.removeChild(link);
   };
+  
+    const handleUpdateDefaults = async () => {
+        setIsUpdatingDefaults(true);
+        toast({ title: 'Updating Products...', description: 'This may take a moment.' });
+        
+        try {
+            const batch = writeBatch(db);
+            let updatedCount = 0;
+
+            services.forEach(service => {
+                if (service.availability !== 'in_stock' || service.condition !== 'new') {
+                    const serviceRef = doc(db, 'services', service.id);
+                    batch.update(serviceRef, {
+                        availability: 'in_stock',
+                        condition: 'new'
+                    });
+                    updatedCount++;
+                }
+            });
+
+            if (updatedCount > 0) {
+                await batch.commit();
+                toast({ title: 'Success!', description: `${updatedCount} products were updated with default values.` });
+                fetchServices(); // Refetch to show updated data
+            } else {
+                toast({ title: 'No Updates Needed', description: 'All products already have the correct default values.' });
+            }
+
+        } catch (error) {
+            console.error("Error updating product defaults:", error);
+            toast({ title: 'Update Failed', variant: 'destructive' });
+        } finally {
+            setIsUpdatingDefaults(false);
+        }
+    };
 
 
   return (
@@ -238,6 +274,26 @@ export default function AdminServicesPage() {
                         ))}
                     </SelectContent>
                 </Select>
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="outline" disabled={isUpdatingDefaults}>
+                            {isUpdatingDefaults ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Update Product Defaults
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will scan all products and update any that do not have `availability` set to "in_stock" and `condition` set to "new". This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleUpdateDefaults}>Yes, Update All</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
         </CardHeader>
         <CardContent>
