@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -72,15 +73,15 @@ const categorizeSupportRequestFlow = ai.defineFlow(
       prompt: `You are an expert support agent and task manager for an accounting firm.
 
       Your task is to analyze the user's request, which includes an email body and potentially one or more file attachments, and then perform several actions:
-      1.  Create a one-sentence summary of the email's content.
+      1.  Create a one-sentence summary of the email's content. If an attachment is a PDF document, you MUST analyze its content and incorporate a summary of it into your main summary.
       2.  Triage the email by determining its category, priority, and an appropriate SLA.
       3.  Suggest a list of next actions (e.g., 'create_task', 'draft_reply').
       4.  If a task is suggested, provide the details for it.
       5.  DO NOT generate a draft reply yourself.
 
       **Attachment Guidelines:**
-      - If an attachment is a PDF document, you MUST analyze its content and incorporate a summary of it into your main summary.
-      - If an attachment is an image or a format you cannot read, state that an image was attached but do not attempt to analyze its content.
+      - If an attachment has a content type of 'application/pdf', you MUST analyze its content and incorporate a summary of it into your main summary.
+      - If an attachment is an image (e.g., jpeg, png) or a format you cannot read, state that an image was attached but do not attempt to analyze its content.
 
       **Triage Guidelines:**
       - Categories: 'Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'.
