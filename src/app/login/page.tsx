@@ -7,20 +7,8 @@ import Link from 'next/link';
 import { Suspense, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Metadata } from 'next';
 
-export const metadata: Metadata = {
-  title: "Login | My Accountant",
-  robots: {
-    index: false,
-    follow: false,
-    noimageindex: true,
-  },
-  alternates: {
-    canonical: "https://www.myacc.co.za/login",
-  }
-};
-
+// Metadata has been removed from this client component and will be placed in a parent server component.
 
 function LoginFormWrapper() {
   const searchParams = useSearchParams();
