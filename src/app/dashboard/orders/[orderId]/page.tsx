@@ -84,7 +84,7 @@ export default function ClientOrderDetailsPage() {
             ...data,
             id: docSnap.id,
             date: data.date?.toDate ? data.date.toDate().toISOString() : new Date().toISOString(),
-            notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate() : new Date(note.date)})),
+            notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate() : new Date(note.date), attachments: note.attachments || null })),
             documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt?.toDate ? doc.uploadedAt.toDate().toISOString() : new Date().toISOString()})),
           } as Order);
         } else {
@@ -193,8 +193,7 @@ export default function ClientOrderDetailsPage() {
     if (!currentUser || !order) return;
 
     setIsSubmitting(true);
-    let attachmentUrl: string | null = null;
-    let attachmentName: string | null = null;
+    let attachments: { name: string; url: string }[] = [];
     const file = values.attachment?.[0];
 
     if (file) {
@@ -204,8 +203,8 @@ export default function ClientOrderDetailsPage() {
         const storageRef = ref(storage, `orders/${order.id}/notes/${uniqueFileName}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
         const snapshot = await uploadTask;
-        attachmentUrl = await getDownloadURL(snapshot.ref);
-        attachmentName = file.name;
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        attachments = [{ name: file.name, url: downloadURL }];
         toast({ title: 'Attachment Uploaded' });
       } catch (error) {
         console.error('Attachment upload failed:', error);
@@ -221,8 +220,7 @@ export default function ClientOrderDetailsPage() {
       date: Timestamp.now(),
       type: 'note',
       subject: null,
-      attachmentUrl: attachmentUrl,
-      attachmentName: attachmentName,
+      attachments: attachments.length > 0 ? attachments : null,
     };
 
     try {
@@ -264,8 +262,7 @@ export default function ClientOrderDetailsPage() {
       date: Timestamp.now(),
       type: 'note',
       subject: null,
-      attachmentUrl: null,
-      attachmentName: null,
+      attachments: null,
     };
 
     try {
@@ -468,16 +465,18 @@ export default function ClientOrderDetailsPage() {
                                                         <p className="text-sm italic text-muted-foreground">"{note.text}"</p>
                                                     </div>
                                                  ) : (
-                                                    <p className="text-sm">{note.text}</p>
+                                                    <p className="text-sm" dangerouslySetInnerHTML={{ __html: note.text.replace(/\n/g, '<br />') }} />
                                                  )}
-                                                 {note.attachmentUrl && (
-                                                    <div className="mt-2">
-                                                        <a href={note.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
-                                                            <Paperclip className="h-4 w-4"/>
-                                                            {note.attachmentName || 'View Attachment'}
-                                                        </a>
-                                                    </div>
-                                                )}
+                                                 {note.attachments && note.attachments.length > 0 && (
+                                                        <div className="mt-2 space-y-1">
+                                                            {note.attachments.map((att, i) => (
+                                                                <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                                                                    <Paperclip className="h-4 w-4"/>
+                                                                    {att.name}
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                             </div>
                                         </div>
                                     );
