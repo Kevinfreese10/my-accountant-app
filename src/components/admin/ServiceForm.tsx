@@ -115,11 +115,11 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
       metaDescription: service?.metaDescription || '',
       metaKeywords: service?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
       brand: service?.brand || 'My Accountant',
-      availability: 'in_stock',
-      condition: 'new',
+      availability: service?.availability || 'in_stock',
+      condition: service?.condition || 'new',
       product_type: service?.product_type || 'Accounting > Tax Services',
       google_product_category: service?.google_product_category || 'Business & Industrial > Business Services',
-      currency: 'ZAR',
+      currency: service?.currency || 'ZAR',
     },
   });
   
