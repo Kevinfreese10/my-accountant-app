@@ -221,6 +221,8 @@ export default function ClientOrderDetailsPage() {
       type: 'note',
       subject: null,
       attachments: attachments.length > 0 ? attachments : null,
+      attachmentUrl: null, // Legacy
+      attachmentName: null, // Legacy
     };
 
     try {
@@ -488,14 +490,14 @@ export default function ClientOrderDetailsPage() {
                          <Form {...noteForm}>
                             <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4 pt-4">
                                 <FormField
-                                control={noteForm.control}
-                                name="noteText"
-                                render={({ field }) => (
-                                    <FormItem>
-                                    <Textarea placeholder="Add a new note..." {...field} rows={3} />
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
+                                    control={noteForm.control}
+                                    name="noteText"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <Textarea placeholder="Add a new note..." {...field} rows={3} />
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
                                 />
                                 <div className="flex items-center gap-2">
                                     <FormField
