@@ -64,6 +64,7 @@ export default function AIEmailInboxPage() {
     const [syncStatus, setSyncStatus] = useState<{ lastSync: Date | null, status: string }>({ lastSync: null, status: 'idle' });
     const [nextSyncCountdown, setNextSyncCountdown] = useState('');
     const syncTriggeredRef = useRef(false);
+    const emailRefs = useRef<Record<string, HTMLDivElement>>({});
 
 
     const newEmailForm = useForm<z.infer<typeof newEmailFormSchema>>({
@@ -200,6 +201,21 @@ export default function AIEmailInboxPage() {
                 console.error("Error fetching archived emails:", error);
                 toast({ title: 'Error', description: 'Could not fetch archived emails.', variant: 'destructive'});
             });
+
+            // Scroll to email if hash is present
+            if(window.location.hash) {
+                const emailId = window.location.hash.substring(1);
+                setTimeout(() => {
+                    const element = document.getElementById(emailId);
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth' });
+                        element.style.backgroundColor = 'hsl(var(--primary) / 0.1)';
+                        setTimeout(() => {
+                           element.style.backgroundColor = '';
+                        }, 3000);
+                    }
+                }, 1000); // Delay to allow emails to render
+            }
 
             return () => {
                 newUnsubscribe();
@@ -405,7 +421,7 @@ export default function AIEmailInboxPage() {
 
 
     const EmailItem = ({ email }: { email: ProcessedEmail }) => (
-        <div className="w-full text-left p-4 space-y-2">
+        <div id={email.id} className="w-full text-left p-4 space-y-2">
             <div className="flex justify-between items-start gap-4">
                 <div className="flex-grow space-y-1 overflow-hidden">
                     <div className="flex justify-between items-start">
@@ -515,7 +531,7 @@ export default function AIEmailInboxPage() {
                 </div>
                  <div className="flex items-center gap-2 pt-2">
                     {email.aiCategory && <Badge variant="secondary">{email.aiCategory}</Badge>}
-                    {email.aiPriority && <Badge variant={email.aiPriority === 'High' ? 'destructive' : 'outline'}>{email.aiPriority}</Badge>}
+                    {email.aiPriority && <Badge variant={email.aiPriority === 'High' ? 'destructive' : 'warning'}>{email.aiPriority}</Badge>}
                  </div>
             </div>
         </div>
@@ -657,3 +673,4 @@ export default function AIEmailInboxPage() {
     );
 }
 
+    

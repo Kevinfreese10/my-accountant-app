@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format, isPast, addDays, isWithinInterval, startOfToday, addMonths, addYears, formatDistanceToNow } from 'date-fns';
-import { Task, User, TaskComment, Order, OrderNote } from '@/lib/types';
+import { Task, User, TaskComment, Order, OrderNote, ProcessedEmail } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, BrainCircuit, Check, Tag, Eye, Inbox, Bot, Mail, Send as SendIcon, Archive } from 'lucide-react';
@@ -61,6 +61,19 @@ const formSchema = z.object({
 
 function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffByDept }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onCommentSubmit: (taskId: string, commentText: string) => void, allStaff: User[], staffByDept: Record<string, User[]> }) {
     const { user } = useAuth();
+
+    const getTaskDate = (task: Partial<Task>): Date => {
+      if (!task?.dueDate) return new Date();
+      if (task.dueDate instanceof Date) {
+          return task.dueDate;
+      }
+      // Firestore Timestamps have a toDate() method
+      if (typeof (task.dueDate as any).toDate === 'function') {
+          return (task.dueDate as any).toDate();
+      }
+      // Fallback for string dates
+      return new Date(task.dueDate);
+    }
 
     const defaultDueDate = task?.dueDate ? getTaskDate(task) : new Date();
     const defaultDueTime = task?.dueDate ? format(getTaskDate(task), 'HH:mm') : '09:00';
@@ -289,6 +302,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             <Check className={cn("h-4 w-4")} />
                                             </div>
                                             <span className="flex-grow">{staff.name}</span>
+                                            <span className="text-xs text-muted-foreground font-mono">{staff.uid}</span>
                                         </CommandItem>
                                         ))}
                                     </CommandGroup>
@@ -303,7 +317,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                  <FormField control={form.control} name="orderId" render={({ field }) => (<FormItem><FormLabel>Related Order ID (Optional)</FormLabel><FormControl><Input {...field} placeholder="e.g. ORD-12345" /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="recurrence" render={({ field }) => (<FormItem><FormLabel>Recurrence</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select recurrence..." /></SelectTrigger></FormControl><SelectContent>{taskRecurrences.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 
-                {task && (
+                {task?.id && (
                     <>
                         <Separator />
                         <div className="space-y-4">
@@ -667,6 +681,7 @@ export default function AdminDashboardPage() {
     const [upcomingAutomatedTaskFilter, setUpcomingAutomatedTaskFilter] = useState('all');
     const { toast } = useToast();
     const [aiSuggestions, setAiSuggestions] = useState<{ [key: string]: any }>({});
+    const [emails, setEmails] = useState<ProcessedEmail[]>([]);
     
     const archivedNotifications = user?.archivedNotifications || [];
 
@@ -683,11 +698,9 @@ export default function AdminDashboardPage() {
     const notifications = useMemo(() => {
         if (!user || orders.length === 0) return [];
     
-        const assignedOrders = orders.filter(order => order.assignedTo?.includes(user.id));
-        
-        let allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
+        const allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
     
-        assignedOrders.forEach(order => {
+        orders.forEach(order => {
           const notes = (order.notes || [])
             .filter(note => note.authorId !== user.id && note.type === 'note')
             .map(note => {
@@ -706,42 +719,37 @@ export default function AdminDashboardPage() {
         return allNotes.sort((a, b) => b.date.getTime() - a.date.getTime());
     
     }, [orders, user]);
+    
+    const emailNotifications = useMemo(() => {
+        return emails.filter(email => 
+            email.status === 'new' && 
+            (email.aiPriority === 'High' || email.aiPriority === 'Medium')
+        ).sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
+    }, [emails]);
+
 
      useEffect(() => {
-        const analyzeNewNotifications = async () => {
-            for (const note of notifications) {
-                const noteId = note.orderId + (note.date instanceof Date ? note.date.toISOString() : new Date(note.date).toISOString());
-                if (!aiSuggestions[noteId] && !archivedNotifications.includes(noteId)) {
-                    try {
-                        const suggestion = await categorizeSupportRequest({
-                            request: note.text,
-                            clientName: note.customerName,
-                            attachments: note.attachments ? note.attachments.map(att => ({
-                                filename: att.name,
-                                contentType: null,
-                                dataUrl: att.url,
-                                size: null
-                            })) : []
-                        });
-                        setAiSuggestions(prev => ({ ...prev, [noteId]: suggestion }));
-                    } catch (error) {
-                        console.error("AI analysis failed for note:", note, error);
-                    }
-                }
-            }
-        };
-
-        if (notifications.length > 0) {
-            analyzeNewNotifications();
+        if (user?.uid) {
+            const emailsQuery = query(
+                collection(db, 'processedEmails'),
+                where('ownerId', '==', user.uid)
+            );
+            const emailsUnsubscribe = onSnapshot(emailsQuery, (snapshot) => {
+                const fetchedEmails = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcessedEmail));
+                setEmails(fetchedEmails);
+            }, (error) => {
+                console.error("Error fetching emails for dashboard:", error);
+            });
+            return () => emailsUnsubscribe();
         }
-    }, [notifications, aiSuggestions, archivedNotifications]);
+    }, [user]);
 
     
     useEffect(() => {
         setIsLoading(true);
         const usersQuery = query(collection(db, "users"));
         getDocs(usersQuery).then(usersSnapshot => {
-            const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+            const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
             setAllStaffAndClients(fetchedUsers);
         }).catch(error => {
             console.error("Error fetching users:", error);
@@ -1035,74 +1043,6 @@ export default function AdminDashboardPage() {
         return allStaffAndClients.find(u => u.uid === authorId || u.id === authorId);
     }
     
-    const [draftingReply, setDraftingReply] = useState<string | null>(null);
-
-    const handleDraftReply = async (note: any) => {
-        const noteId = note.orderId + (note.date instanceof Date ? note.date.toISOString() : new Date(note.date).toISOString());
-        setDraftingReply(noteId);
-        try {
-            const result = await generateEmailReply({
-                subject: `Re: Order ${note.orderId}`,
-                body: note.text,
-                sender: note.customerName,
-            });
-            
-            const suggestion = aiSuggestions[noteId];
-            if (suggestion) {
-                setAiSuggestions(prev => ({
-                    ...prev,
-                    [noteId]: {
-                        ...suggestion,
-                        draftReply: result.draft,
-                    }
-                }));
-            }
-        } catch(e) {
-            toast({ title: 'Failed to draft reply', variant: 'destructive' });
-        } finally {
-            setDraftingReply(null);
-        }
-    }
-
-    const handleSendReply = async (note: any) => {
-        const noteId = note.orderId + (note.date instanceof Date ? note.date.toISOString() : new Date(note.date).toISOString());
-        const suggestion = aiSuggestions[noteId];
-        if (!suggestion || !suggestion.draftReply || !user) return;
-        
-        try {
-            const newNote: OrderNote = {
-                text: suggestion.draftReply,
-                authorId: user.uid,
-                date: Timestamp.now(),
-                type: 'note',
-                subject: null,
-                attachments: null,
-            };
-            const orderRef = doc(db, 'orders', note.orderId);
-            await updateDoc(orderRef, {
-                notes: arrayUnion(newNote),
-            });
-
-            toast({ title: "Reply Sent!", description: "Your note has been posted to the order." });
-            archiveNotification(noteId);
-        } catch (e) {
-            toast({ title: "Failed to post note", variant: "destructive" });
-        }
-    }
-    
-    const handleCreateTaskFromSuggestion = (note: any) => {
-        const noteId = note.orderId + (note.date instanceof Date ? note.date.toISOString() : new Date(note.date).toISOString());
-        const suggestion = aiSuggestions[noteId];
-        if (!suggestion || !suggestion.task?.shouldCreate) return;
-
-        setSelectedTask({
-            title: suggestion.task.title,
-            description: suggestion.task.description,
-            orderId: note.orderId,
-        } as Task);
-        setIsFormOpen(true);
-    }
-
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1152,92 +1092,83 @@ export default function AdminDashboardPage() {
                 ) : user?.role !== 'cap_staff' ? (
                     <>
                         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-                            <Card className="lg:col-span-3">
+                            <Card className="lg:col-span-2">
                                 <CardHeader>
                                     <CardTitle>Notifications</CardTitle>
-                                    <CardDescription>Recent client notes on your assigned orders.</CardDescription>
+                                    <CardDescription>Recent notes on your assigned orders and high priority emails.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    {notifications.length > 0 ? (
                                     <ScrollArea className="h-72">
                                         <div className="space-y-4">
-                                        {notifications.filter(n => !archivedNotifications.includes(n.orderId + (n.date instanceof Date ? n.date.toISOString() : new Date(n.date).toISOString()))).map((note, index) => {
-                                            const author = getAuthor(note.authorId);
-                                            const noteId = note.orderId + (note.date instanceof Date ? note.date.toISOString() : new Date(note.date).toISOString());
-                                            const suggestion = aiSuggestions[noteId];
-                                            const date = note.date;
-
-                                            return (
-                                                <div key={index} className="flex items-start gap-3">
-                                                    <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
-                                                        {author?.name.charAt(0) || 'U'}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <p className="text-sm">
-                                                            <span className="font-semibold">{author?.name || 'Unknown User'}</span>
-                                                            <span className="text-muted-foreground"> left a note on order </span>
-                                                            <Link href={`/admin/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
-                                                        </p>
-                                                        <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
-                                                            "{note.text}"
-                                                        </blockquote>
-                                                        <p className="text-xs text-muted-foreground mt-1">
-                                                             {formatDistanceToNow(date, { addSuffix: true })}
-                                                        </p>
-                                                        
-                                                        {suggestion ? (
-                                                            <Card className="mt-2 bg-background">
-                                                                <CardHeader className="p-2">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <Bot className="h-4 w-4 text-primary" />
-                                                                        <CardTitle className="text-sm">AI Suggestion</CardTitle>
-                                                                    </div>
-                                                                </CardHeader>
-                                                                <CardContent className="p-2 pt-0 space-y-2">
-                                                                    <p className="text-xs">{suggestion.summary}</p>
-                                                                    <div className="flex gap-2 flex-wrap">
-                                                                        {suggestion.suggestedActions?.includes('create_task') && (
-                                                                            <Button size="sm" variant="outline" onClick={() => handleCreateTaskFromSuggestion(note)}>
-                                                                                <PlusCircle className="mr-2 h-4 w-4" /> Create Task
-                                                                            </Button>
-                                                                        )}
-                                                                        {suggestion.suggestedActions?.includes('draft_reply') && (
-                                                                             <>
-                                                                            {suggestion.draftReply ? (
-                                                                                <div className="w-full space-y-2">
-                                                                                     <Textarea defaultValue={suggestion.draftReply} rows={4} className="text-xs"/>
-                                                                                     <Button size="sm" onClick={() => handleSendReply(note)}><SendIcon className="mr-2 h-4 w-4"/>Post Note Reply</Button>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <Button size="sm" variant="outline" onClick={() => handleDraftReply(note)} disabled={draftingReply === noteId}>
-                                                                                    {draftingReply === noteId ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2 h-4 w-4"/>}
-                                                                                    Draft Reply
-                                                                                </Button>
-                                                                            )}
-                                                                            </>
-                                                                        )}
-                                                                         <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
-                                                                            <Archive className="mr-2 h-4 w-4"/> Archive
-                                                                         </Button>
-                                                                    </div>
-                                                                </CardContent>
-                                                            </Card>
-                                                        ) : (
-                                                          <div className="pt-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
-                                                        )}
-                                                    </div>
+                                            {emailNotifications.length > 0 && (
+                                                <div className="space-y-4">
+                                                    <h4 className="text-sm font-semibold text-muted-foreground">High Priority Emails</h4>
+                                                    {emailNotifications.map((email, index) => (
+                                                         <div key={index} className="flex items-start gap-3">
+                                                            <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(email.from.address))}>
+                                                                {email.from.name.charAt(0) || 'U'}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <p className="text-sm">
+                                                                    <span className="font-semibold">{email.from.name || 'Unknown User'}</span>
+                                                                    <span className="text-muted-foreground"> sent an email with priority </span>
+                                                                    <Badge variant={email.aiPriority === 'High' ? 'destructive' : 'warning'}>{email.aiPriority}</Badge>
+                                                                </p>
+                                                                <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
+                                                                    "{email.aiSummary}"
+                                                                </blockquote>
+                                                                <div className="flex items-center justify-between">
+                                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                                        {formatDistanceToNow(email.date.toDate(), { addSuffix: true })}
+                                                                    </p>
+                                                                    <Button asChild size="sm" variant="link" className="p-0">
+                                                                        <Link href={`/admin/ai-email-inbox#${email.id}`}>View Email</Link>
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                     <Separator />
                                                 </div>
-                                            )
-                                        })}
+                                            )}
+                                            {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
+                                                const author = getAuthor(note.authorId);
+                                                const date = note.date;
+                                                const noteId = note.orderId + date.toISOString();
+
+                                                return (
+                                                    <div key={index} className="flex items-start gap-3">
+                                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
+                                                            {author?.name.charAt(0) || 'U'}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <p className="text-sm">
+                                                                <span className="font-semibold">{author?.name || 'Unknown User'}</span>
+                                                                <span className="text-muted-foreground"> left a note on order </span>
+                                                                <Link href={`/admin/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                                            </p>
+                                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
+                                                            <div className="flex items-center justify-between">
+                                                                <p className="text-xs text-muted-foreground mt-1">
+                                                                    {formatDistanceToNow(date, { addSuffix: true })}
+                                                                </p>
+                                                                 <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
+                                                                    <Archive className="mr-2 h-4 w-4"/> Archive
+                                                                 </Button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                            {notifications.length === 0 && emailNotifications.length === 0 && (
+                                                <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
+                                                    <Inbox className="h-12 w-12 mb-4"/>
+                                                    <p className="font-semibold">All caught up!</p>
+                                                    <p className="text-sm">You have no new notifications.</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </ScrollArea>
-                                    ) : (
-                                    <div className="flex flex-col items-center justify-center h-72 text-center text-muted-foreground">
-                                        <Inbox className="h-12 w-12 mb-4"/>
-                                        <p className="font-semibold">All caught up!</p>
-                                        <p className="text-sm">You have no new notifications.</p>
-                                    </div>
-                                    )}
                                 </CardContent>
                             </Card>
                         </div>
@@ -1322,3 +1253,5 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
+
+    
