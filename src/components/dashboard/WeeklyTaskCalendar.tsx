@@ -91,7 +91,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                         onDragStart={(e) => handleDragStart(e, task.id)}
                         className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab group relative"
                     >
-                        <div className="absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-1 right-1 flex">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -192,12 +192,12 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                     return (
                       <div
                         key={hour}
-                        className="h-24 p-1 flex flex-col gap-1"
+                        className="h-auto min-h-[6rem] p-1 flex flex-col gap-1"
                         onDrop={(e) => handleDrop(e, day, hour)}
                         onDragOver={handleDragOver}
                       >
                          <div className="text-[10px] text-muted-foreground pl-1">{hour}:00</div>
-                         <div className="flex-grow space-y-1">
+                         <div className="space-y-1">
                             {tasksForHour.map(task => <DraggableTask key={task.id} task={task} />)}
                          </div>
                       </div>
