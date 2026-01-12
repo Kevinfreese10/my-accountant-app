@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -14,10 +13,10 @@ import {z} from 'genkit';
 import { websiteQAndA } from './website-q-and-a';
 
 const AttachmentSchema = z.object({
-  filename: z.string(),
-  contentType: z.string(),
-  dataUrl: z.string(),
-  size: z.number(),
+  filename: z.string().nullable(),
+  contentType: z.string().nullable(),
+  dataUrl: z.string().nullable(),
+  size: z.number().nullable(),
 });
 
 const CategorizeSupportRequestInputSchema = z.object({
@@ -78,6 +77,10 @@ const categorizeSupportRequestFlow = ai.defineFlow(
       3.  Suggest a list of next actions (e.g., 'create_task', 'draft_reply').
       4.  If a task is suggested, provide the details for it.
       5.  DO NOT generate a draft reply yourself.
+
+      **Attachment Guidelines:**
+      - If an attachment is a PDF document, you MUST analyze its content and incorporate a summary of it into your main summary.
+      - If an attachment is an image or a format you cannot read, state that an image was attached but do not attempt to analyze its content.
 
       **Triage Guidelines:**
       - Categories: 'Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'.

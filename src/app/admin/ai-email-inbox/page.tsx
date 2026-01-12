@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -462,7 +461,7 @@ export default function AIEmailInboxPage() {
                     <div className="pt-2">
                          <p className="text-xs font-semibold mb-1">Attachments:</p>
                          <div className="flex flex-wrap gap-2">
-                            {email.attachments.filter(att => att.filename).map((att, index) => (
+                            {email.attachments.filter(att => att.filename && !att.filename.toLowerCase().endsWith('.jpg') && !att.filename.toLowerCase().endsWith('.jpeg')).map((att, index) => (
                                  <a
                                     key={index}
                                     href={att.dataUrl || '#'}
@@ -672,5 +671,3 @@ export default function AIEmailInboxPage() {
         </div>
     );
 }
-
-    
