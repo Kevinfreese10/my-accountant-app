@@ -432,7 +432,7 @@ const getTaskDate = (task: Task): Date => {
   if (task.dueDate && typeof (task.dueDate as any).toDate === 'function') {
       return (task.dueDate as any).toDate();
   }
-  // Fallback for string dates (though should be avoided)
+  // Fallback for string dates
   return new Date(task.dueDate);
 }
 
@@ -1091,87 +1091,85 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : user?.role !== 'cap_staff' ? (
                     <>
-                        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-                            <Card className="lg:col-span-2">
-                                <CardHeader>
-                                    <CardTitle>Notifications</CardTitle>
-                                    <CardDescription>Recent notes on your assigned orders and high priority emails.</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <ScrollArea className="h-72">
-                                        <div className="space-y-4">
-                                            {emailNotifications.length > 0 && (
-                                                <div className="space-y-4">
-                                                    <h4 className="text-sm font-semibold text-muted-foreground">High Priority Emails</h4>
-                                                    {emailNotifications.map((email, index) => (
-                                                         <div key={index} className="flex items-start gap-3">
-                                                            <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(email.from.address))}>
-                                                                {email.from.name.charAt(0) || 'U'}
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <p className="text-sm">
-                                                                    <span className="font-semibold">{email.from.name || 'Unknown User'}</span>
-                                                                    <span className="text-muted-foreground"> sent an email with priority </span>
-                                                                    <Badge variant={email.aiPriority === 'High' ? 'destructive' : 'warning'}>{email.aiPriority}</Badge>
-                                                                </p>
-                                                                <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
-                                                                    "{email.aiSummary}"
-                                                                </blockquote>
-                                                                <div className="flex items-center justify-between">
-                                                                    <p className="text-xs text-muted-foreground mt-1">
-                                                                        {formatDistanceToNow(email.date.toDate(), { addSuffix: true })}
-                                                                    </p>
-                                                                    <Button asChild size="sm" variant="link" className="p-0">
-                                                                        <Link href={`/admin/ai-email-inbox#${email.id}`}>View Email</Link>
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                     <Separator />
-                                                </div>
-                                            )}
-                                            {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
-                                                const author = getAuthor(note.authorId);
-                                                const date = note.date;
-                                                const noteId = note.orderId + date.toISOString();
-
-                                                return (
-                                                    <div key={index} className="flex items-start gap-3">
-                                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
-                                                            {author?.name.charAt(0) || 'U'}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Notifications</CardTitle>
+                                <CardDescription>Recent notes on your assigned orders and high priority emails.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <ScrollArea className="h-72">
+                                    <div className="space-y-4">
+                                        {emailNotifications.length > 0 && (
+                                            <div className="space-y-4">
+                                                <h4 className="text-sm font-semibold text-muted-foreground">High Priority Emails</h4>
+                                                {emailNotifications.map((email, index) => (
+                                                        <div key={index} className="flex items-start gap-3">
+                                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(email.from.address))}>
+                                                            {email.from.name.charAt(0) || 'U'}
                                                         </div>
                                                         <div className="flex-1">
                                                             <p className="text-sm">
-                                                                <span className="font-semibold">{author?.name || 'Unknown User'}</span>
-                                                                <span className="text-muted-foreground"> left a note on order </span>
-                                                                <Link href={`/admin/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                                                <span className="font-semibold">{email.from.name || 'Unknown User'}</span>
+                                                                <span className="text-muted-foreground"> sent an email with priority </span>
+                                                                <Badge variant={email.aiPriority === 'High' ? 'destructive' : 'warning'}>{email.aiPriority}</Badge>
                                                             </p>
-                                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
+                                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
+                                                                "{email.aiSummary}"
+                                                            </blockquote>
                                                             <div className="flex items-center justify-between">
                                                                 <p className="text-xs text-muted-foreground mt-1">
-                                                                    {formatDistanceToNow(date, { addSuffix: true })}
+                                                                    {formatDistanceToNow(email.date.toDate(), { addSuffix: true })}
                                                                 </p>
-                                                                 <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
-                                                                    <Archive className="mr-2 h-4 w-4"/> Archive
-                                                                 </Button>
+                                                                <Button asChild size="sm" variant="link" className="p-0">
+                                                                    <Link href={`/admin/ai-email-inbox#${email.id}`}>View Email</Link>
+                                                                </Button>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                )
-                                            })}
-                                            {notifications.length === 0 && emailNotifications.length === 0 && (
-                                                <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
-                                                    <Inbox className="h-12 w-12 mb-4"/>
-                                                    <p className="font-semibold">All caught up!</p>
-                                                    <p className="text-sm">You have no new notifications.</p>
+                                                ))}
+                                                    <Separator />
+                                            </div>
+                                        )}
+                                        {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
+                                            const author = getAuthor(note.authorId);
+                                            const date = note.date;
+                                            const noteId = note.orderId + date.toISOString();
+
+                                            return (
+                                                <div key={index} className="flex items-start gap-3">
+                                                    <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
+                                                        {author?.name.charAt(0) || 'U'}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="text-sm">
+                                                            <span className="font-semibold">{author?.name || 'Unknown User'}</span>
+                                                            <span className="text-muted-foreground"> left a note on order </span>
+                                                            <Link href={`/admin/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                                        </p>
+                                                        <blockquote className="mt-1 border-l-2 pl-3 text-sm italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
+                                                        <div className="flex items-center justify-between">
+                                                            <p className="text-xs text-muted-foreground mt-1">
+                                                                {formatDistanceToNow(date, { addSuffix: true })}
+                                                            </p>
+                                                                <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
+                                                                <Archive className="mr-2 h-4 w-4"/> Archive
+                                                                </Button>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </ScrollArea>
-                                </CardContent>
-                            </Card>
-                        </div>
+                                            )
+                                        })}
+                                        {notifications.length === 0 && emailNotifications.length === 0 && (
+                                            <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
+                                                <Inbox className="h-12 w-12 mb-4"/>
+                                                <p className="font-semibold">All caught up!</p>
+                                                <p className="text-sm">You have no new notifications.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </ScrollArea>
+                            </CardContent>
+                        </Card>
 
 
                         <WeeklyTaskCalendar tasks={tasks} allStaff={allStaffAndClients} currentUser={user} onTaskUpdate={handleUpdate} onEdit={handleEdit} />
@@ -1253,5 +1251,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-
-    
