@@ -89,7 +89,7 @@ export const AIAccountantWelcomeEmail = ({ name, loginUrl }: AIAccountantWelcome
             <Section style={box}>
                 <Heading style={heading}>Welcome to AI Accountant!</Heading>
                 <Text style={paragraph}>
-                    Hi {name},
+                    Hi {name.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     Thank you for signing up! Your AI Accountant profile has been successfully created. You can now log in to your dashboard to get started.

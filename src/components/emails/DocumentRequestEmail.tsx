@@ -66,7 +66,8 @@ const button = {
   textAlign: 'center' as const,
   display: 'block',
   width: '100%',
-  padding: '12px',
+  paddingTop: '12px',
+  paddingBottom: '12px',
 };
 
 const footer = {
@@ -98,7 +99,7 @@ export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: Docume
             <Section style={box}>
                 <Heading style={heading}>Your Order is Being Processed</Heading>
                 <Text style={paragraph}>
-                    Hi {order.customerName},
+                    Hi {order.customerName.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, please log in to your dashboard to securely upload the required documents.

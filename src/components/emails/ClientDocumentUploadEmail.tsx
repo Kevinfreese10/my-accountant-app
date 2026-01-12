@@ -91,7 +91,7 @@ export const ClientDocumentUploadEmail = ({ assigneeName, clientName, orderId, o
             <Section style={box}>
                 <Heading style={heading}>Documents Uploaded by Client</Heading>
                 <Text style={paragraph}>
-                    Hi {assigneeName},
+                    Hi {assigneeName.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     <strong>{clientName}</strong> has submitted their documents for order <strong style={{color: '#214392'}}>{orderId}</strong>.

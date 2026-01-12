@@ -94,7 +94,7 @@ export const PaymentConfirmationEmail = ({ order, reseller }: PaymentConfirmatio
             <Section style={box}>
                 <Heading style={heading}>Payment Received!</Heading>
                 <Text style={paragraph}>
-                    Hi {order.customerName},
+                    Hi {order.customerName.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     This is to confirm that we have received payment for your order <strong style={{color: '#214392'}}>{order.id}</strong>.

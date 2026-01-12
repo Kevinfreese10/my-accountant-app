@@ -87,7 +87,7 @@ export const PartnerWelcomeEmail = ({ partnerName, dashboardUrl }: PartnerWelcom
         <Body style={main}>
             <Container style={container}>
             <Section style={box}>
-                <Heading style={heading}>Welcome Aboard, {partnerName}!</Heading>
+                <Heading style={heading}>Welcome Aboard, {partnerName.split(' ')[0]}!</Heading>
                 <Text style={paragraph}>
                     Thank you for joining the My Accountant Partner Program. We're excited to have you with us.
                 </Text>

@@ -108,7 +108,7 @@ export const DocumentReviewEmail = ({ clientName, orderId, documentUploads, orde
             <Section style={box}>
                 <Heading style={heading}>Document Review Complete</Heading>
                 <Text style={paragraph}>
-                    Hi {clientName},
+                    Hi {clientName.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     We have reviewed the documents you submitted for order <strong style={{color: '#214392'}}>{orderId}</strong>. Please see the status of each item below.

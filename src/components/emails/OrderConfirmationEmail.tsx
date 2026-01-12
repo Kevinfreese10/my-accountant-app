@@ -97,6 +97,8 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
     const previewText = `Order Confirmation #${order.id}`;
     
     const customerDisplayName = reseller ? reseller.companyName || reseller.name : order.customerName;
+    const customerFirstName = customerDisplayName.split(' ')[0];
+
 
     const companyName = 'My Accountant';
     const companyEmail = 'info@myacc.co.za';
@@ -113,7 +115,7 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
             <Section style={box}>
                 <Heading style={heading}>Thank You For Your Order!</Heading>
                 <Text style={paragraph}>
-                    Hi {customerDisplayName},
+                    Hi {customerFirstName},
                 </Text>
                  {isNewUser && generatedPassword && (
                     <Text style={paragraph}>

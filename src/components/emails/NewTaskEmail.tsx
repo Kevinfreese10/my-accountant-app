@@ -105,7 +105,7 @@ export const NewTaskEmail = ({ assigneeName, taskTitle, taskDescription, dueDate
             <Section style={box}>
                 <Heading style={heading}>You Have a New Task</Heading>
                 <Text style={paragraph}>
-                    Hi {assigneeName},
+                    Hi {assigneeName.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     A new task has been assigned to you by <strong>{assignedBy}</strong>. Please see the details below and mark it as 'In Progress' when you begin.

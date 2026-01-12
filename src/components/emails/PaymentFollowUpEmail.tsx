@@ -124,7 +124,7 @@ export const PaymentFollowUpEmail = ({ order, reseller }: PaymentFollowUpEmailPr
             <Section style={box}>
                 <Heading style={heading}>Payment Reminder for Your Order</Heading>
                 <Text style={paragraph}>
-                    Hi {order.customerName},
+                    Hi {order.customerName.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     This is a friendly reminder that your order <strong style={{color: '#214392'}}>{order.id}</strong> is still awaiting payment. To proceed with your services, please make the payment at your earliest convenience.

@@ -83,7 +83,7 @@ export const InvoiceRejectionEmail = ({ invoice, reason, rejectedBy }: InvoiceRe
             <Section style={box}>
                 <Heading style={heading}>Invoice Rejected</Heading>
                 <Text style={paragraph}>
-                    Hi {rejectedBy},
+                    Hi {rejectedBy.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     This email confirms that you have rejected the following invoice.

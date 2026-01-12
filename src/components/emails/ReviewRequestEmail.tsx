@@ -94,7 +94,7 @@ export const ReviewRequestEmail = ({ order, reseller }: ReviewRequestEmailProps)
             <Section style={box}>
                 <Heading style={heading}>Thank You for Your Business!</Heading>
                 <Text style={paragraph}>
-                    Hi {order.customerName},
+                    Hi {order.customerName.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     Your order <strong style={{color: '#214392'}}>{order.id}</strong> has now been completed. We hope you had a positive experience with {companyName}.

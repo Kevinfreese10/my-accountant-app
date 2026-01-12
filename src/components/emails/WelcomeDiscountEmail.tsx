@@ -1,3 +1,4 @@
+
 import {
   Body,
   Container,
@@ -101,7 +102,7 @@ export const WelcomeDiscountEmail = ({ name, discountCode }: WelcomeDiscountEmai
             <Section style={box}>
                 <Heading style={heading}>Welcome to My Accountant!</Heading>
                 <Text style={paragraph}>
-                    Hi {name},
+                    Hi {name.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     Thank you for signing up! We've received your request for a free SARS & CIPC compliance assessment. One of our consultants will be in touch with you shortly with your results.

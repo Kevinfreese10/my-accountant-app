@@ -77,7 +77,7 @@ export const MissingStatementRequestEmail = ({ clientName, missingPeriods }: Mis
             <Section style={box}>
                 <Heading style={heading}>Missing Bank Statements</Heading>
                 <Text style={paragraph}>
-                    Hi {clientName},
+                    Hi {clientName.split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
                     We are busy processing your books and have noticed that we are missing bank statements for the following periods:
