@@ -27,7 +27,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       {shouldShowHeaderFooter && (
         <>
           <Footer />
-          <NewVisitorPopup />
+          {/* <NewVisitorPopup /> */}
         </>
       )}
     </div>
