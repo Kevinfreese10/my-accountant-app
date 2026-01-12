@@ -73,50 +73,17 @@ export default function DashboardPage() {
         setArchivedNotifications(newArchived);
         localStorage.setItem('archivedNotifications-client', JSON.stringify(newArchived));
     };
-
-    const monthlyPackages = [
-        {
-            title: 'Monthly Accounting (Non-VAT)',
-            price: 'R950',
-            priceDetail: '/month',
-            features: [
-                'Annual financial statements',
-                'Provisional tax returns (2 per year)',
-                'Annual income tax return',
-                'CIPC annual return',
-                'B-BBEE certificate or affidavit',
-                'Beneficial ownership declaration',
-                'Tax clearance certificate',
-            ]
-        },
-        {
-            title: 'Monthly Accounting (VAT Registered)',
-            price: 'R3950',
-            priceDetail: '/month',
-            features: [
-                'Annual financial statements',
-                'Provisional tax returns (2 per year)',
-                'Annual income tax return',
-                'CIPC annual return',
-                'B-BBEE certificate or affidavit',
-                'Beneficial ownership declaration',
-                'Tax clearance certificate',
-                'Bi-monthly VAT201 submissions',
-            ]
-        },
-        {
-            title: 'Monthly Payroll',
-            price: 'R950',
-            priceDetail: '/month + R140 / employee',
-            features: [
-                'Monthly payslips',
-                'EMP201 submissions (PAYE, UIF, SDL)',
-                'UIF Declaration',
-                'Included EMP501 recons x 2',
-                'IRP5s',
-            ]
-        },
-    ];
+    
+    const monthlyPackages = useMemo(() => {
+        const monthlyTitles = [
+            'Monthly Accounting (Non-VAT)',
+            'Monthly Accounting (VAT Registered)',
+            'Monthly Payroll',
+        ];
+        return services
+            .filter(s => monthlyTitles.includes(s.title))
+            .sort((a,b) => monthlyTitles.indexOf(a.title) - monthlyTitles.indexOf(b.title));
+    }, [services]);
 
     useEffect(() => {
         setIsLoading(true);
@@ -244,7 +211,7 @@ export default function DashboardPage() {
 
      const filteredCategorizedServices = useMemo(() => {
         if (!searchTerm) {
-            return categorizedServices;
+            return categorizedServices.filter(c => c.name !== 'Monthly Packages');
         }
         return categorizedServices
             .map(category => ({
@@ -253,7 +220,7 @@ export default function DashboardPage() {
                     service.title.toLowerCase().includes(searchTerm.toLowerCase())
                 ),
             }))
-            .filter(category => category.data.length > 0);
+            .filter(category => category.data.length > 0 && category.name !== 'Monthly Packages');
     }, [categorizedServices, searchTerm]);
 
 
@@ -278,7 +245,7 @@ export default function DashboardPage() {
                             <div className="space-y-4">
                             {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
                                 const author = getAuthor(note.authorId);
-                                const date = note.date;
+                                const date = note.date instanceof Date ? note.date : note.date.toDate();
                                 const noteId = note.orderId + date.toISOString();
                                 return (
                                     <div key={index} className="flex items-start gap-3">
@@ -325,17 +292,17 @@ export default function DashboardPage() {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
                             {monthlyPackages.map((pkg) => (
-                                <Card key={pkg.title} className="flex flex-col">
+                                <Card key={pkg.id} className="flex flex-col">
                                     <CardHeader>
                                         <CardTitle>{pkg.title}</CardTitle>
                                         <div className="flex items-baseline pt-2">
-                                            <span className="text-3xl font-bold">{pkg.price}</span>
-                                            {pkg.priceDetail && <span className="ml-1.5 text-sm text-muted-foreground">{pkg.priceDetail}</span>}
+                                            <span className="text-3xl font-bold">{formatPrice(pkg.price)}</span>
+                                            <span className="ml-1.5 text-sm text-muted-foreground">/month</span>
                                         </div>
                                     </CardHeader>
                                     <CardContent className="flex-grow">
                                         <ul className="space-y-3">
-                                            {pkg.features.map((feature, index) => (
+                                            {pkg.whatsIncluded.map((feature, index) => (
                                                 <li key={index} className="flex items-center gap-2 text-sm">
                                                     <CheckCircle className="h-4 w-4 text-green-500" />
                                                     <span>{feature}</span>
@@ -448,5 +415,3 @@ export default function DashboardPage() {
         </>
     );
 }
-
-    
