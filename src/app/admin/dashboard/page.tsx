@@ -697,28 +697,33 @@ export default function AdminDashboardPage() {
 
     const notifications = useMemo(() => {
         if (!user || orders.length === 0) return [];
-    
-        const allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
-    
-        orders.forEach(order => {
-          const notes = (order.notes || [])
-            .filter(note => note.authorId !== user.id && note.type === 'note')
-            .map(note => {
-                const date = note.date?.toDate ? note.date.toDate() : new Date(note.date);
-                return {
-                  ...note,
-                  date,
-                  orderId: order.id,
-                  orderTitle: order.items[0]?.title || 'Untitled Order',
-                  customerName: order.customerName,
-                }
-            });
-          allNotes.push(...notes);
+        
+        const relevantOrders = orders.filter(order => {
+            const isAssigned = order.assignedTo?.includes(user.id);
+            const isTagged = tasks.some(task => task.orderId === order.id && task.tags?.includes(user.id));
+            return isAssigned || isTagged;
+        });
+
+        const allNotes: (OrderNote & { orderId: string; orderTitle: string; customerName: string; })[] = [];
+
+        relevantOrders.forEach(order => {
+            const notes = (order.notes || [])
+                .filter(note => note.authorId !== user.id && note.type === 'note')
+                .map(note => {
+                    const date = note.date?.toDate ? note.date.toDate() : new Date(note.date);
+                    return {
+                        ...note,
+                        date,
+                        orderId: order.id,
+                        orderTitle: order.items[0]?.title || 'Untitled Order',
+                        customerName: order.customerName,
+                    };
+                });
+            allNotes.push(...notes);
         });
         
         return allNotes.sort((a, b) => b.date.getTime() - a.date.getTime());
-    
-    }, [orders, user]);
+    }, [orders, tasks, user]);
     
     const emailNotifications = useMemo(() => {
         return emails.filter(email => 
@@ -1091,7 +1096,7 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : user?.role !== 'cap_staff' ? (
                     <>
-                        <Card>
+                         <Card className="w-full">
                             <CardHeader>
                                 <CardTitle>Notifications</CardTitle>
                                 <CardDescription>Recent notes on your assigned orders and high priority emails.</CardDescription>
@@ -1170,7 +1175,6 @@ export default function AdminDashboardPage() {
                                 </ScrollArea>
                             </CardContent>
                         </Card>
-
 
                         <WeeklyTaskCalendar tasks={tasks} allStaff={allStaffAndClients} currentUser={user} onTaskUpdate={handleUpdate} onEdit={handleEdit} />
 
@@ -1251,3 +1255,5 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
+
+    
