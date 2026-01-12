@@ -35,7 +35,7 @@ export default function DashboardPage() {
                         date: data.date.toDate().toISOString(),
                     } as Order;
                 });
-                setOrders(fetchedOrders);
+                setOrders(fetchedOrders.filter(order => order.status !== 'Cancelled'));
             } catch (error) {
                 console.error("Error fetching orders:", error);
             } finally {
