@@ -3,13 +3,13 @@
 
 import * as React from "react"
 import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Download } from "lucide-react";
+import { Loader2, Download, Eye, Calculator, Save, Trash2, FolderOpen } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
-import { getFirestore, doc, getDoc, collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, onSnapshot, query, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from '@/lib/types';
+import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount, SavedReport } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +28,7 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, parseISO } from 'date-fns';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import * as XLSX from 'xlsx';
@@ -36,6 +36,12 @@ import Link from "next/link";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
+import { nanoid } from 'nanoid';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+
 
 const db = getFirestore(firebaseApp);
 
@@ -297,6 +303,7 @@ function TrialBalanceReport({ client, transactions, dateRange, comparativeDateRa
 
 export default function TrialBalancePage() {
     const params = useParams();
+    const router = useRouter();
     const clientId = params.clientId as string;
 
     const [client, setClient] = useState<User | null>(null);
@@ -305,11 +312,15 @@ export default function TrialBalancePage() {
     const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
     const [comparativeDateRange, setComparativeDateRange] = React.useState<DateRange | undefined>(undefined);
     const [showComparison, setShowComparison] = useState(false);
+    const { toast } = useToast();
+    const [isSavingReport, setIsSavingReport] = useState(false);
+    const [reportName, setReportName] = useState('');
+    const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
     
     useEffect(() => {
         if (!clientId) return;
 
-        const fetchClient = async () => {
+        const fetchClientData = async () => {
              const docRef = doc(db, 'aiAccountantClients', clientId);
              const docSnap = await getDoc(docRef);
              if (docSnap.exists()) {
@@ -317,6 +328,7 @@ export default function TrialBalancePage() {
              }
              setIsLoading(false);
         };
+        fetchClientData();
 
         const unsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), 
             (snapshot) => {
@@ -326,14 +338,79 @@ export default function TrialBalancePage() {
             },
             (error) => {
                 console.error("Error fetching transactions:", error);
-                setIsLoading(false);
+                if (isLoading) setIsLoading(false);
             }
         );
         
-        fetchClient();
         return () => unsubscribe();
     }, [clientId, isLoading]);
     
+    const handleSaveReport = async () => {
+        if (!client || !reportName.trim()) {
+            toast({ title: 'Error', description: 'Please enter a name for the report.', variant: 'destructive'});
+            return;
+        }
+        setIsSavingReport(true);
+        
+        const newReport: SavedReport = {
+            id: nanoid(),
+            name: reportName,
+            dateRange: dateRange?.from && dateRange.to ? { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() } : undefined,
+            comparativeDateRange: showComparison && comparativeDateRange?.from && comparativeDateRange.to ? { from: comparativeDateRange.from.toISOString(), to: comparativeDateRange.to.toISOString() } : undefined,
+        };
+
+        try {
+            const clientRef = doc(db, 'aiAccountantClients', client.id);
+            await updateDoc(clientRef, {
+                savedReports: arrayUnion(newReport)
+            });
+            
+            // Optimistically update local state
+            setClient(prev => prev ? { ...prev, savedReports: [...(prev.savedReports || []), newReport] } : null);
+
+            toast({ title: 'Report Saved!', description: `"${reportName}" has been saved.`});
+            setReportName('');
+            setIsSaveDialogOpen(false);
+        } catch(e) {
+            console.error(e);
+            toast({ title: 'Error', description: 'Could not save the report.', variant: 'destructive'});
+        } finally {
+            setIsSavingReport(false);
+        }
+    };
+    
+    const handleLoadReport = (reportId: string) => {
+        const report = client?.savedReports?.find(r => r.id === reportId);
+        if (report) {
+            setDateRange(report.dateRange ? { from: parseISO(report.dateRange.from), to: parseISO(report.dateRange.to) } : undefined);
+            if (report.comparativeDateRange) {
+                setShowComparison(true);
+                setComparativeDateRange({ from: parseISO(report.comparativeDateRange.from), to: parseISO(report.comparativeDateRange.to) });
+            } else {
+                setShowComparison(false);
+                setComparativeDateRange(undefined);
+            }
+            toast({ title: 'Report Loaded', description: `Loaded settings for "${report.name}".`});
+        }
+    };
+    
+    const handleDeleteReport = async (reportId: string) => {
+        if (!client) return;
+        const reportToDelete = client.savedReports?.find(r => r.id === reportId);
+        if (!reportToDelete) return;
+        
+        try {
+            const clientRef = doc(db, 'aiAccountantClients', client.id);
+            await updateDoc(clientRef, {
+                savedReports: arrayRemove(reportToDelete)
+            });
+            setClient(prev => prev ? { ...prev, savedReports: prev.savedReports?.filter(r => r.id !== reportId) } : null);
+            toast({ title: 'Report Deleted', variant: 'destructive'});
+        } catch(e) {
+            toast({ title: 'Error', description: 'Could not delete report.', variant: 'destructive'});
+        }
+    };
+
     const getReportDateString = () => {
         if (!dateRange || (!dateRange.from && !dateRange.to)) {
             return `as at ${format(new Date(), "dd MMMM yyyy")}`;
@@ -386,31 +463,105 @@ export default function TrialBalancePage() {
                          </div>
                      </div>
                      <Separator />
-                    {isLoading ? (
-                        <Loader2 className="animate-spin" />
-                    ) : client ? (
-                        <Dialog>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        {isLoading ? (
+                            <Loader2 className="animate-spin" />
+                        ) : client ? (
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button>View Report</Button>
+                                </DialogTrigger>
+                                 <DialogContent className="sm:max-w-4xl">
+                                    <DialogHeader className="text-center mb-4">
+                                        <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
+                                        <DialogDescription>
+                                            Trial Balance {getReportDateString()} <br/> <span className="font-semibold">{getComparativeDateString()}</span>
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <TrialBalanceReport 
+                                        client={client} 
+                                        transactions={transactions} 
+                                        dateRange={dateRange} 
+                                        comparativeDateRange={showComparison ? comparativeDateRange : undefined}
+                                    />
+                                </DialogContent>
+                            </Dialog>
+                        ) : (
+                            <p>Client data could not be loaded.</p>
+                        )}
+                         <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button>View Trial Balance</Button>
+                                <Button variant="outline"><Save className="mr-2 h-4 w-4"/>Save Report</Button>
                             </DialogTrigger>
-                             <DialogContent className="sm:max-w-4xl">
-                                <DialogHeader className="text-center mb-4">
-                                    <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
-                                    <DialogDescription>
-                                        Trial Balance {getReportDateString()} <br/> <span className="font-semibold">{getComparativeDateString()}</span>
-                                    </DialogDescription>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Save Report Configuration</DialogTitle>
                                 </DialogHeader>
-                                <TrialBalanceReport 
-                                    client={client} 
-                                    transactions={transactions} 
-                                    dateRange={dateRange} 
-                                    comparativeDateRange={showComparison ? comparativeDateRange : undefined}
-                                />
+                                <div className="space-y-2 py-4">
+                                    <Label htmlFor="report-name">Report Name</Label>
+                                    <Input id="report-name" value={reportName} onChange={(e) => setReportName(e.target.value)} placeholder="e.g., Q1 2024 vs Q1 2023"/>
+                                </div>
+                                <DialogFooter>
+                                    <Button variant="ghost" onClick={() => setIsSaveDialogOpen(false)}>Cancel</Button>
+                                    <Button onClick={handleSaveReport} disabled={isSavingReport}>
+                                        {isSavingReport && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                        Save
+                                    </Button>
+                                </DialogFooter>
                             </DialogContent>
                         </Dialog>
-                    ) : (
-                        <p>Client data could not be loaded.</p>
-                    )}
+                         <Select onValueChange={handleLoadReport}>
+                            <SelectTrigger className="w-full sm:w-[200px]">
+                                <SelectValue placeholder="Load a saved report..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <p className="text-xs font-semibold px-2 py-1.5 text-muted-foreground">My Reports</p>
+                                {client?.savedReports && client.savedReports.length > 0 ? (
+                                    client.savedReports.map(report => (
+                                        <SelectItem key={report.id} value={report.id}>{report.name}</SelectItem>
+                                    ))
+                                ) : (
+                                    <p className="text-xs text-center text-muted-foreground p-2">No saved reports yet.</p>
+                                )}
+                            </SelectContent>
+                        </Select>
+                         <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant="outline"><FolderOpen className="mr-2 h-4 w-4"/>Manage Reports</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Manage Saved Reports</DialogTitle>
+                                </DialogHeader>
+                                <div className="py-4 space-y-2">
+                                {client?.savedReports && client.savedReports.length > 0 ? (
+                                    client.savedReports.map(report => (
+                                        <div key={report.id} className="flex justify-between items-center bg-muted p-2 rounded-md">
+                                            <p className="text-sm font-medium">{report.name}</p>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                     <Button variant="destructive" size="icon" className="h-7 w-7"><Trash2 className="h-4 w-4"/></Button>
+                                                </AlertDialogTrigger>
+                                                 <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Delete "{report.name}"?</AlertDialogTitle>
+                                                        <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteReport(report.id)}>Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
+                                    ))
+                                ) : (
+                                     <p className="text-center text-muted-foreground py-8">No saved reports to manage.</p>
+                                )}
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                 </CardContent>
             </Card>
         </div>

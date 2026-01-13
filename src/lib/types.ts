@@ -187,6 +187,19 @@ export type SubscriptionData = {
     subscriptionStatus?: 'active' | 'lapsed';
 };
 
+export type SavedReport = {
+  id: string;
+  name: string;
+  dateRange?: {
+    from: string;
+    to: string;
+  };
+  comparativeDateRange?: {
+    from: string;
+    to: string;
+  };
+};
+
 export type User = {
   uid: string; // Firebase Authentication UID
   id: string; // Document ID
@@ -247,7 +260,6 @@ export type User = {
   payrollDueDate?: any;
   submitsEmp201?: boolean;
   submitsEmp501?: boolean;
-  submitsProvisionalTax?: boolean;
   submitsIncomeTax?: boolean;
   submitsAnnualReturns?: boolean;
   submitsBeneficialOwnership?: boolean;
@@ -262,6 +274,7 @@ export type User = {
   nextInvoiceNumber?: number;
   archivedNotifications?: string[];
   emailSignature?: string;
+  savedReports?: SavedReport[];
 };
 
 export type ClientCustomer = {
