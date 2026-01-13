@@ -74,14 +74,14 @@ export async function generateMetadata(
     },
     openGraph: {
       title: service.metaTitle || service.title,
-      description: service.metaDescription || service.excerpt,
+      description: service.description,
       images: [service.imageUrl],
       url: canonicalUrl,
     },
     twitter: {
       card: 'summary_large_image',
       title: service.metaTitle || service.title,
-      description: service.metaDescription || service.excerpt,
+      description: service.description,
       images: [service.imageUrl],
     },
   }
