@@ -386,7 +386,7 @@ export default function GeneralLedgerReconPage() {
                                                             }}
                                                         >
                                                             <CheckCheck className={cn("mr-2 h-4 w-4", acc.id === selectedAccountId ? "opacity-100" : "opacity-0")} />
-                                                            {acc.accountNumber} - {acc.description}
+                                                            {acc.description}
                                                         </CommandItem>
                                                     ))}
                                                 </CommandGroup>

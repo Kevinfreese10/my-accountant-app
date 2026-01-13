@@ -528,13 +528,13 @@ export default function GeneralLedgerPage() {
                                 <Select value={fromAccount} onValueChange={setFromAccount}>
                                     <SelectTrigger><SelectValue placeholder="(From Account)" /></SelectTrigger>
                                     <SelectContent>
-                                        {isLoading ? <Loader2 className="animate-spin" /> : accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>)}
+                                        {isLoading ? <Loader2 className="animate-spin" /> : accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                                 <Select value={toAccount} onValueChange={setToAccount}>
                                     <SelectTrigger><SelectValue placeholder="(To Account)" /></SelectTrigger>
                                     <SelectContent>
-                                          {isLoading ? <Loader2 className="animate-spin" /> : accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>)}
+                                          {isLoading ? <Loader2 className="animate-spin" /> : accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
