@@ -1,16 +1,15 @@
 
-
 'use client';
 
 import * as React from "react"
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Download, Eye } from "lucide-react";
+import { Loader2, Download, Eye, Ban } from "lucide-react";
 import { useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc, collection, onSnapshot, query } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, onSnapshot, query, writeBatch, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from '@/lib/types';
+import { User, AllocatedTransaction, ImportedTransaction } from '@/lib/types';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterComponent } from "@/components/ui/table";
 import { format, startOfDay, endOfDay } from 'date-fns';
@@ -18,6 +17,9 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import * as XLSX from 'xlsx';
 import { allVatTypes } from "@/lib/vat-types";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import { Label } from "@/components/ui/label";
 
 const db = getFirestore(firebaseApp);
 
@@ -29,7 +31,15 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-function VatTransactionsReport({ client, transactions, dateRange }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange }) {
+function VatTransactionsReport({ client, transactions: allTransactions, dateRange }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange }) {
+    const { toast } = useToast();
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [transactions, setTransactions] = useState(allTransactions);
+
+    useEffect(() => {
+        setTransactions(allTransactions);
+    }, [allTransactions]);
 
     const vatTransactions = useMemo(() => {
         const reportStartDate = dateRange?.from ? startOfDay(dateRange.from) : new Date(0);
@@ -37,7 +47,7 @@ function VatTransactionsReport({ client, transactions, dateRange }: { client: Us
 
         return transactions
             .filter(tx => {
-                const txDate = new Date(tx.date);
+                const txDate = tx.date instanceof Date ? tx.date : new Date(tx.date);
                 const isWithinRange = txDate >= reportStartDate && txDate <= reportEndDate;
                 const isVatApplicable = tx.vatType && tx.vatType !== 'no_vat' && tx.vatType !== 'exempt_purchases' && tx.vatType !== 'exempt_sales';
                 return isWithinRange && isVatApplicable;
@@ -46,7 +56,6 @@ function VatTransactionsReport({ client, transactions, dateRange }: { client: Us
                 const isStandardRate = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'standard_rated_sales' || tx.vatType === 'capital_goods_purchases';
                 const vatRate = isStandardRate ? 0.15 : 0;
                 
-                // For journal entries, amount is already exclusive. For bank tx, it's inclusive.
                 const isJournal = tx.bankAccountId === 'JOURNAL';
                 const inclusiveAmount = isJournal ? tx.amount * (1 + vatRate) : tx.amount;
                 const exclusiveAmount = isStandardRate ? inclusiveAmount / (1 + vatRate) : inclusiveAmount;
@@ -113,12 +122,57 @@ function VatTransactionsReport({ client, transactions, dateRange }: { client: Us
         XLSX.writeFile(workbook, fileName);
     };
 
+    const handleClearVat = async () => {
+        if (selectedTransactions.length === 0) return;
+        
+        setIsUpdating(true);
+        toast({ title: "Updating Transactions...", description: "Setting VAT to 'No VAT'." });
+
+        try {
+            const batch = writeBatch(db);
+            selectedTransactions.forEach(txId => {
+                const txRef = doc(db, 'aiAccountantClients', client.id, 'transactions', txId);
+                batch.update(txRef, { vatType: 'no_vat' });
+            });
+            await batch.commit();
+            
+            // Optimistically update local state
+            setTransactions(prev => prev.map(tx => selectedTransactions.includes(tx.id) ? { ...tx, vatType: 'no_vat' } : tx));
+            setSelectedTransactions([]);
+
+            toast({ title: "VAT Cleared", description: `${selectedTransactions.length} transactions have been updated.` });
+
+        } catch (error) {
+            console.error("Error clearing VAT:", error);
+            toast({ title: 'Update Failed', variant: 'destructive' });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     return (
         <>
-            <div className="max-h-[70vh] overflow-y-auto">
+            {selectedTransactions.length > 0 && (
+                <div className="flex items-center gap-4 mb-4 p-3 bg-muted rounded-lg">
+                    <p className="text-sm font-semibold">{selectedTransactions.length} transaction(s) selected.</p>
+                    <Button size="sm" onClick={handleClearVat} disabled={isUpdating}>
+                        {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Ban className="mr-2 h-4 w-4"/>}
+                        Clear VAT on Selected
+                    </Button>
+                </div>
+            )}
+            <div className="max-h-[60vh] overflow-y-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-12 p-0 text-center">
+                                <Checkbox
+                                    checked={selectedTransactions.length > 0 && selectedTransactions.length === vatTransactions.length}
+                                    onCheckedChange={(checked) => {
+                                        setSelectedTransactions(checked ? vatTransactions.map(tx => tx.id) : []);
+                                    }}
+                                />
+                            </TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>Description</TableHead>
                             <TableHead>Reference</TableHead>
@@ -130,10 +184,20 @@ function VatTransactionsReport({ client, transactions, dateRange }: { client: Us
                     </TableHeader>
                     <TableBody>
                         {vatTransactions.length === 0 ? (
-                            <TableRow><TableCell colSpan={7} className="text-center h-24 text-muted-foreground">No VAT transactions found for this period.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No VAT transactions found for this period.</TableCell></TableRow>
                         ) : (
                             vatTransactions.map((tx, index) => (
-                                <TableRow key={index}>
+                                <TableRow key={index} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                    <TableCell className="p-0 text-center">
+                                         <Checkbox
+                                            checked={selectedTransactions.includes(tx.id)}
+                                            onCheckedChange={(checked) => {
+                                                setSelectedTransactions(prev => 
+                                                    checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
+                                                );
+                                            }}
+                                        />
+                                    </TableCell>
                                     <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
                                     <TableCell>{tx.description}</TableCell>
                                     <TableCell>{tx.reference}</TableCell>
@@ -147,7 +211,7 @@ function VatTransactionsReport({ client, transactions, dateRange }: { client: Us
                     </TableBody>
                     <TableFooterComponent>
                         <TableRow>
-                            <TableCell colSpan={4} className="font-bold">Totals</TableCell>
+                            <TableCell colSpan={5} className="font-bold">Totals</TableCell>
                             <TableCell className="text-right font-bold font-mono">{formatPrice(totals.inclusive)}</TableCell>
                             <TableCell className="text-right font-bold font-mono">{formatPrice(totals.exclusive)}</TableCell>
                             <TableCell className="text-right font-bold font-mono">{formatPrice(totals.vat)}</TableCell>
@@ -220,7 +284,7 @@ export default function VatTransactionsPage() {
             <CardContent className="space-y-4">
                 <div className="space-y-6 max-w-4xl">
                      <div className="grid grid-cols-1 md:grid-cols-[150px_1fr] items-center gap-4">
-                        <p className="text-sm font-medium">Date Range</p>
+                        <Label>Date Range</Label>
                         <DateRangePicker onDateChange={setDateRange} financialYearEnd={client?.yearEnd} />
                     </div>
                      <div className="flex justify-start pt-4">
@@ -231,7 +295,7 @@ export default function VatTransactionsPage() {
                                 <DialogTrigger asChild>
                                     <Button><Eye className="mr-2 h-4 w-4"/>View Report</Button>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-4xl">
+                                <DialogContent className="sm:max-w-5xl">
                                     <DialogHeader className="text-center mb-4">
                                         <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
                                         <DialogDescription>
