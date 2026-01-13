@@ -1748,7 +1748,7 @@ const ReviewedTab = React.forwardRef<
         setChanges(prev => ({
             ...prev,
             [txId]: {
-                ...prev[txId],
+                ...(prev[txId] || {}), // Ensure the object exists before spreading
                 vatType: value
             }
         }));
@@ -3340,6 +3340,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     )
 }
     
+    
+
     
 
     
