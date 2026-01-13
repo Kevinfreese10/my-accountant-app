@@ -355,8 +355,8 @@ export default function TrialBalancePage() {
         const newReport: SavedReport = {
             id: nanoid(),
             name: reportName,
-            dateRange: dateRange?.from && dateRange.to ? { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() } : undefined,
-            comparativeDateRange: showComparison && comparativeDateRange?.from && comparativeDateRange.to ? { from: comparativeDateRange.from.toISOString(), to: comparativeDateRange.to.toISOString() } : undefined,
+            dateRange: dateRange?.from && dateRange.to ? { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() } : null,
+            comparativeDateRange: showComparison && comparativeDateRange?.from && comparativeDateRange.to ? { from: comparativeDateRange.from.toISOString(), to: comparativeDateRange.to.toISOString() } : null,
         };
 
         try {

@@ -193,11 +193,11 @@ export type SavedReport = {
   dateRange?: {
     from: string;
     to: string;
-  };
+  } | null;
   comparativeDateRange?: {
     from: string;
     to: string;
-  };
+  } | null;
 };
 
 export type User = {
