@@ -88,7 +88,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/ai-email-inbox', label: 'Email Inbox', icon: Inbox, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
-    { href: '/admin/partners', label: 'Manage Partners', icon: Users, roles: ['admin'] },
+    { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
@@ -98,6 +98,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const settingsNavItems = [
     { href: '/admin/profile', label: 'My Profile', icon: User, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor']},
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
+    { href: '/admin/task-templates', label: 'Task Templates', icon: ClipboardCheck, roles: ['admin'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/blog', label: 'Manage Blog', icon: BookMarked, roles: ['admin'] },
     { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },
@@ -114,6 +115,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/partner/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['partner'] },
     { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['partner'] },
     { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['partner'] },
+    { href: '/partner/outsourced-orders', label: 'Outsourced Orders', icon: FileText, roles: ['partner'] },
     { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['partner'] },
   ];
 
@@ -236,3 +238,5 @@ export default function DashboardNav({ user }: { user: UserType }) {
     </>
   );
 }
+
+    

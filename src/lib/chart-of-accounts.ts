@@ -137,3 +137,5 @@ export let chartOfAccounts: ChartOfAccount[] = [
 export function setMasterChartOfAccounts(newAccounts: ChartOfAccount[]) {
     chartOfAccounts = newAccounts;
 }
+
+    

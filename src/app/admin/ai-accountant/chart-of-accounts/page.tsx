@@ -27,16 +27,22 @@ import { Separator } from "@/components/ui/separator";
 const db = getFirestore(firebaseApp);
 
 const accountFormSchema = z.object({
+  id: z.string().optional(),
   accountNumber: z.string().min(1, "Account number is required."),
   description: z.string().min(3, "Description is required."),
   section: z.enum(['Income Statement', 'Balance Sheet']),
 });
+
 type AccountFormValues = z.infer<typeof accountFormSchema>;
 
-function AccountForm({ onSave, onCancel }: { onSave: (data: AccountFormValues) => void, onCancel: () => void }) {
+function AccountForm({ account, onSave, onCancel }: { account: Partial<ChartOfAccount> | null, onSave: (data: AccountFormValues) => void, onCancel: () => void }) {
     const form = useForm<AccountFormValues>({
         resolver: zodResolver(accountFormSchema),
-        defaultValues: {
+        defaultValues: account ? {
+            ...account,
+            section: account.section || 'Income Statement',
+        } : {
+            id: undefined,
             accountNumber: '',
             description: '',
             section: 'Income Statement',
@@ -51,7 +57,7 @@ function AccountForm({ onSave, onCancel }: { onSave: (data: AccountFormValues) =
                 <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select><FormMessage /></FormItem> )} />
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button type="submit">Create Account</Button>
+                    <Button type="submit">Save Account</Button>
                 </DialogFooter>
             </form>
         </Form>
@@ -61,57 +67,133 @@ function AccountForm({ onSave, onCancel }: { onSave: (data: AccountFormValues) =
 export default function AIASettingsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const { toast } = useToast();
+    const [accounts, setAccounts] = useState<ChartOfAccount[]>(masterChartOfAccounts);
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [editingAccount, setEditingAccount] = useState<ChartOfAccount | null>(null);
     
+    useEffect(() => {
+        setAccounts(masterChartOfAccounts.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)));
+    }, []);
+
     const filteredAccounts = useMemo(() => {
         if (!searchTerm) {
-            return masterChartOfAccounts;
+            return accounts;
         }
-        return masterChartOfAccounts.filter(account =>
+        return accounts.filter(account =>
             account.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
             account.accountNumber.includes(searchTerm)
         );
-    }, [searchTerm]);
+    }, [accounts, searchTerm]);
+    
+    const handleSaveAccount = (data: AccountFormValues) => {
+        let updatedAccounts: ChartOfAccount[];
+        if (editingAccount && data.id) { // Editing
+            updatedAccounts = accounts.map(acc => acc.id === data.id ? { ...acc, ...data } : acc);
+            toast({ title: 'Success', description: `Account updated successfully.` });
+        } else { // Adding
+            const newAccount: ChartOfAccount = { ...data, id: data.accountNumber };
+            updatedAccounts = [...accounts, newAccount];
+            toast({ title: 'Success', description: `Account created successfully.` });
+        }
+        
+        updatedAccounts.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
+        setAccounts(updatedAccounts);
+        setMasterChartOfAccounts(updatedAccounts); // Update the shared master list
 
+        setIsFormOpen(false);
+        setEditingAccount(null);
+    };
+
+    const handleDeleteAccount = (accountId: string) => {
+        const updatedAccounts = accounts.filter(acc => acc.id !== accountId);
+        setAccounts(updatedAccounts);
+        setMasterChartOfAccounts(updatedAccounts);
+        toast({ title: 'Success', description: 'Account deleted successfully.', variant: 'destructive' });
+    };
 
     return (
-        <div className="space-y-8">
-             <div className="flex items-center justify-between">
-                <div>
-                     <h1 className="text-3xl font-bold tracking-tight">Master Chart of Accounts</h1>
-                     <p className="text-muted-foreground">This is the default chart of accounts used for all new AI Accountant client profiles.</p>
+        <Dialog open={isFormOpen} onOpenChange={(open) => { setIsFormOpen(open); if(!open) setEditingAccount(null); }}>
+            <div className="space-y-8">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Master Chart of Accounts</h1>
+                        <p className="text-muted-foreground">This is the default chart of accounts used for all new AI Accountant client profiles.</p>
+                    </div>
                 </div>
-            </div>
 
-            <Card>
-                <CardHeader>
-                    <Input
-                        placeholder="Search by account name or number..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="max-w-sm mt-4"
-                    />
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Account Number</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead>Section</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredAccounts.map((account) => (
-                                <TableRow key={account.id}>
-                                    <TableCell className="font-mono">{account.accountNumber}</TableCell>
-                                    <TableCell>{account.description}</TableCell>
-                                    <TableCell>{account.section}</TableCell>
+                <Card>
+                    <CardHeader>
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <Input
+                                placeholder="Search by account name or number..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="max-w-sm"
+                            />
+                            <DialogTrigger asChild>
+                                <Button size="sm" onClick={() => setEditingAccount(null)}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Create Account
+                                </Button>
+                            </DialogTrigger>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Account Number</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead>Section</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-        </div>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredAccounts.map(account => (
+                                    <TableRow key={account.id}>
+                                        <TableCell className="font-mono">{account.accountNumber}</TableCell>
+                                        <TableCell>{account.description}</TableCell>
+                                        <TableCell>{account.section}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingAccount(account); setIsFormOpen(true);}}>
+                                                <Edit className="h-4 w-4" />
+                                            </Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>This will permanently delete the master account: {account.accountNumber} - {account.description}. This will not affect existing clients.</AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteAccount(account.id)}>Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </div>
+             <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>{editingAccount ? 'Edit' : 'Create'} Master Account</DialogTitle>
+                </DialogHeader>
+                <AccountForm 
+                    account={editingAccount} 
+                    onSave={handleSaveAccount} 
+                    onCancel={() => setIsFormOpen(false)}
+                />
+            </DialogContent>
+        </Dialog>
     );
 }
+
+    
