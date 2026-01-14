@@ -147,6 +147,28 @@ export default function AllocationRulesPage() {
     useEffect(() => {
         fetchGlobalRules();
     }, []);
+
+    const conflictingKeywords = useMemo(() => {
+        const keywordAccounts = new Map<string, Set<string>>();
+
+        globalRules.forEach(rule => {
+            rule.keywords.forEach(kw => {
+                if (!keywordAccounts.has(kw)) {
+                    keywordAccounts.set(kw, new Set());
+                }
+                keywordAccounts.get(kw)!.add(rule.accountId);
+            });
+        });
+
+        const conflicts = new Set<string>();
+        keywordAccounts.forEach((accounts, kw) => {
+            if (accounts.size > 1) {
+                conflicts.add(kw);
+            }
+        });
+
+        return conflicts;
+    }, [globalRules]);
     
     const getAccountDescription = (accountId: string) => {
         const account = masterChartOfAccounts.find(acc => acc.id === accountId);
@@ -247,7 +269,11 @@ export default function AllocationRulesPage() {
                                         <TableCell className="font-medium">{rule.description}</TableCell>
                                         <TableCell>
                                             <div className="flex flex-wrap gap-1 max-w-xs">
-                                                {rule.keywords.map(kw => <Badge key={kw} variant="secondary">{kw}</Badge>)}
+                                                {rule.keywords.map(kw => (
+                                                    <Badge key={kw} variant={conflictingKeywords.has(kw) ? "destructive" : "secondary"}>
+                                                        {kw}
+                                                    </Badge>
+                                                ))}
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-xs">{getAccountDescription(rule.accountId)}</TableCell>
