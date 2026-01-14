@@ -42,6 +42,13 @@ const newEmailFormSchema = z.object({
   attachments: z.any().optional(),
 });
 
+const forwardEmailFormSchema = z.object({
+  to: z.string().email('A valid recipient email is required.'),
+  cc: z.string().optional(),
+  bcc: z.string().optional(),
+  body: z.string().optional(),
+});
+
 
 export default function AIEmailInboxPage() {
     const { user } = useAuth();
@@ -65,11 +72,18 @@ export default function AIEmailInboxPage() {
     const [nextSyncCountdown, setNextSyncCountdown] = useState('');
     const syncTriggeredRef = useRef(false);
     const emailRefs = useRef<Record<string, HTMLDivElement>>({});
+    const [forwardingEmail, setForwardingEmail] = useState<ProcessedEmail | null>(null);
+    const [isForwarding, setIsForwarding] = useState(false);
 
 
     const newEmailForm = useForm<z.infer<typeof newEmailFormSchema>>({
         resolver: zodResolver(newEmailFormSchema),
         defaultValues: { to: '', cc: '', bcc: '', subject: '', body: user?.emailSignature || '' },
+    });
+    
+    const forwardForm = useForm<z.infer<typeof forwardEmailFormSchema>>({
+        resolver: zodResolver(forwardEmailFormSchema),
+        defaultValues: { to: '', cc: '', bcc: '', body: '' },
     });
 
     useEffect(() => {
@@ -259,12 +273,49 @@ export default function AIEmailInboxPage() {
         window.location.href = mailtoLink;
     };
 
-    const handleForwardEmail = (email: ProcessedEmail) => {
-        const body = `\n\n\n--- Original Message ---\nFrom: ${email.from.name} <${email.from.address}>\nDate: ${new Date(email.date.seconds * 1000).toUTCString()}\nSubject: ${email.subject}\n\n${email.text}`;
-        const mailtoLink = `mailto:?subject=Fwd: ${encodeURIComponent(email.subject)}&body=${encodeURIComponent(body)}`;
-        window.location.href = mailtoLink;
+    const handleOpenForwardDialog = (email: ProcessedEmail) => {
+        setForwardingEmail(email);
+        const originalBody = `\n\n\n--- Original Message ---\nFrom: ${email.from.name} <${email.from.address}>\nDate: ${new Date(email.date.seconds * 1000).toUTCString()}\nSubject: ${email.subject}\n\n${email.text}`;
+        forwardForm.reset({
+            to: '',
+            cc: '',
+            bcc: '',
+            body: `\n\n${user?.emailSignature || ''}${originalBody}`
+        });
     };
+    
+    const handleForwardEmail = async (values: z.infer<typeof forwardEmailFormSchema>) => {
+        if (!forwardingEmail || !user?.email) return;
+        setIsForwarding(true);
+        toast({ title: 'Forwarding Email...', description: 'Please wait.' });
 
+        try {
+            const emailHtml = (values.body || '').replace(/\n/g, '<br/>');
+            const attachments = forwardingEmail.attachments?.map(att => ({
+                filename: att.filename || 'attachment',
+                path: att.dataUrl || '',
+            })) || [];
+
+            await sendEmail({
+                to: values.to,
+                cc: values.cc?.split(',').map(e => e.trim()).filter(Boolean),
+                bcc: values.bcc?.split(',').map(e => e.trim()).filter(Boolean),
+                subject: `Fwd: ${forwardingEmail.subject}`,
+                html: emailHtml,
+                attachments,
+                replyTo: user.email,
+            });
+
+            toast({ title: 'Email Forwarded', description: 'The email has been sent successfully.' });
+            setForwardingEmail(null);
+
+        } catch (error) {
+            console.error("Error forwarding email:", error);
+            toast({ title: 'Forwarding Failed', variant: 'destructive' });
+        } finally {
+            setIsForwarding(false);
+        }
+    };
 
     const handleDraftReply = async (email: ProcessedEmail) => {
         setIsDrafting(email.id);
@@ -273,11 +324,12 @@ export default function AIEmailInboxPage() {
                 subject: email.subject,
                 body: email.text,
                 sender: email.from.name || email.from.address,
-                userSignature: user?.emailSignature || '',
             });
             
-            await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: result.draft });
-            setDraftReplies(prev => ({...prev, [email.id]: { reply: result.draft, cc: '', bcc: '' }}));
+            const draftWithSignature = `${result.draft}\n\n${user?.emailSignature || ''}`;
+            
+            await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: draftWithSignature });
+            setDraftReplies(prev => ({...prev, [email.id]: { reply: draftWithSignature, cc: '', bcc: '' }}));
         } catch (e) {
             toast({ title: 'Failed to draft reply', variant: 'destructive' });
         } finally {
@@ -440,7 +492,7 @@ export default function AIEmailInboxPage() {
                     </div>
                      <div className="flex items-center gap-2">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleReplyToEmail(email)}><Mail className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleForwardEmail(email)}><Forward className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenForwardDialog(email)}><Forward className="h-4 w-4" /></Button>
                         {email.status === 'new' && (
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(email.id, 'archived')}><Archive className="h-4 w-4" /></Button>
                         )}
@@ -557,6 +609,29 @@ export default function AIEmailInboxPage() {
                         allStaff={allStaff}
                         staffByDept={staffByDept}
                     />
+                </DialogContent>
+            </Dialog>
+            <Dialog open={!!forwardingEmail} onOpenChange={(isOpen) => !isOpen && setForwardingEmail(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Forward Email</DialogTitle>
+                        <DialogDescription>Forward this email to a new recipient.</DialogDescription>
+                    </DialogHeader>
+                    <Form {...forwardForm}>
+                        <form onSubmit={forwardForm.handleSubmit(handleForwardEmail)} className="space-y-4">
+                            <FormField control={forwardForm.control} name="to" render={({ field }) => ( <FormItem><FormLabel>To</FormLabel><FormControl><Input placeholder="recipient@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={forwardForm.control} name="cc" render={({ field }) => ( <FormItem><FormLabel>CC</FormLabel><FormControl><Input placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={forwardForm.control} name="bcc" render={({ field }) => ( <FormItem><FormLabel>BCC</FormLabel><FormControl><Input placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={forwardForm.control} name="body" render={({ field }) => ( <FormItem><FormLabel>Message (Optional)</FormLabel><FormControl><Textarea {...field} rows={6} /></FormControl><FormMessage /></FormItem>)} />
+                            <DialogFooter>
+                                <Button type="button" variant="ghost" onClick={() => setForwardingEmail(null)}>Cancel</Button>
+                                <Button type="submit" disabled={isForwarding}>
+                                    {isForwarding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIcon className="mr-2 h-4 w-4"/>}
+                                    Send Forward
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </Form>
                 </DialogContent>
             </Dialog>
             <div className="flex items-center justify-between">
