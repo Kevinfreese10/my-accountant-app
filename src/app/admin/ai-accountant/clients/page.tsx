@@ -378,30 +378,26 @@ export default function AIAccountantClientsPage() {
     }
   }
 
-
   const handleFormSubmit = async (data: any) => {
     if (!currentUser) return;
-
+    
+    const clientDataForDb: Partial<User> = {
+        name: data.name,
+        companyName: data.name,
+        yearEnd: data.yearEnd || null,
+        isVatRegistered: data.isVatRegistered,
+        vatCategory: data.isVatRegistered ? data.vatCategory : undefined,
+    };
+    
     try {
-        if (selectedClient?.id) {
-            // This is an update, only merge the fields from the form
-            const { createAIProfile, ...clientFormData } = data;
-            const updateData: Partial<User> = {
-                ...clientFormData,
-                yearEnd: data.yearEnd || null,
-            };
-             if (!data.isVatRegistered) {
-                updateData.vatNumber = null;
-                updateData.vatCategory = null;
-            }
-            await setDoc(doc(db, "aiAccountantClients", selectedClient.id), updateData, { merge: true });
+        if (selectedClient?.id) { // Editing
+            const clientRef = doc(db, "aiAccountantClients", selectedClient.id);
+            await updateDoc(clientRef, clientDataForDb);
             toast({ title: 'Client Updated'});
-        } else {
-            // This is a new client creation
-            const { createAIProfile, ...clientFormData } = data;
+        } else { // Creating new
             const newClientData: Partial<User> = {
-                ...clientFormData,
-                yearEnd: data.yearEnd || null,
+                ...clientDataForDb,
+                email: `new-${Date.now()}@my-company.ai`, // Dummy email
                 role: 'client',
                 source: 'AI Accountant',
                 hasNumeraProfile: true,
@@ -409,12 +405,6 @@ export default function AIAccountantClientsPage() {
                 allocationRules: initialAllocationRules,
                 status: 'Active',
             };
-
-            if (!data.isVatRegistered) {
-                newClientData.vatNumber = null;
-                newClientData.vatCategory = null;
-            }
-
             const newDocRef = doc(collection(db, 'aiAccountantClients'));
             await setDoc(newDocRef, {
               ...newClientData,
@@ -426,7 +416,6 @@ export default function AIAccountantClientsPage() {
             });
             toast({ title: 'Client Created' });
         }
-
         fetchClients();
         setIsFormOpen(false);
         setSelectedClient(null);
