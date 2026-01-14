@@ -326,7 +326,7 @@ export default function AIEmailInboxPage() {
                 sender: email.from.name || email.from.address,
             });
             
-            const draftWithSignature = `${result.draft}\n\n${user?.emailSignature || ''}`;
+            const draftWithSignature = `${result.draft}`;
             
             await updateDoc(doc(db, 'processedEmails', email.id), { aiDraftReply: draftWithSignature });
             setDraftReplies(prev => ({...prev, [email.id]: { reply: draftWithSignature, cc: '', bcc: '' }}));
@@ -623,6 +623,19 @@ export default function AIEmailInboxPage() {
                             <FormField control={forwardForm.control} name="cc" render={({ field }) => ( <FormItem><FormLabel>CC</FormLabel><FormControl><Input placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={forwardForm.control} name="bcc" render={({ field }) => ( <FormItem><FormLabel>BCC</FormLabel><FormControl><Input placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={forwardForm.control} name="body" render={({ field }) => ( <FormItem><FormLabel>Message (Optional)</FormLabel><FormControl><Textarea {...field} rows={6} /></FormControl><FormMessage /></FormItem>)} />
+                            {forwardingEmail?.attachments && forwardingEmail.attachments.length > 0 && (
+                                <div className="space-y-2">
+                                    <FormLabel>Attachments</FormLabel>
+                                    <div className="flex flex-wrap gap-2 p-2 border rounded-md">
+                                        {forwardingEmail.attachments.map((att, index) => (
+                                            <div key={index} className="text-xs flex items-center gap-1.5 bg-muted p-1.5 rounded-md">
+                                                <Paperclip className="h-3 w-3"/>
+                                                <span>{att.filename || 'attachment'}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <DialogFooter>
                                 <Button type="button" variant="ghost" onClick={() => setForwardingEmail(null)}>Cancel</Button>
                                 <Button type="submit" disabled={isForwarding}>
