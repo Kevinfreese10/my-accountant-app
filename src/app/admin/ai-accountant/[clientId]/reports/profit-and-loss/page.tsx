@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download, Eye, Calculator } from "lucide-react";
 import { useParams, useRouter } from 'next/navigation';
@@ -76,8 +76,6 @@ function ProfitAndLossReport({ client, transactions, dateRange, onPostJournal }:
         const reportStartDate = dateRange?.from ? startOfDay(dateRange.from) : getFinancialYearStart(new Date(), client.yearEnd);
         const reportEndDate = dateRange?.to ? endOfDay(dateRange.to) : new Date();
 
-        const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008');
-
         transactions.forEach(tx => {
             const txDate = new Date(tx.date);
             if (txDate < reportStartDate || txDate > reportEndDate) {
@@ -97,14 +95,11 @@ function ProfitAndLossReport({ client, transactions, dateRange, onPostJournal }:
                 }
             } else { // Bank Transactions
                 const inclusiveAmount = tx.amount;
-                const isStandardVat = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'standard_rated_sales';
+                const isStandardVat = client.isVatRegistered && (tx.vatType === 'standard_rated_purchases' || tx.vatType === 'standard_rated_sales' || tx.vatType === 'capital_goods_purchases');
                 
-                let vatAmount = 0;
                 let exclusiveAmount = inclusiveAmount;
-                
                 if (isStandardVat) {
-                    vatAmount = (inclusiveAmount / 1.15) * 0.15;
-                    exclusiveAmount = inclusiveAmount - vatAmount;
+                    exclusiveAmount = inclusiveAmount / 1.15;
                 }
 
                 // We only care about the contra entry for P&L
@@ -294,6 +289,7 @@ export default function ProfitAndLossPage() {
         const transUnsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), snapshot => {
             const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
             setTransactions(fetched);
+            setIsLoading(false);
         });
         
         return () => transUnsubscribe();
@@ -392,3 +388,5 @@ export default function ProfitAndLossPage() {
         </div>
     );
 }
+
+    

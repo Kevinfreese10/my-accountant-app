@@ -169,6 +169,8 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
     const groupedTransactions = useMemo(() => {
         const suspenseAccountId = '9500-001';
+        const vatControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id || '7000-008';
+
 
         const grouped = new Map<string, { account: ChartOfAccount; transactions: any[], totalDebit: number; totalCredit: number }>();
 
@@ -194,7 +196,17 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                      });
                  }
             } else {
-                 // Debit/Credit Bank Account
+                const inclusiveAmount = tx.amount;
+                const isStandardVat = client.isVatRegistered && (tx.vatType === 'standard_rated_purchases' || tx.vatType === 'standard_rated_sales' || tx.vatType === 'capital_goods_purchases');
+                
+                let vatAmount = 0;
+                let exclusiveAmount = inclusiveAmount;
+                if (isStandardVat) {
+                    vatAmount = inclusiveAmount / 1.15 * 0.15;
+                    exclusiveAmount = inclusiveAmount - vatAmount;
+                }
+
+                 // 1. Bank Account Entry
                 const bankEntry = grouped.get(tx.bankAccountId);
                 if (bankEntry) {
                     const contraAccount = tx.status === 'allocated' 
@@ -207,12 +219,12 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                         date: txDate,
                         description: `${tx.description} (Contra: ${contraAccount})`,
                         ref: tx.reference,
-                        debit: tx.amount > 0 ? tx.amount : 0,
-                        credit: tx.amount < 0 ? -tx.amount : 0,
+                        debit: inclusiveAmount > 0 ? inclusiveAmount : 0,
+                        credit: inclusiveAmount < 0 ? -inclusiveAmount : 0,
                     });
                 }
                 
-                 // Debit/Credit Contra Account
+                 // 2. Contra Account Entry (VAT Exclusive)
                 const contraAccountId = tx.status === 'allocated' ? tx.allocatedTo!.value : suspenseAccountId;
                 const contraEntry = grouped.get(contraAccountId);
                 if(contraEntry) {
@@ -223,9 +235,26 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                          date: txDate,
                          description: `${tx.description} (Bank: ${bankAccountName})`,
                          ref: tx.reference,
-                         debit: tx.amount < 0 ? -tx.amount : 0,
-                         credit: tx.amount > 0 ? tx.amount : 0,
+                         debit: inclusiveAmount < 0 ? -exclusiveAmount : 0,
+                         credit: inclusiveAmount > 0 ? exclusiveAmount : 0,
                     });
+                }
+
+                // 3. VAT Entry
+                if(isStandardVat && vatAmount !== 0) {
+                    const vatEntry = grouped.get(vatControlAccountId);
+                    if(vatEntry) {
+                        const bankAccountName = accountsToDisplay.find(a => a.id === tx.bankAccountId)?.description || 'Bank';
+                        vatEntry.transactions.push({
+                            id: tx.id,
+                            isJournal,
+                            date: txDate,
+                            description: `VAT on ${tx.description} (Bank: ${bankAccountName})`,
+                            ref: tx.reference,
+                            debit: inclusiveAmount < 0 ? -vatAmount : 0, // Debit for purchases (input)
+                            credit: inclusiveAmount > 0 ? vatAmount : 0, // Credit for sales (output)
+                        });
+                    }
                 }
             }
         });
@@ -243,7 +272,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
         return Array.from(grouped.values()).filter(g => g.transactions.length > 0);
 
-    }, [filteredTransactions, accountsToDisplay]);
+    }, [filteredTransactions, accountsToDisplay, client.isVatRegistered]);
 
     const handleDownloadExcel = () => {
         let excelData: any[] = [];
@@ -585,3 +614,5 @@ export default function GeneralLedgerPage() {
         </div>
     );
 }
+
+    

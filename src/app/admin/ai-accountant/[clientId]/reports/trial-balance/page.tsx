@@ -106,7 +106,7 @@ function calculateBalances(client: User, transactions: (ImportedTransaction | Al
         } 
         else { // Bank Transactions
             const inclusiveAmount = tx.amount;
-            const isStandardVat = client.isVatRegistered && (tx.vatType === 'standard_rated_purchases' || tx.vatType === 'standard_rated_sales');
+            const isStandardVat = client.isVatRegistered && (tx.vatType === 'standard_rated_purchases' || tx.vatType === 'standard_rated_sales' || tx.vatType === 'capital_goods_purchases');
             
             let vatAmount = 0;
             let exclusiveAmount = inclusiveAmount;
@@ -567,3 +567,5 @@ export default function TrialBalancePage() {
         </div>
     );
 }
+
+    
