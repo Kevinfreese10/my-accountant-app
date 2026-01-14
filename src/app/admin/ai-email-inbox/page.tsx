@@ -615,7 +615,9 @@ export default function AIEmailInboxPage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Forward Email</DialogTitle>
-                        <DialogDescription>Forward this email to a new recipient.</DialogDescription>
+                        <DialogDescription className="truncate">
+                            Subject: Fwd: {forwardingEmail?.subject}
+                        </DialogDescription>
                     </DialogHeader>
                     <Form {...forwardForm}>
                         <form onSubmit={forwardForm.handleSubmit(handleForwardEmail)} className="space-y-4">
