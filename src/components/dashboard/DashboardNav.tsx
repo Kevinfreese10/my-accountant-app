@@ -105,6 +105,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/discounts', label: 'Manage Discounts', icon: Percent, roles: ['admin'] },
     { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: BrainCircuit, roles: ['admin'] },
     { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
+    { href: '/admin/ai-accountant/chart-of-accounts', label: 'Chart of Accounts', icon: ListOrdered, roles: ['admin']},
     { href: '/admin/media', label: 'Media', icon: Images, roles: ['admin'] },
     { href: '/admin/seo', label: 'SEO Management', icon: Search, roles: ['admin'] },
   ];

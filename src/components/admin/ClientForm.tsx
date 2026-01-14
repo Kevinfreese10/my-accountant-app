@@ -36,13 +36,9 @@ const vatCategories: { value: 'A' | 'B' | 'C'; label: string }[] = [
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client/Company name is required.'),
-  contactPerson: z.string().optional(),
-  email: z.string().email('A valid email address is required.').optional().or(z.literal('')),
-  
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(['A', 'B', 'C']).optional(),
-  cellNumber: z.string().optional(),
   status: z.enum(clientStatuses).optional(),
 });
 
@@ -65,20 +61,14 @@ export default function ClientForm({
         defaultValues: {
             id: client?.id || '',
             name: client?.name || client?.companyName || '',
-            contactPerson: client?.contactPerson || '',
-            email: client?.email || '',
-            
             yearEnd: client?.yearEnd || undefined,
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: (client as any)?.vatCategory || undefined,
-            cellNumber: client?.contactNumber || '',
             status: client?.status || 'Active',
         },
     });
 
     const isVatRegistered = form.watch('isVatRegistered');
-    const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
-    const currentLogoUrl = form.watch('logoUrl');
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         onSubmit(values);
@@ -90,13 +80,6 @@ export default function ClientForm({
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Company Details</h3>
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    {!isAIClient && (
-                         <>
-                            <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="e.g. 0821234567" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                         </>
-                    )}
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                     <Separator />
                     <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />

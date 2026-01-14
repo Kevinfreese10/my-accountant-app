@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { User } from '@/lib/types';
+import { User, Task } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc, arrayUnion, arrayRemove, getDoc, collectionGroup } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -395,6 +395,10 @@ export default function AIAccountantClientsPage() {
             await updateDoc(clientRef, clientDataForDb);
             toast({ title: 'Client Updated'});
         } else { // Creating new
+            const globalRulesQuery = query(collection(db, 'allocationRules'));
+            const globalRulesSnapshot = await getDocs(globalRulesQuery);
+            const globalRules = globalRulesSnapshot.docs.map(d => d.data());
+
             const newClientData: Partial<User> = {
                 ...clientDataForDb,
                 email: `new-${Date.now()}@my-company.ai`, // Dummy email
@@ -402,7 +406,7 @@ export default function AIAccountantClientsPage() {
                 source: 'AI Accountant',
                 hasNumeraProfile: true,
                 chartOfAccounts: initialChartOfAccounts,
-                allocationRules: initialAllocationRules,
+                allocationRules: globalRules,
                 status: 'Active',
             };
             const newDocRef = doc(collection(db, 'aiAccountantClients'));
@@ -620,5 +624,3 @@ export default function AIAccountantClientsPage() {
     </div>
   );
 }
-
-    
