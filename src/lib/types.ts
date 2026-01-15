@@ -88,6 +88,7 @@ export type BlogPost = {
   metaTitle?: string;
   metaDescription?: string;
   metaKeywords?: string[];
+  relatedProducts?: string[];
 };
 
 export type FAQ = {

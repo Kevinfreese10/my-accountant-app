@@ -1,22 +1,30 @@
 
+
 'use client';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { BlogPost } from '@/lib/types';
+import { BlogPost, Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Trash, Sparkles, Loader2, Images } from 'lucide-react';
+import { Trash, Sparkles, Loader2, Images, Check, ChevronsUpDown } from 'lucide-react';
 import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 import { generateBlogPost } from '@/ai/flows/generate-blog-post';
 import { useToast } from '@/hooks/use-toast';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Separator } from '../ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import MediaLibrary from './MediaLibrary';
 import Image from 'next/image';
+import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
+import { cn } from '@/lib/utils';
+
+const db = getFirestore(firebaseApp);
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -29,6 +37,7 @@ const formSchema = z.object({
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
   metaKeywords: z.array(z.object({ value: z.string() })).optional(),
+  relatedProducts: z.array(z.string()).max(3, "You can select up to 3 products.").optional(),
 });
 
 type BlogFormProps = {
@@ -41,6 +50,21 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
   const [isAiContentUpdating, setIsAiContentUpdating] = useState(false);
   const [isAiSeoUpdating, setIsAiSeoUpdating] = useState(false);
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
+  const [allServices, setAllServices] = useState<Service[]>([]);
+
+  useEffect(() => {
+    const fetchServices = async () => {
+        try {
+            const q = query(collection(db, "services"), orderBy("title"));
+            const querySnapshot = await getDocs(q);
+            const fetchedServices = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
+            setAllServices(fetchedServices);
+        } catch (error) {
+            toast({ title: "Error", description: "Could not fetch services.", variant: "destructive"});
+        }
+    };
+    fetchServices();
+  }, [toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -49,12 +73,13 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
       title: post?.title || '',
       excerpt: post?.excerpt || '',
       content: post?.content || '',
-      author: post?.author || 'Jane Doe', // Default author
+      author: post?.author || 'Kevin Freese',
       imageUrl: post?.imageUrl || 'https://picsum.photos/seed/new-post/800/400',
       imageHint: post?.imageHint || 'business office',
       metaTitle: post?.metaTitle || '',
       metaDescription: post?.metaDescription || '',
       metaKeywords: post?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
+      relatedProducts: post?.relatedProducts || [],
     },
   });
 
@@ -232,6 +257,70 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
             />
         </div>
         <FormField control={form.control} name="imageHint" render={({ field }) => ( <FormItem><FormLabel>Image AI Hint</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+
+        <Separator />
+
+        <div className="space-y-4 rounded-lg border p-4">
+             <h3 className="text-lg font-medium">Related Products</h3>
+             <FormField
+                control={form.control}
+                name="relatedProducts"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Select up to 3 relevant products</FormLabel>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <FormControl>
+                            <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn("w-full justify-between", !field.value?.length && "text-muted-foreground")}
+                            >
+                            {field.value?.length ? `${field.value.length} selected` : "Select products..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command>
+                            <CommandInput placeholder="Search products..." />
+                            <CommandList>
+                            <CommandEmpty>No products found.</CommandEmpty>
+                            <CommandGroup>
+                                {allServices.map((service) => (
+                                <CommandItem
+                                    key={service.id}
+                                    value={service.title}
+                                    onSelect={() => {
+                                        const selection = new Set(field.value);
+                                        if (selection.has(service.id)) {
+                                            selection.delete(service.id);
+                                        } else if (selection.size < 3) {
+                                            selection.add(service.id);
+                                        } else {
+                                            toast({ title: "Limit Reached", description: "You can only select up to 3 products.", variant: "destructive" });
+                                        }
+                                        field.onChange(Array.from(selection));
+                                    }}
+                                >
+                                    <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                        field.value?.includes(service.id) ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible"
+                                    )}>
+                                        <Check className={cn("h-4 w-4")} />
+                                    </div>
+                                    <span>{service.title}</span>
+                                </CommandItem>
+                                ))}
+                            </CommandGroup>
+                            </CommandList>
+                        </Command>
+                        </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+        </div>
 
         <Separator />
 
