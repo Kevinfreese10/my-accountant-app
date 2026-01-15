@@ -497,7 +497,7 @@ export default function JournalsPage() {
     const safeFormatDate = (date: any): string => {
         if (!date) return 'N/A';
         try {
-            const d = date.toDate ? date.toDate() : new Date(date);
+            const d = date?.toDate ? date.toDate() : new Date(date);
             return format(d, 'dd/MM/yyyy');
         } catch (e) {
             return 'Invalid Date';
@@ -558,9 +558,9 @@ export default function JournalsPage() {
                                                 <td className="px-2 py-1 whitespace-nowrap">
                                                     <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value} disabled={!client?.isVatRegistered}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
                                                 </td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /> )}/></td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.vatAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted" readOnly {...field} /> )}/></td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted" readOnly {...field} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 min-w-[120px]" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.vatAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted min-w-[100px]" readOnly {...field} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted min-w-[120px]" readOnly {...field} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap">
                                                     <FormField control={form.control} name={`lines.${index}.affectingAccountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.filter(a => a.section === 'Income Statement').map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
                                                 </td>
@@ -603,6 +603,7 @@ export default function JournalsPage() {
                                         const isStandardRate = journal.vatType === 'standard_rated_sales' || journal.vatType === 'standard_rated_purchases';
                                         const vatRate = client?.isVatRegistered && isStandardRate ? 0.15 : 0;
                                         
+                                        // Since the 'amount' on the primary leg is inclusive, we back-calculate.
                                         const inclusiveAmount = journal.amount;
                                         const exclusiveAmount = isStandardRate ? inclusiveAmount / (1 + vatRate) : inclusiveAmount;
                                         const vatAmount = inclusiveAmount - exclusiveAmount;
@@ -646,5 +647,3 @@ export default function JournalsPage() {
       </>
     );
 }
-
-    
