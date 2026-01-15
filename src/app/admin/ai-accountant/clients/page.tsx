@@ -386,7 +386,7 @@ export default function AIAccountantClientsPage() {
         companyName: data.name,
         yearEnd: data.yearEnd || null,
         isVatRegistered: data.isVatRegistered,
-        vatCategory: data.isVatRegistered ? data.vatCategory : undefined,
+        vatCategory: data.isVatRegistered ? data.vatCategory : null,
     };
     
     try {

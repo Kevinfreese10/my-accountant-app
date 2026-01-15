@@ -42,7 +42,7 @@ const formSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters.'),
   yearEnd: z.string().min(1, 'Financial year end is required.'),
   isVatRegistered: z.boolean().default(false),
-  vatCategory: z.enum(['A', 'B', 'C']).optional(),
+  vatCategory: z.enum(['A', 'B', 'C']).optional().nullable(),
   serviceLevel: z.enum(['free', 'ai_addon']).default('free'),
   extraUsers: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
 });
@@ -73,6 +73,7 @@ export default function AIAccountantSignupForm() {
       password: '',
       yearEnd: 'February',
       isVatRegistered: false,
+      vatCategory: null,
       serviceLevel: 'free',
       extraUsers: 0,
     },

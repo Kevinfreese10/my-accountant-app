@@ -50,7 +50,7 @@ const formSchema = z.object({
   yearEnd: z.date().optional().nullable(),
   // Automation settings
   isVatRegistered: z.boolean().default(false),
-  vatCategory: z.enum(['A', 'B', 'C']).optional(),
+  vatCategory: z.enum(['A', 'B', 'C']).optional().nullable(),
   submitsEmp201: z.boolean().default(false),
   submitsEmp501: z.boolean().default(false),
   submitsProvisionalTax: z.boolean().default(false),
@@ -90,7 +90,7 @@ function ClientForm({ client, onSubmit, onCancel, taskTemplates }: { client: Par
             status: client?.status || 'Active',
             yearEnd: yearEndAsDate,
             isVatRegistered: client?.isVatRegistered || false,
-            vatCategory: client?.vatCategory || undefined,
+            vatCategory: client?.vatCategory || null,
             submitsEmp201: client?.submitsEmp201 || false,
             submitsEmp501: client?.submitsEmp501 || false,
             submitsProvisionalTax: client?.submitsProvisionalTax || false,
@@ -170,7 +170,7 @@ function ClientForm({ client, onSubmit, onCancel, taskTemplates }: { client: Par
                     />
                      {isVatRegistered && (
                         <div className="pl-4">
-                            <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                          </div>
                     )}
                 </div>
