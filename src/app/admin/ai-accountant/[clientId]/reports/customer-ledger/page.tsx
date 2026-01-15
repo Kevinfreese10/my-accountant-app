@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -8,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
-import { User, AllocatedTransaction, ImportedTransaction, ClientCustomer, Invoice } from "@/lib/types";
+import { User, AllocatedTransaction, ImportedTransaction, ClientCustomer, Invoice, ChartOfAccount } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, orderBy, getDocs, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye } from "lucide-react";
@@ -53,12 +52,29 @@ function CustomerLedgerReport({
     
     const customerTransactions = useMemo(() => {
         if (!customer) return [];
+        
+        const customerControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
+        
         let filtered = transactions.filter(tx => {
-            if ('customerId' in tx) { // It's an Invoice
-                return tx.customerId === customer.id;
+            // Include Invoices for this customer
+            if ('customerId' in tx && tx.customerId === customer.id) {
+                return true;
             }
-            if ('allocatedTo' in tx && tx.allocatedTo?.type === 'customer') { // It's a Transaction
-                 return tx.allocatedTo.value === customer.id;
+            // Include payments allocated to this customer
+            if ('allocatedTo' in tx && tx.allocatedTo?.type === 'customer' && tx.allocatedTo.value === customer.id) {
+                return true;
+            }
+            // Include journal entries that affect this customer
+            if (
+                'allocatedTo' in tx && tx.bankAccountId === 'JOURNAL' && tx.allocatedTo?.value === customerControlAccountId
+            ) {
+                 // Check the contra entry to link it to the right customer
+                 const journalEntries = transactions.filter(j => 'reference' in j && j.reference === tx.reference && j.id !== tx.id);
+                 const contraEntry = journalEntries.find(j => 'allocatedTo' in j && j.allocatedTo?.type === 'account' && j.allocatedTo.value !== customerControlAccountId);
+                 // Heuristic: Check if customer name is in description for journal entries
+                 if (tx.description.toLowerCase().includes(customer.name.toLowerCase())) {
+                     return true;
+                 }
             }
             return false;
         });
@@ -70,7 +86,7 @@ function CustomerLedgerReport({
             filtered = filtered.filter(tx => new Date('date' in tx ? tx.date : tx.invoiceDate) <= dateRange.to!);
         }
         return filtered.sort((a, b) => new Date('date' in a ? a.date : a.invoiceDate).getTime() - new Date('date' in b ? b.date : b.invoiceDate).getTime());
-    }, [transactions, customer, dateRange]);
+    }, [transactions, customer, dateRange, client.chartOfAccounts]);
 
     const reportData = useMemo(() => {
         let runningBalance = 0;
@@ -205,7 +221,7 @@ export default function CustomerLedgerPage() {
             try {
                 const clientRef = doc(db, 'aiAccountantClients', clientId);
                 const clientSnap = await getDoc(clientRef);
-                if (clientSnap.exists()) setClient(clientSnap.data() as User);
+                if (clientSnap.exists()) setClient({ id: clientSnap.id, ...clientSnap.data() } as User);
 
                 const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`), orderBy("name"));
                 const customersSnapshot = await getDocs(customersQuery);
@@ -293,4 +309,5 @@ export default function CustomerLedgerPage() {
             </Card>
         </div>
     );
-}
+
+    
