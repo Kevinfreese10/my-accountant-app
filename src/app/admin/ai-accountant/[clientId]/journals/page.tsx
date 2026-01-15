@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from "react";
@@ -11,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon } from 'lucide-react';
+import { Loader2, Plus, Trash2, CalendarIcon, Edit } from 'lucide-react';
 import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -26,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const db = getFirestore(firebaseApp);
 
@@ -49,6 +48,137 @@ const formSchema = z.object({
 
 type JournalFormValues = z.infer<typeof formSchema>;
 
+const editJournalFormSchema = z.object({
+  reference: z.string(),
+  date: z.date(),
+  lines: z.array(z.object({
+    accountId: z.string().min(1),
+    description: z.string().min(1),
+    amount: z.number(),
+  })),
+});
+type EditJournalFormValues = z.infer<typeof editJournalFormSchema>;
+
+
+function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSave }: { isOpen: boolean, onOpenChange: (open: boolean) => void, journalEntries: AllocatedTransaction[] | null, client: User | null, onSave: (data: EditJournalFormValues) => void }) {
+    const form = useForm<EditJournalFormValues>({
+        resolver: zodResolver(editJournalFormSchema),
+        defaultValues: {
+            reference: '',
+            date: new Date(),
+            lines: [],
+        },
+    });
+
+    useEffect(() => {
+        if (journalEntries && journalEntries.length > 0) {
+            form.reset({
+                reference: journalEntries[0].reference,
+                date: journalEntries[0].date.toDate(),
+                lines: journalEntries.map(entry => ({
+                    accountId: entry.allocatedTo.value,
+                    description: entry.description,
+                    amount: entry.amount,
+                })),
+            });
+        }
+    }, [journalEntries, form]);
+
+    const { fields } = useFieldArray({
+        control: form.control,
+        name: "lines",
+    });
+
+    const totalDebits = fields.reduce((sum, line, index) => sum + (form.watch(`lines.${index}.amount`) > 0 ? form.watch(`lines.${index}.amount`) : 0), 0);
+    const totalCredits = fields.reduce((sum, line, index) => sum + (form.watch(`lines.${index}.amount`) < 0 ? -form.watch(`lines.${index}.amount`) : 0), 0);
+    
+    if (!isOpen || !journalEntries) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Edit Journal: {journalEntries[0].reference}</DialogTitle>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
+                        <div className="max-h-[60vh] overflow-y-auto p-1 pr-4 space-y-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Account</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead className="text-right">Debit</TableHead>
+                                        <TableHead className="text-right">Credit</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {fields.map((field, index) => (
+                                        <TableRow key={field.id}>
+                                            <TableCell className="w-[200px]">
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`lines.${index}.accountId`}
+                                                    render={({ field }) => (
+                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                            <FormControl><SelectTrigger className="h-8"><SelectValue /></SelectTrigger></FormControl>
+                                                            <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent>
+                                                        </Select>
+                                                    )}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => <Input className="h-8" {...field} />} />
+                                            </TableCell>
+                                            <TableCell>
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`lines.${index}.amount`}
+                                                    render={({ field }) => (
+                                                        <Input
+                                                            type="number" step="0.01" className="h-8 text-right"
+                                                            value={field.value > 0 ? field.value : ''}
+                                                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                                                            disabled={field.value < 0}
+                                                        />
+                                                    )}
+                                                />
+                                            </TableCell>
+                                             <TableCell>
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`lines.${index}.amount`}
+                                                    render={({ field }) => (
+                                                        <Input
+                                                            type="number" step="0.01" className="h-8 text-right"
+                                                            value={field.value < 0 ? -field.value : ''}
+                                                            onChange={(e) => field.onChange(-(parseFloat(e.target.value) || 0))}
+                                                            disabled={field.value > 0}
+                                                        />
+                                                    )}
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                             <TableRow className="font-bold bg-muted">
+                                <TableCell colSpan={2}>Totals</TableCell>
+                                <TableCell className="text-right">{formatPrice(totalDebits)}</TableCell>
+                                <TableCell className="text-right">{formatPrice(totalCredits)}</TableCell>
+                            </TableRow>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                            <Button type="submit">Update Journal</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function JournalsPage() {
     const params = useParams();
     const searchParams = useSearchParams();
@@ -61,6 +191,8 @@ export default function JournalsPage() {
     const [postedJournals, setPostedJournals] = useState<AllocatedTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+    const [editingJournal, setEditingJournal] = useState<AllocatedTransaction[] | null>(null);
 
     const form = useForm<JournalFormValues>({
         resolver: zodResolver(formSchema),
@@ -102,9 +234,11 @@ export default function JournalsPage() {
             const suppliersSnapshot = await getDocs(suppliersQuery);
             setSuppliers(suppliersSnapshot.docs.map(d => ({id: d.id, ...d.data()} as Supplier)));
             
-            const controlAccountId = journalType === 'customer' 
-                ? clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id
-                : clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
+            const controlAccountConfig = {
+                customer: clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id,
+                supplier: clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id,
+            };
+            const controlAccountId = controlAccountConfig[journalType as keyof typeof controlAccountConfig];
             
             if (controlAccountId) {
                 const journalsQuery = query(
@@ -143,7 +277,7 @@ export default function JournalsPage() {
         
         try {
             const batch = writeBatch(db);
-            const journalRef = `JNL-${Date.now()}`;
+            const journalTimestamp = Timestamp.now();
 
             const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
             const supplierControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-000')?.id;
@@ -169,14 +303,14 @@ export default function JournalsPage() {
                 batch.set(primaryRef, {
                     clientId: client.id,
                     date: line.date.toISOString(),
-                    reference: line.reference || journalRef,
+                    reference: line.reference || `JNL-${journalTimestamp.seconds}`,
                     description: `Journal for ${primaryActorName}: ${line.description}`,
                     amount: primaryAmount,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: primaryAccountId, type: 'account' },
                     vatType: 'no_vat',
                     status: 'allocated',
-                    allocatedAt: new Date(),
+                    allocatedAt: journalTimestamp,
                 });
 
                 // Contra Entry
@@ -184,14 +318,14 @@ export default function JournalsPage() {
                 batch.set(contraRef, {
                     clientId: client.id,
                     date: line.date.toISOString(),
-                    reference: line.reference || journalRef,
+                    reference: line.reference || `JNL-${journalTimestamp.seconds}`,
                     description: line.description,
                     amount: -primaryAmount,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: line.affectingAccountId, type: 'account' },
                     vatType: line.vatType,
                     status: 'allocated',
-                    allocatedAt: new Date(),
+                    allocatedAt: journalTimestamp,
                 });
             });
 
@@ -220,6 +354,54 @@ export default function JournalsPage() {
         }
     };
     
+    const handleEditJournal = async (reference: string) => {
+        const entries = postedJournals.filter(j => j.reference === reference);
+        setEditingJournal(entries);
+        setIsEditFormOpen(true);
+    };
+
+    const handleUpdateJournal = async (values: EditJournalFormValues) => {
+        if (!client || !editingJournal) return;
+        setIsLoading(true);
+        try {
+            const batch = writeBatch(db);
+
+            // Delete old entries
+            editingJournal.forEach(entry => {
+                batch.delete(doc(db, "aiAccountantClients", client.id, "transactions", entry.id));
+            });
+
+            // Create new entries
+            const journalTimestamp = Timestamp.fromDate(values.date);
+            values.lines.forEach(line => {
+                const journalEntryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                batch.set(journalEntryRef, {
+                    clientId: client.id,
+                    date: values.date.toISOString(),
+                    reference: values.reference,
+                    description: line.description,
+                    amount: line.amount,
+                    bankAccountId: 'JOURNAL',
+                    allocatedTo: { value: line.accountId, type: 'account' },
+                    vatType: 'no_vat',
+                    status: 'allocated',
+                    allocatedAt: journalTimestamp,
+                });
+            });
+
+            await batch.commit();
+            toast({ title: 'Journal Updated Successfully!' });
+            setIsEditFormOpen(false);
+            setEditingJournal(null);
+            fetchRelatedData();
+        } catch (error) {
+            console.error("Error updating journal:", error);
+            toast({ title: 'Update Failed', variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleDeleteJournal = async (journal: AllocatedTransaction) => {
         if (!client) return;
 
@@ -254,6 +436,7 @@ export default function JournalsPage() {
     };
 
     return (
+      <>
         <Card>
             <CardHeader>
                 <div className="flex justify-between items-center">
@@ -349,18 +532,21 @@ export default function JournalsPage() {
                                 ) : (
                                     postedJournals.map((journal) => {
                                         const isStandardRate = journal.vatType === 'standard_rated_sales' || journal.vatType === 'standard_rated_purchases';
-                                        const exclusiveAmount = isStandardRate ? journal.amount / 1.15 : journal.amount;
+                                        const vatRate = client?.isVatRegistered && isStandardRate ? 0.15 : 0;
+                                        
+                                        const exclusiveAmount = journal.amount / (1 + vatRate);
                                         const vatAmount = journal.amount - exclusiveAmount;
 
                                         return (
                                         <TableRow key={journal.id}>
-                                            <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
+                                            <TableCell>{journal.date ? format(journal.date.toDate(), 'dd/MM/yyyy') : 'N/A'}</TableCell>
                                             <TableCell>{journal.reference}</TableCell>
                                             <TableCell>{journal.description}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(exclusiveAmount)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(vatAmount)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(journal.amount)}</TableCell>
                                             <TableCell className="text-right">
+                                                <Button variant="ghost" size="icon" onClick={() => handleEditJournal(journal.reference)}><Edit className="h-4 w-4" /></Button>
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
                                                         <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
@@ -386,5 +572,7 @@ export default function JournalsPage() {
                 </Tabs>
             </CardContent>
         </Card>
+        {client && <EditJournalDialog isOpen={isEditFormOpen} onOpenChange={setIsEditFormOpen} journalEntries={editingJournal} client={client} onSave={handleUpdateJournal} />}
+      </>
     );
 }
