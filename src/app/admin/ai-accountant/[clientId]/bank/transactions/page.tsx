@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown, ChevronRight as ChevronRightIcon, MoreHorizontal } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown, ChevronRight as ChevronRightIcon, MoreHorizontal, Group } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
@@ -2389,6 +2389,10 @@ const ForReviewTab = React.forwardRef<
     const [showAll, setShowAll] = useState(false);
     const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
     const [isFetchingAll, setIsFetchingAll] = useState(false);
+    const [viewMode, setViewMode] = useState<'list' | 'group'>('list');
+    const [groupedTransactions, setGroupedTransactions] = useState<Record<string, ImportedTransaction[]>>({});
+    const [isGrouping, setIsGrouping] = useState(false);
+
     
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
@@ -2458,6 +2462,7 @@ const ForReviewTab = React.forwardRef<
     
     useEffect(() => {
         refetch();
+        setViewMode('list');
     }, [activeSubTab, refetch]);
     
     useEffect(() => {
@@ -2484,6 +2489,58 @@ const ForReviewTab = React.forwardRef<
             setAllTransactions([]);
         }
     }, [showAll, reviewTransactionsQuery, toast]);
+
+    const handleGroupReview = async () => {
+        if (viewMode === 'group') {
+            setViewMode('list');
+            return;
+        }
+
+        if (!client || !bankAccountId) return;
+        setIsGrouping(true);
+        toast({ title: 'Grouping Transactions...', description: 'AI is analyzing descriptions.' });
+
+        try {
+            const queryConstraints: QueryConstraint[] = [
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'review')
+            ];
+            if (activeSubTab === 'expenses') {
+                queryConstraints.push(where('amount', '<', 0));
+            } else {
+                queryConstraints.push(where('amount', '>=', 0));
+            }
+            const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...queryConstraints);
+
+            const snapshot = await getDocs(q);
+            const allReviewTransactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
+
+            const transactionsWithSuppliers = await Promise.all(allReviewTransactions.map(async (tx) => {
+                try {
+                    const { supplier } = await extractSupplierName({ description: tx.description });
+                    return { ...tx, extractedSupplier: supplier };
+                } catch (e) {
+                    return { ...tx, extractedSupplier: tx.description.split(' ')[0].toUpperCase() };
+                }
+            }));
+            
+            const groups: Record<string, ImportedTransaction[]> = {};
+            transactionsWithSuppliers.forEach(tx => {
+                const key = tx.extractedSupplier || 'UNKNOWN';
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(tx);
+            });
+            
+            setGroupedTransactions(groups);
+            setViewMode('group');
+
+        } catch (error) {
+            console.error("Grouping failed:", error);
+            toast({ title: 'Grouping Failed', variant: 'destructive' });
+        } finally {
+            setIsGrouping(false);
+        }
+    };
 
     const handleBulkAction = async (action: 'approve' | 'reject') => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
@@ -2642,6 +2699,13 @@ const ForReviewTab = React.forwardRef<
     };
 
 
+    const isGroupInconsistent = (group: ImportedTransaction[]): boolean => {
+        if (group.length <= 1) return false;
+        const firstAccountId = group[0].allocatedTo?.value;
+        const firstVatType = group[0].vatType;
+        return group.some(tx => tx.allocatedTo?.value !== firstAccountId || tx.vatType !== firstVatType);
+    };
+
     return (
         <Card>
              <CardHeader className="p-0 border-b">
@@ -2653,6 +2717,10 @@ const ForReviewTab = React.forwardRef<
                 </Tabs>
                  <div className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
+                        <Button onClick={handleGroupReview} disabled={isGrouping}>
+                            {isGrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Group className="mr-2 h-4 w-4"/>}
+                            {viewMode === 'group' ? 'List View' : 'Group Review'}
+                        </Button>
                         <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
                             <CheckCircle className="mr-2 h-4 w-4" />Approve Selected
                         </Button>
@@ -2681,54 +2749,86 @@ const ForReviewTab = React.forwardRef<
                  </div>
             </CardHeader>
             <CardContent className="p-0">
-                 <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableCell className="w-12 p-2">
-                                     <Checkbox
-                                        checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
-                                        onCheckedChange={(checked) => {
-                                            setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
-                                        }}
-                                    />
-                                </TableCell>
-                                <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                <TableHead>Suggested Allocation</TableHead>
-                                {client?.isVatRegistered && <TableHead>Suggested VAT</TableHead>}
-                                <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading || isFetchingAll ? (
-                                <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
-                            ) : transactions.length === 0 ? (
-                                <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No transactions are pending review.</TableCell></TableRow>
-                            ) : (
-                                transactions.map(tx => (
-                                    <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
-                                        <TableCell className="p-2">
-                                            <Checkbox
-                                                checked={selectedTransactions.includes(tx.id)}
-                                                onCheckedChange={(checked) => {
-                                                    setSelectedTransactions(prev =>
-                                                        checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
-                                                    );
-                                                }}
-                                            />
-                                        </TableCell>
-                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                        <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
-                                        <TableCell>{getAllocationDescription(tx)}</TableCell>
-                                        {client?.isVatRegistered && <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>}
-                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
+                 {viewMode === 'group' ? (
+                     <div className="space-y-4 p-4 max-h-[70vh] overflow-y-auto">
+                        {Object.entries(groupedTransactions).sort((a,b) => a[0].localeCompare(b[0])).map(([supplier, txs]) => (
+                             <div key={supplier} className="border rounded-lg">
+                                <div className={cn("p-3 bg-muted/50 flex justify-between items-center", isGroupInconsistent(txs) && "bg-destructive/10")}>
+                                    <h3 className="font-bold flex items-center gap-2">
+                                        {isGroupInconsistent(txs) && <AlertTriangle className="h-4 w-4 text-destructive"/>}
+                                        {supplier} <span className="text-sm font-normal text-muted-foreground">({txs.length} items)</span>
+                                    </h3>
+                                    <div className="flex gap-2">
+                                        <Button size="sm" variant="destructive" onClick={() => handleBulkAction('reject')}>Reject Group</Button>
+                                        <Button size="sm" onClick={() => handleBulkAction('approve')}>Approve Group</Button>
+                                    </div>
+                                </div>
+                                <Table>
+                                    <TableBody>
+                                        {txs.map(tx => (
+                                            <TableRow key={tx.id}>
+                                                <TableCell className="text-xs w-[100px]">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                                <TableCell className="text-xs">{tx.description}</TableCell>
+                                                <TableCell className="text-xs">{getAllocationDescription(tx)}</TableCell>
+                                                <TableCell className="text-xs">{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
+                                                <TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                             </div>
+                        ))}
+                    </div>
+                 ) : (
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableCell className="w-12 p-2">
+                                         <Checkbox
+                                            checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
+                                            onCheckedChange={(checked) => {
+                                                setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
+                                            }}
+                                        />
+                                    </TableCell>
+                                    <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                    <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                    <TableHead>Suggested Allocation</TableHead>
+                                    {client?.isVatRegistered && <TableHead>Suggested VAT</TableHead>}
+                                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading || isFetchingAll ? (
+                                    <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                                ) : transactions.length === 0 ? (
+                                    <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No transactions are pending review.</TableCell></TableRow>
+                                ) : (
+                                    transactions.map(tx => (
+                                        <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                            <TableCell className="p-2">
+                                                <Checkbox
+                                                    checked={selectedTransactions.includes(tx.id)}
+                                                    onCheckedChange={(checked) => {
+                                                        setSelectedTransactions(prev =>
+                                                            checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
+                                                        );
+                                                    }}
+                                                />
+                                            </TableCell>
+                                            <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
+                                            <TableCell>{getAllocationDescription(tx)}</TableCell>
+                                            {client?.isVatRegistered && <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>}
+                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                )}
             </CardContent>
             <CardFooter className="flex items-center justify-center p-4">
                  <div className="flex items-center gap-2">
