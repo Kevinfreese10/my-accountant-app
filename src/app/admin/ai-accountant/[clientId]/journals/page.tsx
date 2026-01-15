@@ -20,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { allVatTypes } from '@/lib/vat-types';
+import { allVatTypes, VatType } from '@/lib/vat-types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -56,6 +56,7 @@ const editJournalFormSchema = z.object({
     accountId: z.string().min(1),
     description: z.string().min(1),
     amount: z.number(),
+    vatType: z.string(),
   })),
 });
 type EditJournalFormValues = z.infer<typeof editJournalFormSchema>;
@@ -82,6 +83,7 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                     accountId: entry.allocatedTo.value,
                     description: entry.description,
                     amount: entry.amount,
+                    vatType: entry.vatType || 'no_vat',
                 })),
             });
         }
@@ -107,7 +109,7 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl">
+            <DialogContent className="sm:max-w-4xl">
                 <DialogHeader>
                     <DialogTitle>Edit Journal: {journalEntries[0].reference}</DialogTitle>
                 </DialogHeader>
@@ -119,6 +121,7 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                                     <TableRow>
                                         <TableHead>Account</TableHead>
                                         <TableHead>Description</TableHead>
+                                        <TableHead>VAT Type</TableHead>
                                         <TableHead className="text-right">Debit</TableHead>
                                         <TableHead className="text-right">Credit</TableHead>
                                     </TableRow>
@@ -140,6 +143,18 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                                             </TableCell>
                                             <TableCell>
                                                 <FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => <Input className="h-8" {...field} />} />
+                                            </TableCell>
+                                             <TableCell className="w-[200px]">
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`lines.${index}.vatType`}
+                                                    render={({ field }) => (
+                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                            <FormControl><SelectTrigger className="h-8"><SelectValue /></SelectTrigger></FormControl>
+                                                            <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
+                                                        </Select>
+                                                    )}
+                                                />
                                             </TableCell>
                                             <TableCell>
                                                 <FormField
@@ -172,7 +187,7 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                                         </TableRow>
                                     ))}
                                     <TableRow className="font-bold bg-muted">
-                                        <TableCell colSpan={2}>Totals</TableCell>
+                                        <TableCell colSpan={3}>Totals</TableCell>
                                         <TableCell className="text-right">{formatPrice(totalDebits)}</TableCell>
                                         <TableCell className="text-right">{formatPrice(totalCredits)}</TableCell>
                                     </TableRow>
@@ -382,29 +397,20 @@ export default function JournalsPage() {
         setIsLoading(true);
         try {
             const batch = writeBatch(db);
+            const transactionsToUpdate = new Map(editingJournal.map(tx => [tx.id, tx]));
 
-            // Create a map of the old transactions by ID for easy lookup
-            const oldTransactionsMap = new Map(editingJournal.map(tx => [tx.id, tx]));
-
-            // Update existing or create new ones
             for (const line of values.lines) {
-                if (oldTransactionsMap.has(line.id)) {
-                    // Update existing document
+                const txData = transactionsToUpdate.get(line.id);
+                if (txData) {
                     const docRef = doc(db, "aiAccountantClients", client.id, "transactions", line.id);
                     batch.update(docRef, {
                         'allocatedTo.value': line.accountId,
                         description: line.description,
-                        amount: line.amount
+                        amount: line.amount,
+                        vatType: line.vatType
                     });
-                    oldTransactionsMap.delete(line.id); // Remove from map
                 }
             }
-
-            // Any transactions left in the map were deleted from the form
-            for (const txId of oldTransactionsMap.keys()) {
-                batch.delete(doc(db, "aiAccountantClients", client.id, "transactions", txId));
-            }
-
 
             await batch.commit();
             toast({ title: 'Journal Updated Successfully!' });
