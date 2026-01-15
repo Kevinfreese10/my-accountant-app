@@ -45,7 +45,7 @@ export default function CompanyDetailsPage() {
         
         if (!data.isVatRegistered) {
             updateData.vatNumber = '';
-            updateData.vatCategory = undefined;
+            updateData.vatCategory = null;
         }
 
         try {

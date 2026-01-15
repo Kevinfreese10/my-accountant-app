@@ -42,6 +42,7 @@ const formSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters.'),
   yearEnd: z.string().min(1, 'Financial year end is required.'),
   isVatRegistered: z.boolean().default(false),
+  vatCategory: z.enum(['A', 'B', 'C']).optional(),
   serviceLevel: z.enum(['free', 'ai_addon']).default('free'),
   extraUsers: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
 });
@@ -110,14 +111,14 @@ export default function AIAccountantSignupForm() {
         const authUid = newFirebaseUser.uid;
 
         const newUserDocRef = doc(db, "aiAccountantClients", authUid);
-        await setDoc(newUserDocRef, {
+        const finalData = {
             ...clientData,
             name: `${values.name} ${values.surname}`,
             companyName: `${values.name} ${values.surname}`,
             id: authUid,
             uid: authUid,
             role: 'client',
-            source: 'AI Accountant',
+            source: 'AI Accountant' as const,
             hasNumeraProfile: true,
             chartOfAccounts: initialChartOfAccounts,
             allocationRules: globalRules,
@@ -125,8 +126,11 @@ export default function AIAccountantSignupForm() {
             subscription: {
                 ...values,
                 monthlyTotal: monthlyTotal,
-            }
-        });
+            },
+            vatCategory: values.isVatRegistered ? values.vatCategory : null,
+        };
+
+        await setDoc(newUserDocRef, finalData);
 
         // Send welcome email
         try {

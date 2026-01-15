@@ -289,7 +289,7 @@ export default function AdminClientsPage() {
       yearEnd: data.yearEnd ? Timestamp.fromDate(data.yearEnd) : null,
       cipcDueDate: data.cipcDueDate ? Timestamp.fromDate(data.cipcDueDate) : null,
       isVatRegistered: data.isVatRegistered,
-      vatCategory: data.isVatRegistered ? data.vatCategory : undefined,
+      vatCategory: data.isVatRegistered ? data.vatCategory : null,
       submitsEmp201: data.submitsEmp201,
       submitsEmp501: data.submitsEmp501,
       submitsProvisionalTax: data.submitsProvisionalTax,

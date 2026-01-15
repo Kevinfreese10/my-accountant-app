@@ -177,6 +177,7 @@ export default function CreateOrderForm() {
             authorId: currentUser.uid,
             type: 'email',
             subject: confirmationEmailSubject,
+            attachments: null,
         };
 
       const orderData: Order = {
@@ -466,7 +467,7 @@ export default function CreateOrderForm() {
 
         <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid || total === 0}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? 'Creating Order...' : 'Create Order'}
+            {isLoading ? 'Creating Order...' : 'Create Order & Send for Payment'}
         </Button>
       </form>
     </Form>
