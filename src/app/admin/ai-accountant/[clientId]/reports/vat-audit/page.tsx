@@ -91,11 +91,24 @@ function VatAuditReport({ client, transactions, period, onUpload, onDeleteFile }
             const txDate = tx.date instanceof Date ? tx.date : new Date(tx.date);
             return tx.vatType && tx.vatType !== 'no_vat' && txDate >= fromDate && txDate <= toDate;
         }).map(tx => {
+            const isJournal = tx.bankAccountId === 'JOURNAL';
             const isStandardRate = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
             const vatRate = isStandardRate ? 0.15 : 0;
-            const inclusiveAmount = tx.amount;
-            const exclusiveAmount = isStandardRate ? inclusiveAmount / (1 + vatRate) : inclusiveAmount;
-            const vatAmount = inclusiveAmount - exclusiveAmount;
+
+            let exclusiveAmount: number, inclusiveAmount: number, vatAmount: number;
+
+            if (isJournal) {
+                // For journals, the stored amount is EXCLUSIVE of VAT.
+                exclusiveAmount = tx.amount;
+                vatAmount = exclusiveAmount * vatRate;
+                inclusiveAmount = exclusiveAmount + vatAmount;
+            } else {
+                // For bank transactions, the stored amount is INCLUSIVE of VAT.
+                inclusiveAmount = tx.amount;
+                exclusiveAmount = isStandardRate ? inclusiveAmount / (1 + vatRate) : inclusiveAmount;
+                vatAmount = inclusiveAmount - exclusiveAmount;
+            }
+
             return { ...tx, exclusiveAmount, vatAmount, inclusiveAmount };
         });
 
