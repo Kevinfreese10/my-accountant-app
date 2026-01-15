@@ -52,6 +52,7 @@ const editJournalFormSchema = z.object({
   reference: z.string(),
   date: z.date(),
   lines: z.array(z.object({
+    id: z.string(), // Keep track of the original transaction ID
     accountId: z.string().min(1),
     description: z.string().min(1),
     amount: z.number(),
@@ -72,10 +73,12 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
 
     useEffect(() => {
         if (journalEntries && journalEntries.length > 0) {
+            const date = journalEntries[0].date;
             form.reset({
                 reference: journalEntries[0].reference,
-                date: journalEntries[0].date.toDate(),
+                date: date?.toDate ? date.toDate() : new Date(date),
                 lines: journalEntries.map(entry => ({
+                    id: entry.id,
                     accountId: entry.allocatedTo.value,
                     description: entry.description,
                     amount: entry.amount,
@@ -92,6 +95,14 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
     const totalDebits = fields.reduce((sum, line, index) => sum + (form.watch(`lines.${index}.amount`) > 0 ? form.watch(`lines.${index}.amount`) : 0), 0);
     const totalCredits = fields.reduce((sum, line, index) => sum + (form.watch(`lines.${index}.amount`) < 0 ? -form.watch(`lines.${index}.amount`) : 0), 0);
     
+    const formatPrice = (price: number) => {
+        if (price === 0) return '';
+        return new Intl.NumberFormat('en-ZA', {
+          style: 'currency',
+          currency: 'ZAR',
+        }).format(price);
+    };
+
     if (!isOpen || !journalEntries) return null;
 
     return (
@@ -160,13 +171,13 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                                             </TableCell>
                                         </TableRow>
                                     ))}
+                                    <TableRow className="font-bold bg-muted">
+                                        <TableCell colSpan={2}>Totals</TableCell>
+                                        <TableCell className="text-right">{formatPrice(totalDebits)}</TableCell>
+                                        <TableCell className="text-right">{formatPrice(totalCredits)}</TableCell>
+                                    </TableRow>
                                 </TableBody>
                             </Table>
-                             <TableRow className="font-bold bg-muted">
-                                <TableCell colSpan={2}>Totals</TableCell>
-                                <TableCell className="text-right">{formatPrice(totalDebits)}</TableCell>
-                                <TableCell className="text-right">{formatPrice(totalCredits)}</TableCell>
-                            </TableRow>
                         </div>
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -355,7 +366,13 @@ export default function JournalsPage() {
     };
     
     const handleEditJournal = async (reference: string) => {
-        const entries = postedJournals.filter(j => j.reference === reference);
+        if (!client) return;
+        const q = query(
+            collection(db, "aiAccountantClients", client.id, "transactions"), 
+            where("reference", "==", reference)
+        );
+        const snapshot = await getDocs(q);
+        const entries = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction);
         setEditingJournal(entries);
         setIsEditFormOpen(true);
     };
@@ -366,28 +383,28 @@ export default function JournalsPage() {
         try {
             const batch = writeBatch(db);
 
-            // Delete old entries
-            editingJournal.forEach(entry => {
-                batch.delete(doc(db, "aiAccountantClients", client.id, "transactions", entry.id));
-            });
+            // Create a map of the old transactions by ID for easy lookup
+            const oldTransactionsMap = new Map(editingJournal.map(tx => [tx.id, tx]));
 
-            // Create new entries
-            const journalTimestamp = Timestamp.fromDate(values.date);
-            values.lines.forEach(line => {
-                const journalEntryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                batch.set(journalEntryRef, {
-                    clientId: client.id,
-                    date: values.date.toISOString(),
-                    reference: values.reference,
-                    description: line.description,
-                    amount: line.amount,
-                    bankAccountId: 'JOURNAL',
-                    allocatedTo: { value: line.accountId, type: 'account' },
-                    vatType: 'no_vat',
-                    status: 'allocated',
-                    allocatedAt: journalTimestamp,
-                });
-            });
+            // Update existing or create new ones
+            for (const line of values.lines) {
+                if (oldTransactionsMap.has(line.id)) {
+                    // Update existing document
+                    const docRef = doc(db, "aiAccountantClients", client.id, "transactions", line.id);
+                    batch.update(docRef, {
+                        'allocatedTo.value': line.accountId,
+                        description: line.description,
+                        amount: line.amount
+                    });
+                    oldTransactionsMap.delete(line.id); // Remove from map
+                }
+            }
+
+            // Any transactions left in the map were deleted from the form
+            for (const txId of oldTransactionsMap.keys()) {
+                batch.delete(doc(db, "aiAccountantClients", client.id, "transactions", txId));
+            }
+
 
             await batch.commit();
             toast({ title: 'Journal Updated Successfully!' });
@@ -534,17 +551,21 @@ export default function JournalsPage() {
                                         const isStandardRate = journal.vatType === 'standard_rated_sales' || journal.vatType === 'standard_rated_purchases';
                                         const vatRate = client?.isVatRegistered && isStandardRate ? 0.15 : 0;
                                         
-                                        const exclusiveAmount = journal.amount / (1 + vatRate);
-                                        const vatAmount = journal.amount - exclusiveAmount;
+                                        const inclusiveAmount = journal.amount;
+                                        const exclusiveAmount = isStandardRate ? inclusiveAmount / (1 + vatRate) : inclusiveAmount;
+                                        const vatAmount = inclusiveAmount - exclusiveAmount;
+
+                                        const date = journal.date;
+                                        const formattedDate = date ? (date.toDate ? format(date.toDate(), 'dd/MM/yyyy') : format(new Date(date), 'dd/MM/yyyy')) : 'N/A';
 
                                         return (
                                         <TableRow key={journal.id}>
-                                            <TableCell>{journal.date ? format(journal.date.toDate(), 'dd/MM/yyyy') : 'N/A'}</TableCell>
+                                            <TableCell>{formattedDate}</TableCell>
                                             <TableCell>{journal.reference}</TableCell>
                                             <TableCell>{journal.description}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(exclusiveAmount)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(vatAmount)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatPrice(journal.amount)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(inclusiveAmount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <Button variant="ghost" size="icon" onClick={() => handleEditJournal(journal.reference)}><Edit className="h-4 w-4" /></Button>
                                                 <AlertDialog>
@@ -576,3 +597,5 @@ export default function JournalsPage() {
       </>
     );
 }
+
+    
