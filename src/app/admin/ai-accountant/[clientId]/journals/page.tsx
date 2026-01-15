@@ -244,6 +244,7 @@ export default function JournalsPage() {
                 vatAmount: 0,
                 inclusiveAmount: 0,
                 affectingAccountId: '',
+                reference: '',
             }],
         },
     });
@@ -403,6 +404,7 @@ export default function JournalsPage() {
                     vatAmount: 0,
                     inclusiveAmount: 0,
                     affectingAccountId: '',
+                    reference: '',
                 }],
             });
             fetchRelatedData();
@@ -491,19 +493,15 @@ export default function JournalsPage() {
           currency: 'ZAR',
         }).format(price);
     };
-
+    
     const safeFormatDate = (date: any): string => {
         if (!date) return 'N/A';
-        if (date.toDate && typeof date.toDate === 'function') {
-            return format(date.toDate(), 'dd/MM/yyyy');
+        try {
+            const d = date.toDate ? date.toDate() : new Date(date);
+            return format(d, 'dd/MM/yyyy');
+        } catch (e) {
+            return 'Invalid Date';
         }
-        if (typeof date === 'string' || typeof date === 'number') {
-            const parsedDate = new Date(date);
-            if (!isNaN(parsedDate.getTime())) {
-                return format(parsedDate, 'dd/MM/yyyy');
-            }
-        }
-        return 'Invalid Date';
     };
 
     return (
@@ -574,7 +572,7 @@ export default function JournalsPage() {
                                     </tbody>
                                 </table>
                                 </div>
-                                <Button type="button" variant="outline" size="sm" onClick={() => append({ date: new Date(), effect: 'Increase', actorId: '', description: '', vatType: 'no_vat', exclusiveAmount: 0, vatAmount: 0, inclusiveAmount: 0, affectingAccountId: ''})}><Plus className="mr-2 h-4 w-4" /> Add Line</Button>
+                                <Button type="button" variant="outline" size="sm" onClick={() => append({ date: new Date(), effect: 'Increase', actorId: '', description: '', vatType: 'no_vat', exclusiveAmount: 0, vatAmount: 0, inclusiveAmount: 0, affectingAccountId: '', reference: ''})}><Plus className="mr-2 h-4 w-4" /> Add Line</Button>
                                 <CardFooter className="p-4 bg-muted rounded-b-lg mt-4 flex justify-end">
                                     <Button type="submit" disabled={isLoading}>
                                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -648,6 +646,5 @@ export default function JournalsPage() {
       </>
     );
 }
-
 
     
