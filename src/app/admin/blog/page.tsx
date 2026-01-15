@@ -1,12 +1,12 @@
 
 'use client';
 import { useState } from 'react';
-import { BlogPost } from '@/lib/types';
+import { BlogPost, Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Loader2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import BlogForm from '@/components/admin/BlogForm';
@@ -15,12 +15,84 @@ import { format } from 'date-fns';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
+import { analyzeBlogPostSeo, AnalyzeBlogPostSeoOutput } from '@/ai/flows/analyze-blog-post-seo';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+
+function SeoReportDialog({ result, postTitle }: { result: AnalyzeBlogPostSeoOutput | null, postTitle: string }) {
+  if (!result) return null;
+
+  const renderChecklist = (items: Record<string, { pass: boolean; feedback: string }>) => (
+    <ul className="space-y-2">
+      {Object.entries(items).map(([key, item]) => (
+        <li key={key} className="flex items-center gap-3">
+          {item.pass ? <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" /> : <XCircle className="h-5 w-5 text-destructive flex-shrink-0" />}
+          <div>
+            <p className="font-medium text-sm capitalize">{key.replace(/([A-Z])/g, ' $1')}</p>
+            <p className="text-xs text-muted-foreground">{item.feedback}</p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+
+  return (
+    <DialogContent className="sm:max-w-3xl">
+      <DialogHeader>
+        <DialogTitle>SEO Analysis for: {postTitle}</DialogTitle>
+        <DialogDescription>
+          This report analyzes the post against key SEO best practices.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="max-h-[70vh] overflow-y-auto pr-4">
+        <Accordion type="multiple" defaultValue={['keywordAndIntent', 'metadata', 'structure']} className="w-full space-y-4">
+          <AccordionItem value="keywordAndIntent">
+            <AccordionTrigger className="text-lg font-semibold">Keyword & Intent</AccordionTrigger>
+            <AccordionContent>{renderChecklist(result.keywordAndIntent)}</AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="metadata">
+            <AccordionTrigger className="text-lg font-semibold">Metadata</AccordionTrigger>
+            <AccordionContent>{renderChecklist(result.metadata)}</AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="structure">
+            <AccordionTrigger className="text-lg font-semibold">Structure</AccordionTrigger>
+            <AccordionContent>{renderChecklist(result.structure)}</AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="content">
+            <AccordionTrigger className="text-lg font-semibold">Content</AccordionTrigger>
+            <AccordionContent>{renderChecklist(result.content)}</AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="links">
+            <AccordionTrigger className="text-lg font-semibold">Links</AccordionTrigger>
+            <AccordionContent>{renderChecklist(result.links)}</AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="media">
+            <AccordionTrigger className="text-lg font-semibold">Media</AccordionTrigger>
+            <AccordionContent>{renderChecklist(result.media)}</AccordionContent>
+          </AccordionItem>
+           <AccordionItem value="technical">
+            <AccordionTrigger className="text-lg font-semibold">Technical</AccordionTrigger>
+            <AccordionContent>{renderChecklist(result.technical)}</AccordionContent>
+          </AccordionItem>
+           <AccordionItem value="trust">
+            <AccordionTrigger className="text-lg font-semibold">Trust & Conversion</AccordionTrigger>
+            <AccordionContent>{renderChecklist(result.trust)}</AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+    </DialogContent>
+  );
+}
+
 
 export default function AdminBlogPage() {
   const { blogPosts, addPost, updatePost, deletePost, isLoading } = useBlog();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
   const { toast } = useToast();
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalyzeBlogPostSeoOutput | null>(null);
+  const [analyzingPost, setAnalyzingPost] = useState<BlogPost | null>(null);
+
 
   const handleAddPost = () => {
     setSelectedPost(null);
@@ -52,14 +124,12 @@ export default function AdminBlogPage() {
   const handleFormSubmit = async (postData: BlogPost) => {
     try {
         if (selectedPost) {
-            // For updates, we pass the whole object, including the id
             await updatePost(postData);
             toast({
                 title: 'Post Updated',
                 description: 'The blog post has been saved.',
             });
         } else {
-            // For additions, we omit id, slug, and date as they are auto-generated
             const { id, slug, date, ...newPostData } = postData;
             await addPost(newPostData);
             toast({
@@ -75,6 +145,27 @@ export default function AdminBlogPage() {
             description: 'Could not save the blog post.',
             variant: 'destructive',
         });
+    }
+  };
+
+  const handleAnalyze = async (post: BlogPost) => {
+    setAnalyzingPost(post);
+    setIsAnalysisOpen(true);
+    setAnalysisResult(null); // Clear previous result
+    try {
+        const result = await analyzeBlogPostSeo({
+            title: post.title,
+            content: post.content,
+            metaTitle: post.metaTitle,
+            metaDescription: post.metaDescription,
+            url: post.slug,
+            imageUrl: post.imageUrl,
+        });
+        setAnalysisResult(result);
+    } catch (e) {
+        console.error("Analysis error", e);
+        toast({ title: 'Analysis Failed', description: 'Could not analyze the blog post.', variant: 'destructive'});
+        setIsAnalysisOpen(false);
     }
   };
 
@@ -104,6 +195,13 @@ export default function AdminBlogPage() {
            </DialogContent>
         </Dialog>
       </div>
+
+       <Dialog open={isAnalysisOpen} onOpenChange={setIsAnalysisOpen}>
+            {analyzingPost && (
+                <SeoReportDialog result={analysisResult} postTitle={analyzingPost.title} />
+            )}
+        </Dialog>
+
       <Card>
         <CardHeader>
           <CardTitle>All Blog Posts</CardTitle>
@@ -152,6 +250,10 @@ export default function AdminBlogPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEditPost(post)}>
                                 Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAnalyze(post)}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                Analyze SEO
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                              <AlertDialogTrigger asChild>
