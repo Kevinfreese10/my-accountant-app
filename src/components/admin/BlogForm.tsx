@@ -23,12 +23,15 @@ import { firebaseApp } from '@/lib/firebase';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 const db = getFirestore(firebaseApp);
 
 const formSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(10, 'Title must be at least 10 characters.'),
+  primaryKeyword: z.string().min(3, 'Primary keyword is required.'),
+  searchIntent: z.enum(['Informational', 'Commercial', 'Transactional']),
   excerpt: z.string().min(20, 'Excerpt must be at least 20 characters.'),
   content: z.string().min(50, 'Content must be at least 50 characters.'),
   author: z.string().min(2, "Author's name is required."),
@@ -71,6 +74,8 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
     defaultValues: {
       id: post?.id || '',
       title: post?.title || '',
+      primaryKeyword: post?.title || '', // Default keyword to title for existing posts
+      searchIntent: 'Informational', // Default intent
       excerpt: post?.excerpt || '',
       content: post?.content || '',
       author: post?.author || 'Kevin Freese',
@@ -89,11 +94,12 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
   });
 
   const handleAiContentUpdate = async () => {
-    const title = form.getValues('title');
-    if (!title) {
+    const primaryKeyword = form.getValues('primaryKeyword');
+    const searchIntent = form.getValues('searchIntent');
+    if (!primaryKeyword) {
         toast({
-            title: 'Title is missing',
-            description: 'Please enter a post title before using AI.',
+            title: 'Keyword is missing',
+            description: 'Please enter a primary keyword before using AI.',
             variant: 'destructive',
         });
         return;
@@ -106,7 +112,7 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
     });
 
     try {
-        const result = await generateBlogPost({ title });
+        const result = await generateBlogPost({ primaryKeyword, searchIntent });
         form.setValue('excerpt', result.excerpt);
         form.setValue('content', result.content);
         toast({
@@ -200,36 +206,71 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
             </FormItem>
           )}
         />
+        
+        <Separator/>
 
-        <div className="space-y-2">
-            <div className="flex items-center justify-between">
-                <FormLabel>Excerpt & Main Content</FormLabel>
-                <Button type="button" size="sm" onClick={handleAiContentUpdate} disabled={isAiContentUpdating}>
-                    {isAiContentUpdating ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
-                    Generate Content with AI
-                </Button>
+        <div className="space-y-4 rounded-lg border p-4">
+            <h3 className="text-lg font-medium">AI Content Generation</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                <FormField
+                    control={form.control}
+                    name="primaryKeyword"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Primary Keyword</FormLabel>
+                        <FormControl><Input {...field} placeholder="e.g., VAT registration South Africa" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="searchIntent"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Search Intent</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                                <SelectItem value="Informational">Informational</SelectItem>
+                                <SelectItem value="Commercial">Commercial</SelectItem>
+                                <SelectItem value="Transactional">Transactional</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
             </div>
-            <FormField
-            control={form.control}
-            name="excerpt"
-            render={({ field }) => (
-                <FormItem>
-                <FormControl><Textarea {...field} rows={3} placeholder="A short summary of the post..." /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-            <FormField
-            control={form.control}
-            name="content"
-            render={({ field }) => (
-                <FormItem>
-                <FormControl><Textarea {...field} rows={10} placeholder="The main content of the blog post. HTML is supported." /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
+            <Button type="button" size="sm" onClick={handleAiContentUpdate} disabled={isAiContentUpdating}>
+                {isAiContentUpdating ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
+                Generate Content with AI
+            </Button>
         </div>
+
+
+        <FormField
+        control={form.control}
+        name="excerpt"
+        render={({ field }) => (
+            <FormItem>
+            <FormLabel>Excerpt</FormLabel>
+            <FormControl><Textarea {...field} rows={3} placeholder="A short summary of the post..." /></FormControl>
+            <FormMessage />
+            </FormItem>
+        )}
+        />
+        <FormField
+        control={form.control}
+        name="content"
+        render={({ field }) => (
+            <FormItem>
+            <FormLabel>Main Content (HTML)</FormLabel>
+            <FormControl><Textarea {...field} rows={10} placeholder="The main content of the blog post. HTML is supported." /></FormControl>
+            <FormMessage />
+            </FormItem>
+        )}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField control={form.control} name="author" render={({ field }) => ( <FormItem><FormLabel>Author</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
