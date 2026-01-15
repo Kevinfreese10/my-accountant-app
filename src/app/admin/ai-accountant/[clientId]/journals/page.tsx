@@ -11,7 +11,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon, Edit } from 'lucide-react';
-import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -63,6 +63,18 @@ type EditJournalFormValues = z.infer<typeof editJournalFormSchema>;
 
 
 function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSave }: { isOpen: boolean, onOpenChange: (open: boolean) => void, journalEntries: AllocatedTransaction[] | null, client: User | null, onSave: (data: EditJournalFormValues) => void }) {
+    
+    const getTaskDate = (task: Partial<AllocatedTransaction>): Date => {
+      if (!task?.date) return new Date();
+      if (task.date instanceof Date) {
+          return task.date;
+      }
+      if (typeof (task.date as any).toDate === 'function') {
+          return (task.date as any).toDate();
+      }
+      return new Date(task.date);
+    }
+    
     const form = useForm<EditJournalFormValues>({
         resolver: zodResolver(editJournalFormSchema),
         defaultValues: {
@@ -74,10 +86,9 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
 
     useEffect(() => {
         if (journalEntries && journalEntries.length > 0) {
-            const date = journalEntries[0].date;
             form.reset({
                 reference: journalEntries[0].reference,
-                date: date?.toDate ? date.toDate() : new Date(date),
+                date: getTaskDate(journalEntries[0]),
                 lines: journalEntries.map(entry => ({
                     id: entry.id,
                     accountId: entry.allocatedTo.value,
@@ -481,6 +492,20 @@ export default function JournalsPage() {
         }).format(price);
     };
 
+    const safeFormatDate = (date: any): string => {
+        if (!date) return 'N/A';
+        if (date.toDate && typeof date.toDate === 'function') {
+            return format(date.toDate(), 'dd/MM/yyyy');
+        }
+        if (typeof date === 'string' || typeof date === 'number') {
+            const parsedDate = new Date(date);
+            if (!isNaN(parsedDate.getTime())) {
+                return format(parsedDate, 'dd/MM/yyyy');
+            }
+        }
+        return 'Invalid Date';
+    };
+
     return (
       <>
         <Card>
@@ -584,12 +609,9 @@ export default function JournalsPage() {
                                         const exclusiveAmount = isStandardRate ? inclusiveAmount / (1 + vatRate) : inclusiveAmount;
                                         const vatAmount = inclusiveAmount - exclusiveAmount;
 
-                                        const date = journal.date;
-                                        const formattedDate = date ? (typeof date === 'string' ? format(new Date(date), 'dd/MM/yyyy') : format(date.toDate(), 'dd/MM/yyyy')) : 'N/A';
-
                                         return (
                                         <TableRow key={journal.id}>
-                                            <TableCell>{formattedDate}</TableCell>
+                                            <TableCell>{safeFormatDate(journal.date)}</TableCell>
                                             <TableCell>{journal.reference}</TableCell>
                                             <TableCell>{journal.description}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(exclusiveAmount)}</TableCell>
@@ -626,5 +648,6 @@ export default function JournalsPage() {
       </>
     );
 }
+
 
     
