@@ -3112,7 +3112,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         try {
             // Step 1: Extract supplier names
             dismiss(toastId);
-            toast({ id: toastId, title: "Step 1/3: Extracting Suppliers...", description: "AI is cleaning up descriptions." });
+            toast({ id: toastId, title: "Step 1/4: Extracting Suppliers...", description: "AI is cleaning up descriptions." });
             const transactionsWithSuppliers = await Promise.all(transactionsToProcess.map(async (tx) => {
                 try {
                     const { supplier } = await extractSupplierName({ description: tx.description });
@@ -3123,7 +3123,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             }));
             
             // Step 2: Group by supplier
-            const groupedBySupplier = transactionsWithSuppliers.reduce((acc, tx) => {
+            const initialGroups = transactionsWithSuppliers.reduce((acc, tx) => {
                 const key = tx.extractedSupplier || 'UNKNOWN';
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
@@ -3131,19 +3131,42 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             }, {} as Record<string, (ImportedTransaction & {extractedSupplier?: string})[]>);
             
             dismiss(toastId);
-            toast({ id: toastId, title: `Step 2/3: Grouping Transactions...`, description: `Created ${Object.keys(groupedBySupplier).length} groups.` });
+            toast({ id: toastId, title: `Step 2/4: Consolidating Groups...`, description: `Found ${Object.keys(initialGroups).length} initial groups.` });
+
+            // Step 3: Consolidate groups
+            const groupKeys = Object.keys(initialGroups).sort((a, b) => b.length - a.length);
+            const mergedGroups: Record<string, (ImportedTransaction & {extractedSupplier?: string})[]> = {};
+            const processedKeys = new Set<string>();
+
+            for (const key of groupKeys) {
+                if (processedKeys.has(key)) continue;
+
+                mergedGroups[key] = [...(mergedGroups[key] || []), ...initialGroups[key]];
+                processedKeys.add(key);
+
+                for (const otherKey of groupKeys) {
+                    if (processedKeys.has(otherKey) || key === otherKey) continue;
+                    if (key.includes(otherKey)) {
+                        mergedGroups[key] = [...(mergedGroups[key] || []), ...initialGroups[otherKey]];
+                        processedKeys.add(otherKey);
+                    }
+                }
+            }
             
-            // Step 3: Allocate each group
+            dismiss(toastId);
+            toast({ id: toastId, title: `Step 3/4: Allocating Groups...`, description: `Consolidated to ${Object.keys(mergedGroups).length} groups.` });
+            
+            // Step 4: Allocate each group
             const chartOfAccountsJson = JSON.stringify(chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
             const allUpdatePromises: Promise<any>[] = [];
             let processedCount = 0;
 
-            for (const supplier in groupedBySupplier) {
-                const group = groupedBySupplier[supplier];
+            for (const supplier in mergedGroups) {
+                const group = mergedGroups[supplier];
                 const representativeTx = group[0];
                 
                 dismiss(toastId);
-                toast({ id: toastId, title: `Step 3/3: Allocating Groups (${++processedCount}/${Object.keys(groupedBySupplier).length})`, description: `Analyzing: ${supplier}` });
+                toast({ id: toastId, title: `Step 4/4: Allocating Groups (${++processedCount}/${Object.keys(mergedGroups).length})`, description: `Analyzing: ${supplier}` });
 
                 try {
                     const result = await suggestTransactionAllocation({
@@ -3340,6 +3363,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     )
 }
     
+    
+
     
 
     
