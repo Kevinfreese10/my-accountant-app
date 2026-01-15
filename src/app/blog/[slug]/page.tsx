@@ -37,6 +37,7 @@ async function getRelatedServices(serviceIds: string[]): Promise<Service[]> {
     return [];
   }
   const servicesRef = collection(db, 'services');
+  // Firestore's 'in' query is limited to 30 items, but we are only allowing 3, so this is safe.
   const q = query(servicesRef, where('__name__', 'in', serviceIds));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
