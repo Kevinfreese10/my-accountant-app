@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
@@ -67,12 +68,22 @@ export const BlogProvider = ({ children }: { children: ReactNode }) => {
   const updatePost = async (updatedPost: BlogPost) => {
     try {
         const { id, ...postData } = updatedPost;
+        
+        let dateToSave: Timestamp | Date;
+        if (typeof postData.date === 'string') {
+            dateToSave = Timestamp.fromDate(new Date(postData.date));
+        } else {
+            // It's already a Date object or something else Firestore can handle
+            dateToSave = postData.date;
+        }
+
         await setDoc(doc(db, "blogPosts", id), {
             ...postData,
-            date: Timestamp.fromDate(new Date(postData.date)), // Convert string back to Timestamp for Firestore
+            date: dateToSave,
         }, { merge: true });
         fetchBlogPosts();
     } catch (error) {
+        console.error("Error updating post: ", error);
         throw new Error("Failed to update blog post.");
     }
   };

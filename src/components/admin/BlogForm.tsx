@@ -9,7 +9,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Trash, Sparkles, Loader2, Images, Check, ChevronsUpDown } from 'lucide-react';
-import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 import { generateBlogPost } from '@/ai/flows/generate-blog-post';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
@@ -23,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 
 const db = getFirestore(firebaseApp);
 
@@ -77,7 +77,7 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
       searchIntent: 'Informational', // Default intent
       excerpt: post?.excerpt || '',
       content: post?.content || '',
-      author: 'Kevin Freese',
+      author: post?.author || 'Kevin Freese',
       imageUrl: post?.imageUrl || 'https://picsum.photos/seed/new-post/800/400',
       imageHint: post?.imageHint || 'business office',
       metaTitle: post?.metaTitle || '',
@@ -111,7 +111,7 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
     });
 
     try {
-        const result = await generateBlogPost({ primaryKeyword, searchIntent });
+        const result = await generateBlogPost({ title: primaryKeyword, primaryKeyword, searchIntent });
         form.setValue('title', result.title);
         form.setValue('excerpt', result.excerpt);
         form.setValue('content', result.content);
@@ -173,6 +173,7 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
   const handleSubmit = (values: z.infer<typeof formSchema>) => {
     const postData = {
         ...values,
+        date: post?.date || new Date().toISOString(), // Keep existing date on update, or set new one
         metaKeywords: values.metaKeywords?.map(v => v.value),
     }
     onSubmit(postData);
