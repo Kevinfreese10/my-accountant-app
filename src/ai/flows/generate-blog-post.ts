@@ -72,7 +72,7 @@ const prompt = ai.definePrompt({
   **7. Final Output:**
   - **Title:** The generated blog post title.
   - **Excerpt:** A short, compelling one-paragraph summary of the article (under 160 characters).
-  - **Content:** The full blog post, formatted in clean HTML, following all the rules above.
+  - **Content:** The full blog post, formatted in clean HTML, following all the rules above. Ensure the generated HTML is complete and does not cut off.
 
   **Primary Keyword:** {{{primaryKeyword}}}
   **Search Intent:** {{{searchIntent}}}
