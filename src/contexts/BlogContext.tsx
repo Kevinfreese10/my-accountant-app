@@ -1,9 +1,8 @@
-
 'use client';
 
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { BlogPost } from '@/lib/types';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -29,11 +28,14 @@ export const BlogProvider = ({ children }: { children: ReactNode }) => {
     try {
         const q = query(collection(db, "blogPosts"), orderBy("date", "desc"));
         const querySnapshot = await getDocs(q);
-        const fetchedPosts = querySnapshot.docs.map(doc => ({ 
-            ...doc.data(), 
+        const fetchedPosts = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return { 
+            ...data, 
             id: doc.id,
-            date: doc.data().date.toDate().toISOString(), // Convert Timestamp to ISO string
-         } as BlogPost));
+            date: (data.date as Timestamp).toDate().toISOString(), // Convert Timestamp to ISO string
+         } as BlogPost
+        });
         setBlogPosts(fetchedPosts);
     } catch(error) {
         console.error("Error fetching blog posts:", error);
@@ -67,7 +69,7 @@ export const BlogProvider = ({ children }: { children: ReactNode }) => {
         const { id, ...postData } = updatedPost;
         await setDoc(doc(db, "blogPosts", id), {
             ...postData,
-            date: new Date(postData.date), // Convert back to Date object for Firestore
+            date: Timestamp.fromDate(new Date(postData.date)), // Convert string back to Timestamp for Firestore
         }, { merge: true });
         fetchBlogPosts();
     } catch (error) {
