@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -78,7 +77,7 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
       searchIntent: 'Informational', // Default intent
       excerpt: post?.excerpt || '',
       content: post?.content || '',
-      author: post?.author || 'Kevin Freese',
+      author: 'Kevin Freese',
       imageUrl: post?.imageUrl || 'https://picsum.photos/seed/new-post/800/400',
       imageHint: post?.imageHint || 'business office',
       metaTitle: post?.metaTitle || '',
@@ -113,11 +112,12 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
 
     try {
         const result = await generateBlogPost({ primaryKeyword, searchIntent });
+        form.setValue('title', result.title);
         form.setValue('excerpt', result.excerpt);
         form.setValue('content', result.content);
         toast({
             title: 'Blog Content Generated',
-            description: 'The excerpt and main content fields have been populated by AI.',
+            description: 'The title, excerpt, and main content fields have been populated by AI.',
         });
     } catch (error) {
         console.error("AI Content Generation Error: ", error);
@@ -195,20 +195,7 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
             </DialogContent>
         </Dialog>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Post Title</FormLabel>
-              <FormControl><Input {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
         
-        <Separator/>
-
         <div className="space-y-4 rounded-lg border p-4">
             <h3 className="text-lg font-medium">AI Content Generation</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
@@ -247,6 +234,20 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
                 Generate Content with AI
             </Button>
         </div>
+
+        <Separator/>
+
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Post Title</FormLabel>
+              <FormControl><Input {...field} /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
 
         <FormField
