@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from "react";
@@ -243,6 +244,14 @@ export default function JournalsPage() {
             toast({ title: 'Error', description: 'Failed to delete journal entry.', variant: 'destructive' });
         }
     };
+    
+    const formatPrice = (price: number) => {
+        if (price === 0) return '';
+        return new Intl.NumberFormat('en-ZA', {
+          style: 'currency',
+          currency: 'ZAR',
+        }).format(price);
+    };
 
     return (
         <Card>
@@ -328,20 +337,29 @@ export default function JournalsPage() {
                                     <TableHead>Date</TableHead>
                                     <TableHead>Reference</TableHead>
                                     <TableHead>Description</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="text-right">Exclusive</TableHead>
+                                    <TableHead className="text-right">VAT</TableHead>
+                                    <TableHead className="text-right">Inclusive</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {postedJournals.length === 0 ? (
-                                    <TableRow><TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No journals posted yet.</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={7} className="text-center h-24 text-muted-foreground">No journals posted yet.</TableCell></TableRow>
                                 ) : (
-                                    postedJournals.map((journal) => (
+                                    postedJournals.map((journal) => {
+                                        const isStandardRate = journal.vatType === 'standard_rated_sales' || journal.vatType === 'standard_rated_purchases';
+                                        const exclusiveAmount = isStandardRate ? journal.amount / 1.15 : journal.amount;
+                                        const vatAmount = journal.amount - exclusiveAmount;
+
+                                        return (
                                         <TableRow key={journal.id}>
                                             <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
                                             <TableCell>{journal.reference}</TableCell>
                                             <TableCell>{journal.description}</TableCell>
-                                            <TableCell className="text-right font-mono">{journal.amount.toFixed(2)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(exclusiveAmount)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(vatAmount)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(journal.amount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
@@ -360,7 +378,7 @@ export default function JournalsPage() {
                                                 </AlertDialog>
                                             </TableCell>
                                         </TableRow>
-                                    ))
+                                    )})
                                 )}
                             </TableBody>
                         </Table>
