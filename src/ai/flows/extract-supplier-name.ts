@@ -38,16 +38,19 @@ const prompt = ai.definePrompt({
 
 **Instructions:**
 1.  Identify the core merchant or supplier name.
-2.  Remove all extra information like reference numbers, dates, branch codes, payment method prefixes (e.g., 'CHEQUE CARD PURCHASE', 'EFT'), and random characters.
-3.  Normalize common variations (e.g., "VODACOM SA" and "VODACOM PTY LTD" should both become "VODACOM").
+2.  Remove all extra information like reference numbers, dates, branch codes, card numbers, and prefixes (e.g., 'CHEQUE CARD PURCHASE', 'EFT PAYMENT', 'POS PURCHASE', 'DEBIT ORDER', 'IB PAYMENT TO').
+3.  Normalize common variations (e.g., "VODACOM SA" and "VODACOM PTY LTD" should both become "VODACOM"; "PNP" or "P N P" should become "PICK N PAY").
 4.  Return the final, cleaned name in UPPERCASE.
 
 **Examples:**
 -   **Input:** "VODACOM 0462814442 B0447335" -> **Output:** "VODACOM"
 -   **Input:** "UIA INSURANCEMAY25 7K3D0" -> **Output:** "INSURANCE"
 -   **Input:** "CHEQUE CARD PURCHASE SHELL STIGO 4278 4642" -> **Output:** "SHELL"
+-   **Input:** "CHEQUE CARD PURCHASE GELMAR PTYL 4278 1363 02 JUN" -> **Output:** "GELMAR"
 -   **Input:** "Pnp Steeledale 1" -> **Output:** "PICK N PAY"
 -   **Input:** "KFC GOLDFIELDS" -> **Output:** "KFC"
+-   **Input:** "IB PAYMENT TO HERONS@RIVERSIDE" -> **Output:** "HERONS"
+-   **Input:** "CHEQUE CARD PURCHASE GOSFORTH EAST 4278193241571363" -> **Output:** "GOSFORTH"
 
 **Transaction Description:**
 {{{description}}}
