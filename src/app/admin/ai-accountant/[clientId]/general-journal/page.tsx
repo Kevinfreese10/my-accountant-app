@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from "react";
@@ -288,7 +287,7 @@ export default function GeneralJournalsPage() {
         if (entries.length === 0) return;
 
         const reference = entries[0].reference;
-        const date = new Date(entries[0].date);
+        const date = entries[0].date?.toDate ? entries[0].date.toDate() : new Date(entries[0].date);
 
         const formLines = entries.map(entry => ({
             accountId: entry.allocatedTo.value,
