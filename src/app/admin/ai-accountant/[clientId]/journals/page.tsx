@@ -562,7 +562,7 @@ export default function JournalsPage() {
                                         const vatAmount = inclusiveAmount - exclusiveAmount;
 
                                         const date = journal.date;
-                                        const formattedDate = date ? (date.toDate ? format(date.toDate(), 'dd/MM/yyyy') : format(new Date(date), 'dd/MM/yyyy')) : 'N/A';
+                                        const formattedDate = date ? (typeof date === 'string' ? format(new Date(date), 'dd/MM/yyyy') : format(date.toDate(), 'dd/MM/yyyy')) : 'N/A';
 
                                         return (
                                         <TableRow key={journal.id}>
@@ -603,5 +603,3 @@ export default function JournalsPage() {
       </>
     );
 }
-
-    
