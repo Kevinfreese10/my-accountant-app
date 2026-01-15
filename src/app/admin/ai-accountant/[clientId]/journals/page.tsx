@@ -36,11 +36,12 @@ const journalLineSchema = z.object({
   reference: z.string().optional(),
   description: z.string().min(1, "Description is required."),
   vatType: z.string(),
-  exclusiveAmount: z.number().min(0, "Amount must be positive."),
+  inclusiveAmount: z.number().min(0.01, "Amount must be greater than zero."),
+  exclusiveAmount: z.number(),
   vatAmount: z.number(),
-  inclusiveAmount: z.number(),
   affectingAccountId: z.string().min(1, "Affecting account is required."),
 });
+
 
 const formSchema = z.object({
   lines: z.array(journalLineSchema).min(1, "At least one journal line is required."),
@@ -240,9 +241,9 @@ export default function JournalsPage() {
                 actorId: '',
                 description: '',
                 vatType: 'no_vat',
+                inclusiveAmount: 0,
                 exclusiveAmount: 0,
                 vatAmount: 0,
-                inclusiveAmount: 0,
                 affectingAccountId: '',
                 reference: '',
             }],
@@ -300,13 +301,21 @@ export default function JournalsPage() {
         fetchRelatedData();
     }, [clientId, toast, journalType]);
     
-     const updateLineAmounts = (index: number) => {
+    const updateLineAmounts = (index: number) => {
         const line = form.getValues(`lines.${index}`);
         const vatRate = line.vatType === 'standard_rated_sales' || line.vatType === 'standard_rated_purchases' ? 0.15 : 0;
-        const vatAmount = line.exclusiveAmount * vatRate;
-        const inclusiveAmount = line.exclusiveAmount + vatAmount;
+        
+        const inclusiveAmount = line.inclusiveAmount || 0;
+        let exclusiveAmount = inclusiveAmount;
+        let vatAmount = 0;
+
+        if (client?.isVatRegistered && vatRate > 0) {
+            exclusiveAmount = inclusiveAmount / (1 + vatRate);
+            vatAmount = inclusiveAmount - exclusiveAmount;
+        }
+
+        form.setValue(`lines.${index}.exclusiveAmount`, exclusiveAmount);
         form.setValue(`lines.${index}.vatAmount`, vatAmount);
-        form.setValue(`lines.${index}.inclusiveAmount`, inclusiveAmount);
     };
 
     const onSubmit = async (data: JournalFormValues) => {
@@ -352,7 +361,7 @@ export default function JournalsPage() {
                     amount: inclusiveAmount,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: primaryAccountId, type: 'account' },
-                    vatType: 'no_vat',
+                    vatType: 'no_vat', // Control account leg has no VAT itself
                     status: 'allocated',
                     allocatedAt: journalTimestamp,
                 });
@@ -363,7 +372,7 @@ export default function JournalsPage() {
                     clientId: client.id,
                     date: line.date.toISOString(),
                     reference: reference,
-                    description: `Contra - ${journalType === 'customer' ? 'Customer' : 'Supplier'} Journal`,
+                    description: `Contra - ${journalType === 'customer' ? 'Customer' : 'Supplier'} Journal - ${primaryActorName}`,
                     amount: -exclusiveAmount,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: line.affectingAccountId, type: 'account' },
@@ -383,7 +392,7 @@ export default function JournalsPage() {
                         amount: -vatAmount,
                         bankAccountId: 'JOURNAL',
                         allocatedTo: { value: vatControlAccount, type: 'account' },
-                        vatType: 'no_vat',
+                        vatType: 'no_vat', // VAT leg itself doesn't have VAT
                         status: 'allocated',
                         allocatedAt: journalTimestamp,
                     });
@@ -399,10 +408,10 @@ export default function JournalsPage() {
                     effect: 'Increase',
                     actorId: '',
                     description: '',
-                    vatType: 'no_vat',
+                    vatType: client?.isVatRegistered ? 'standard_rated_sales' : 'no_vat',
+                    inclusiveAmount: 0,
                     exclusiveAmount: 0,
                     vatAmount: 0,
-                    inclusiveAmount: 0,
                     affectingAccountId: '',
                     reference: '',
                 }],
@@ -486,8 +495,8 @@ export default function JournalsPage() {
         }
     };
     
-    const formatPrice = (price: number) => {
-        if (price === 0) return '';
+    const formatPrice = (price: number | undefined) => {
+        if (price === undefined) return '';
         return new Intl.NumberFormat('en-ZA', {
           style: 'currency',
           currency: 'ZAR',
@@ -534,9 +543,9 @@ export default function JournalsPage() {
                                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
                                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT %</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Incl. VAT</th>
                                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Excl. VAT</th>
                                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Incl. VAT</th>
                                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Affecting Acc.</th>
                                         <th className="px-3 py-2"></th>
                                         </tr>
@@ -553,14 +562,14 @@ export default function JournalsPage() {
                                                 <td className="px-2 py-1 whitespace-nowrap">
                                                     <FormField control={form.control} name={`lines.${index}.actorId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{(journalType === 'customer' ? customers : suppliers).map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></FormItem> )}/>
                                                 </td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <Input className="h-8 w-[120px]" {...field} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap">
                                                     <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value} disabled={!client?.isVatRegistered}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
                                                 </td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 min-w-[120px]" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 min-w-[120px]" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted min-w-[120px]" readOnly {...field} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.vatAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted min-w-[100px]" readOnly {...field} /> )}/></td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted min-w-[120px]" readOnly {...field} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap">
                                                     <FormField control={form.control} name={`lines.${index}.affectingAccountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.filter(a => a.section === 'Income Statement').map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
                                                 </td>
@@ -572,7 +581,7 @@ export default function JournalsPage() {
                                     </tbody>
                                 </table>
                                 </div>
-                                <Button type="button" variant="outline" size="sm" onClick={() => append({ date: new Date(), effect: 'Increase', actorId: '', description: '', vatType: 'no_vat', exclusiveAmount: 0, vatAmount: 0, inclusiveAmount: 0, affectingAccountId: '', reference: ''})}><Plus className="mr-2 h-4 w-4" /> Add Line</Button>
+                                <Button type="button" variant="outline" size="sm" onClick={() => append({ date: new Date(), effect: 'Increase', actorId: '', description: '', vatType: client?.isVatRegistered ? 'standard_rated_sales' : 'no_vat', inclusiveAmount: 0, exclusiveAmount: 0, vatAmount: 0, affectingAccountId: '', reference: ''})}><Plus className="mr-2 h-4 w-4" /> Add Line</Button>
                                 <CardFooter className="p-4 bg-muted rounded-b-lg mt-4 flex justify-end">
                                     <Button type="submit" disabled={isLoading}>
                                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -600,10 +609,8 @@ export default function JournalsPage() {
                                     <TableRow><TableCell colSpan={7} className="text-center h-24 text-muted-foreground">No journals posted yet.</TableCell></TableRow>
                                 ) : (
                                     postedJournals.map((journal) => {
-                                        const isStandardRate = journal.vatType === 'standard_rated_sales' || journal.vatType === 'standard_rated_purchases';
+                                       const isStandardRate = journal.vatType === 'standard_rated_sales' || journal.vatType === 'standard_rated_purchases';
                                         const vatRate = client?.isVatRegistered && isStandardRate ? 0.15 : 0;
-                                        
-                                        // Since the 'amount' on the primary leg is inclusive, we back-calculate.
                                         const inclusiveAmount = journal.amount;
                                         const exclusiveAmount = isStandardRate ? inclusiveAmount / (1 + vatRate) : inclusiveAmount;
                                         const vatAmount = inclusiveAmount - exclusiveAmount;
