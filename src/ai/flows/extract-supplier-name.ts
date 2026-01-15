@@ -37,7 +37,7 @@ const prompt = ai.definePrompt({
   prompt: `You are an expert data normalization agent. Your only task is to extract the true supplier/merchant name from a noisy bank statement description.
 
 **Instructions:**
-1.  Identify the core merchant or supplier name.
+1.  Identify the core merchant or supplier name. If it is a person's name, extract the FULL NAME (first and last).
 2.  Remove all extra information like reference numbers, dates, branch codes, card numbers, and prefixes (e.g., 'CHEQUE CARD PURCHASE', 'EFT PAYMENT', 'POS PURCHASE', 'DEBIT ORDER', 'IB PAYMENT TO').
 3.  Normalize common variations (e.g., "VODACOM SA" and "VODACOM PTY LTD" should both become "VODACOM"; "PNP" or "P N P" should become "PICK N PAY").
 4.  Return the final, cleaned name in UPPERCASE.
@@ -51,6 +51,7 @@ const prompt = ai.definePrompt({
 -   **Input:** "KFC GOLDFIELDS" -> **Output:** "KFC"
 -   **Input:** "IB PAYMENT TO HERONS@RIVERSIDE" -> **Output:** "HERONS"
 -   **Input:** "CHEQUE CARD PURCHASE GOSFORTH EAST 4278193241571363" -> **Output:** "GOSFORTH"
+-   **Input:** "IB PAYMENT TO ASISIPHO MBINGELELI" -> **Output:** "ASISIPHO MBINGELELI"
 
 **Transaction Description:**
 {{{description}}}
