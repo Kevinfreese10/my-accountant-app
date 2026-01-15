@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
 import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye, Upload, FileText, Paperclip, Trash2 } from "lucide-react";
 import { useParams } from 'next/navigation';
@@ -346,4 +346,3 @@ export default function VatAuditPage() {
         </Card>
     );
 }
-
