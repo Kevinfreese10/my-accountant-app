@@ -1,5 +1,4 @@
 
-
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { BlogPost, Service } from '@/lib/types';
@@ -132,35 +131,32 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
       {relatedServices.length > 0 && (
         <section className="mt-16">
             <h2 className="text-2xl font-bold text-center mb-8">Related Products</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {relatedServices.map(service => (
-                     <Card key={service.id} className="flex flex-col overflow-hidden">
-                        <Link href={`/products/${service.slug}`} className="block">
-                            <div className="relative h-40 w-full">
-                                <Image
-                                src={service.imageUrl}
-                                alt={service.title}
-                                fill
-                                className="object-cover"
-                                data-ai-hint={service.imageHint}
-                                />
-                            </div>
-                        </Link>
-                        <CardHeader>
-                            <CardTitle className="text-lg leading-tight hover:text-primary transition-colors">
-                                <Link href={`/products/${service.slug}`}>{service.title}</Link>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-grow">
-                             <p className="text-lg font-bold text-primary">{formatPrice(service.price)}</p>
-                        </CardContent>
-                        <CardFooter>
-                            <Button variant="link" asChild className="p-0">
-                                <Link href={`/products/${service.slug}`}>
-                                View Product <ArrowRight className="ml-2 h-4 w-4" />
-                                </Link>
-                            </Button>
-                        </CardFooter>
+                    <Card
+                    key={service.id}
+                    className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                    >
+                    <CardHeader>
+                        <CardTitle>{service.title}</CardTitle>
+                        {service.isPriceTbc ? (
+                            <p className="text-xl font-bold text-muted-foreground pt-2">Price on request</p>
+                        ) : (
+                            <p className="text-2xl font-bold text-primary pt-2">{formatPrice(service.price)}</p>
+                        )}
+                        <div className="flex items-center text-muted-foreground pt-1">
+                            <Clock className="h-4 w-4 mr-1.5" />
+                            <span className="text-xs font-medium">{service.turnaroundTime}</span>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="flex-grow">
+                        <CardDescription>{service.description}</CardDescription>
+                    </CardContent>
+                    <CardFooter>
+                        <Button asChild className="w-full">
+                        <Link href={`/products/${service.slug}`}>Learn More</Link>
+                        </Button>
+                    </CardFooter>
                     </Card>
                 ))}
             </div>
