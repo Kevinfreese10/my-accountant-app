@@ -1,7 +1,7 @@
 
-
 'use client';
 
+import * as React from "react";
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,31 +11,35 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon } from 'lucide-react';
-import { getFirestore, doc, addDoc, getDoc, collection, writeBatch, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { User, ChartOfAccount, ClientCustomer, Supplier } from '@/lib/types';
+import { User, ChartOfAccount, ClientCustomer, Supplier, AllocatedTransaction } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { allVatTypes } from '@/lib/vat-types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 
 const db = getFirestore(firebaseApp);
 
 const journalLineSchema = z.object({
-    date: z.date(),
-    effect: z.enum(['Increase', 'Decrease']),
-    actorId: z.string().min(1, "Please select a customer or supplier."),
-    reference: z.string().optional(),
-    description: z.string().min(1, "Description is required."),
-    vatType: z.string(),
-    exclusiveAmount: z.number().min(0, "Amount must be positive."),
-    vatAmount: z.number(),
-    inclusiveAmount: z.number(),
-    affectingAccountId: z.string().min(1, "Affecting account is required."),
+  date: z.date(),
+  effect: z.enum(['Increase', 'Decrease']),
+  actorId: z.string().min(1, "Please select a customer or supplier."),
+  reference: z.string().optional(),
+  description: z.string().min(1, "Description is required."),
+  vatType: z.string(),
+  exclusiveAmount: z.number().min(0, "Amount must be positive."),
+  vatAmount: z.number(),
+  inclusiveAmount: z.number(),
+  affectingAccountId: z.string().min(1, "Affecting account is required."),
 });
 
 const formSchema = z.object({
@@ -53,6 +57,7 @@ export default function JournalsPage() {
     const [client, setClient] = useState<User | null>(null);
     const [customers, setCustomers] = useState<ClientCustomer[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [postedJournals, setPostedJournals] = useState<AllocatedTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
@@ -78,33 +83,49 @@ export default function JournalsPage() {
         name: "lines",
     });
 
-    useEffect(() => {
-        const fetchRelatedData = async () => {
-            if (!clientId) return;
-            setIsLoading(true);
-            try {
-                const clientRef = doc(db, 'aiAccountantClients', clientId);
-                const clientSnap = await getDoc(clientRef);
-                if (clientSnap.exists()) {
-                    setClient(clientSnap.data() as User);
-                }
-
-                const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`));
-                const customersSnapshot = await getDocs(customersQuery);
-                setCustomers(customersSnapshot.docs.map(d => ({id: d.id, ...d.data()} as ClientCustomer)));
-
-                const suppliersQuery = query(collection(db, `aiAccountantClients/${clientId}/suppliers`));
-                const suppliersSnapshot = await getDocs(suppliersQuery);
-                setSuppliers(suppliersSnapshot.docs.map(d => ({id: d.id, ...d.data()} as Supplier)));
-
-            } catch (e) {
-                toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
-            } finally {
-                setIsLoading(false);
+    const fetchRelatedData = async () => {
+        if (!clientId) return;
+        setIsLoading(true);
+        try {
+            const clientRef = doc(db, 'aiAccountantClients', clientId);
+            const clientSnap = await getDoc(clientRef);
+            if (clientSnap.exists()) {
+                setClient(clientSnap.data() as User);
             }
-        };
+
+            const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`));
+            const customersSnapshot = await getDocs(customersQuery);
+            setCustomers(customersSnapshot.docs.map(d => ({id: d.id, ...d.data()} as ClientCustomer)));
+
+            const suppliersQuery = query(collection(db, `aiAccountantClients/${clientId}/suppliers`));
+            const suppliersSnapshot = await getDocs(suppliersQuery);
+            setSuppliers(suppliersSnapshot.docs.map(d => ({id: d.id, ...d.data()} as Supplier)));
+            
+            const controlAccountId = journalType === 'customer' 
+                ? clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id
+                : clientSnap.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
+            
+            if (controlAccountId) {
+                const journalsQuery = query(
+                    collection(db, 'aiAccountantClients', clientId, 'transactions'),
+                    where('bankAccountId', '==', 'JOURNAL'),
+                    where('allocatedTo.value', '==', controlAccountId),
+                    orderBy('date', 'desc')
+                );
+                const journalsSnapshot = await getDocs(journalsQuery);
+                setPostedJournals(journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction));
+            }
+
+        } catch (e) {
+            toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchRelatedData();
-    }, [clientId, toast]);
+    }, [clientId, toast, journalType]);
     
      const updateLineAmounts = (index: number) => {
         const line = form.getValues(`lines.${index}`);
@@ -189,6 +210,7 @@ export default function JournalsPage() {
                     affectingAccountId: '',
                 }],
             });
+            fetchRelatedData();
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to post journal entry.', variant: 'destructive' });
             console.error(error);
@@ -197,6 +219,31 @@ export default function JournalsPage() {
         }
     };
     
+    const handleDeleteJournal = async (journal: AllocatedTransaction) => {
+        if (!client) return;
+
+        try {
+            const batch = writeBatch(db);
+            const q = query(
+                collection(db, "aiAccountantClients", client.id, "transactions"), 
+                where("reference", "==", journal.reference),
+                where("allocatedAt", "==", journal.allocatedAt)
+            );
+            const querySnapshot = await getDocs(q);
+            querySnapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+            
+            toast({ title: 'Journal Deleted', description: `Journal ${journal.reference} has been removed.`, variant: 'destructive' });
+            fetchRelatedData();
+
+        } catch (error) {
+            console.error("Error deleting journal:", error);
+            toast({ title: 'Error', description: 'Failed to delete journal entry.', variant: 'destructive' });
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
@@ -208,65 +255,117 @@ export default function JournalsPage() {
                 </div>
             </CardHeader>
             <CardContent>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                         <div className="border rounded-lg overflow-x-auto">
-                           <table className="min-w-full divide-y divide-gray-200">
-                             <thead className="bg-gray-50">
-                               <tr>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Effect</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{journalType === 'customer' ? 'Customer' : 'Supplier'}</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT %</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Excl. VAT</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Incl. VAT</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Affecting Acc.</th>
-                                 <th className="px-3 py-2"></th>
-                               </tr>
-                             </thead>
-                             <tbody className="bg-white divide-y divide-gray-200">
-                                {fields.map((field, index) => (
-                                   <tr key={field.id}>
-                                        <td className="px-2 py-1 whitespace-nowrap">
-                                            <FormField control={form.control} name={`lines.${index}.date`} render={({ field }) => ( <FormItem><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} size="sm" className="w-[150px] justify-start text-left font-normal h-8"><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "dd/MM/yyyy") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover></FormItem> )}/>
-                                        </td>
-                                         <td className="px-2 py-1 whitespace-nowrap">
-                                            <FormField control={form.control} name={`lines.${index}.effect`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Increase">Increase</SelectItem><SelectItem value="Decrease">Decrease</SelectItem></SelectContent></Select></FormItem> )}/>
-                                        </td>
-                                         <td className="px-2 py-1 whitespace-nowrap">
-                                             <FormField control={form.control} name={`lines.${index}.actorId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{(journalType === 'customer' ? customers : suppliers).map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></FormItem> )}/>
-                                        </td>
-                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
-                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
-                                        <td className="px-2 py-1 whitespace-nowrap">
-                                            <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
-                                        </td>
-                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /> )}/></td>
-                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.vatAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted" readOnly {...field} /> )}/></td>
-                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted" readOnly {...field} /> )}/></td>
-                                        <td className="px-2 py-1 whitespace-nowrap">
-                                            <FormField control={form.control} name={`lines.${index}.affectingAccountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.filter(a => a.section === 'Income Statement').map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
-                                        </td>
-                                        <td className="px-2 py-1 whitespace-nowrap">
-                                            <Button type="button" size="icon" variant="ghost" onClick={() => remove(index)} disabled={fields.length <= 1}><Trash2 className="h-4 w-4 text-red-600" /></Button>
-                                        </td>
-                                  </tr>
-                                ))}
-                             </tbody>
-                           </table>
-                         </div>
-                           <Button type="button" variant="outline" size="sm" onClick={() => append({ date: new Date(), effect: 'Increase', actorId: '', description: '', vatType: 'no_vat', exclusiveAmount: 0, vatAmount: 0, inclusiveAmount: 0, affectingAccountId: ''})}><Plus className="mr-2 h-4 w-4" /> Add Line</Button>
-                         <CardFooter className="p-4 bg-muted rounded-b-lg mt-4 flex justify-end">
-                             <Button type="submit" disabled={isLoading}>
-                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Post Journals
-                            </Button>
-                        </CardFooter>
-                    </form>
-                </Form>
+                <Tabs defaultValue="new">
+                    <TabsList>
+                        <TabsTrigger value="new">New Journal</TabsTrigger>
+                        <TabsTrigger value="posted">Posted Journals</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="new" className="pt-4">
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                                <div className="border rounded-lg overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Effect</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{journalType === 'customer' ? 'Customer' : 'Supplier'}</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT %</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Excl. VAT</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Incl. VAT</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Affecting Acc.</th>
+                                        <th className="px-3 py-2"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {fields.map((field, index) => (
+                                        <tr key={field.id}>
+                                                <td className="px-2 py-1 whitespace-nowrap">
+                                                    <FormField control={form.control} name={`lines.${index}.date`} render={({ field }) => ( <FormItem><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} size="sm" className="w-[150px] justify-start text-left font-normal h-8"><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "dd/MM/yyyy") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover></FormItem> )}/>
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap">
+                                                    <FormField control={form.control} name={`lines.${index}.effect`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Increase">Increase</SelectItem><SelectItem value="Decrease">Decrease</SelectItem></SelectContent></Select></FormItem> )}/>
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap">
+                                                    <FormField control={form.control} name={`lines.${index}.actorId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{(journalType === 'customer' ? customers : suppliers).map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></FormItem> )}/>
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap">
+                                                    <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.vatAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted" readOnly {...field} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted" readOnly {...field} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap">
+                                                    <FormField control={form.control} name={`lines.${index}.affectingAccountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.filter(a => a.section === 'Income Statement').map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
+                                                </td>
+                                                <td className="px-2 py-1 whitespace-nowrap">
+                                                    <Button type="button" size="icon" variant="ghost" onClick={() => remove(index)} disabled={fields.length <= 1}><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                                                </td>
+                                        </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                </div>
+                                <Button type="button" variant="outline" size="sm" onClick={() => append({ date: new Date(), effect: 'Increase', actorId: '', description: '', vatType: 'no_vat', exclusiveAmount: 0, vatAmount: 0, inclusiveAmount: 0, affectingAccountId: ''})}><Plus className="mr-2 h-4 w-4" /> Add Line</Button>
+                                <CardFooter className="p-4 bg-muted rounded-b-lg mt-4 flex justify-end">
+                                    <Button type="submit" disabled={isLoading}>
+                                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        Post Journals
+                                    </Button>
+                                </CardFooter>
+                            </form>
+                        </Form>
+                    </TabsContent>
+                    <TabsContent value="posted">
+                         <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Reference</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {postedJournals.length === 0 ? (
+                                    <TableRow><TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No journals posted yet.</TableCell></TableRow>
+                                ) : (
+                                    postedJournals.map((journal) => (
+                                        <TableRow key={journal.id}>
+                                            <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
+                                            <TableCell>{journal.reference}</TableCell>
+                                            <TableCell>{journal.description}</TableCell>
+                                            <TableCell className="text-right font-mono">{journal.amount.toFixed(2)}</TableCell>
+                                            <TableCell className="text-right">
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>This action will delete the entire journal entry ({journal.reference}). This cannot be undone.</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteJournal(journal)}>Delete</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TabsContent>
+                </Tabs>
             </CardContent>
         </Card>
     );
