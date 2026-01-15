@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -7,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
-import { User, AllocatedTransaction, ImportedTransaction } from "@/lib/types";
+import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, orderBy, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye } from "lucide-react";
@@ -82,6 +81,7 @@ function VatAuditReport({ client, transactions, period }: { client: User, transa
     const reportData = useMemo(() => {
         const fromDate = parseISO(period.from);
         const toDate = parseISO(period.to);
+        const salesAccountIds = client.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('1000-')).map(acc => acc.id) || [];
 
         const vatTransactions = transactions.filter(tx => {
             const txDate = tx.date instanceof Date ? tx.date : new Date(tx.date);
@@ -89,17 +89,17 @@ function VatAuditReport({ client, transactions, period }: { client: User, transa
         });
 
         const sales = vatTransactions
-            .filter(tx => tx.amount > 0)
-            .sort((a, b) => b.amount - a.amount)
+            .filter(tx => tx.allocatedTo?.value && salesAccountIds.includes(tx.allocatedTo.value))
+            .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
             .slice(0, 10);
 
         const expenses = vatTransactions
-            .filter(tx => tx.amount < 0)
+            .filter(tx => tx.amount < 0 && (!tx.allocatedTo?.value || !salesAccountIds.includes(tx.allocatedTo.value)))
             .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
             .slice(0, 10);
             
         return { sales, expenses };
-    }, [transactions, period]);
+    }, [transactions, period, client.chartOfAccounts]);
 
     const handleDownloadExcel = () => {
         const wb = XLSX.utils.book_new();
