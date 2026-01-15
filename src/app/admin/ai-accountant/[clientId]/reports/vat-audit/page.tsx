@@ -7,16 +7,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
 import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from "@/lib/types";
-import { getFirestore, doc, getDoc, collection, query, onSnapshot, orderBy, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye } from "lucide-react";
+import { Loader2, Download, Eye, Upload, FileText, Paperclip, Trash2 } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterComponent } from "@/components/ui/table";
 import { format, startOfMonth, endOfMonth, subMonths, getYear, getMonth, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-GB', {
@@ -41,42 +45,42 @@ const generateVatPeriods = (vatCategory: 'A' | 'B' | 'C' | undefined) => {
         }
     } else { // Bi-Monthly
         const isCatA = vatCategory === 'A'; // Odd months: Jan, Mar, etc.
-        let currentMonth = now.getMonth();
         
-        // Adjust start month for bi-monthly period
-        if ((currentMonth % 2 === 1 && isCatA) || (currentMonth % 2 === 0 && !isCatA)) {
-             // current month is the second month of a period, but not the right category
-        }
-
         for (let i = 0; i < 6; i++) {
-             const periodEndDate = subMonths(now, i * 2);
-             const periodStartDate = startOfMonth(subMonths(periodEndDate, 1));
+             const periodEndDate = endOfMonth(subMonths(now, i * 2));
+             
+             let start, end;
+             
+             if(isCatA){ // Jan, Mar, May, Jul, Sep, Nov
+                 if( (getMonth(periodEndDate)+1) % 2 !== 0){
+                     start = startOfMonth(subMonths(periodEndDate, 1));
+                     end = periodEndDate;
+                 } else {
+                     start = startOfMonth(subMonths(periodEndDate, 2));
+                     end = endOfMonth(subMonths(periodEndDate, 1));
+                 }
+             } else { // Feb, Apr, Jun, Aug, Oct, Dec
+                  if( (getMonth(periodEndDate)+1) % 2 === 0){
+                     start = startOfMonth(subMonths(periodEndDate, 1));
+                     end = periodEndDate;
+                 } else {
+                     start = startOfMonth(subMonths(periodEndDate, 2));
+                     end = endOfMonth(subMonths(periodEndDate, 1));
+                 }
+             }
 
-             const periodEndMonth = getMonth(periodEndDate);
-
-            if ((isCatA && (periodEndMonth + 1) % 2 !== 0) || (!isCatA && (periodEndMonth + 1) % 2 === 0)) {
-                 const label = `${format(periodStartDate, 'MMM')} / ${format(periodEndDate, 'MMM yyyy')}`;
-                periods.push({
-                    label,
-                    from: periodStartDate,
-                    to: endOfMonth(periodEndDate),
-                });
-            } else {
-                 const correctedStartDate = startOfMonth(subMonths(periodEndDate, 2));
-                 const correctedEndDate = endOfMonth(subMonths(periodEndDate, 1));
-                 const label = `${format(correctedStartDate, 'MMM')} / ${format(correctedEndDate, 'MMM yyyy')}`;
-                 periods.push({
-                    label,
-                    from: correctedStartDate,
-                    to: correctedEndDate,
-                });
-            }
+            const label = `${format(start, 'MMM')} / ${format(end, 'MMM yyyy')}`;
+            periods.push({
+                label,
+                from: start,
+                to: end,
+            });
         }
     }
     return periods;
 };
 
-function VatAuditReport({ client, transactions, period }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], period: { from: string, to: string } }) {
+function VatAuditReport({ client, transactions, period, onUpload, onDeleteFile }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], period: { from: string, to: string }, onUpload: (txId: string, file: File) => void, onDeleteFile: (txId: string, fileUrl: string) => void }) {
     
     const reportData = useMemo(() => {
         const fromDate = parseISO(period.from);
@@ -86,6 +90,13 @@ function VatAuditReport({ client, transactions, period }: { client: User, transa
         const vatTransactions = transactions.filter(tx => {
             const txDate = tx.date instanceof Date ? tx.date : new Date(tx.date);
             return tx.vatType && tx.vatType !== 'no_vat' && txDate >= fromDate && txDate <= toDate;
+        }).map(tx => {
+            const isStandardRate = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+            const vatRate = isStandardRate ? 0.15 : 0;
+            const inclusiveAmount = tx.amount;
+            const exclusiveAmount = isStandardRate ? inclusiveAmount / (1 + vatRate) : inclusiveAmount;
+            const vatAmount = inclusiveAmount - exclusiveAmount;
+            return { ...tx, exclusiveAmount, vatAmount, inclusiveAmount };
         });
 
         const sales = vatTransactions
@@ -104,22 +115,22 @@ function VatAuditReport({ client, transactions, period }: { client: User, transa
     const handleDownloadExcel = () => {
         const wb = XLSX.utils.book_new();
 
-        const salesData = reportData.sales.map(tx => ({
+        const createSheetData = (txs: typeof reportData.sales) => txs.map(tx => ({
             Date: format(new Date(tx.date), 'dd/MM/yyyy'),
             Description: tx.description,
-            Amount: tx.amount
+            Inclusive: tx.inclusiveAmount,
+            Exclusive: tx.exclusiveAmount,
+            VAT: tx.vatAmount,
+            Documents: tx.auditFiles?.map(f => f.url).join(', ') || '',
         }));
 
-        const expensesData = reportData.expenses.map(tx => ({
-            Date: format(new Date(tx.date), 'dd/MM/yyyy'),
-            Description: tx.description,
-            Amount: tx.amount
-        }));
+        const salesData = createSheetData(reportData.sales);
+        const expensesData = createSheetData(reportData.expenses);
 
-        const salesSheet = XLSX.utils.json_to_sheet(salesData, { header: ["Date", "Description", "Amount"] });
+        const salesSheet = XLSX.utils.json_to_sheet(salesData);
         XLSX.utils.book_append_sheet(wb, salesSheet, "Top 10 Sales");
 
-        const expensesSheet = XLSX.utils.json_to_sheet(expensesData, { header: ["Date", "Description", "Amount"] });
+        const expensesSheet = XLSX.utils.json_to_sheet(expensesData);
         XLSX.utils.book_append_sheet(wb, expensesSheet, "Top 10 Expenses");
         
         XLSX.writeFile(wb, `VAT-Audit-${client.name}-${format(parseISO(period.from), 'yyyyMM')}.xlsx`);
@@ -129,13 +140,40 @@ function VatAuditReport({ client, transactions, period }: { client: User, transa
         <div>
             <h3 className="text-lg font-semibold mb-2">{title}</h3>
             <Table>
-                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Exclusive</TableHead><TableHead className="text-right">VAT</TableHead><TableHead className="text-right">Inclusive</TableHead><TableHead className="w-1/4">Documents</TableHead></TableRow></TableHeader>
                 <TableBody>
                     {data.length === 0 ? (
-                        <TableRow><TableCell colSpan={3} className="text-center h-24 text-muted-foreground">No transactions found.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No transactions found.</TableCell></TableRow>
                     ) : (
                         data.map((tx, index) => (
-                            <TableRow key={index}><TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell><TableCell>{tx.description}</TableCell><TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell></TableRow>
+                            <TableRow key={index}>
+                                <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                <TableCell>{tx.description}</TableCell>
+                                <TableCell className="text-right font-mono">{formatPrice(tx.exclusiveAmount)}</TableCell>
+                                <TableCell className="text-right font-mono">{formatPrice(tx.vatAmount)}</TableCell>
+                                <TableCell className="text-right font-mono">{formatPrice(tx.inclusiveAmount)}</TableCell>
+                                <TableCell>
+                                    <div className="flex flex-col gap-2">
+                                        {tx.auditFiles?.map(file => (
+                                            <div key={file.url} className="flex items-center justify-between text-xs bg-muted p-1 rounded-md">
+                                                <a href={file.url} target="_blank" rel="noopener noreferrer" className="truncate hover:underline flex-grow pr-2">{file.name}</a>
+                                                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onDeleteFile(tx.id, file.url)}><Trash2 className="h-3 w-3 text-destructive"/></Button>
+                                            </div>
+                                        ))}
+                                        <Input
+                                            id={`file-upload-${tx.id}`}
+                                            type="file"
+                                            className="hidden"
+                                            onChange={(e) => e.target.files?.[0] && onUpload(tx.id, e.target.files[0])}
+                                        />
+                                        <Button asChild variant="outline" size="xs">
+                                            <Label htmlFor={`file-upload-${tx.id}`} className="cursor-pointer">
+                                                <Upload className="mr-2 h-3 w-3"/> Upload File
+                                            </Label>
+                                        </Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
                         ))
                     )}
                 </TableBody>
@@ -162,47 +200,97 @@ function VatAuditReport({ client, transactions, period }: { client: User, transa
 export default function VatAuditPage() {
     const params = useParams();
     const clientId = params.clientId as string;
+    const { toast } = useToast();
     const [client, setClient] = useState<User | null>(null);
     const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isUploading, setIsUploading] = useState<string | null>(null);
     const [vatPeriods, setVatPeriods] = useState<{ label: string; from: Date; to: Date; }[]>([]);
     const [selectedPeriod, setSelectedPeriod] = useState<string | undefined>();
     
     useEffect(() => {
-        const fetchInitialData = async () => {
-            if (!clientId) return;
-            setIsLoading(true);
-            try {
-                const clientRef = doc(db, 'aiAccountantClients', clientId);
-                const clientSnap = await getDoc(clientRef);
-                if (clientSnap.exists()) {
-                    const clientData = clientSnap.data() as User;
-                    setClient(clientData);
-                    if (clientData.isVatRegistered) {
-                        const periods = generateVatPeriods(clientData.vatCategory);
-                        setVatPeriods(periods);
-                        if(periods.length > 0) {
-                            setSelectedPeriod(JSON.stringify({
-                                label: periods[0].label,
-                                from: periods[0].from.toISOString(),
-                                to: periods[0].to.toISOString(),
-                            }));
-                        }
+        if (!clientId) return;
+        setIsLoading(true);
+        const clientRef = doc(db, 'aiAccountantClients', clientId);
+        
+        const clientUnsubscribe = onSnapshot(clientRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const clientData = docSnap.data() as User;
+                setClient(clientData);
+                if (clientData.isVatRegistered) {
+                    const periods = generateVatPeriods(clientData.vatCategory);
+                    setVatPeriods(periods);
+                    if (periods.length > 0 && !selectedPeriod) {
+                        setSelectedPeriod(JSON.stringify({
+                            label: periods[0].label,
+                            from: periods[0].from.toISOString(),
+                            to: periods[0].to.toISOString(),
+                        }));
                     }
                 }
-            } catch(e) { console.error(e); }
-            
-            const transUnsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), snapshot => {
-                const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
-                setTransactions(fetched);
-                setIsLoading(false);
+            } else {
+                setClient(null);
+            }
+        });
+
+        const transUnsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), snapshot => {
+            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
+            setTransactions(fetched);
+            setIsLoading(false);
+        });
+
+        return () => {
+            clientUnsubscribe();
+            transUnsubscribe();
+        };
+    }, [clientId, selectedPeriod]);
+    
+    const handleFileUpload = async (txId: string, file: File) => {
+        if (!client) return;
+        setIsUploading(txId);
+        toast({ title: 'Uploading file...', description: file.name });
+        try {
+            const uniqueFileName = `${Date.now()}-${file.name}`;
+            const storageRef = ref(storage, `vat-audit-docs/${client.id}/${txId}/${uniqueFileName}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+
+            const txRef = doc(db, 'aiAccountantClients', client.id, 'transactions', txId);
+            await updateDoc(txRef, {
+                auditFiles: arrayUnion({ name: file.name, url: downloadURL })
+            });
+
+            toast({ title: 'Upload Complete', description: `${file.name} has been attached.` });
+        } catch (error) {
+            console.error("File upload failed:", error);
+            toast({ title: 'Upload Failed', variant: 'destructive' });
+        } finally {
+            setIsUploading(null);
+        }
+    };
+    
+    const handleDeleteFile = async (txId: string, fileUrl: string) => {
+        if(!client) return;
+        const tx = transactions.find(t => t.id === txId);
+        const fileToDelete = tx?.auditFiles?.find(f => f.url === fileUrl);
+        if(!fileToDelete) return;
+
+        try {
+            const txRef = doc(db, 'aiAccountantClients', client.id, 'transactions', txId);
+            await updateDoc(txRef, {
+                auditFiles: arrayRemove(fileToDelete)
             });
             
-            return () => transUnsubscribe();
-        };
-        fetchInitialData();
-    }, [clientId]);
-    
+            const fileStorageRef = ref(storage, fileUrl);
+            await deleteObject(fileStorageRef);
+
+            toast({ title: 'File Removed', variant: 'destructive' });
+        } catch (error) {
+             console.error("File deletion failed:", error);
+            toast({ title: 'Deletion Failed', variant: 'destructive' });
+        }
+    }
+
     const parsedPeriod = useMemo(() => {
         try {
             return selectedPeriod ? JSON.parse(selectedPeriod) : null;
@@ -235,27 +323,27 @@ export default function VatAuditPage() {
                                 </Select>
                             </div>
                         </div>
-                        <div className="flex justify-start pt-4">
-                            {parsedPeriod && (
-                                <Dialog>
-                                    <DialogTrigger asChild>
-                                        <Button><Eye className="mr-2 h-4 w-4"/>View Report</Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="sm:max-w-4xl">
-                                        <DialogHeader className="text-center mb-4">
-                                            <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
-                                            <DialogDescription>
-                                                VAT Audit Report for {parsedPeriod.label}
-                                            </DialogDescription>
-                                        </DialogHeader>
-                                        <VatAuditReport client={client} transactions={transactions} period={parsedPeriod} />
-                                    </DialogContent>
-                                </Dialog>
-                            )}
-                        </div>
+                        
+                        {parsedPeriod && client && (
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button><Eye className="mr-2 h-4 w-4"/>View Report</Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-6xl">
+                                    <DialogHeader className="text-center mb-4">
+                                        <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
+                                        <DialogDescription>
+                                            VAT Audit Report for {parsedPeriod.label}
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <VatAuditReport client={client} transactions={transactions} period={parsedPeriod} onUpload={handleFileUpload} onDeleteFile={handleDeleteFile} />
+                                </DialogContent>
+                            </Dialog>
+                        )}
                     </div>
                 )}
             </CardContent>
         </Card>
     );
 }
+

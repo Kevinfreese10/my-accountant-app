@@ -359,6 +359,7 @@ export type ImportedTransaction = {
     vatType?: VatType;
     extractedSupplier?: string;
     aiAllocationResult?: AIAllocationResult | null;
+    auditFiles?: { name: string; url: string; }[];
 };
 
 export type AllocatedTransaction = {
@@ -378,6 +379,7 @@ export type AllocatedTransaction = {
     status: 'allocated';
     allocatedAt: any; // Using `any` for Firestore Timestamp compatibility
     extractedSupplier?: string;
+    auditFiles?: { name: string; url: string; }[];
 };
 
 export type ExtractedInvoice = {
