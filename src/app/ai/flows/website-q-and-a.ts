@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for answering questions based on website content and general knowledge.
@@ -10,7 +9,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { faqs } from '@/lib/data';
 import { fetchKnowledgeBase } from '@/lib/knowledge-base';
 import { getFirestore, collection, addDoc, Timestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -87,6 +85,13 @@ export async function websiteQAndA(
   const popiaPolicyContent = `
     POPIA Compliance: My Accountant is committed to safeguarding personal information in line with POPIA. We process information lawfully and for legitimate business purposes. We do not sell personal information. Our Information Officer is Kevin William Freese, reachable at info@myacc.co.za.
   `;
+  
+  const footerContent = `
+    CONTACT INFORMATION:
+    - Address: 369 Oak Avenue, Ferndale, Randburg
+    - Email: info@myacc.co.za
+    - Phone: 010 109 1625
+  `;
 
   // Serialize the website content to pass to the prompt
   const websiteContent = `
@@ -95,9 +100,6 @@ export async function websiteQAndA(
 
     BLOG POSTS:
     ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
-
-    FREQUENTLY ASKED QUESTIONS:
-    ${faqs.map(f => `Question: ${f.question}, Answer: ${f.answer}`).join('\n\n')}
 
     KNOWLEDGE BASE:
     ${knowledgeBaseItems.map(item => `Question: ${item.question}, Answer: ${item.answer}`).join('\n\n')}
@@ -119,6 +121,9 @@ export async function websiteQAndA(
 
     PRIVACY (POPIA) POLICY:
     ${popiaPolicyContent}
+
+    CONTACT AND FOOTER:
+    ${footerContent}
   `;
 
   const prompt = ai.definePrompt({
