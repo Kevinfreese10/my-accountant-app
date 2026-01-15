@@ -300,38 +300,44 @@ export default function JournalsPage() {
     const onSubmit = async (data: JournalFormValues) => {
         if (!client) return;
         setIsLoading(true);
-        
+
         try {
             const batch = writeBatch(db);
             const journalTimestamp = Timestamp.now();
 
             const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
             const supplierControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-000')?.id;
-            
-            if (!customerControlAccount || !supplierControlAccount) {
-                toast({ title: 'Error', description: 'Customer or Supplier control account not found.', variant: 'destructive' });
+            const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
+
+            if (!customerControlAccount || !supplierControlAccount || (client.isVatRegistered && !vatControlAccount)) {
+                toast({ title: 'Error', description: 'Control accounts (Customer, Supplier, VAT) not found.', variant: 'destructive' });
                 setIsLoading(false);
                 return;
             }
 
-            data.lines.forEach((line) => {
-                let primaryAmount = line.inclusiveAmount;
-                if (line.effect === 'Decrease') {
-                    primaryAmount = -primaryAmount;
-                }
-
+            for (const line of data.lines) {
                 const primaryAccountId = journalType === 'customer' ? customerControlAccount : supplierControlAccount;
                 const actorList = journalType === 'customer' ? customers : suppliers;
                 const primaryActorName = actorList.find(a => a.id === line.actorId)?.name;
+                const reference = line.reference || `JNL-${journalTimestamp.toMillis()}`;
 
-                // Entry for the Customer/Supplier control account
+                let amountMultiplier = line.effect === 'Increase' ? 1 : -1;
+                if (journalType === 'supplier') { // Suppliers are credit-based, so an increase is a credit
+                    amountMultiplier *= -1;
+                }
+
+                const inclusiveAmount = line.inclusiveAmount * amountMultiplier;
+                const exclusiveAmount = line.exclusiveAmount * amountMultiplier;
+                const vatAmount = line.vatAmount * amountMultiplier;
+
+                // 1. Entry for Customer/Supplier Control Account (Inclusive Amount)
                 const primaryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
                 batch.set(primaryRef, {
                     clientId: client.id,
                     date: line.date.toISOString(),
-                    reference: line.reference || `JNL-${journalTimestamp.seconds}`,
+                    reference: reference,
                     description: `Journal for ${primaryActorName}: ${line.description}`,
-                    amount: primaryAmount,
+                    amount: inclusiveAmount,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: primaryAccountId, type: 'account' },
                     vatType: 'no_vat',
@@ -339,21 +345,38 @@ export default function JournalsPage() {
                     allocatedAt: journalTimestamp,
                 });
 
-                // Contra Entry
+                // 2. Contra Entry for Affecting Account (Exclusive Amount)
                 const contraRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
                 batch.set(contraRef, {
                     clientId: client.id,
                     date: line.date.toISOString(),
-                    reference: line.reference || `JNL-${journalTimestamp.seconds}`,
-                    description: line.description,
-                    amount: -primaryAmount,
+                    reference: reference,
+                    description: `Contra - ${journalType === 'customer' ? 'Customer' : 'Supplier'} Journal`,
+                    amount: -exclusiveAmount,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: line.affectingAccountId, type: 'account' },
-                    vatType: line.vatType,
+                    vatType: line.vatType as VatType,
                     status: 'allocated',
                     allocatedAt: journalTimestamp,
                 });
-            });
+                
+                // 3. VAT Entry if applicable
+                if (client.isVatRegistered && vatAmount !== 0 && vatControlAccount) {
+                    const vatRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                    batch.set(vatRef, {
+                        clientId: client.id,
+                        date: line.date.toISOString(),
+                        reference: reference,
+                        description: `VAT on Journal - ${primaryActorName}`,
+                        amount: -vatAmount,
+                        bankAccountId: 'JOURNAL',
+                        allocatedTo: { value: vatControlAccount, type: 'account' },
+                        vatType: 'no_vat',
+                        status: 'allocated',
+                        allocatedAt: journalTimestamp,
+                    });
+                }
+            }
 
             await batch.commit();
 
@@ -510,7 +533,7 @@ export default function JournalsPage() {
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap">
-                                                    <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
+                                                    <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value} disabled={!client?.isVatRegistered}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
                                                 </td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.vatAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted" readOnly {...field} /> )}/></td>
@@ -603,3 +626,5 @@ export default function JournalsPage() {
       </>
     );
 }
+
+    
