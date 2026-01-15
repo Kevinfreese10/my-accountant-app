@@ -64,17 +64,9 @@ function CustomerLedgerReport({
             if ('allocatedTo' in tx && tx.allocatedTo?.type === 'customer' && tx.allocatedTo.value === customer.id) {
                 return true;
             }
-            // Include journal entries that affect this customer
-            if (
-                'allocatedTo' in tx && tx.bankAccountId === 'JOURNAL' && tx.allocatedTo?.value === customerControlAccountId
-            ) {
-                 // Check the contra entry to link it to the right customer
-                 const journalEntries = transactions.filter(j => 'reference' in j && j.reference === tx.reference && j.id !== tx.id);
-                 const contraEntry = journalEntries.find(j => 'allocatedTo' in j && j.allocatedTo?.type === 'account' && j.allocatedTo.value !== customerControlAccountId);
-                 // Heuristic: Check if customer name is in description for journal entries
-                 if (tx.description.toLowerCase().includes(customer.name.toLowerCase())) {
-                     return true;
-                 }
+             // Include journal entries that affect the customer control account and mention the customer
+            if ('allocatedTo' in tx && tx.bankAccountId === 'JOURNAL' && tx.allocatedTo?.value === customerControlAccountId && tx.description.toLowerCase().includes(customer.name.toLowerCase())) {
+                return true;
             }
             return false;
         });
@@ -309,5 +301,4 @@ export default function CustomerLedgerPage() {
             </Card>
         </div>
     );
-
-    
+}
