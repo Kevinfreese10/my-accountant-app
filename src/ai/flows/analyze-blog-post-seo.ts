@@ -98,20 +98,20 @@ const prompt = ai.definePrompt({
    - **URL:** Check if the URL is short, lowercase, and uses hyphens.
 
 **3. Structure:**
-   - **H1:** Verify there is exactly one `<h1>` tag in the content.
-   - **Headings:** Check for a logical structure using `<h2>` and `<h3>` tags.
+   - **H1:** Verify there is exactly one \`<h1>\` tag in the content.
+   - **Headings:** Check for a logical structure using \`<h2>\` and \`<h3>\` tags.
 
 **4. Content:**
    - **Originality:** Based on the text, give a general assessment of its originality. You can assume it is original unless it's obviously generic boilerplate.
    - **Length:** Check if the word count is over 800 words.
-   - **Formatting:** Verify the use of lists (`<ul>`, `<ol>`) or tables (`<table>`).
+   - **Formatting:** Verify the use of lists (\`<ul>\`, \`<ol>\`) or tables (\`<table>\`).
 
 **5. Links:**
    - **Internal Links:** Check if there are any internal links (href starting with '/').
    - **External Links:** Check if there are any external links (href starting with 'http').
 
 **6. Media:**
-   - **Optimization:** Check if the `<img>` tag exists. Assume it is optimized and has ALT text for this analysis.
+   - **Optimization:** Check if the \`<img>\` tag exists. Assume it is optimized and has ALT text for this analysis.
 
 **7. Technical:**
    - **Mobile-Friendly:** Assume 'true'. This cannot be determined from text alone.
