@@ -6,25 +6,19 @@ import { chartOfAccounts as masterChartOfAccounts, setMasterChartOfAccounts } fr
 import { Input } from "@/components/ui/input";
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, PlusCircle, Edit, Trash2, Loader2 } from "lucide-react";
-import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
-import { firebaseApp } from "@/lib/firebase";
-import { AllocationRule, ChartOfAccount } from "@/lib/types";
-import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { PlusCircle, Edit, Trash2, Loader2, ChevronsUpDown, CheckCheck } from "lucide-react";
+import { ChartOfAccount } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { allVatTypes } from "@/lib/vat-types";
-import { Separator } from "@/components/ui/separator";
-
-const db = getFirestore(firebaseApp);
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandInput, CommandGroup, CommandList, CommandItem } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 const accountFormSchema = z.object({
   id: z.string().optional(),
@@ -70,9 +64,11 @@ export default function AIASettingsPage() {
     const [accounts, setAccounts] = useState<ChartOfAccount[]>(masterChartOfAccounts);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<ChartOfAccount | null>(null);
-    
+    const [isLoading, setIsLoading] = useState(true);
+
     useEffect(() => {
         setAccounts(masterChartOfAccounts.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)));
+        setIsLoading(false);
     }, []);
 
     const filteredAccounts = useMemo(() => {
@@ -97,8 +93,8 @@ export default function AIASettingsPage() {
         }
         
         updatedAccounts.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
-        setAccounts(updatedAccounts);
         setMasterChartOfAccounts(updatedAccounts); // Update the shared master list
+        setAccounts(updatedAccounts);
 
         setIsFormOpen(false);
         setEditingAccount(null);
@@ -106,8 +102,8 @@ export default function AIASettingsPage() {
 
     const handleDeleteAccount = (accountId: string) => {
         const updatedAccounts = accounts.filter(acc => acc.id !== accountId);
-        setAccounts(updatedAccounts);
         setMasterChartOfAccounts(updatedAccounts);
+        setAccounts(updatedAccounts);
         toast({ title: 'Success', description: 'Account deleted successfully.', variant: 'destructive' });
     };
 
@@ -138,6 +134,9 @@ export default function AIASettingsPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
+                         {isLoading ? (
+                            <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                        ) : (
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -179,6 +178,7 @@ export default function AIASettingsPage() {
                                 ))}
                             </TableBody>
                         </Table>
+                        )}
                     </CardContent>
                 </Card>
             </div>
@@ -195,5 +195,3 @@ export default function AIASettingsPage() {
         </Dialog>
     );
 }
-
-    
