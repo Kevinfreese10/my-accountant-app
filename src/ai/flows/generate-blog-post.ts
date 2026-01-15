@@ -51,14 +51,14 @@ const prompt = ai.definePrompt({
   - The title MUST include the primary keyword.
 
   **3. Headings Structure (Critical):**
-  - **H1:** Create a single, compelling H1 tag that includes the primary keyword. It should be similar to the generated title but not identical.
-  - **H2 & H3:** Structure the article logically using multiple H2 and H3 tags. Use secondary keywords and answer user questions within these headings. For example: "Who Must Register?", "Registration Requirements", "Common Mistakes".
+  - **H1:** Create a single, compelling \`<h1>\` tag that includes the primary keyword. It should be similar to the generated title but not identical.
+  - **H2 & H3:** Structure the article logically using multiple \`<h2>\` and \`<h3>\` tags. Use secondary keywords and answer user questions within these headings. For example: "Who Must Register?", "Registration Requirements", "Common Mistakes".
 
   **4. Content Quality & Depth (Most Important):**
   - **Length:** Aim for 800–2,000 words, depending on the topic's complexity.
   - **Content:** Write original, expert-level content. Be the authority on the topic. Your tone must be professional, helpful, and clear for a non-expert.
   - **Answer Key Questions:** Your content must address: What, Why, Who, How, Cost, and common mistakes related to the topic.
-  - **Formatting:** Use paragraphs (<p>), bulleted lists (<ul>), and numbered lists (<ol>) to make the content easy to read. Avoid keyword stuffing.
+  - **Formatting:** CRITICAL: Use only clean, well-structured HTML. Use \`<p>\` for paragraphs, \`<ul>\` or \`<ol>\` for lists, and \`<strong>\` for bold text. Do NOT use Markdown (e.g., **bold**).
 
   **5. Internal & External Linking:**
   - **Internal Links:** Where relevant, include placeholder links to other services or pages. Format them as: \`<a href="/products/service-slug">Service Name</a>\`. Use descriptive anchor text. For example: "Learn more about our <a href="/products/vat-registration-service">VAT Registration Service</a>." Include 3-8 internal links.
