@@ -2882,8 +2882,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
         try {
             // Step 1: Extract supplier names
-            dismiss(toastId);
-            toast({ id: toastId, title: "Step 1/4: Extracting Suppliers...", description: "AI is cleaning up descriptions." });
+            toast({ id: toastId, title: "Step 1/4: Extracting Suppliers...", description: "AI is cleaning up transaction descriptions." });
             const transactionsWithSuppliers = await Promise.all(transactionsToProcess.map(async (tx) => {
                 try {
                     const { supplier } = await extractSupplierName({ description: tx.description });
@@ -2901,7 +2900,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 return acc;
             }, {} as Record<string, (ImportedTransaction & {extractedSupplier?: string})[]>);
             
-            dismiss(toastId);
             toast({ id: toastId, title: `Step 2/4: Consolidating Groups...`, description: `Found ${Object.keys(initialGroups).length} initial groups.` });
 
             // Step 3: Consolidate groups
@@ -2924,8 +2922,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 }
             }
             
-            dismiss(toastId);
-            toast({ id: toastId, title: `Step 3/4: Allocating Groups...`, description: `Consolidated to ${Object.keys(mergedGroups).length} groups.` });
+            const totalGroups = Object.keys(mergedGroups).length;
+            toast({ id: toastId, title: `Step 3/4: Allocating Groups...`, description: `Consolidated to ${totalGroups} groups.` });
             
             // Step 4: Allocate each group
             const chartOfAccountsJson = JSON.stringify(chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
@@ -2936,8 +2934,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 const group = mergedGroups[supplier];
                 const representativeTx = group[0];
                 
-                dismiss(toastId);
-                toast({ id: toastId, title: `Step 4/4: Allocating Groups (${++processedCount}/${Object.keys(mergedGroups).length})`, description: `Analyzing: ${supplier}` });
+                processedCount++;
+                toast({ id: toastId, title: `Step 3/4: Allocating Groups (${processedCount}/${totalGroups})`, description: `Analyzing: ${supplier}` });
 
                 try {
                     const result = await suggestTransactionAllocation({
@@ -2970,6 +2968,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 }
             }
             
+            toast({ id: toastId, title: `Step 4/4: Finalizing...`, description: 'Saving results.' });
             await Promise.all(allUpdatePromises);
             dismiss(toastId);
             toast({ title: 'AI Workflow Complete!', description: 'Review the suggestions below and approve or reject them.' });
