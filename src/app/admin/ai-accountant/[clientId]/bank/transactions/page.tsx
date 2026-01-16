@@ -702,7 +702,7 @@ const NewTransactionsTab = React.forwardRef<
     const [isSearching, setIsSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isAiSelectedDialogOpen, setIsAiSelectedDialogOpen] = useState(false);
-    const [aiConfidenceThreshold, setAiConfidenceThreshold] = useState(70);
+    const [isAiAllDialogOpen, setIsAiAllDialogOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [showAll, setShowAll] = useState(false);
     const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
@@ -934,44 +934,86 @@ const NewTransactionsTab = React.forwardRef<
     }, [fetchClientData, handleAllocateByRules]);
 
 
-    const handleAiExpenseAllocate = async (confidenceThreshold: number) => {
-        if (!client || !client.uid || !client.chartOfAccounts || selectedTransactions.length === 0) return;
-        setIsAiAllocating(true);
-        toast({ title: "Preparing AI Workflow...", description: "Moving transactions to the AI workflow tab."});
-
-        const batch = writeBatch(db);
-        selectedTransactions.forEach(txId => {
-            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-            batch.update(txRef, { status: 'ai_processing' });
-        });
-        await batch.commit();
-
-        toast({ title: "Transactions Moved", description: "Processing will begin in the AI Workflow tab."});
-        
-        setSelectedTransactions([]);
-        refetch();
-        setIsAiAllocating(false);
-        setIsAiSelectedDialogOpen(false);
-    };
-
-    const handleAiIncomeAllocate = async (confidenceThreshold: number) => {
+    const handleAiAllocateSelected = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
-        toast({ title: "Preparing AI Workflow...", description: "Moving transactions to the AI workflow tab."});
-        
-        const batch = writeBatch(db);
-        selectedTransactions.forEach(txId => {
-            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-            batch.update(txRef, { status: 'ai_processing' });
-        });
-        await batch.commit();
+        toast({ title: "Preparing AI Workflow...", description: "Moving selected transactions to the AI workflow tab." });
 
-        toast({ title: "Transactions Moved", description: "Processing will begin in the AI Workflow tab."});
+        try {
+            for (let i = 0; i < selectedTransactions.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
+                chunk.forEach(txId => {
+                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+                    batch.update(txRef, { status: 'ai_processing' });
+                });
+                await batch.commit();
+            }
+
+            toast({ title: "Transactions Moved", description: `${selectedTransactions.length} transactions sent for AI processing.` });
+            setSelectedTransactions([]);
+            refetch();
+        } catch (error) {
+            console.error("Error moving transactions:", error);
+            toast({ title: "Error", description: "Could not move selected transactions.", variant: 'destructive' });
+        } finally {
+            setIsAiAllocating(false);
+            setIsAiSelectedDialogOpen(false);
+        }
+    };
+    
+    const handleAiAllocateAll = async () => {
+        if (!client || !client.uid || !bankAccountId) return;
+        setIsAiAllocating(true);
+        const toastId = toast({ title: "Gathering transactions...", description: "Finding all new transactions to send to the AI.", duration: Infinity }).id;
+
+        try {
+            let q = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'new')
+            );
+            if (activeSubTab === 'expenses') {
+                q = query(q, where('amount', '<', 0));
+            } else {
+                q = query(q, where('amount', '>=', 0));
+            }
+
+            const snapshot = await getDocs(q);
+            const transactionsToProcess = snapshot.docs.map(d => d.id);
+
+            if (transactionsToProcess.length === 0) {
+                dismiss(toastId);
+                toast({ title: "No new transactions found." });
+                setIsAiAllocating(false);
+                setIsAiAllDialogOpen(false);
+                return;
+            }
+
+            toast({ id: toastId, title: `Moving ${transactionsToProcess.length} transactions...`, description: "Preparing AI workflow." });
+
+            for (let i = 0; i < transactionsToProcess.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = transactionsToProcess.slice(i, i + BATCH_SIZE);
+                chunk.forEach(txId => {
+                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+                    batch.update(txRef, { status: 'ai_processing' });
+                });
+                await batch.commit();
+            }
+
+            dismiss(toastId);
+            toast({ title: "Transactions Moved", description: `${transactionsToProcess.length} transactions sent for AI processing.`});
             
-        setSelectedTransactions([]);
-        refetch();
-        setIsAiAllocating(false);
-        setIsAiSelectedDialogOpen(false);
+            refetch(); // this will empty the current view
+        } catch (error) {
+            console.error("Error in AI Allocate All:", error);
+            dismiss(toastId);
+            toast({ title: 'Error', description: 'Could not move all transactions.', variant: 'destructive'});
+        } finally {
+            setIsAiAllocating(false);
+            setIsAiAllDialogOpen(false);
+        }
     };
 
 
@@ -1055,7 +1097,7 @@ const NewTransactionsTab = React.forwardRef<
     
             const [incomeSnapshot, expensesSnapshot] = await Promise.all([
                 getDocs(incomeQuery),
-                getDocs(expensesQuery)
+                getDocs(expensesSnapshot)
             ]);
     
             const incomeData = incomeSnapshot.docs
@@ -1148,30 +1190,32 @@ const NewTransactionsTab = React.forwardRef<
                     <DialogHeader>
                         <DialogTitle>AI Allocate Selected</DialogTitle>
                         <DialogDescription>
-                            The AI will attempt to allocate the selected transaction(s). Choose the minimum confidence level required for an allocation to be made.
+                            The selected transaction(s) will be moved to the AI Workflow tab for processing.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="confidence-slider-selected">Confidence Threshold: <span className="font-bold">{aiConfidenceThreshold}%</span></Label>
-                        </div>
-                        <Slider
-                            id="confidence-slider-selected"
-                            min={50}
-                            max={100}
-                            step={5}
-                            value={[aiConfidenceThreshold]}
-                            onValueChange={(value) => setAiConfidenceThreshold(value[0])}
-                        />
-                    </div>
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={() => setIsAiSelectedDialogOpen(false)}>Cancel</Button>
-                        <Button type="button" onClick={() => {
-                            if (activeSubTab === 'expenses') handleAiExpenseAllocate(aiConfidenceThreshold);
-                            else handleAiIncomeAllocate(aiConfidenceThreshold);
-                        }} disabled={isAiAllocating}>
+                        <Button type="button" onClick={handleAiAllocateSelected} disabled={isAiAllocating}>
                             {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                             Allocate Selected
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+             <Dialog open={isAiAllDialogOpen} onOpenChange={setIsAiAllDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>AI Allocate All</DialogTitle>
+                        <DialogDescription>
+                            This will send ALL new {activeSubTab} in this bank account to the AI workflow for processing. Are you sure?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={() => setIsAiAllDialogOpen(false)}>Cancel</Button>
+                        <Button type="button" onClick={handleAiAllocateAll} disabled={isAiAllocating}>
+                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                            Yes, Allocate All
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1271,6 +1315,9 @@ const NewTransactionsTab = React.forwardRef<
 
                          <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0}>
                             <Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
+                        </Button>
+                        <Button variant="outline" onClick={() => setIsAiAllDialogOpen(true)} disabled={isAiAllocating}>
+                            <Sparkles className="mr-2 h-4 w-4"/> AI Allocate All
                         </Button>
                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
                             {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
