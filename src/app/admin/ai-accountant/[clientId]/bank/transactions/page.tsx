@@ -1,5 +1,4 @@
-
-      'use client';
+ 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -1075,7 +1074,6 @@ const NewTransactionsTab = React.forwardRef<
             );
             const expensesQuery = query(
                 collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('bankAccountId', '==', bankAccountId),
                 where('status', '==', 'new'),
                 where('amount', '<', 0)
             );
@@ -2441,7 +2439,7 @@ const ForReviewTab = React.forwardRef<
         canGoPrev,
         currentPage,
         refetch
-    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewTransactionsQuery, pageSize: PAGE_SIZE });
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
 
      const transactions = useMemo(() => {
         let docs = showAll ? allTransactions : (searchTerm ? documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase())) : documents);
@@ -3187,6 +3185,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const [isProcessing, setIsProcessing] = useState(false);
     const [groupSuggestions, setGroupSuggestions] = useState<Record<string, AIAllocationResult>>({});
     const [isDownloading, setIsDownloading] = useState(false);
+    const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
     
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -3356,6 +3355,48 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         toast({ title: 'Approved!', description: `${txIds.length} transactions moved to Reviewed.`});
         refetch();
     };
+    
+    const handleApproveSelected = async () => {
+        if (!client || selectedGroups.length === 0) return;
+        toast({ title: 'Approving selected groups...', description: `Processing ${selectedGroups.length} groups.`});
+
+        try {
+            const allUpdatePromises: Promise<any>[] = [];
+
+            for (const supplierKey of selectedGroups) {
+                const suggestion = groupSuggestions[supplierKey];
+                if (!suggestion || !suggestion.accountId) {
+                    toast({ title: 'Error', description: `Please select an account for the group "${supplierKey}".`, variant: 'destructive'});
+                    continue; // Skip this group if no account is selected
+                }
+
+                const groupTransactions = groupedForReview.find(([key]) => key === supplierKey)?.[1];
+                if (!groupTransactions) continue;
+
+                const batch = writeBatch(db);
+                groupTransactions.forEach(tx => {
+                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+                    batch.update(txRef, {
+                        status: 'allocated',
+                        allocatedTo: { value: suggestion.accountId, type: 'account'},
+                        vatType: client.isVatRegistered ? suggestion.vatType : 'no_vat',
+                        allocatedAt: new Date(),
+                    });
+                });
+                allUpdatePromises.push(batch.commit());
+            }
+
+            await Promise.all(allUpdatePromises);
+            toast({ title: 'Approval Complete!', description: `${selectedGroups.length} groups have been approved.`});
+            setSelectedGroups([]);
+            refetch();
+
+        } catch (error) {
+            console.error('Error approving selected groups:', error);
+            toast({ title: 'Approval Failed', variant: 'destructive'});
+        }
+    };
+
 
     const handleReject = async (txIds: string[]) => {
          if (!client || txIds.length === 0) return;
@@ -3424,10 +3465,13 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                         <CardTitle>AI Processing Workflow</CardTitle>
                         <CardDescription>Transactions sent for AI allocation are processed here. You can review the AI's suggestions before approving.</CardDescription>
                     </div>
-                     <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading || transactions.length === 0}>
-                        {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                        Download Batch
-                    </Button>
+                     <div className="flex items-center gap-2">
+                         <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0}>Approve Selected ({selectedGroups.length})</Button>
+                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading || transactions.length === 0}>
+                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Download Batch
+                        </Button>
+                     </div>
                 </div>
             </CardHeader>
             <CardContent>
@@ -3447,15 +3491,37 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     <div className="text-center py-10 text-muted-foreground">No transactions are currently in the AI workflow.</div>
                 ) : (
                     <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+                         <div className="p-3 flex items-center gap-4 border-b">
+                            <Checkbox
+                                checked={selectedGroups.length === groupedForReview.length && groupedForReview.length > 0}
+                                onCheckedChange={(checked) => {
+                                    if (checked) {
+                                        setSelectedGroups(groupedForReview.map(([key]) => key));
+                                    } else {
+                                        setSelectedGroups([]);
+                                    }
+                                }}
+                                aria-label="Select all"
+                            />
+                            <Label>Select all</Label>
+                        </div>
                         {groupedForReview.map(([supplier, txs]) => {
                              const suggestion = groupSuggestions[supplier];
                              return (
                                 <div key={supplier} className="border rounded-lg">
                                     <div className="p-3 bg-muted/50 flex justify-between items-center flex-wrap gap-4">
-                                        <div className="flex-grow">
-                                            <h3 className="font-bold">{supplier} <span className="text-sm font-normal text-muted-foreground">({txs.length} items)</span></h3>
-                                            <div className="text-xs text-muted-foreground">
-                                                Original AI Confidence: {suggestion?.confidence ? `${suggestion.confidence}%` : 'N/A'}
+                                        <div className="flex items-center gap-4 flex-grow">
+                                            <Checkbox
+                                                checked={selectedGroups.includes(supplier)}
+                                                onCheckedChange={(checked) => {
+                                                    setSelectedGroups(prev => checked ? [...prev, supplier] : prev.filter(s => s !== supplier));
+                                                }}
+                                            />
+                                            <div>
+                                                <h3 className="font-bold">{supplier} <span className="text-sm font-normal text-muted-foreground">({txs.length} items)</span></h3>
+                                                <div className="text-xs text-muted-foreground">
+                                                    Original AI Confidence: {suggestion?.confidence ? `${suggestion.confidence}%` : 'N/A'}
+                                                </div>
                                             </div>
                                         </div>
                                          <div className="flex items-center gap-2">
@@ -3507,8 +3573,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     )
 }
     
-    
-
     
 
     
