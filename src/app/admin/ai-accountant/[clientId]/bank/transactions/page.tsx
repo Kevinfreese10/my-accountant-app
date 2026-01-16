@@ -3186,6 +3186,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const { toast, dismiss } = useToast();
     const [isProcessing, setIsProcessing] = useState(false);
     const [groupSuggestions, setGroupSuggestions] = useState<Record<string, AIAllocationResult>>({});
+    const [isDownloading, setIsDownloading] = useState(false);
     
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -3275,13 +3276,15 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                         isVatRegistered: client.isVatRegistered || false,
                     });
                     
+                    const finalResult = result.confidence < 80 ? { ...result, accountId: '' } : result;
+
                     const batch = writeBatch(db);
                     group.forEach(tx => {
                         const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
                         batch.update(txRef, {
                             status: 'ai_review',
                             extractedSupplier: supplier,
-                            aiAllocationResult: result || null,
+                            aiAllocationResult: finalResult || null,
                         });
                     });
                     allUpdatePromises.push(batch.commit());
@@ -3320,7 +3323,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             groups[key].push(tx);
         });
         
-        // Initialize suggestions based on the first item in each group
         const initialSuggestions: Record<string, AIAllocationResult> = {};
         Object.entries(groups).forEach(([key, group]) => {
             if (group[0] && group[0].aiAllocationResult) {
@@ -3333,10 +3335,10 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     }, [transactions]);
     
     const handleApprove = async (txIds: string[], supplierKey: string) => {
-        if (!client || txIds.length === 0) return;
+        if (!client) return;
         const suggestion = groupSuggestions[supplierKey];
-        if(!suggestion) {
-            toast({ title: 'Error', description: 'No allocation suggested for this group.', variant: 'destructive'});
+        if(!suggestion || !suggestion.accountId) {
+            toast({ title: 'Error', description: 'Please select an account for this group.', variant: 'destructive'});
             return;
         }
 
@@ -3346,7 +3348,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             batch.update(txRef, {
                 status: 'allocated',
                 allocatedTo: { value: suggestion.accountId, type: 'account'},
-                vatType: suggestion.vatType,
+                vatType: client.isVatRegistered ? suggestion.vatType : 'no_vat',
                 allocatedAt: new Date(),
             });
         });
@@ -3380,11 +3382,53 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }))
     }
 
+    const handleDownloadExcel = async () => {
+        if (!client || !client.uid || !bankAccountId) return;
+        setIsDownloading(true);
+        toast({ title: "Preparing Download...", description: "Fetching all transactions in the AI workflow." });
+    
+        try {
+            const q = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', 'in', ['ai_processing', 'ai_review'])
+            );
+            
+            const snapshot = await getDocs(q);
+    
+            const dataToExport = snapshot.docs
+                .map(doc => doc.data() as ImportedTransaction)
+                .map(({ date, description, amount, status }) => ({ Date: format(new Date(date), 'dd/MM/yyyy'), Description: description, Amount: amount, Status: status }));
+    
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(dataToExport);
+            XLSX.utils.book_append_sheet(wb, ws, "AI Workflow Transactions");
+            
+            XLSX.writeFile(wb, `AI-Workflow_${client.name.replace(/\s/g, '_')}.xlsx`);
+    
+            toast({ title: 'Download Ready!', description: 'Your Excel file has been downloaded.' });
+        } catch (error) {
+            console.error("Error downloading excel:", error);
+            toast({ title: 'Download Failed', description: 'Could not generate the Excel file.', variant: 'destructive' });
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle>AI Processing Workflow</CardTitle>
-                <CardDescription>Transactions sent for AI allocation are processed here. You can review the AI's suggestions before approving.</CardDescription>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>AI Processing Workflow</CardTitle>
+                        <CardDescription>Transactions sent for AI allocation are processed here. You can review the AI's suggestions before approving.</CardDescription>
+                    </div>
+                     <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading || transactions.length === 0}>
+                        {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Download Batch
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
@@ -3415,13 +3459,13 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                             </div>
                                         </div>
                                          <div className="flex items-center gap-2">
-                                            <Select value={suggestion?.accountId} onValueChange={(value) => handleGroupSuggestionChange(supplier, 'accountId', value)}>
+                                            <Select value={suggestion?.accountId || ''} onValueChange={(value) => handleGroupSuggestionChange(supplier, 'accountId', value)}>
                                                 <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Select Account..."/></SelectTrigger>
                                                 <SelectContent>
                                                     {chartOfAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
                                                 </SelectContent>
                                             </Select>
-                                            <Select value={suggestion?.vatType} onValueChange={(value) => handleGroupSuggestionChange(supplier, 'vatType', value as VatType)}>
+                                            <Select value={suggestion?.vatType || 'no_vat'} onValueChange={(value) => handleGroupSuggestionChange(supplier, 'vatType', value as VatType)} disabled={!client?.isVatRegistered}>
                                                 <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="Select VAT..."/></SelectTrigger>
                                                 <SelectContent>
                                                     {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
@@ -3430,7 +3474,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                         </div>
                                         <div className="flex gap-2">
                                             <Button size="sm" variant="destructive" onClick={() => handleReject(txs.map(t => t.id))}>Reject Group</Button>
-                                            <Button size="sm" onClick={() => handleApprove(txs.map(t => t.id), supplier)} disabled={!suggestion}>Approve Group</Button>
+                                            <Button size="sm" onClick={() => handleApprove(txs.map(t => t.id), supplier)} disabled={!suggestion?.accountId}>Approve Group</Button>
                                         </div>
                                     </div>
                                     <div>
