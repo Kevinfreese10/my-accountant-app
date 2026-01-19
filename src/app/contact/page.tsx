@@ -32,9 +32,9 @@ export default function ContactPage() {
     setIsLoading(true);
     try {
       await sendEmail({
-        to: 'your-email@example.com', // Replace with your actual email
-        from: 'My Accountant Contact Form <noreply@yourdomain.com>', // Replace with a verified sender
+        to: 'info@myacc.co.za',
         subject: `New Contact Form Submission from ${values.name}`,
+        replyTo: values.email,
         html: `
           <p><strong>Name:</strong> ${values.name}</p>
           <p><strong>Email:</strong> ${values.email}</p>
