@@ -3118,6 +3118,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             batch.update(txRef, {
                 status: 'new',
                 aiAllocationResult: null,
+                extractedSupplier: null,
             });
         });
         await batch.commit();
