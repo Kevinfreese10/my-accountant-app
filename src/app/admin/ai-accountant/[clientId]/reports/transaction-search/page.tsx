@@ -86,7 +86,7 @@ function SearchResultsView({
                                         key={account.id}
                                         value={account.description}
                                         onSelect={() => {
-                                            setReallocateTo({accountId: account.id, vatType: 'standard_rated_purchases'})
+                                            setReallocateTo({ accountId: account.id, vatType: client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat' })
                                             setOpen(false)
                                         }}
                                     >
@@ -98,19 +98,29 @@ function SearchResultsView({
                             </Command>
                         </PopoverContent>
                     </Popover>
+                    
+                    {client.isVatRegistered && (
+                        <Select 
+                            value={reallocateTo?.vatType || ''}
+                            onValueChange={(value) => reallocateTo && setReallocateTo(prev => prev ? {...prev, vatType: value as VatType} : null)}
+                            disabled={!reallocateTo}
+                        >
+                            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select VAT type" /></SelectTrigger>
+                            <SelectContent>
+                                {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    )}
 
-                     <Select 
-                        value={reallocateTo?.vatType || ''}
-                        onValueChange={(value) => reallocateTo && setReallocateTo({...reallocateTo, vatType: value as VatType})}
-                        disabled={!reallocateTo}
-                    >
-                        <SelectTrigger className="w-[180px]"><SelectValue placeholder="Select VAT type" /></SelectTrigger>
-                        <SelectContent>
-                            {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
                     <Button 
-                        onClick={() => reallocateTo && onReallocate(selectedTransactions, {accountId: reallocateTo.accountId, vatType: reallocateTo.vatType})}
+                        onClick={() => {
+                            if (reallocateTo) {
+                                onReallocate(selectedTransactions, {
+                                    accountId: reallocateTo.accountId, 
+                                    vatType: client.isVatRegistered ? (reallocateTo.vatType || 'no_vat') : 'no_vat'
+                                })
+                            }
+                        }}
                         disabled={selectedTransactions.length === 0 || !reallocateTo}
                     >
                         Apply
