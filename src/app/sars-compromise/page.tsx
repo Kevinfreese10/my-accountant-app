@@ -1,7 +1,8 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, ShieldCheck, LifeBuoy, FileText } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { CheckCircle, ShieldCheck, Scale, Users, FileText, LifeBuoy } from 'lucide-react';
 import Link from 'next/link';
 import { Metadata } from 'next';
 
@@ -11,27 +12,55 @@ export const metadata: Metadata = {
 };
 
 export default function SarsCompromisePage() {
-  const benefits = [
+  const serviceIncludes = [
+    'Assessment of eligibility for Section 200',
+    'Financial distress analysis',
+    'Preparation of a legally compliant motivation',
+    'Compilation of all SARS-required supporting documents',
+    'Submission and engagement with SARS',
+    'Ongoing support until SARS issues a decision',
+  ];
+
+  const whyChooseUs = [
     {
-      title: 'Reduce Your Tax Debt',
-      description: 'Potentially write off a significant portion of your tax debt, including penalties and interest.',
-      icon: CheckCircle,
-    },
-    {
-      title: 'Achieve Compliance',
-      description: 'Settle your outstanding tax affairs and become fully compliant with SARS.',
+      title: 'Deep SARS Knowledge',
+      description: 'Deep procedural knowledge.',
       icon: ShieldCheck,
     },
     {
-      title: 'Get Expert Guidance',
-      description: 'Our tax experts manage the entire application process on your behalf, ensuring the best possible outcome.',
+      title: 'Experienced',
+      description: 'Strong experience with distressed taxpayers.',
       icon: LifeBuoy,
     },
     {
-      title: 'Avoid Legal Action',
-      description: 'A successful compromise can prevent asset seizure, judgments, or liquidation proceedings.',
+      title: 'Clear Motivations',
+      description: 'Structured motivations aligned to the Act.',
       icon: FileText,
     },
+    {
+      title: 'Honest Advice',
+      description: 'Honest advice on likelihood of success.',
+      icon: Scale,
+    },
+  ];
+
+  const documentsRequired = [
+    'ID / company registration documents',
+    'Detailed statement of assets & liabilities',
+    'Bank statements (usually 6–12 months)',
+    'Latest financial statements or management accounts',
+    'Income and expense breakdown',
+    'Explanation of financial distress',
+    'Proposed settlement amount and source of funds',
+    'Confirmation of tax compliance submissions (even if unpaid)',
+  ];
+
+  const importantPoints = [
+    'A Section 200 Compromise is not guaranteed.',
+    'SARS expects absolute transparency.',
+    'One-size-fits-all motivations do not work.',
+    'Professional preparation significantly improves outcomes.',
+    'Applying incorrectly can worsen enforcement action.',
   ];
 
   return (
@@ -39,10 +68,13 @@ export default function SarsCompromisePage() {
       <section className="bg-background">
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
-            SARS <span className="text-gradient">#Compromise</span> of Debt
+            SARS <span className="text-gradient">#Section 200</span> Compromise
           </h1>
-          <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
-            Overwhelmed by tax debt? A SARS Compromise could be your solution. We negotiate with SARS on your behalf to settle your tax liability for a lower amount.
+           <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
+            Settle Your Tax Debt Legally & Affordably. If you owe SARS money and cannot realistically pay the full amount, a Section 200 Compromise may allow you to legally settle your tax debt for less than what is owed.
+          </p>
+           <p className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto">
+             At My Accountant, we assist individuals and businesses with preparing, motivating, and submitting S200–S205 Compromise Applications—ensuring they are technically correct, commercially realistic, and SARS-ready.
           </p>
           <Button asChild size="lg" className="mt-8">
             <Link href="/contact">Book a Free Consultation</Link>
@@ -52,56 +84,183 @@ export default function SarsCompromisePage() {
 
       <section className="container mx-auto px-4">
         <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold">Is a SARS Compromise Right for You?</h2>
+            <h2 className="text-3xl font-bold">When Is a Compromise Appropriate?</h2>
             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-              If your business is unable to pay its tax debt in full, a compromise may be the best way forward.
+              A Section 200 Compromise may be suitable if your tax debt has become unmanageable and full recovery by SARS is unlikely.
             </p>
         </div>
-        <Card>
+        <Card className="max-w-3xl mx-auto">
             <CardHeader>
-                <CardTitle>Who Qualifies?</CardTitle>
+                <CardTitle>A compromise may be suitable if:</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 text-muted-foreground">
-                <p>You may qualify for a tax compromise if:</p>
+            <CardContent className="space-y-2 text-muted-foreground">
                 <ul className="list-disc pl-6 space-y-2">
-                    <li>Your business has outstanding tax liabilities it cannot afford to pay.</li>
-                    <li>There is a genuine risk of insolvency or liquidation if the full debt is enforced.</li>
-                    <li>The compromise will offer a better return to the fiscus than liquidation.</li>
-                    <li>You have a clean compliance history, apart from the debt in question.</li>
+                    <li>Your tax debt has become unmanageable.</li>
+                    <li>SARS enforcement (e.g. third-party appointments, judgments) is imminent.</li>
+                    <li>The business is at risk of closure or liquidation.</li>
+                    <li>You cannot meet normal payment arrangements.</li>
+                    <li>Full recovery by SARS is unlikely or uneconomical.</li>
                 </ul>
-                <p>Our team will assess your financial situation to determine if you meet the criteria for a successful compromise application.</p>
             </CardContent>
         </Card>
       </section>
 
-      <section className="bg-background py-16">
+       <section className="bg-background py-16">
         <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">The Benefits of a SARS Compromise</h2>
+                <h2 className="text-3xl font-bold">What Our SARS Compromise Service Includes</h2>
+                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                    We don’t submit “hope letters” — we submit proper legal compromises.
+                </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                {benefits.map(benefit => (
-                <div key={benefit.title} className="flex flex-col items-center text-center gap-4">
-                    <div className="bg-primary/10 rounded-full h-16 w-16 flex items-center justify-center">
-                        <benefit.icon className="h-8 w-8 text-primary" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
+                {serviceIncludes.map((item, index) => (
+                <div key={index} className="flex items-start gap-4">
+                    <div className="bg-primary/10 rounded-full h-10 w-10 flex items-center justify-center flex-shrink-0">
+                         <CheckCircle className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-semibold">{benefit.title}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">{benefit.description}</p>
+                        <p className="font-medium">{item}</p>
                     </div>
                 </div>
                 ))}
             </div>
         </div>
       </section>
-      
+
+       <section className="container mx-auto px-4">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold">Why Use My Accountant?</h2>
+                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                    We don’t sell time — we sell comfort.
+                </p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                {whyChooseUs.map((benefit) => (
+                    <div key={benefit.title} className="flex flex-col items-center text-center gap-4">
+                        <div className="bg-primary/10 rounded-full h-16 w-16 flex items-center justify-center">
+                            <benefit.icon className="h-8 w-8 text-primary" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold">{benefit.title}</h3>
+                            <p className="text-sm text-muted-foreground mt-1">{benefit.description}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+      </section>
+
+       <section className="container mx-auto px-4 max-w-4xl">
+         <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold">SARS Section 200 to 205 Explained</h2>
+            <p className="text-muted-foreground mt-2">A plain-English breakdown of what SARS looks at under each section of the Tax Administration Act.</p>
+        </div>
+         <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="item-1">
+                <AccordionTrigger>Section 200 – Compromise of Tax Debt</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line">
+                    SARS may compromise a tax debt if:
+                    - The taxpayer is in serious financial hardship
+                    - Recovery of the full amount is unlikely
+                    - The compromise is fair, equitable, and in the public interest
+                    **Key point:** This is discretionary — SARS is not obliged to agree.
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="item-2">
+                <AccordionTrigger>Section 201 – Request for Compromise</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line">
+                    The taxpayer must:
+                    - Apply voluntarily
+                    - Submit the request in the prescribed form
+                    - Disclose full and honest financial information
+                    Any false or misleading information = automatic rejection.
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="item-3">
+                <AccordionTrigger>Section 202 – Information Required by SARS</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line">
+                    SARS may require:
+                    - Full statement of assets and liabilities
+                    - Income and expenditure details
+                    - Bank statements
+                    - Business financials (if applicable)
+                    - Details of connected persons and entities
+                    - Explanation of how the debt arose
+                    - Proposed compromise amount and basis
+                    **Full disclosure is mandatory.**
+                </AccordionContent>
+              </AccordionItem>
+               <AccordionItem value="item-4">
+                <AccordionTrigger>Section 203 – Evaluation by SARS</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line">
+                    SARS will consider:
+                    - The taxpayer’s ability to pay
+                    - Whether liquidation, sequestration, or judgment would recover more
+                    - Whether the compromise amount is commercially reasonable
+                    - Compliance history
+                    - Public interest and precedent risk
+                    If SARS believes it can recover more via enforcement, the application will fail.
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="item-5">
+                <AccordionTrigger>Section 204 – Effect of Accepted Compromise</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line">
+                    Once accepted:
+                    - The agreed amount becomes legally payable
+                    - Remaining debt is written off
+                    - The compromise replaces the original tax liability
+                    - Non-compliance with the compromise terms voids the agreement
+                    **The compromise is final and binding.**
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="item-6">
+                <AccordionTrigger>Section 205 – Invalid or Void Compromises</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line">
+                    A compromise becomes invalid if:
+                    - Information was false or incomplete
+                    - The taxpayer fails to meet the agreed terms
+                    - Fraud or misrepresentation is later discovered
+                    In such cases:
+                    - SARS may reinstate the full original debt
+                    - Enforcement action may resume immediately
+                </AccordionContent>
+              </AccordionItem>
+          </Accordion>
+      </section>
+
+      <section className="container mx-auto px-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Important Things to Know Before Applying</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-muted-foreground">
+                        <ul className="list-disc pl-6 space-y-2">
+                           {importantPoints.map((point, index) => <li key={index}>{point}</li>)}
+                        </ul>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Typical Documents Required</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-muted-foreground">
+                        <p>While requirements differ by case, we usually need:</p>
+                        <ul className="list-disc pl-6 space-y-1">
+                            {documentsRequired.map((doc, index) => <li key={index}>{doc}</li>)}
+                        </ul>
+                    </CardContent>
+                </Card>
+            </div>
+        </section>
+
       <section className="container mx-auto px-4 text-center">
-        <h2 className="text-3xl font-bold">Ready to Resolve Your Tax Debt?</h2>
+        <h2 className="text-3xl font-bold">Need Help With a SARS Compromise?</h2>
         <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-            Don't let tax debt cripple your business. Contact us today for a confidential consultation to explore your options.
+            If you’re facing serious tax debt and need a realistic, lawful solution, speak to My Accountant before SARS escalates enforcement. Contact us today for a confidential assessment of your Section 200 Compromise eligibility.
         </p>
         <Button asChild size="lg" className="mt-8">
-            <Link href="/contact">Get Help Now</Link>
+            <Link href="/contact">Contact Us For A Confidential Assessment</Link>
         </Button>
       </section>
     </div>
