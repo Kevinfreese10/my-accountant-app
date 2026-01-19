@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,8 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { Badge } from '../ui/badge';
+import { sendEmail } from '@/lib/email';
 
 const formSchema = z.object({
   name: z.string().min(2, 'Name is required.'),
@@ -23,7 +21,6 @@ const formSchema = z.object({
 });
 
 export default function SupportForm() {
-  const [result, setResult] = useState<{ category: string; priority: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -34,10 +31,20 @@ export default function SupportForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    setResult(null);
     try {
-      const categorization = await categorizeSupportRequest({ request: `${values.subject}: ${values.message}` });
-      setResult(categorization);
+      await sendEmail({
+        to: 'info@myacc.co.za',
+        subject: `Support Request: ${values.subject}`,
+        replyTo: values.email,
+        html: `
+          <p><strong>Name:</strong> ${values.name}</p>
+          <p><strong>Email:</strong> ${values.email}</p>
+          <hr />
+          <p><strong>Message:</strong></p>
+          <p>${values.message.replace(/\n/g, '<br>')}</p>
+        `,
+      });
+
       toast({
         title: 'Request Submitted',
         description: "We've received your request and will get back to you shortly.",
@@ -118,14 +125,6 @@ export default function SupportForm() {
                 </FormItem>
               )}
             />
-            {result && (
-              <Alert>
-                <AlertTitle>Request Categorized</AlertTitle>
-                <AlertDescription className="flex items-center gap-2">
-                  Our AI has categorized your request. Category: <Badge variant="secondary">{result.category}</Badge> Priority: <Badge variant="secondary">{result.priority}</Badge>
-                </AlertDescription>
-              </Alert>
-            )}
           </CardContent>
           <CardFooter>
             <Button type="submit" disabled={isLoading}>
