@@ -2,7 +2,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +16,6 @@ import { firebaseApp } from '@/lib/firebase';
 import { Service } from '@/lib/types';
 import SeoPageForm from '@/components/admin/SeoPageForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
 
@@ -44,7 +42,7 @@ export default function SeoManagementPage() {
   const [isAiUpdating, setIsAiUpdating] = useState<string | null>(null);
   
   const form = useForm<SeoFormValues>({
-    resolver: zodResolver(formSchema),
+    // resolver: zodResolver(formSchema), // Removed to allow saving with errors
     defaultValues: {
       pages: [],
     },
@@ -84,6 +82,8 @@ export default function SeoManagementPage() {
         { id: 'popia', path: '/popia', title: 'POPIA Compliance Policy', description: 'Read the My Accountant (Pty) Ltd policy on the Protection of Personal Information Act (POPIA), detailing how we collect, process, and safeguard your data.', keywords: [] },
         { id: 'refund-policy', path: '/refund-policy', title: 'Refund Policy', description: 'Understand the terms and conditions for refunds on services purchased from My Accountant. Learn about our 48-hour request window and non-refundable policy once work has commenced.', keywords: [] },
         { id: 'terms', path: '/terms', title: 'BEI Terms & Conditions', description: 'Review the official Terms and Conditions for participating in the My Accountant Bookkeeper Empowerment Initiative (BEI) partner program.', keywords: [] },
+        { id: 'sars-compromise', path: '/sars-compromise', title: 'SARS Compromise of Debt', description: 'Explore your options for a SARS Compromise of Debt with My Accountant. We help you negotiate a settlement with SARS to resolve outstanding tax debt and get a fresh start.', keywords: [] },
+        { id: 'liquidations', path: '/liquidations', title: 'Company Liquidations', description: 'Professional assistance with voluntary company liquidations in South Africa. Close your business legally and responsibly with expert guidance from My Accountant.', keywords: [] },
     ];
     
     const servicePages = services.map(s => ({
@@ -197,11 +197,11 @@ export default function SeoManagementPage() {
             }
 
             if (originalTitle) {
-                result = await generateBlogPostSeo({ title: originalTitle });
-                 if (result) {
-                    form.setValue(`pages.${originalIndex}.title`, result.metaTitle);
-                    form.setValue(`pages.${originalIndex}.description`, result.metaDescription);
-                    form.setValue(`pages.${originalIndex}.keywords`, result.metaKeywords.map(k => ({ value: k })));
+                const seoResult = await generateBlogPostSeo({ title: originalTitle });
+                 if (seoResult) {
+                    form.setValue(`pages.${originalIndex}.title`, seoResult.metaTitle);
+                    form.setValue(`pages.${originalIndex}.description`, seoResult.metaDescription);
+                    form.setValue(`pages.${originalIndex}.keywords`, seoResult.metaKeywords.map(k => ({ value: k })));
                 }
             }
         }
