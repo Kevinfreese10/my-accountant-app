@@ -124,15 +124,25 @@ export default function AIEmailInboxPage() {
             const response = await fetch('/api/ai-inbox/fetch-emails', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.uid }),
             });
 
-            const data = await response.json();
+            const contentType = response.headers.get('content-type');
 
             if (!response.ok) {
-                throw new Error(data.details || 'Failed to sync emails.');
+                 if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.details || errorData.error || 'Sync operation failed.');
+                } else {
+                    const errorText = await response.text();
+                    console.error("Non-JSON error response:", errorText);
+                    throw new Error('Server returned an unexpected error. Please check the console for details.');
+                }
             }
-
+            
+            const data = await response.json();
             toast({ title: 'Sync Complete', description: data.message });
+
         } catch (error: any) {
             toast({ title: 'Sync Failed', description: error.message, variant: 'destructive' });
         } finally {
@@ -762,3 +772,5 @@ export default function AIEmailInboxPage() {
         </div>
     );
 }
+
+    
