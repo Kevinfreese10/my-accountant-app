@@ -13,13 +13,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Metadata } from 'next';
-
-// This is a client component, but we can export metadata from it.
-export const metadata: Metadata = {
-  title: 'Contact Us',
-  description: 'Get in touch with the My Accountant team. Fill out our contact form with your questions or inquiries, and we will get back to you shortly.',
-};
 
 const contactFormSchema = z.object({
   name: z.string().min(2, 'Name is required.'),

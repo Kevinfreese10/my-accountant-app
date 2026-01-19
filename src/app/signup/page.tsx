@@ -5,21 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Link from 'next/link';
 import { Suspense, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Metadata } from 'next';
 import { useSearchParams, useRouter } from 'next/navigation';
-
-export const metadata: Metadata = {
-  title: 'Create an Account',
-  description: 'Sign up for a free My Accountant account to manage your services, track your orders, and communicate with our team.',
-  robots: {
-    index: false,
-    follow: false,
-    noimageindex: true,
-  },
-  alternates: {
-    canonical: 'https://www.myacc.co.za/signup',
-  }
-};
 
 function SignupFormWrapper() {
   const searchParams = useSearchParams();

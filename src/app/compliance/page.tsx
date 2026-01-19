@@ -26,12 +26,6 @@ import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Metadata } from 'next';
-
-export const metadata: Metadata = {
-  title: 'Free SARS & CIPC Compliance Check',
-  description: 'Ensure your South African business is compliant. Get a free, no-obligation compliance assessment for CIPC and SARS, plus a 5% discount on your next service.',
-};
 
 const db = getFirestore(firebaseApp);
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
