@@ -88,7 +88,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
     { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
-    { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
     { href: '/admin/services', label: 'Manage Products', icon: Briefcase, roles: ['admin'] },
