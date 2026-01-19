@@ -2857,6 +2857,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const [groupSuggestions, setGroupSuggestions] = useState<Record<string, AIAllocationResult>>({});
     const [isDownloading, setIsDownloading] = useState(false);
     const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -2868,6 +2869,47 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     }, [client?.uid, bankAccountId]);
 
     const { documents: transactions, isLoading, refetch } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: 500 });
+
+    const handleRejectSelected = async () => {
+        if (!client || selectedTransactions.length === 0) return;
+
+        toast({ title: 'Rejecting selected transactions...', description: `Moving ${selectedTransactions.length} items back to New.` });
+
+        try {
+            const batch = writeBatch(db);
+            selectedTransactions.forEach(txId => {
+                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+                batch.update(txRef, {
+                    status: 'new',
+                    aiAllocationResult: null,
+                    extractedSupplier: null,
+                });
+            });
+            await batch.commit();
+
+            toast({ title: 'Transactions Moved', description: 'Selected items have been moved back to the "New Transactions" tab.'});
+            setSelectedTransactions([]);
+            refetch();
+
+        } catch (error) {
+            console.error("Error rejecting selected transactions:", error);
+            toast({ title: 'Rejection Failed', variant: 'destructive' });
+        }
+    };
+
+    const handleTransactionSelect = (txId: string, checked: boolean) => {
+        setSelectedTransactions(prev => 
+            checked ? [...prev, txId] : prev.filter(id => id !== txId)
+        );
+    };
+
+    const handleGroupSelect = (txsInGroup: ImportedTransaction[], checked: boolean) => {
+        const txIdsInGroup = txsInGroup.map(tx => tx.id);
+        setSelectedTransactions(prev => {
+            const otherSelected = prev.filter(id => !txIdsInGroup.includes(id));
+            return checked ? [...otherSelected, ...txIdsInGroup] : otherSelected;
+        });
+    };
     
     const handleProcessWorkflow = async () => {
         if (!client || !client.uid || transactions.length === 0) return;
@@ -3173,10 +3215,20 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 <div className="flex justify-between items-center">
                     <div>
                         <CardTitle>AI Processing Workflow</CardTitle>
-                        <CardDescription>Transactions sent for AI allocation are processed here. You can review the AI's suggestions before approving.</CardDescription>
+                        <CardDescription>
+                             {transactions.filter(tx => tx.status === 'ai_processing').length > 0
+                                ? `${transactions.filter(tx => tx.status === 'ai_processing').length} transaction(s) are ready for AI processing.`
+                                : groupedForReview.length > 0
+                                    ? `${groupedForReview.length} groups are ready for your review.`
+                                    : 'Transactions sent for AI allocation are processed here.'
+                            }
+                        </CardDescription>
                     </div>
                      <div className="flex items-center gap-2">
-                         <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0}>Approve Selected ({selectedGroups.length})</Button>
+                         <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0}>Approve Selected Groups ({selectedGroups.length})</Button>
+                         <Button variant="destructive" onClick={handleRejectSelected} disabled={selectedTransactions.length === 0}>
+                            Reject Selected Items ({selectedTransactions.length})
+                        </Button>
                          <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading || transactions.length === 0}>
                             {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Download Batch
@@ -3203,6 +3255,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     <div className="space-y-4 max-h-[70vh] overflow-y-auto">
                          <div className="p-3 flex items-center gap-4 border-b">
                             <Checkbox
+                                id="select-all-groups"
                                 checked={selectedGroups.length === groupedForReview.length && groupedForReview.length > 0}
                                 onCheckedChange={(checked) => {
                                     if (checked) {
@@ -3211,12 +3264,18 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                         setSelectedGroups([]);
                                     }
                                 }}
-                                aria-label="Select all"
                             />
-                            <Label>Select all</Label>
+                            <Label htmlFor="select-all-groups" className="font-semibold">Select all groups</Label>
                         </div>
                         {groupedForReview.map(([supplier, txs]) => {
                              const suggestion = groupSuggestions[supplier];
+                             const handleGroupCheckboxChange = (checked: boolean) => {
+                                const txIdsInGroup = txs.map(tx => tx.id);
+                                setSelectedTransactions(prev => {
+                                    const otherSelected = prev.filter(id => !txIdsInGroup.includes(id));
+                                    return checked ? [...otherSelected, ...txIdsInGroup] : otherSelected;
+                                });
+                            };
                              return (
                                 <div key={supplier} className="border rounded-lg">
                                     <div className="p-3 bg-muted/50 flex justify-between items-center flex-wrap gap-4">
@@ -3257,6 +3316,12 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                          <Table>
                                             <TableHeader>
                                                 <TableRow>
+                                                    <TableHead className="w-12 p-2">
+                                                        <Checkbox
+                                                            checked={txs.length > 0 && txs.every(tx => selectedTransactions.includes(tx.id))}
+                                                            onCheckedChange={(checked) => handleGroupCheckboxChange(!!checked)}
+                                                         />
+                                                    </TableHead>
                                                     <TableHead className="w-[120px]">Date</TableHead>
                                                     <TableHead>Description</TableHead>
                                                     <TableHead className="text-right w-[150px]">Amount</TableHead>
@@ -3264,7 +3329,13 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                             </TableHeader>
                                             <TableBody>
                                                 {txs.map(tx => (
-                                                     <TableRow key={tx.id}>
+                                                     <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) ? "selected" : ""}>
+                                                        <TableCell className="p-2">
+                                                            <Checkbox
+                                                                checked={selectedTransactions.includes(tx.id)}
+                                                                onCheckedChange={(checked) => handleTransactionSelect(tx.id, !!checked)}
+                                                            />
+                                                        </TableCell>
                                                         <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
                                                         <TableCell className="text-xs">{tx.description}</TableCell>
                                                         <TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}</TableCell>
