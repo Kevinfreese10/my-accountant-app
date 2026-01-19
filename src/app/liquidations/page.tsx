@@ -1,6 +1,6 @@
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { CheckCircle, ShieldCheck, Scale, Users, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { Metadata } from 'next';
@@ -34,15 +34,41 @@ export default function LiquidationsPage() {
     },
   ];
 
+  const whyChooseUs = [
+    {
+      title: 'Experienced',
+      description: 'in SARS & CIPC compliance.',
+      icon: ShieldCheck,
+    },
+    {
+      title: 'Clear Guidance',
+      description: 'upfront guidance — no surprises.',
+      icon: Scale,
+    },
+    {
+      title: 'Confidential',
+      description: 'Professional, confidential handling.',
+      icon: Users,
+    },
+    {
+      title: 'Transparent Pricing',
+      description: 'Affordable and transparent pricing.',
+      icon: FileText,
+    },
+  ];
+
   return (
     <div className="space-y-16 pb-16">
       <section className="bg-background">
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
-            Company <span className="text-gradient">#Liquidations</span>
+            Liquidation Services in South Africa
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
-            Closing a business is a difficult decision. We provide expert guidance through the voluntary liquidation process to ensure it's done legally, responsibly, and with minimal stress.
+            Simple, Compliant & Stress-Free Company Closures. Closing a company doesn’t have to be complicated or overwhelming. At My Accountant, we provide professional liquidation services to help directors, shareholders, and business owners wind up companies legally, efficiently, and with peace of mind.
+          </p>
+           <p className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto">
+            Whether your company is solvent or insolvent, we guide you through the process from start to finish—ensuring full compliance with CIPC, SARS, and applicable legislation.
           </p>
           <Button asChild size="lg" className="mt-8">
             <Link href="/contact">Get Professional Advice</Link>
@@ -52,35 +78,57 @@ export default function LiquidationsPage() {
 
        <section className="container mx-auto px-4">
         <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold">When is Liquidation the Right Choice?</h2>
+            <h2 className="text-3xl font-bold">What Is a Company Liquidation?</h2>
             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-              Voluntary liquidation is a formal process to wind up a solvent or insolvent company that is no longer trading.
+              A liquidation is the formal legal process of closing a company by settling its affairs, paying creditors (where applicable), and removing it from the Companies Register. Liquidation may be appropriate when:
             </p>
+            <ul className="mt-4 text-muted-foreground list-disc list-inside inline-block text-left">
+                <li>The company is no longer trading</li>
+                <li>The business is financially distressed</li>
+                <li>Shareholders wish to exit the business</li>
+                <li>The company cannot meet its financial obligations</li>
+                <li>There is no reasonable prospect of recovery</li>
+            </ul>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <Card>
                 <CardHeader>
-                    <CardTitle>Solvent Companies</CardTitle>
+                    <CardTitle>1. Voluntary Liquidation (Solvent)</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-muted-foreground">
-                   <p>Even if your company can pay its debts, you may choose to liquidate if:</p>
+                   <p>This applies when the company can pay its debts and shareholders decide to close the business voluntarily. We assist with:</p>
                    <ul className="list-disc pl-6 space-y-1">
-                       <li>The directors are retiring.</li>
-                       <li>The company has served its purpose.</li>
-                       <li>You wish to extract capital from the business.</li>
+                       <li>Shareholder resolutions</li>
+                       <li>Appointment of a liquidator</li>
+                       <li>Final CIPC and SARS compliance</li>
+                       <li>Deregistration upon completion</li>
                    </ul>
                 </CardContent>
             </Card>
              <Card>
                 <CardHeader>
-                    <CardTitle>Insolvent Companies</CardTitle>
+                    <CardTitle>2. Voluntary Liquidation (Insolvent)</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-muted-foreground">
-                   <p>If your company cannot pay its debts, liquidation is a legal necessity to:</p>
+                   <p>This applies when the company cannot pay its debts and creditors’ interests must be protected. We manage:</p>
                    <ul className="list-disc pl-6 space-y-1">
-                       <li>Prevent further debt and trading recklessly.</li>
-                       <li>Ensure fair treatment of creditors.</li>
-                       <li>Formally and legally close the company's affairs.</li>
+                       <li>Required resolutions and notices</li>
+                       <li>Coordination with the appointed liquidator</li>
+                       <li>SARS and CIPC compliance support</li>
+                       <li>Practical guidance for directors</li>
+                   </ul>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader>
+                    <CardTitle>3. Compulsory Liquidation (Court-Ordered)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-muted-foreground">
+                   <p>In cases where creditors apply to court to liquidate the company or there is severe financial distress or dispute. My Accountant supports directors with:</p>
+                   <ul className="list-disc pl-6 space-y-1">
+                       <li>Compliance preparation</li>
+                       <li>SARS matters and outstanding returns</li>
+                       <li>Advisory support during liquidation</li>
                    </ul>
                 </CardContent>
             </Card>
@@ -90,32 +138,87 @@ export default function LiquidationsPage() {
       <section className="bg-background py-16">
         <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Our Liquidation Process</h2>
-                <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-                    We guide you through every step of the process.
+                <h2 className="text-3xl font-bold">What Our Liquidation Service Includes</h2>
+                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                    We don’t just process paperwork — we walk the journey with you.
                 </p>
             </div>
-            <div className="relative">
-                <div aria-hidden="true" className="absolute hidden md:block w-0.5 h-full bg-border left-1/2 -translate-x-1/2"></div>
-                 <div className="space-y-12 md:space-y-0 md:grid md:grid-cols-2 md:gap-x-8 md:gap-y-12">
-                    {processSteps.map((step, index) => (
-                    <div key={step.title} className={`flex items-start gap-4 ${index % 2 === 1 ? 'md:flex-row-reverse md:text-right' : ''}`}>
-                        <div className="flex-shrink-0 bg-primary text-primary-foreground h-10 w-10 rounded-full flex items-center justify-center font-bold text-lg">{index + 1}</div>
-                        <div>
-                            <h3 className="text-lg font-semibold">{step.title}</h3>
-                            <p className="text-sm text-muted-foreground">{step.description}</p>
-                        </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
+                {processSteps.map((step, index) => (
+                <div key={step.title} className="flex items-start gap-4">
+                    <div className="bg-primary/10 rounded-full h-10 w-10 flex items-center justify-center flex-shrink-0">
+                         <CheckCircle className="h-5 w-5 text-primary" />
                     </div>
-                    ))}
-                 </div>
+                    <div>
+                        <h3 className="text-lg font-semibold">{step.title}</h3>
+                        <p className="text-sm text-muted-foreground">{step.description}</p>
+                    </div>
+                </div>
+                ))}
             </div>
         </div>
       </section>
+
+       <section className="container mx-auto px-4">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold">Why Use My Accountant?</h2>
+                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                    We don’t sell time — we sell comfort.
+                </p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                {whyChooseUs.map((benefit) => (
+                    <div key={benefit.title} className="flex flex-col items-center text-center gap-4">
+                        <div className="bg-primary/10 rounded-full h-16 w-16 flex items-center justify-center">
+                            <benefit.icon className="h-8 w-8 text-primary" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold">{benefit.title}</h3>
+                            <p className="text-sm text-muted-foreground mt-1">{benefit.description}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+      </section>
       
+        <section className="container mx-auto px-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Important Things Directors Should Know</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-muted-foreground">
+                        <ul className="list-disc pl-6 space-y-2">
+                            <li>Liquidation does not automatically remove director liability</li>
+                            <li>Outstanding tax returns and compliance issues must still be addressed</li>
+                            <li>Early professional advice can prevent unnecessary personal exposure</li>
+                            <li>Each liquidation is unique — getting the right guidance matters</li>
+                        </ul>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Documents Typically Required</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-muted-foreground">
+                        <p>While requirements differ by case, we usually need:</p>
+                        <ul className="list-disc pl-6 space-y-1">
+                            <li>Company registration details</li>
+                            <li>Latest financial statements (if available)</li>
+                            <li>List of assets and liabilities</li>
+                            <li>Director and shareholder information</li>
+                            <li>SARS tax numbers and compliance status</li>
+                        </ul>
+                        <p className="text-xs italic pt-2">Don’t worry — if something is missing, we’ll help you work through it.</p>
+                    </CardContent>
+                </Card>
+            </div>
+        </section>
+
       <section className="container mx-auto px-4 text-center">
-        <h2 className="text-3xl font-bold">Need to Close Your Company?</h2>
+        <h2 className="text-3xl font-bold">Need Help Deciding If Liquidation Is Right?</h2>
         <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-            Let us handle the complexities of liquidation so you can move forward with confidence.
+            If you’re unsure whether liquidation is the correct step, we’re happy to assess your situation and explain your options before you commit. Contact My Accountant today for professional liquidation assistance and clear guidance you can trust.
         </p>
         <Button asChild size="lg" className="mt-8">
             <Link href="/contact">Book a Consultation</Link>
