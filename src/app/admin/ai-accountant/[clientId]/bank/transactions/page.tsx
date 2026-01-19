@@ -2133,6 +2133,46 @@ const ReviewedTab = React.forwardRef<
                 </Tabs>
                 <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-2 flex-wrap">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                    <span>Reallocate Selected</span><ChevronsUpDown className="ml-2 h-4 w-4"/>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-64">
+                                {client?.chartOfAccounts?.map(acc => (
+                                    <DropdownMenuSub key={acc.id}>
+                                        <DropdownMenuSubTrigger><span>{acc.description}</span></DropdownMenuSubTrigger>
+                                        <DropdownMenuSubContent>
+                                            {client.isVatRegistered ? allVatTypes.map(vat => (
+                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                    {vat.label}
+                                                </DropdownMenuItem>
+                                            )) : (
+                                                <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                    No VAT
+                                                </DropdownMenuItem>
+                                            )}
+                                        </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" disabled={selectedTransactions.length === 0}>Delete Selected</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
                             {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Download Excel
@@ -2275,50 +2315,7 @@ const ReviewedTab = React.forwardRef<
                     </Table>
                 </div>
             </CardContent>
-             <CardFooter className="flex items-center justify-between p-4">
-                 <div className="flex items-center gap-2">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="outline" disabled={selectedTransactions.length === 0}>
-                                <span>Reallocate Selected</span><ChevronsUpDown className="ml-2 h-4 w-4"/>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-64">
-                            {client?.chartOfAccounts?.map(acc => (
-                                <DropdownMenuSub key={acc.id}>
-                                    <DropdownMenuSubTrigger><span>{acc.description}</span></DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        {client.isVatRegistered ? allVatTypes.map(vat => (
-                                            <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                {vat.label}
-                                            </DropdownMenuItem>
-                                        )) : (
-                                            <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                No VAT
-                                            </DropdownMenuItem>
-                                        )}
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive" disabled={selectedTransactions.length === 0}>Delete Selected</Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                 </div>
+             <CardFooter className="flex items-center justify-end p-4">
                 <div className="flex items-center gap-2">
                     {!(searchTerm.trim() || accountFilter !== 'all') && (
                         <>
