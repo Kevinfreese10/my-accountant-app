@@ -24,6 +24,8 @@ const navLinks = [
   { href: '/about', label: 'About' },
   { href: '/blog', label: 'Blog' },
   { href: '/compliance', label: 'Compliance' },
+  { href: '/sars-compromise', label: 'SARS Compromise' },
+  { href: '/liquidations', label: 'Liquidations' },
   { href: '/become-a-partner', label: 'Become a Partner' },
   { href: '/contact', label: 'Contact' },
 ];
