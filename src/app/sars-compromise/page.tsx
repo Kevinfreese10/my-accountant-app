@@ -153,76 +153,90 @@ export default function SarsCompromisePage() {
        <section className="container mx-auto px-4 max-w-4xl">
          <div className="text-center mb-12">
             <h2 className="text-3xl font-bold">SARS Section 200 to 205 Explained</h2>
-            <p className="text-muted-foreground mt-2">A plain-English breakdown of what SARS looks at under each section of the Tax Administration Act.</p>
+            <p className="text-muted-foreground mt-2">(Tax Administration Act – Practical Requirements)</p>
         </div>
          <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="item-1">
                 <AccordionTrigger>Section 200 – Compromise of Tax Debt</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line">
-                    SARS may compromise a tax debt if:
-                    - The taxpayer is in serious financial hardship
-                    - Recovery of the full amount is unlikely
-                    - The compromise is fair, equitable, and in the public interest
-                    **Key point:** This is discretionary — SARS is not obliged to agree.
+                <AccordionContent className="space-y-2">
+                    <p>SARS may compromise a tax debt if:</p>
+                    <ul className="list-disc pl-6 space-y-1">
+                        <li>The taxpayer is in serious financial hardship</li>
+                        <li>Recovery of the full amount is unlikely</li>
+                        <li>The compromise is fair, equitable, and in the public interest</li>
+                    </ul>
+                    <p className="font-semibold pt-2">Key point: This is discretionary — SARS is not obliged to agree.</p>
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-2">
                 <AccordionTrigger>Section 201 – Request for Compromise</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line">
-                    The taxpayer must:
-                    - Apply voluntarily
-                    - Submit the request in the prescribed form
-                    - Disclose full and honest financial information
-                    Any false or misleading information = automatic rejection.
+                <AccordionContent className="space-y-2">
+                    <p>The taxpayer must:</p>
+                    <ul className="list-disc pl-6 space-y-1">
+                        <li>Apply voluntarily</li>
+                        <li>Submit the request in the prescribed form</li>
+                        <li>Disclose full and honest financial information</li>
+                    </ul>
+                    <p className="font-semibold pt-2">Any false or misleading information will result in automatic rejection.</p>
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-3">
                 <AccordionTrigger>Section 202 – Information Required by SARS</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line">
-                    SARS may require:
-                    - Full statement of assets and liabilities
-                    - Income and expenditure details
-                    - Bank statements
-                    - Business financials (if applicable)
-                    - Details of connected persons and entities
-                    - Explanation of how the debt arose
-                    - Proposed compromise amount and basis
-                    **Full disclosure is mandatory.**
+                <AccordionContent className="space-y-2">
+                    <p>SARS may require:</p>
+                    <ul className="list-disc pl-6 space-y-1">
+                        <li>Full statement of assets and liabilities</li>
+                        <li>Income and expenditure details</li>
+                        <li>Bank statements</li>
+                        <li>Business financials (if applicable)</li>
+                        <li>Details of connected persons and entities</li>
+                        <li>Explanation of how the debt arose</li>
+                        <li>Proposed compromise amount and basis</li>
+                    </ul>
+                    <p className="font-semibold pt-2">Full disclosure is mandatory.</p>
                 </AccordionContent>
               </AccordionItem>
                <AccordionItem value="item-4">
                 <AccordionTrigger>Section 203 – Evaluation by SARS</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line">
-                    SARS will consider:
-                    - The taxpayer’s ability to pay
-                    - Whether liquidation, sequestration, or judgment would recover more
-                    - Whether the compromise amount is commercially reasonable
-                    - Compliance history
-                    - Public interest and precedent risk
-                    If SARS believes it can recover more via enforcement, the application will fail.
+                <AccordionContent className="space-y-2">
+                    <p>SARS will consider:</p>
+                    <ul className="list-disc pl-6 space-y-1">
+                        <li>The taxpayer’s ability to pay</li>
+                        <li>Whether liquidation, sequestration, or judgment would recover more</li>
+                        <li>Whether the compromise amount is commercially reasonable</li>
+                        <li>Compliance history</li>
+                        <li>Public interest and precedent risk</li>
+                    </ul>
+                    <p className="font-semibold pt-2">If SARS believes it can recover more via enforcement, the application will fail.</p>
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-5">
                 <AccordionTrigger>Section 204 – Effect of Accepted Compromise</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line">
-                    Once accepted:
-                    - The agreed amount becomes legally payable
-                    - Remaining debt is written off
-                    - The compromise replaces the original tax liability
-                    - Non-compliance with the compromise terms voids the agreement
-                    **The compromise is final and binding.**
+                <AccordionContent className="space-y-2">
+                    <p>Once accepted:</p>
+                    <ul className="list-disc pl-6 space-y-1">
+                        <li>The agreed amount becomes legally payable</li>
+                        <li>Remaining debt is written off</li>
+                        <li>The compromise replaces the original tax liability</li>
+                        <li>Non-compliance with the compromise terms voids the agreement</li>
+                    </ul>
+                    <p className="font-bold pt-2">The compromise is final and binding.</p>
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-6">
                 <AccordionTrigger>Section 205 – Invalid or Void Compromises</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line">
-                    A compromise becomes invalid if:
-                    - Information was false or incomplete
-                    - The taxpayer fails to meet the agreed terms
-                    - Fraud or misrepresentation is later discovered
-                    In such cases:
-                    - SARS may reinstate the full original debt
-                    - Enforcement action may resume immediately
+                <AccordionContent className="space-y-2">
+                    <p>A compromise becomes invalid if:</p>
+                    <ul className="list-disc pl-6 space-y-1">
+                        <li>Information was false or incomplete</li>
+                        <li>The taxpayer fails to meet the agreed terms</li>
+                        <li>Fraud or misrepresentation is later discovered</li>
+                    </ul>
+                    <p className="pt-2">In such cases:</p>
+                    <ul className="list-disc pl-6 space-y-1">
+                        <li>SARS may reinstate the full original debt</li>
+                        <li>Enforcement action may resume immediately</li>
+                    </ul>
                 </AccordionContent>
               </AccordionItem>
           </Accordion>
@@ -245,7 +259,7 @@ export default function SarsCompromisePage() {
                         <CardTitle>Typical Documents Required</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-muted-foreground">
-                        <p>While requirements differ by case, we usually need:</p>
+                        <p>While each case differs, SARS usually requires:</p>
                         <ul className="list-disc pl-6 space-y-1">
                             {documentsRequired.map((doc, index) => <li key={index}>{doc}</li>)}
                         </ul>
