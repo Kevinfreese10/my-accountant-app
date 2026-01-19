@@ -100,7 +100,11 @@ const categorizeSupportRequestFlow = ai.defineFlow(
       {{#each attachments}}
       ---
       File: {{this.filename}}
+      {{#if this.dataUrl}}
       Content: {{media url=this.dataUrl}}
+      {{else}}
+      Content: [Attachment content not viewable or of an unsupported type: {{this.contentType}}]
+      {{/if}}
       ---
       {{/each}}
       {{/if}}
