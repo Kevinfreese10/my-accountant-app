@@ -46,7 +46,6 @@
     "firebase": "^11.9.1",
     "genkit": "1.19.1",
     "html2canvas": "^1.4.1",
-    "imap-simple": "^5.1.0",
     "ipaddr.js": "^2.2.0",
     "jspdf": "^2.5.1",
     "lucide-react": "^0.475.0",
@@ -66,7 +65,6 @@
     "xlsx": "^0.18.5",
     "react-markdown": "^9.0.1",
     "@react-pdf/renderer": "^3.4.4",
-    "mailparser": "^3.7.1",
     "crypto-js": "^4.2.0"
   },
   "devDependencies": {
@@ -81,8 +79,6 @@
     "@types/nodemailer": "^6.4.15",
     "@types/papaparse": "^5.3.14",
     "@types/react-pdf": "^7.0.0",
-    "@types/imap-simple": "^4.2.9",
-    "@types/mailparser": "^3.4.4",
     "@types/crypto-js": "^4.2.2"
   }
 }

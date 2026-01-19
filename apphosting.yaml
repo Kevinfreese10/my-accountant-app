@@ -16,9 +16,3 @@ env:
     availability:
       - BUILD
       - RUNTIME
-
-# Scheduled jobs configuration
-scheduledJobs:
-  - schedule: "every 15 minutes"
-    uri: /api/ai-inbox/fetch-emails
-    httpMethod: POST
