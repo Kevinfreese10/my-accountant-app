@@ -44,23 +44,157 @@ export default function SarsCompromisePage() {
     },
   ];
 
-  const documentsRequired = [
-    'ID / company registration documents',
-    'Detailed statement of assets & liabilities',
-    'Bank statements (usually 6–12 months)',
-    'Latest financial statements or management accounts',
-    'Income and expense breakdown',
-    'Explanation of financial distress',
-    'Proposed settlement amount and source of funds',
-    'Confirmation of tax compliance submissions (even if unpaid)',
+  const sarsSections = [
+    {
+        title: 'Section 200 – Compromise of Tax Debt',
+        content: `SARS may compromise a tax debt if:
+- The taxpayer is in serious financial hardship
+- Recovery of the full amount is unlikely
+- The compromise is fair, equitable, and in the public interest
+
+Key point:
+👉 This is discretionary — SARS is not obliged to agree.`
+    },
+    {
+        title: 'Section 201 – Request for Compromise',
+        content: `The taxpayer must:
+- Apply voluntarily
+- Submit the request in the prescribed form
+- Disclose full and honest financial information
+
+Any false or misleading information = automatic rejection.`
+    },
+    {
+        title: 'Section 202 – Information Required by SARS',
+        content: `SARS may require:
+- Full statement of assets and liabilities
+- Income and expenditure details
+- Bank statements
+- Business financials (if applicable)
+- Details of connected persons and entities
+- Explanation of how the debt arose
+- Proposed compromise amount and basis
+
+👉 Full disclosure is mandatory.`
+    },
+    {
+        title: 'Section 203 – Evaluation by SARS',
+        content: `SARS will consider:
+- The taxpayer’s ability to pay
+- Whether liquidation, sequestration, or judgment would recover more
+- Whether the compromise amount is commercially reasonable
+- Compliance history
+- Public interest and precedent risk
+
+If SARS believes it can recover more via enforcement, the application will fail.`
+    },
+    {
+        title: 'Section 204 – Effect of Accepted Compromise',
+        content: `Once accepted:
+- The agreed amount becomes legally payable
+- Remaining debt is written off
+- The compromise replaces the original tax liability
+- Non-compliance with the compromise terms voids the agreement
+
+👉 The compromise is final and binding.`
+    },
+    {
+        title: 'Section 205 – Invalid or Void Compromises',
+        content: `A compromise becomes invalid if:
+- Information was false or incomplete
+- The taxpayer fails to meet the agreed terms
+- Fraud or misrepresentation is later discovered
+
+In such cases:
+- SARS may reinstate the full original debt
+- Enforcement action may resume immediately`
+    },
   ];
 
-  const importantPoints = [
-    'A Section 200 Compromise is not guaranteed.',
-    'SARS expects absolute transparency.',
-    'One-size-fits-all motivations do not work.',
-    'Professional preparation significantly improves outcomes.',
-    'Applying incorrectly can worsen enforcement action.',
+  const whenYouCannot = [
+    {
+        title: '1. Where SARS Can Recover the Full Debt',
+        content: `You cannot enter into a compromise if SARS can reasonably recover the debt through:
+- Instalment payment agreements
+- Judgments
+- Third-party appointments
+- Liquidation or sequestration
+
+📌 If enforcement is likely to recover more than the compromise offer, SARS must reject the application.`
+    },
+    {
+        title: '2. Where the Taxpayer Is Not in Genuine Financial Distress',
+        content: `A compromise is not allowed where:
+- The taxpayer has sufficient income or assets
+- The financial hardship is temporary
+- Cash flow constraints are short-term
+- Assets could be sold without severe hardship
+
+👉 A compromise is reserved for severe, long-term distress.`
+    },
+    {
+        title: '3. Where There Is Dishonesty or Non-Disclosure',
+        content: `SARS will not enter into a compromise if:
+- Information is false, misleading, or incomplete
+- Assets or income are concealed
+- There is failure to disclose connected parties
+- The taxpayer is not fully transparent
+
+📌 Even after approval, non-disclosure can void the compromise under Section 205.`
+    },
+    {
+        title: '4. Where the Tax Debt Arose From Fraud or Intentional Tax Evasion',
+        content: `You cannot enter into a compromise if the debt is linked to:
+- Fraud
+- Intentional tax evasion
+- Falsified returns
+- Fabricated supporting documents
+
+📌 SARS policy is extremely strict where intentional misconduct is present.`
+    },
+    {
+        title: '5. Where the Taxpayer Is Non-Compliant With Submissions',
+        content: `SARS will not consider a compromise if:
+- Returns are outstanding (even if unpaid)
+- Compliance obligations are ignored
+- The taxpayer refuses to regularise submissions
+
+👉 All returns must be submitted before SARS will evaluate a compromise.`
+    },
+    {
+        title: '6. Where the Application Is Used to Delay Enforcement',
+        content: `A compromise is not permitted where:
+- The application is submitted solely to delay collections
+- There is no genuine settlement intent
+- The offer is unrealistic or speculative
+
+📌 SARS actively screens for abusive or tactical applications.`
+    },
+    {
+        title: '7. Where the Proposed Offer Is Not Commercially Reasonable',
+        content: `SARS will reject the compromise if:
+- The offer is materially below what SARS could recover
+- No credible funding source exists
+- The offer lacks a rational basis
+
+👉 SARS requires a realistic, defensible offer, not a “best-case wish”.`
+    },
+    {
+        title: '8. Where the Taxpayer Has a History of Repeat Non-Compliance',
+        content: `A compromise is unlikely or unavailable if:
+- The taxpayer has repeated defaults
+- Previous arrangements were breached
+- There is a pattern of ignoring SARS obligations
+
+📌 Compliance history weighs heavily in SARS’s decision.`
+    },
+    {
+        title: '9. Where the Compromise Would Undermine Public Interest',
+        content: `SARS will not enter into a compromise if:
+- It creates a negative precedent
+- It undermines voluntary compliance
+- It is inconsistent with fairness to compliant taxpayers`
+    }
   ];
 
   return (
@@ -89,7 +223,7 @@ export default function SarsCompromisePage() {
               A Section 200 Compromise may be suitable if your tax debt has become unmanageable and full recovery by SARS is unlikely.
             </p>
         </div>
-        <Card className="max-w-3xl mx-auto">
+        <Card className="max-w-xl mx-auto mt-4 text-left">
             <CardHeader>
                 <CardTitle>A compromise may be suitable if:</CardTitle>
             </CardHeader>
@@ -156,122 +290,34 @@ export default function SarsCompromisePage() {
             <p className="text-muted-foreground mt-2">(Tax Administration Act – Practical Requirements)</p>
         </div>
          <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="item-1">
-                <AccordionTrigger>Section 200 – Compromise of Tax Debt</AccordionTrigger>
-                <AccordionContent className="space-y-2">
-                    <p>SARS may compromise a tax debt if:</p>
-                    <ul className="list-disc pl-6 space-y-1">
-                        <li>The taxpayer is in serious financial hardship</li>
-                        <li>Recovery of the full amount is unlikely</li>
-                        <li>The compromise is fair, equitable, and in the public interest</li>
-                    </ul>
-                    <p className="font-semibold pt-2">Key point: This is discretionary — SARS is not obliged to agree.</p>
-                </AccordionContent>
+            {sarsSections.map((section, index) => (
+              <AccordionItem key={index} value={`item-${index}`}>
+                <AccordionTrigger className="text-left">{section.title}</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line">{section.content}</AccordionContent>
               </AccordionItem>
-              <AccordionItem value="item-2">
-                <AccordionTrigger>Section 201 – Request for Compromise</AccordionTrigger>
-                <AccordionContent className="space-y-2">
-                    <p>The taxpayer must:</p>
-                    <ul className="list-disc pl-6 space-y-1">
-                        <li>Apply voluntarily</li>
-                        <li>Submit the request in the prescribed form</li>
-                        <li>Disclose full and honest financial information</li>
-                    </ul>
-                    <p className="font-semibold pt-2">Any false or misleading information will result in automatic rejection.</p>
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="item-3">
-                <AccordionTrigger>Section 202 – Information Required by SARS</AccordionTrigger>
-                <AccordionContent className="space-y-2">
-                    <p>SARS may require:</p>
-                    <ul className="list-disc pl-6 space-y-1">
-                        <li>Full statement of assets and liabilities</li>
-                        <li>Income and expenditure details</li>
-                        <li>Bank statements</li>
-                        <li>Business financials (if applicable)</li>
-                        <li>Details of connected persons and entities</li>
-                        <li>Explanation of how the debt arose</li>
-                        <li>Proposed compromise amount and basis</li>
-                    </ul>
-                    <p className="font-semibold pt-2">Full disclosure is mandatory.</p>
-                </AccordionContent>
-              </AccordionItem>
-               <AccordionItem value="item-4">
-                <AccordionTrigger>Section 203 – Evaluation by SARS</AccordionTrigger>
-                <AccordionContent className="space-y-2">
-                    <p>SARS will consider:</p>
-                    <ul className="list-disc pl-6 space-y-1">
-                        <li>The taxpayer’s ability to pay</li>
-                        <li>Whether liquidation, sequestration, or judgment would recover more</li>
-                        <li>Whether the compromise amount is commercially reasonable</li>
-                        <li>Compliance history</li>
-                        <li>Public interest and precedent risk</li>
-                    </ul>
-                    <p className="font-semibold pt-2">If SARS believes it can recover more via enforcement, the application will fail.</p>
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="item-5">
-                <AccordionTrigger>Section 204 – Effect of Accepted Compromise</AccordionTrigger>
-                <AccordionContent className="space-y-2">
-                    <p>Once accepted:</p>
-                    <ul className="list-disc pl-6 space-y-1">
-                        <li>The agreed amount becomes legally payable</li>
-                        <li>Remaining debt is written off</li>
-                        <li>The compromise replaces the original tax liability</li>
-                        <li>Non-compliance with the compromise terms voids the agreement</li>
-                    </ul>
-                    <p className="font-bold pt-2">The compromise is final and binding.</p>
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="item-6">
-                <AccordionTrigger>Section 205 – Invalid or Void Compromises</AccordionTrigger>
-                <AccordionContent className="space-y-2">
-                    <p>A compromise becomes invalid if:</p>
-                    <ul className="list-disc pl-6 space-y-1">
-                        <li>Information was false or incomplete</li>
-                        <li>The taxpayer fails to meet the agreed terms</li>
-                        <li>Fraud or misrepresentation is later discovered</li>
-                    </ul>
-                    <p className="pt-2">In such cases:</p>
-                    <ul className="list-disc pl-6 space-y-1">
-                        <li>SARS may reinstate the full original debt</li>
-                        <li>Enforcement action may resume immediately</li>
-                    </ul>
-                </AccordionContent>
-              </AccordionItem>
+            ))}
           </Accordion>
       </section>
-
-      <section className="container mx-auto px-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Important Things to Know Before Applying</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-muted-foreground">
-                        <ul className="list-disc pl-6 space-y-2">
-                           {importantPoints.map((point, index) => <li key={index}>{point}</li>)}
-                        </ul>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Typical Documents Required</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-muted-foreground">
-                        <p>While each case differs, SARS usually requires:</p>
-                        <ul className="list-disc pl-6 space-y-1">
-                            {documentsRequired.map((doc, index) => <li key={index}>{doc}</li>)}
-                        </ul>
-                    </CardContent>
-                </Card>
-            </div>
-        </section>
+      
+       <section className="container mx-auto px-4 max-w-4xl">
+         <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold">When You Cannot Enter Into a SARS Section 200 Compromise</h2>
+            <p className="text-muted-foreground mt-2">A Section 200 Compromise is an exceptional remedy, not a right. SARS will not consider or will reject a compromise application in the following circumstances:</p>
+        </div>
+         <Accordion type="single" collapsible className="w-full">
+            {whenYouCannot.map((item, index) => (
+              <AccordionItem key={index} value={`item-cannot-${index}`}>
+                <AccordionTrigger className="text-left">{item.title}</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line">{item.content}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+      </section>
 
       <section className="container mx-auto px-4 text-center">
         <h2 className="text-3xl font-bold">Need Help With a SARS Compromise?</h2>
         <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-            If you’re facing serious tax debt and need a realistic, lawful solution, speak to My Accountant before SARS escalates enforcement. Contact us today for a confidential assessment of your Section 200 Compromise eligibility.
+            If you’re facing serious tax debt and need a realistic, lawful solution, speak to My Accountant before SARS escalates enforcement.
         </p>
         <Button asChild size="lg" className="mt-8">
             <Link href="/contact">Contact Us For A Confidential Assessment</Link>
