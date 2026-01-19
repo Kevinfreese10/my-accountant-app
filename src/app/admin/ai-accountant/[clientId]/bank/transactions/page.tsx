@@ -809,9 +809,7 @@ const NewTransactionsTab = React.forwardRef<
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
-                // @ts-ignore
-                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
-                const snapshot = await getDocs(unlimitedQuery);
+                const snapshot = await getDocs(baseQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -1661,9 +1659,7 @@ const ReviewedTab = React.forwardRef<
             if (!reviewedTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                 // @ts-ignore
-                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
-                const snapshot = await getDocs(unlimitedQuery);
+                const snapshot = await getDocs(reviewedTransactionsQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -2450,9 +2446,7 @@ const ForReviewTab = React.forwardRef<
             if (!reviewTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                 // @ts-ignore
-                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
-                const snapshot = await getDocs(unlimitedQuery);
+                const snapshot = await getDocs(reviewTransactionsQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
