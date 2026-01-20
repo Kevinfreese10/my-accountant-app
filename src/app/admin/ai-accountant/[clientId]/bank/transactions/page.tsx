@@ -65,24 +65,24 @@ function cleanDescription(description: string): string {
     cleaned = cleaned.replace(/[\u00A0\u2000-\u200B]/g, " ").replace(/\s+/g, " ").trim();
 
     // 2.2 Remove common noise tokens
-    cleaned = cleaned.replace(/(?i)\b(?:ZA|SOUTH\s*AFRICA|S\s*A)\b/g, '');
+    cleaned = cleaned.replace(/\b(?:ZA|SOUTH\s*AFRICA|S\s*A)\b/gi, '');
     cleaned = cleaned.replace(/[|•·]+/g, '');
 
     // 7. Strip prefixes
     const prefixes = [
-        /(?i)^\s*(?:cheque\s*card|debit\s*card|card)\s+(?:purchase|purch)\s+/g,
-        /(?i)^\s*(?:eft|internet\s*banking|ib\s*(?:payment|pmt)|online\s*banking|payment|pay\s*and\s*clear)\s+/g,
-        /(?i)^\s*(?:trf|transfer|xfer)\s+/g,
-        /(?i)^\s*(?:debit\s*order|d\/o|debit\s*ord|collection|coll|naedo|early\s*debit)\s+/g,
-        /(?i)^\s*(?:atm|cash\s*withdrawal|withdrawal|cash\s*wd)\s+/g,
-        /(?i)^\s*(?:bank\s*charges?|fees?|service\s*fee|monthly\s*fee|admin\s*fee|commission|charges?)\s+/g,
+        /^\s*(?:cheque\s*card|debit\s*card|card)\s+(?:purchase|purch)\s+/gi,
+        /^\s*(?:eft|internet\s*banking|ib\s*(?:payment|pmt)|online\s*banking|payment|pay\s*and\s*clear)\s+/gi,
+        /^\s*(?:trf|transfer|xfer)\s+/gi,
+        /^\s*(?:debit\s*order|d\/o|debit\s*ord|collection|coll|naedo|early\s*debit)\s+/gi,
+        /^\s*(?:atm|cash\s*withdrawal|withdrawal|cash\s*wd)\s+/gi,
+        /^\s*(?:bank\s*charges?|fees?|service\s*fee|monthly\s*fee|admin\s*fee|commission|charges?)\s+/gi,
     ];
     for (const prefix of prefixes) {
         cleaned = cleaned.replace(prefix, '');
     }
 
     // 4.2 Remove trailing noise
-    cleaned = cleaned.replace(/(?i)\s+\b\d{4}\s+\d{4}\b.*$/g, '');
+    cleaned = cleaned.replace(/\s+\b\d{4}\s+\d{4}\b.*$/gi, '');
     cleaned = cleaned.replace(/\s+\d{6,}.*$/g, '');
 
     // 4.1 Generic supplier capture
@@ -93,8 +93,8 @@ function cleanDescription(description: string): string {
     merchant = merchant.toUpperCase();
     merchant = merchant.replace(/[^\w\s&']/g, ' '); // Keep apostrophe
     merchant = merchant.replace(/\s+/g, ' ');
-    merchant = merchant.replace(/(?i)\b(?:PTY|LTD|LIMITED|CC|INC|THE|AND|SERVICES|SERVICE|SOLUTIONS|GROUP|HOLDINGS)\b/g, '');
-    merchant = merchant.replace(/(?i)\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b\.?/g, '');
+    merchant = merchant.replace(/\b(?:PTY|LTD|LIMITED|CC|INC|THE|AND|SERVICES|SERVICE|SOLUTIONS|GROUP|HOLDINGS)\b/gi, '');
+    merchant = merchant.replace(/\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b\.?/gi, '');
     merchant = merchant.replace(/\b\d{1,2}\b/g, '');
     
     return merchant.replace(/\s+/g, ' ').trim();
@@ -857,8 +857,8 @@ const NewTransactionsTab = React.forwardRef<
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
-                // Create a new query without the limit constraint for fetching all
-                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery.constraints.filter((c: any) => c.type !== 'limit'));
+                 // @ts-ignore
+                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
                 setAllTransactions(allDocs);
