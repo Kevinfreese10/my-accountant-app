@@ -60,68 +60,68 @@ const formatPrice = (price: number) => {
 function cleanDescription(description: string): string {
     if (!description) return '';
 
-    // 1. Pre-clean
-    let cleaned = description
-        .replace(/[\u00A0\u2000-\u200B]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+    // A. Universal pre-clean
+    let cleaned = description.toUpperCase().trim();
+    cleaned = cleaned.replace(/\s+/g, ' '); // Collapse whitespace
 
-    // 2. Strip Prefixes
-    const prefixes = [
-        /^\s*(?:pos|card|cheque\s*card|debit\s*card|mastercard|visa)\s+(?:purchase|purch)?\s+/i,
-        /^\s*PURCH\s+/i,
-        /^\s*(?:eft|internet\s*banking|ib\s*(?:payment|pmt)|online\s*banking|pay\s*and\s*clear|payment|pay|trf|transfer|xfer)\s+/i,
-        /^\s*(?:debit\s*order|d\/o|debit\s*ord|collection|coll|naedo|early\s*debit)\s+/i,
-        /^\s*(?:atm|cash\s*wd|withdrawal|cash\s*withdrawal)\s+/i,
-        /^\s*(?:bank\s*charges?|service\s*fee|fees?|monthly\s*fee|ledger\s*fee|admin\s*fee|commission|charges?)\s+/i,
-        /^\s*(?:interest|int\s*(?:paid|recv|received|earned)?)\s+/i
-    ];
-    for (const prefix of prefixes) {
-        cleaned = cleaned.replace(prefix, '');
-    }
+    // Remove dates and times
+    cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, '');
+    cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, '');
+    cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, '');
 
-    // 3. Remove trailing card numbers and other obvious transaction codes FIRST.
-    cleaned = cleaned.replace(/\s+\d{6,}\*{6,}\d{4,}.*$/, '');
-    cleaned = cleaned.replace(/\s+\b\d{4}\s+\d{4}.*$/i, ''); 
-
-    // 4. Handle cases where known merchant names are squished with numbers
-    const knownAnchors = ['DISCINSURE', 'AFRIHOST', 'AQUAZANIA', 'FERSTORAGE'];
-    for (const anchor of knownAnchors) {
-        const regex = new RegExp(`^(${anchor})(\\d+.*)`, 'i');
-        const match = cleaned.match(regex);
-        if (match) {
-            cleaned = anchor;
-            break;
-        }
-    }
-
-    // 5. Split and decide where the merchant name ends.
-    const parts = cleaned.split(' ');
-    let merchantParts = [];
-    for (const part of parts) {
-        // Heuristic: Stop if the part looks like a long reference number/code
-        // e.g., A241316379, JAR1692948, or purely numeric long strings
-        if ((/[A-Z]/.test(part) && /\d/.test(part) && part.length > 8) || /^\d{7,}$/.test(part)) {
-            break;
-        }
-        merchantParts.push(part);
-    }
-    cleaned = merchantParts.join(' ');
-
-    // 6. Final Canonicalization
-    let merchant = cleaned.toUpperCase();
+    // Remove card / terminal / auth codes
+    cleaned = cleaned.replace(/\b(POS|TERM|TERMINAL|AUTH|REF|TXN|TRN)[\s\-]*\d+\b/g, '');
     
-    // Remove generic stop-words
-    merchant = merchant.replace(/\b(PTY|LTD|LIMITED|CC|INC|THE|AND|SERVICES?|SOLUTIONS?|GROUP|HOLDINGS?|AUTOMOTIVE|SA|ST|'S)\b/gi, '');
-    // Remove month fragments
-    merchant = merchant.replace(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b\.?/gi, '');
-    // Remove trailing day numbers
-    merchant = merchant.replace(/\s+\d{1,2}$/, '');
-    // Remove punctuation except ampersand
-    merchant = merchant.replace(/[^\w\s&]/g, ' '); 
+    // Remove bank noise words (prefixes are more specific)
+    const prefixes = [
+        'CHEQUE CARD PURCHASE', 'CARD PURCHASE', 'POS PURCHASE', 'DEBIT CARD PURCH',
+        'EFT PAYMENT', 'INTERNET TRANSFER', 'IB PAYMENT', 'ONLINE PAYMENT', 'PAYMENT TO', 'PAYMENT',
+        'DEBIT ORDER', 'D/O', 'NAEDO COLLECTION', 'COLLECTION',
+        'ATM WITHDRAWAL', 'CASH WITHDRAWAL',
+        'BANK CHARGES', 'SERVICE FEE', 'MONTHLY FEE',
+        'PURCH', 'TRF', 'TRANSFER', 'XFER', 'DEBIT'
+    ];
+    const prefixRegex = new RegExp(`^\\s*(${prefixes.join('|')})\\s*`, 'i');
+    cleaned = cleaned.replace(prefixRegex, '').trim();
 
-    // Collapse whitespace again after all replacements
-    return merchant.replace(/\s+/g, ' ').trim();
+    // Handle special cases where merchant name is squished with numbers
+    const knownAnchors = ['AFRIHOST', 'AQUAZANIA', 'DISCINSURE'];
+     for (const anchor of knownAnchors) {
+        if (cleaned.startsWith(anchor)) {
+            return anchor;
+        }
+    }
+
+    // Remove legal entity suffixes
+    cleaned = cleaned.replace(/\b(PTY|LTD|LIMITED|CC|INC|CO|COMPANY|SOC)\b/g, '');
+    
+    // Remove punctuation & symbols (more comprehensive)
+    cleaned = cleaned.replace(/[*\/#_\-.,'|•·]+/g, ' ');
+    
+    // Remove trailing card numbers and codes after major prefixes are gone
+    cleaned = cleaned.replace(/\s+\d{6,}\*{2,}\d{4,}.*$/, ''); // Masked card numbers
+    cleaned = cleaned.replace(/\s+\d{4,}\s+\d{4,}.*$/, '');   // Unmasked card numbers
+
+    // Remove location abbreviations
+    cleaned = cleaned.replace(/\b(CPT|JHB|PTA|DBN|KZN|WC|GAU|EC|GP)\b/g, '');
+    
+    // C. Stop-word list
+    cleaned = cleaned.replace(/\b(SA|SOUTH|AFRICA|STORE|ONLINE|SHOP|PAYMENT|ACCOUNT|AUTOMOTIVE|SERVICE|ST)\b/g, '');
+    
+    // D. Final normalisation
+    cleaned = cleaned.replace(/\s+/g, ' ').trim(); // Collapse spaces
+    
+    // Remove short tokens (less than 3 chars) but keep some known ones
+    let tokens = cleaned.split(' ').filter(token => token.length >= 3 || ['BP'].includes(token));
+
+    // Keep first 1–3 tokens max
+    if (tokens.length > 3) {
+      tokens = tokens.slice(0, 3);
+    }
+
+    cleaned = tokens.join(' ').trim();
+
+    return cleaned;
 }
 // #endregion
 
@@ -846,7 +846,8 @@ const NewTransactionsTab = React.forwardRef<
             setIsFetchingAll(true);
             try {
                 // @ts-ignore
-                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
+                const constraints = baseQuery._query.constraints.filter((c) => c.type !== 'limit');
+                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...constraints);
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
@@ -1700,8 +1701,9 @@ const ReviewedTab = React.forwardRef<
             if (!reviewedTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                 // @ts-ignore
-                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
+                // @ts-ignore
+                const constraints = reviewedTransactionsQuery._query.constraints.filter((c) => c.type !== 'limit');
+                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...constraints);
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
@@ -2490,7 +2492,8 @@ const ForReviewTab = React.forwardRef<
             setIsFetchingAll(true);
             try {
                  // @ts-ignore
-                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
+                const constraints = reviewTransactionsQuery._query.constraints.filter((c) => c.type !== 'limit');
+                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...constraints);
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
