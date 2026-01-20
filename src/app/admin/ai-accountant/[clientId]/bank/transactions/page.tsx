@@ -342,28 +342,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                                     <p className="text-lg font-bold">{new Intl.NumberFormat('en-GB', { style: 'decimal', minimumFractionDigits: 2 }).format(newBalance)}</p>
                                 </div>
                             </div>
-                             <div className="max-h-64 overflow-y-auto border rounded-md">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Date</TableHead>
-                                            <TableHead>Original Description</TableHead>
-                                            <TableHead>Cleaned Description</TableHead>
-                                            <TableHead className="text-right">Amount</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {parsedTransactions.map((tx, index) => (
-                                            <TableRow key={index}>
-                                                <TableCell>{tx.Date}</TableCell>
-                                                <TableCell>{tx.Description}</TableCell>
-                                                <TableCell className="font-semibold">{tx.CleanedDescription}</TableCell>
-                                                <TableCell className="text-right font-mono">{formatPrice(tx.Amount)}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
                         </div>
                      }
                 </div>
@@ -880,8 +858,8 @@ const NewTransactionsTab = React.forwardRef<
             setIsFetchingAll(true);
             try {
                 // Create a new query without the limit constraint for fetching all
-                const allQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery.constraints.filter((c: any) => c.type !== 'limit'));
-                const snapshot = await getDocs(allQuery);
+                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery.constraints.filter((c: any) => c.type !== 'limit'));
+                const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -1735,8 +1713,8 @@ const ReviewedTab = React.forwardRef<
             setIsFetchingAll(true);
             try {
                 // Create a new query without the limit constraint for fetching all
-                const allQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery.constraints.filter((c: any) => c.type !== 'limit'));
-                const snapshot = await getDocs(allQuery);
+                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery.constraints.filter((c: any) => c.type !== 'limit'));
+                const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -2206,47 +2184,11 @@ const ReviewedTab = React.forwardRef<
                 </Tabs>
                 <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
-                                    <span>Reallocate Selected</span><ChevronsUpDown className="ml-2 h-4 w-4"/>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-64">
-                                {client?.chartOfAccounts?.map(acc => (
-                                    <DropdownMenuSub key={acc.id}>
-                                        <DropdownMenuSubTrigger><span>{acc.description}</span></DropdownMenuSubTrigger>
-                                        <DropdownMenuSubContent>
-                                            {client.isVatRegistered ? allVatTypes.map(vat => (
-                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                    {vat.label}
-                                                </DropdownMenuItem>
-                                            )) : (
-                                                <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                    No VAT
-                                                </DropdownMenuItem>
-                                            )}
-                                        </DropdownMenuSubContent>
-                                    </DropdownMenuSub>
-                                ))}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive" disabled={selectedTransactions.length === 0}>Delete Selected</Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                        <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                        <Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Save Changes
+                        </Button>
+                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
                             {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Download Excel
                         </Button>
@@ -2269,10 +2211,6 @@ const ReviewedTab = React.forwardRef<
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
-                         <Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
-                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Save Changes
-                        </Button>
                     </div>
                      <div className="flex items-center gap-2 flex-wrap justify-end">
                         <DateRangePicker onDateChange={setDateRange} />
@@ -2298,6 +2236,48 @@ const ReviewedTab = React.forwardRef<
                             />
                         </div>
                      </div>
+                </div>
+                <div className="p-4 border-t flex items-center gap-2">
+                     <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" disabled={selectedTransactions.length === 0}>
+                                    <span>Reallocate Selected</span><ChevronsUpDown className="ml-2 h-4 w-4"/>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-64">
+                                {client?.chartOfAccounts?.map(acc => (
+                                    <DropdownMenuSub key={acc.id}>
+                                        <DropdownMenuSubTrigger><span>{acc.description}</span></DropdownMenuSubTrigger>
+                                        <DropdownMenuSubContent>
+                                            {client.isVatRegistered ? allVatTypes.map(vat => (
+                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                    {vat.label}
+                                                </DropdownMenuItem>
+                                            )) : (
+                                                <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                    No VAT
+                                                </DropdownMenuItem>
+                                            )}
+                                        </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm" disabled={selectedTransactions.length === 0}>Delete Selected</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -2523,9 +2503,8 @@ const ForReviewTab = React.forwardRef<
             if (!reviewTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                // Create a new query without the limit constraint for fetching all
-                const allQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery.constraints.filter((c: any) => c.type !== 'limit'));
-                const snapshot = await getDocs(allQuery);
+                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery.constraints.filter((c: any) => c.type !== 'limit'));
+                const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
