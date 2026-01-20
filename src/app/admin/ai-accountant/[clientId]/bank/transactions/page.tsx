@@ -62,65 +62,66 @@ function cleanDescription(description: string): string {
 
     let cleaned = description.toUpperCase().trim();
 
-    // Specific anchor keywords first
-    const knownAnchors = ['AFRIHOST', 'AQUAZANIA', 'DISCINSURE'];
-    for (const anchor of knownAnchors) {
+    // Specific anchors first
+    const anchorMap: { [key: string]: string } = {
+        'AFRIHOST': 'AFRIHOST',
+        'AQUAZANIA': 'AQUAZANIA',
+        'DISCINSURE': 'DISCINSURE'
+    };
+
+    for (const anchor in anchorMap) {
         if (cleaned.startsWith(anchor)) {
-            return anchor;
+            return anchorMap[anchor];
         }
     }
-    
+
     // A. Universal pre-clean
     cleaned = cleaned.replace(/[\u00A0\u2000-\u200B]/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // 7. Ready-to-use “strip prefixes” library
+    // Prefixes
     const prefixes = [
-        'CHEQUE CARD PURCHASE', 'CARD PURCHASE', 'POS PURCHASE', 'DEBIT CARD PURCH',
-        'EFT PAYMENT', 'INTERNET TRANSFER', 'IB PAYMENT', 'ONLINE PAYMENT', 'PAYMENT TO', 'PAYMENT FROM', 'PAYMENT',
-        'DEBIT ORDER', 'D/O', 'NAEDO COLLECTION', 'COLLECTION', 'DEBIT ORD',
-        'ATM WITHDRAWAL', 'CASH WITHDRAWAL',
+        'CHEQUE CARD PURCHASE', 'CARD PURCHASE', 'POS PURCHASE', 'DEBIT CARD PURCH', 'PURCH',
+        'EFT PAYMENT', 'INTERNET TRANSFER', 'IB PAYMENT', 'ONLINE PAYMENT', 'PAYMENT TO', 'PAYMENT FROM', 'PAYMENT', 'TRF', 'TRANSFER', 'XFER', 'IB',
+        'DEBIT ORDER', 'D/O', 'NAEDO COLLECTION', 'COLLECTION', 'DEBIT ORD', 'DO',
+        'ATM WITHDRAWAL', 'CASH WITHDRAWAL', 'ATM', 'CASH WD',
         'BANK CHARGES', 'SERVICE FEE', 'MONTHLY FEE', 'LEDGER FEE', 'ADMIN FEE', 'COMMISSION', 'CHARGES',
-        'PURCH', 'TRF', 'TRANSFER', 'XFER', 'DEBIT', 'CREDIT', 'IB', 'DO', 'ATM'
+        'DEBIT', 'CREDIT'
     ];
     const prefixRegex = new RegExp(`^\\s*(${prefixes.join('|').replace(/\s/g, '\\s*')})\\s*`, 'i');
     cleaned = cleaned.replace(prefixRegex, '').trim();
-
-    // Remove dates (common SA formats) and times
-    cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, '');
-    cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, '');
-    cleaned = cleaned.replace(/\b\d{1,2}\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/g, '');
-    cleaned = cleaned.replace(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{1,2}\b/g, '');
-    cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, '');
     
-    // Remove card / terminal / auth codes
+    // Dates, times, and specific codes
+    cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, ''); // DD/MM/YYYY, DD-MM-YY etc.
+    cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, ''); // YYYY-MM-DD
+    cleaned = cleaned.replace(/\b\d{1,2}\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/gi, '');
+    cleaned = cleaned.replace(/\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{1,2}\b/gi, '');
+    cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, ''); // HH:MM:SS
     cleaned = cleaned.replace(/\b(POS|TERM|TERMINAL|AUTH|REF|TXN|TRN)[\s\-]*\d+/gi, '');
     
-    // Remove legal entity suffixes
-    cleaned = cleaned.replace(/\b(PTY|LTD|LIMITED|CC|INC|CO|COMPANY|SOC)\b/g, '');
+    // Trailing noise
+    cleaned = cleaned.replace(/\s+\b\d{4,}\s+\d{4,}.*$/g, '');
+    cleaned = cleaned.replace(/\s+[A-Z0-9]{8,}\b/g, ''); // Long alphanumeric ref codes at the end
+
+    // Legal entity suffixes
+    cleaned = cleaned.replace(/\b(PTY|LTD|LIMITED|CC|INC|CO|COMPANY|SOC|PROPRIETARY)\b/gi, '');
     
-    // Remove punctuation & symbols
-    cleaned = cleaned.replace(/[*\/#_\-.,']/g, ' ');
-
-    // Remove trailing noise last
-    cleaned = cleaned.replace(/\s+\b\d{4,}\s+\d{4,}.*$/g, ''); // e.g., 4278 4642
-    cleaned = cleaned.replace(/\s+\d{6,}.*$/g, '');           // Long numeric tail
-    cleaned = cleaned.replace(/\s+[A-Z0-9]{10,}\b/g, '');     // long alphanumeric reference codes
-
-    // C. Stop-word list (post-regex)
+    // Stop-words
     const stopWords = ['SA', 'SOUTH', 'AFRICA', 'STORE', 'ONLINE', 'SHOP', 'PAYMENT', 'ACCOUNT'];
     const stopWordRegex = new RegExp(`\\b(${stopWords.join('|')})\\b`, 'gi');
     cleaned = cleaned.replace(stopWordRegex, '');
-
-    // D. Final normalisation rules
-    cleaned = cleaned.replace(/\s+/g, ' ').trim(); // Collapse spaces again
+    
+    // Punctuation and final normalization
+    cleaned = cleaned.replace(/[*\/#_\-.,']/g, ' ').replace(/\s+/g, ' ').trim();
+    
     let tokens = cleaned.split(' ').filter(token => token && token.length >= 2);
     
-    // Specific edge case for single-word merchants that get split
+    // Edge cases for common merchants
     if (description.toUpperCase().includes('PICK N PAY') || description.toUpperCase().includes('PNP')) return 'PICK N PAY';
+    if (description.toUpperCase().includes('DIS-CHEM')) return 'DIS-CHEM';
 
-    cleaned = tokens.slice(0, 3).join(' ').trim(); // Keep first 1-3 tokens
+    cleaned = tokens.slice(0, 3).join(' ').trim();
 
-    return cleaned;
+    return cleaned || description.toUpperCase().split(' ')[0]; // Fallback
 }
 // #endregion
 
@@ -268,7 +269,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
 
             let toastDescription = `${parsedTransactions.length} transactions have been imported.`;
             if (allocatedCount > 0) {
-                toastDescription += ` ${allocatedCount} transaction(s) were automatically allocated for review.`;
+                toastDescription += ` ${allocatedCount} expense(s) were automatically allocated for review.`;
             }
 
             toast({ title: "Import Successful", description: toastDescription});
@@ -1022,26 +1023,22 @@ const NewTransactionsTab = React.forwardRef<
     const handleAiAllocateAll = async () => {
         if (!client || !client.uid || !bankAccountId) return;
         setIsAiAllocating(true);
-        const toastId = toast({ title: "Gathering transactions...", description: "Finding all new transactions to send to the AI.", duration: Infinity }).id;
+        const toastId = toast({ title: "Gathering transactions...", description: "Finding all new expense transactions to send to the AI.", duration: Infinity }).id;
 
         try {
             let q = query(
                 collection(db, 'aiAccountantClients', client.uid, 'transactions'),
                 where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'new')
+                where('status', '==', 'new'),
+                where('amount', '<', 0) // Only expenses
             );
-            if (activeSubTab === 'expenses') {
-                q = query(q, where('amount', '<', 0));
-            } else {
-                q = query(q, where('amount', '>=', 0));
-            }
 
             const snapshot = await getDocs(q);
             const transactionsToProcess = snapshot.docs.map(d => d.id);
 
             if (transactionsToProcess.length === 0) {
                 dismiss(toastId);
-                toast({ title: "No new transactions found." });
+                toast({ title: "No new expense transactions found." });
                 setIsAiAllocating(false);
                 setIsAiAllDialogOpen(false);
                 return;
@@ -1060,7 +1057,7 @@ const NewTransactionsTab = React.forwardRef<
             }
 
             dismiss(toastId);
-            toast({ title: "Transactions Moved", description: `${transactionsToProcess.length} transactions sent for AI processing.`});
+            toast({ title: "Transactions Moved", description: `${transactionsToProcess.length} expense transactions sent for AI processing.`});
             
             refetch(); // this will empty the current view
         } catch (error) {
@@ -1265,14 +1262,14 @@ const NewTransactionsTab = React.forwardRef<
                     <DialogHeader>
                         <DialogTitle>AI Allocate All</DialogTitle>
                         <DialogDescription>
-                            This will send ALL new {activeSubTab} in this bank account to the AI workflow for processing. Are you sure?
+                            This will send ALL new expenses in this bank account to the AI workflow for processing. Are you sure?
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={() => setIsAiAllDialogOpen(false)}>Cancel</Button>
                         <Button type="button" onClick={handleAiAllocateAll} disabled={isAiAllocating}>
                             {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
-                            Yes, Allocate All
+                            Yes, Allocate All Expenses
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1370,10 +1367,10 @@ const NewTransactionsTab = React.forwardRef<
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                         <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                         <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0 || activeSubTab === 'income'}>
                             <Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
                         </Button>
-                        <Button variant="outline" onClick={() => setIsAiAllDialogOpen(true)} disabled={isAiAllocating}>
+                        <Button variant="outline" onClick={() => setIsAiAllDialogOpen(true)} disabled={isAiAllocating || activeSubTab === 'income'}>
                             <Sparkles className="mr-2 h-4 w-4"/> AI Allocate All
                         </Button>
                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
@@ -2934,13 +2931,18 @@ const ForReviewTab = React.forwardRef<
 ForReviewTab.displayName = 'ForReviewTab';
 
 
-const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData }: { client: User | null; bankAccountId: string | null; chartOfAccounts: ChartOfAccount[], fetchClientData: () => void; }) => {
+const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData, openCreateRuleDialog }: { 
+    client: User | null; 
+    bankAccountId: string | null; 
+    chartOfAccounts: ChartOfAccount[], 
+    fetchClientData: () => void;
+    openCreateRuleDialog: (defaults: Partial<z.infer<typeof ruleFormSchema>>) => void;
+}) => {
     const { toast, dismiss } = useToast();
     const [isProcessing, setIsProcessing] = useState(false);
     const [groupSuggestions, setGroupSuggestions] = useState<Record<string, AIAllocationResult>>({});
     const [isDownloading, setIsDownloading] = useState(false);
     const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -2953,47 +2955,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
     const { documents: transactions, isLoading, refetch } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: 500 });
 
-    const handleRejectSelected = async () => {
-        if (!client || selectedTransactions.length === 0) return;
-
-        toast({ title: 'Rejecting selected transactions...', description: `Moving ${selectedTransactions.length} items back to New.` });
-
-        try {
-            const batch = writeBatch(db);
-            selectedTransactions.forEach(txId => {
-                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                batch.update(txRef, {
-                    status: 'new',
-                    aiAllocationResult: null,
-                    extractedSupplier: null,
-                });
-            });
-            await batch.commit();
-
-            toast({ title: 'Transactions Moved', description: 'Selected items have been moved back to the "New Transactions" tab.'});
-            setSelectedTransactions([]);
-            refetch();
-
-        } catch (error) {
-            console.error("Error rejecting selected transactions:", error);
-            toast({ title: 'Rejection Failed', variant: 'destructive' });
-        }
-    };
-
-    const handleTransactionSelect = (txId: string, checked: boolean) => {
-        setSelectedTransactions(prev => 
-            checked ? [...prev, txId] : prev.filter(id => id !== txId)
-        );
-    };
-
-    const handleGroupSelect = (txsInGroup: ImportedTransaction[], checked: boolean) => {
-        const txIdsInGroup = txsInGroup.map(tx => tx.id);
-        setSelectedTransactions(prev => {
-            const otherSelected = prev.filter(id => !txIdsInGroup.includes(id));
-            return checked ? [...otherSelected, ...txIdsInGroup] : otherSelected;
-        });
-    };
-    
     const handleProcessWorkflow = async () => {
         if (!client || !client.uid || transactions.length === 0) return;
         const transactionsToProcess = transactions.filter(tx => tx.status === 'ai_processing');
@@ -3007,60 +2968,38 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
         try {
             // Step 1: Extract supplier names
-            toast({ id: toastId, title: "Step 1/4: Extracting Suppliers...", description: "AI is cleaning up transaction descriptions." });
+            toast({ id: toastId, title: "Step 1/3: Extracting Suppliers...", description: "AI is cleaning up transaction descriptions." });
             const transactionsWithSuppliers = await Promise.all(transactionsToProcess.map(async (tx) => {
                 try {
-                    const { supplier } = await extractSupplierName({ description: tx.description });
+                    const { supplier } = await extractSupplierName({ description: tx.cleanedDescription || tx.description });
                     return { ...tx, extractedSupplier: supplier };
                 } catch (e) {
-                    return { ...tx, extractedSupplier: tx.description.split(' ')[0].toUpperCase() }; // Fallback
+                    return { ...tx, extractedSupplier: tx.cleanedDescription?.split(' ')[0].toUpperCase() || 'UNKNOWN' }; // Fallback
                 }
             }));
             
             // Step 2: Group by supplier
-            const initialGroups = transactionsWithSuppliers.reduce((acc, tx) => {
+            const groups = transactionsWithSuppliers.reduce((acc, tx) => {
                 const key = tx.extractedSupplier || 'UNKNOWN';
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
                 return acc;
             }, {} as Record<string, (ImportedTransaction & {extractedSupplier?: string})[]>);
             
-            toast({ id: toastId, title: `Step 2/4: Consolidating Groups...`, description: `Found ${Object.keys(initialGroups).length} initial groups.` });
-
-            // Step 3: Consolidate groups
-            const groupKeys = Object.keys(initialGroups).sort((a, b) => b.length - a.length);
-            const mergedGroups: Record<string, (ImportedTransaction & {extractedSupplier?: string})[]> = {};
-            const processedKeys = new Set<string>();
-
-            for (const key of groupKeys) {
-                if (processedKeys.has(key)) continue;
-
-                mergedGroups[key] = [...(mergedGroups[key] || []), ...initialGroups[key]];
-                processedKeys.add(key);
-
-                for (const otherKey of groupKeys) {
-                    if (processedKeys.has(otherKey) || key === otherKey) continue;
-                    if (key.includes(otherKey)) {
-                        mergedGroups[key] = [...(mergedGroups[key] || []), ...initialGroups[otherKey]];
-                        processedKeys.add(otherKey);
-                    }
-                }
-            }
+            const totalGroups = Object.keys(groups).length;
+            toast({ id: toastId, title: `Step 2/3: Allocating Groups...`, description: `Found ${totalGroups} groups.` });
             
-            const totalGroups = Object.keys(mergedGroups).length;
-            toast({ id: toastId, title: `Step 3/4: Allocating Groups...`, description: `Consolidated to ${totalGroups} groups.` });
-            
-            // Step 4: Allocate each group
+            // Step 3: Allocate each group
             const chartOfAccountsJson = JSON.stringify(chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
             const allUpdatePromises: Promise<any>[] = [];
             let processedCount = 0;
 
-            for (const supplier in mergedGroups) {
-                const group = mergedGroups[supplier];
+            for (const supplier in groups) {
+                const group = groups[supplier];
                 const representativeTx = group[0];
                 
                 processedCount++;
-                toast({ id: toastId, title: `Step 3/4: Allocating Groups (${processedCount}/${totalGroups})`, description: `Analyzing: ${supplier}` });
+                toast({ id: toastId, title: `Step 2/3: Allocating Groups (${processedCount}/${totalGroups})`, description: `Analyzing: ${supplier}` });
 
                 try {
                     const result = await suggestTransactionAllocation({
@@ -3069,15 +3008,13 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                         isVatRegistered: client.isVatRegistered || false,
                     });
                     
-                    const finalResult = result.confidence < 80 ? { ...result, accountId: '' } : result;
-
                     const batch = writeBatch(db);
                     group.forEach(tx => {
                         const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
                         batch.update(txRef, {
                             status: 'ai_review',
                             extractedSupplier: supplier,
-                            aiAllocationResult: finalResult || null,
+                            aiAllocationResult: result || null,
                         });
                     });
                     allUpdatePromises.push(batch.commit());
@@ -3093,7 +3030,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 }
             }
             
-            toast({ id: toastId, title: `Step 4/4: Finalizing...`, description: 'Saving results.' });
+            toast({ id: toastId, title: `Step 3/3: Finalizing...`, description: 'Saving results.' });
             await Promise.all(allUpdatePromises);
             dismiss(toastId);
             toast({ title: 'AI Workflow Complete!', description: 'Review the suggestions below and approve or reject them.' });
@@ -3119,7 +3056,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         
         const initialSuggestions: Record<string, AIAllocationResult> = {};
         Object.entries(groups).forEach(([key, group]) => {
-            if (group[0] && group[0].aiAllocationResult) {
+            if (group[0] && group[0].aiAllocationResult && group[0].aiAllocationResult.confidence >= 80) {
                 initialSuggestions[key] = group[0].aiAllocationResult;
             }
         });
@@ -3150,48 +3087,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         toast({ title: 'Approved!', description: `${txIds.length} transactions moved to Reviewed.`});
         refetch();
     };
-    
-    const handleApproveSelected = async () => {
-        if (!client || selectedGroups.length === 0) return;
-        toast({ title: 'Approving selected groups...', description: `Processing ${selectedGroups.length} groups.`});
-
-        try {
-            const allUpdatePromises: Promise<any>[] = [];
-
-            for (const supplierKey of selectedGroups) {
-                const suggestion = groupSuggestions[supplierKey];
-                if (!suggestion || !suggestion.accountId) {
-                    toast({ title: 'Error', description: `Please select an account for the group "${supplierKey}".`, variant: 'destructive'});
-                    continue; // Skip this group if no account is selected
-                }
-
-                const groupTransactions = groupedForReview.find(([key]) => key === supplierKey)?.[1];
-                if (!groupTransactions) continue;
-
-                const batch = writeBatch(db);
-                groupTransactions.forEach(tx => {
-                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                    batch.update(txRef, {
-                        status: 'allocated',
-                        allocatedTo: { value: suggestion.accountId, type: 'account'},
-                        vatType: client.isVatRegistered ? suggestion.vatType : 'no_vat',
-                        allocatedAt: new Date(),
-                    });
-                });
-                allUpdatePromises.push(batch.commit());
-            }
-
-            await Promise.all(allUpdatePromises);
-            toast({ title: 'Approval Complete!', description: `${selectedGroups.length} groups have been approved.`});
-            setSelectedGroups([]);
-            refetch();
-
-        } catch (error) {
-            console.error('Error approving selected groups:', error);
-            toast({ title: 'Approval Failed', variant: 'destructive'});
-        }
-    };
-
 
     const handleReject = async (txIds: string[]) => {
          if (!client || txIds.length === 0) return;
@@ -3218,80 +3113,21 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             }
         }))
     }
-
-    const handleDownloadExcel = async () => {
-        if (!client || !client.uid || !bankAccountId) return;
-        if (groupedForReview.length === 0) {
-            toast({ title: 'No Data to Download', description: 'There are no grouped transactions to download.' });
+    
+    const handleCreateRule = (supplierKey: string) => {
+        const suggestion = groupSuggestions[supplierKey];
+        if(!suggestion || !suggestion.accountId) {
+            toast({ title: 'Cannot Create Rule', description: 'Please select an account for this group first.', variant: 'destructive'});
             return;
         }
-        setIsDownloading(true);
-        toast({ title: "Preparing Download...", description: "Generating Excel file with grouped transactions." });
-
-        try {
-            const wb = XLSX.utils.book_new();
-            
-            let allData: any[][] = [];
-
-            groupedForReview.forEach(([supplier, txs]) => {
-                const suggestion = groupSuggestions[supplier];
-                const account = suggestion?.accountId ? chartOfAccounts.find(acc => acc.id === suggestion.accountId)?.description : 'Not Suggested';
-                const vatType = suggestion?.vatType ? allVatTypes.find(vt => vt.name === suggestion.vatType)?.label : 'N/A';
-
-                // Add header for the group
-                allData.push([`Group: ${supplier}`]);
-                allData.push([`Suggested Allocation: ${account} (${vatType})`]);
-
-                // Add transaction headers
-                allData.push([
-                    'Date',
-                    'Description',
-                    'Reference',
-                    'Amount',
-                ]);
-
-                // Add transaction rows for the group
-                txs.forEach(tx => {
-                    allData.push([
-                        format(new Date(tx.date), 'dd/MM/yyyy'),
-                        tx.description,
-                        tx.reference,
-                        tx.amount,
-                    ]);
-                });
-
-                // Add a spacer row
-                allData.push([]); 
-            });
-
-            const ws = XLSX.utils.aoa_to_sheet(allData);
-            
-            // Set column widths
-            ws['!cols'] = [{ wch: 15 }, { wch: 50 }, { wch: 20 }, { wch: 15 }];
-            
-            // Format amount column as currency
-            const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-            for (let R = range.s.r; R <= range.e.r; ++R) {
-                const cell_address = { c: 3, r: R }; // Column D is the Amount column
-                const cell_ref = XLSX.utils.encode_cell(cell_address);
-                if (ws[cell_ref] && typeof ws[cell_ref].v === 'number') {
-                    ws[cell_ref].t = 'n';
-                    ws[cell_ref].z = 'R #,##0.00';
-                }
-            }
-            
-            XLSX.utils.book_append_sheet(wb, ws, "AI Workflow Groups");
-            XLSX.writeFile(wb, `AI-Workflow-Groups_${client.name.replace(/\s/g, '_')}.xlsx`);
-
-            toast({ title: 'Download Ready!', description: 'Your Excel file has been downloaded.' });
-        } catch (error) {
-            console.error("Error downloading excel:", error);
-            toast({ title: 'Download Failed', description: 'Could not generate the Excel file.', variant: 'destructive' });
-        } finally {
-            setIsDownloading(false);
-        }
-    };
-
+        openCreateRuleDialog({
+            keywords: supplierKey,
+            accountId: suggestion.accountId,
+            vatType: suggestion.vatType,
+            description: `Auto-rule for ${supplierKey}`,
+            scope: 'client',
+        });
+    }
 
     return (
         <Card>
@@ -3304,20 +3140,10 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 ? `${transactions.filter(tx => tx.status === 'ai_processing').length} transaction(s) are ready for AI processing.`
                                 : groupedForReview.length > 0
                                     ? `${groupedForReview.length} groups are ready for your review.`
-                                    : 'Transactions sent for AI allocation are processed here.'
+                                    : 'Expense transactions sent for AI allocation are processed here.'
                             }
                         </CardDescription>
                     </div>
-                     <div className="flex items-center gap-2">
-                         <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0}>Approve Selected Groups ({selectedGroups.length})</Button>
-                         <Button variant="destructive" onClick={handleRejectSelected} disabled={selectedTransactions.length === 0}>
-                            Reject Selected Items ({selectedTransactions.length})
-                        </Button>
-                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading || transactions.length === 0}>
-                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                            Download Batch
-                        </Button>
-                     </div>
                 </div>
             </CardHeader>
             <CardContent>
@@ -3337,43 +3163,17 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     <div className="text-center py-10 text-muted-foreground">No transactions are currently in the AI workflow.</div>
                 ) : (
                     <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-                         <div className="p-3 flex items-center gap-4 border-b">
-                            <Checkbox
-                                id="select-all-groups"
-                                checked={selectedGroups.length === groupedForReview.length && groupedForReview.length > 0}
-                                onCheckedChange={(checked) => {
-                                    if (checked) {
-                                        setSelectedGroups(groupedForReview.map(([key]) => key));
-                                    } else {
-                                        setSelectedGroups([]);
-                                    }
-                                }}
-                            />
-                            <Label htmlFor="select-all-groups" className="font-semibold">Select all groups</Label>
-                        </div>
                         {groupedForReview.map(([supplier, txs]) => {
                              const suggestion = groupSuggestions[supplier];
-                             const handleGroupCheckboxChange = (checked: boolean) => {
-                                const txIdsInGroup = txs.map(tx => tx.id);
-                                setSelectedTransactions(prev => {
-                                    const otherSelected = prev.filter(id => !txIdsInGroup.includes(id));
-                                    return checked ? [...otherSelected, ...txIdsInGroup] : otherSelected;
-                                });
-                            };
+                             const originalAISuggestion = txs[0]?.aiAllocationResult;
                              return (
                                 <div key={supplier} className="border rounded-lg">
                                     <div className="p-3 bg-muted/50 flex justify-between items-center flex-wrap gap-4">
                                         <div className="flex items-center gap-4 flex-grow">
-                                            <Checkbox
-                                                checked={selectedGroups.includes(supplier)}
-                                                onCheckedChange={(checked) => {
-                                                    setSelectedGroups(prev => checked ? [...prev, supplier] : prev.filter(s => s !== supplier));
-                                                }}
-                                            />
                                             <div>
                                                 <h3 className="font-bold">{supplier} <span className="text-sm font-normal text-muted-foreground">({txs.length} items)</span></h3>
                                                 <div className="text-xs text-muted-foreground">
-                                                    Original AI Confidence: {suggestion?.confidence ? `${suggestion.confidence}%` : 'N/A'}
+                                                    Original AI Confidence: {originalAISuggestion?.confidence ? `${originalAISuggestion.confidence}%` : 'N/A'}
                                                 </div>
                                             </div>
                                         </div>
@@ -3392,20 +3192,15 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                             </Select>
                                         </div>
                                         <div className="flex gap-2">
+                                            <Button size="sm" variant="outline" onClick={() => handleCreateRule(supplier)} disabled={!suggestion?.accountId}>Create Rule</Button>
                                             <Button size="sm" variant="destructive" onClick={() => handleReject(txs.map(t => t.id))}>Reject Group</Button>
                                             <Button size="sm" onClick={() => handleApprove(txs.map(t => t.id), supplier)} disabled={!suggestion?.accountId}>Approve Group</Button>
                                         </div>
                                     </div>
-                                    <div>
+                                    <div className="max-h-48 overflow-y-auto">
                                          <Table>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead className="w-12 p-2">
-                                                        <Checkbox
-                                                            checked={txs.length > 0 && txs.every(tx => selectedTransactions.includes(tx.id))}
-                                                            onCheckedChange={(checked) => handleGroupCheckboxChange(!!checked)}
-                                                         />
-                                                    </TableHead>
                                                     <TableHead className="w-[120px]">Date</TableHead>
                                                     <TableHead>Description</TableHead>
                                                     <TableHead className="text-right w-[150px]">Amount</TableHead>
@@ -3413,13 +3208,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                             </TableHeader>
                                             <TableBody>
                                                 {txs.map(tx => (
-                                                     <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) ? "selected" : ""}>
-                                                        <TableCell className="p-2">
-                                                            <Checkbox
-                                                                checked={selectedTransactions.includes(tx.id)}
-                                                                onCheckedChange={(checked) => handleTransactionSelect(tx.id, !!checked)}
-                                                            />
-                                                        </TableCell>
+                                                     <TableRow key={tx.id}>
                                                         <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
                                                         <TableCell className="text-xs">{tx.description}</TableCell>
                                                         <TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}</TableCell>
@@ -3452,6 +3241,8 @@ export default function BankTransactionsPage() {
     const [activeTab, setActiveTab] = useState<'new' | 'review' | 'ai_workflow' | 'reviewed'>('new');
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
+    const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
+    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
     const reviewedTabRef = useRef<{ refetch: () => void; }>(null);
@@ -3618,6 +3409,18 @@ export default function BankTransactionsPage() {
     
     return (
         <div className="space-y-4">
+             <CreateRuleDialog
+                client={client}
+                onRuleCreated={fetchClientAndRelatedData}
+                open={isCreateRuleOpen}
+                onOpenChange={(isOpen) => {
+                    setIsCreateRuleOpen(isOpen);
+                    if (!isOpen) {
+                        setRuleDefaultValues({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
+                    }
+                }}
+                defaultValues={ruleDefaultValues}
+            />
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-card border rounded-lg">
                 <div className="flex w-full items-center justify-between md:w-auto md:justify-start md:gap-4">
@@ -3725,7 +3528,13 @@ export default function BankTransactionsPage() {
                     />
                 </TabsContent>
                 <TabsContent value="ai_workflow" className="mt-0">
-                    <AIWorkflowTab client={client} bankAccountId={selectedAccountId} chartOfAccounts={client?.chartOfAccounts || []} fetchClientData={fetchClientAndRelatedData} />
+                    <AIWorkflowTab 
+                        client={client} 
+                        bankAccountId={selectedAccountId} 
+                        chartOfAccounts={client?.chartOfAccounts || []} 
+                        fetchClientData={fetchClientAndRelatedData} 
+                        openCreateRuleDialog={(defaults) => { setRuleDefaultValues(defaults); setIsCreateRuleOpen(true); }}
+                    />
                 </TabsContent>
                  <TabsContent value="review" className="mt-0">
                    <ForReviewTab 
