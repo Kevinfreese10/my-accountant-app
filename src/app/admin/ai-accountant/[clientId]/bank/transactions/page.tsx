@@ -1,4 +1,4 @@
- 'use client';
+'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -62,23 +62,33 @@ function cleanDescription(description: string): string {
 
     let cleaned = description.toUpperCase().trim();
 
-    // Specific anchors first
+    // Specific anchors first - this ensures high-accuracy matches are prioritized
     const anchorMap: { [key: string]: string } = {
         'AFRIHOST': 'AFRIHOST',
         'AQUAZANIA': 'AQUAZANIA',
-        'DISCINSURE': 'DISCINSURE'
+        'DISCINSURE': 'DISCINSURE',
+        'OUTSURANCE': 'OUTSURANCE',
+        'DISCOVERY': 'DISCOVERY',
+        'SANLAM': 'SANLAM',
+        'OLD MUTUAL': 'OLD MUTUAL',
+        'MOMENTUM': 'MOMENTUM',
+        'HOLLARD': 'HOLLARD',
+        'MIWAY': 'MIWAY',
+        'KING PRICE': 'KING PRICE',
     };
 
     for (const anchor in anchorMap) {
-        if (cleaned.startsWith(anchor)) {
+        if (cleaned.includes(anchor)) {
             return anchorMap[anchor];
         }
     }
 
-    // A. Universal pre-clean
+    // 1. Universal Pre-clean
     cleaned = cleaned.replace(/[\u00A0\u2000-\u200B]/g, ' ').replace(/\s+/g, ' ').trim();
+    cleaned = cleaned.replace(/\b(ZA|SOUTH AFRICA|S A)\b/gi, '');
+    cleaned = cleaned.replace(/[|•·]+/g, '');
 
-    // Prefixes
+    // 2. Strip prefixes first (more aggressive)
     const prefixes = [
         'CHEQUE CARD PURCHASE', 'CARD PURCHASE', 'POS PURCHASE', 'DEBIT CARD PURCH', 'PURCH',
         'EFT PAYMENT', 'INTERNET TRANSFER', 'IB PAYMENT', 'ONLINE PAYMENT', 'PAYMENT TO', 'PAYMENT FROM', 'PAYMENT', 'TRF', 'TRANSFER', 'XFER', 'IB',
@@ -89,39 +99,33 @@ function cleanDescription(description: string): string {
     ];
     const prefixRegex = new RegExp(`^\\s*(${prefixes.join('|').replace(/\s/g, '\\s*')})\\s*`, 'i');
     cleaned = cleaned.replace(prefixRegex, '').trim();
-    
-    // Dates, times, and specific codes
-    cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, ''); // DD/MM/YYYY, DD-MM-YY etc.
-    cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, ''); // YYYY-MM-DD
+
+    // 3. Remove noise (dates, times, codes)
+    cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, ''); 
+    cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, ''); 
     cleaned = cleaned.replace(/\b\d{1,2}\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/gi, '');
     cleaned = cleaned.replace(/\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{1,2}\b/gi, '');
-    cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, ''); // HH:MM:SS
+    cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, ''); 
     cleaned = cleaned.replace(/\b(POS|TERM|TERMINAL|AUTH|REF|TXN|TRN)[\s\-]*\d+/gi, '');
     
-    // Trailing noise
+    // 4. Remove trailing noise and legal entities
     cleaned = cleaned.replace(/\s+\b\d{4,}\s+\d{4,}.*$/g, '');
-    cleaned = cleaned.replace(/\s+[A-Z0-9]{8,}\b/g, ''); // Long alphanumeric ref codes at the end
-
-    // Legal entity suffixes
+    cleaned = cleaned.replace(/\s+[A-Z0-9]{8,}\b/g, '');
     cleaned = cleaned.replace(/\b(PTY|LTD|LIMITED|CC|INC|CO|COMPANY|SOC|PROPRIETARY)\b/gi, '');
-    
-    // Stop-words
-    const stopWords = ['SA', 'SOUTH', 'AFRICA', 'STORE', 'ONLINE', 'SHOP', 'PAYMENT', 'ACCOUNT'];
-    const stopWordRegex = new RegExp(`\\b(${stopWords.join('|')})\\b`, 'gi');
-    cleaned = cleaned.replace(stopWordRegex, '');
-    
-    // Punctuation and final normalization
+
+    // 5. Final normalization
     cleaned = cleaned.replace(/[*\/#_\-.,']/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // Token-based cleanup
+    let tokens = cleaned.split(' ').filter(token => token && token.length >= 3);
     
-    let tokens = cleaned.split(' ').filter(token => token && token.length >= 2);
-    
-    // Edge cases for common merchants
+    // Handle common merchant name variations
     if (description.toUpperCase().includes('PICK N PAY') || description.toUpperCase().includes('PNP')) return 'PICK N PAY';
     if (description.toUpperCase().includes('DIS-CHEM')) return 'DIS-CHEM';
 
     cleaned = tokens.slice(0, 3).join(' ').trim();
 
-    return cleaned || description.toUpperCase().split(' ')[0]; // Fallback
+    return cleaned || description.toUpperCase().split(' ')[0] || "UNKNOWN";
 }
 // #endregion
 
@@ -570,162 +574,111 @@ const ruleFormSchema = z.object({
   keywords: z.string().min(2, "At least one keyword is required."),
   accountId: z.string().min(1, "Account is required."),
   vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
-  scope: z.enum(['client', 'global']).default('client'),
-  priority: z.preprocess(
-    (val) => (val === '' || val === undefined || val === null) ? 10 : parseInt(String(val), 10),
-    z.number().min(1, 'Priority must be 1 or higher.').default(10)
-  ),
 });
+type RuleFormValues = z.infer<typeof ruleFormSchema>;
 
-function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues }: { client: User | null; onRuleCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void; defaultValues?: Partial<z.infer<typeof ruleFormSchema>> }) {
-  const [isSaving, setIsSaving] = useState(false);
-  const { toast } = useToast();
-  const form = useForm<z.infer<typeof ruleFormSchema>>({
-    resolver: zodResolver(ruleFormSchema),
-    defaultValues: defaultValues,
-  });
-  
-  useEffect(() => {
-    form.reset(defaultValues || {
-      description: "",
-      keywords: "",
-      accountId: "",
-      vatType: "standard_rated_purchases",
-      scope: "client",
-      priority: 10,
+const RuleForm = ({ chartOfAccounts, defaultValues, onSave, onCancel }: {
+    chartOfAccounts: ChartOfAccount[],
+    defaultValues: Partial<RuleFormValues>,
+    onSave: (values: RuleFormValues) => void,
+    onCancel: () => void,
+}) => {
+    const form = useForm<RuleFormValues>({
+        resolver: zodResolver(ruleFormSchema),
+        defaultValues: defaultValues,
     });
-  }, [open, defaultValues, form]);
-
-  const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
-    setIsSaving(true);
-    
-    const newRule: Partial<AllocationRule> = {
-      description: values.description,
-      keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
-      accountId: values.accountId,
-      vatType: client?.isVatRegistered ? values.vatType : 'no_vat',
-      type: 'hard', // All user-created rules are 'hard' rules
-      priority: values.priority,
-    };
-
-    try {
-        if (values.scope === 'global') {
-            await addDoc(collection(db, 'allocationRules'), newRule);
-            toast({ title: "Global Rule Created", description: `The rule "${values.description}" has been added globally.`});
-        } else {
-            if (!client || !client.uid) {
-                toast({ title: 'Error', description: 'No client selected for client-specific rule.', variant: 'destructive'});
-                setIsSaving(false);
-                return;
-            }
-            const clientRef = doc(db, 'aiAccountantClients', client.uid);
-            await updateDoc(clientRef, {
-                allocationRules: arrayUnion(newRule),
-            });
-            toast({ title: "Client Rule Created", description: `The rule "${values.description}" has been added to this client.`});
-        }
-
-      form.reset();
-      onOpenChange(false);
-      onRuleCreated(); // Callback to refetch client/global data
-    } catch (error) {
-      console.error("Error creating rule:", error);
-      toast({ title: 'Error', description: 'Could not create the allocation rule.', variant: 'destructive'});
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create New Allocation Rule</DialogTitle>
-          <DialogDescription>
-            This rule will be applied to transactions to automatically categorize them.
-          </DialogDescription>
-        </DialogHeader>
+    return (
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSaveRule)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="scope"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Rule Scope</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className="flex items-center space-x-4"
-                    >
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl><RadioGroupItem value="client" /></FormControl>
-                        <FormLabel className="font-normal">Client Specific</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl><RadioGroupItem value="global" /></FormControl>
-                        <FormLabel className="font-normal">Global (All Clients)</FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
             <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input placeholder="e.g., Monthly bank charges" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., monthly account fee, service fee" {...field} /></FormControl><FormMessage /></FormItem> )} />
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                    control={form.control}
-                    name="accountId"
-                    render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                        <FormLabel>Allocate To Account</FormLabel>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                            <FormControl>
-                                <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
-                                {field.value ? client?.chartOfAccounts?.find((acc) => acc.id === field.value)?.description : "Select account"}
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                            </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command>
-                                <CommandInput placeholder="Search account..." />
-                                <CommandList>
-                                <CommandEmpty>No account found.</CommandEmpty>
-                                <CommandGroup>
-                                    {client?.chartOfAccounts?.map((acc) => (
-                                    <CommandItem value={acc.description} key={acc.id} onSelect={() => form.setValue("accountId", acc.id)}>
-                                        <CheckCheck className={cn("mr-2 h-4 w-4", acc.id === field.value ? "opacity-100" : "opacity-0")} />
-                                        {acc.description}
-                                    </CommandItem>
-                                    ))}
-                                </CommandGroup>
-                                </CommandList>
-                            </Command>
-                            </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                 <FormField control={form.control} name="priority" render={({ field }) => ( <FormItem><FormLabel>Priority</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            </div>
-            {client?.isVatRegistered && (
-              <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-            )}
+            <FormField
+                control={form.control}
+                name="accountId"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Allocate To Account</FormLabel>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <FormControl>
+                            <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
+                            {field.value ? chartOfAccounts?.find((acc) => acc.id === field.value)?.description : "Select account"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command>
+                            <CommandInput placeholder="Search account..." />
+                            <CommandList>
+                            <CommandEmpty>No account found.</CommandEmpty>
+                            <CommandGroup>
+                                {chartOfAccounts?.map((acc) => (
+                                <CommandItem value={acc.description} key={acc.id} onSelect={() => form.setValue("accountId", acc.id)}>
+                                    <CheckCheck className={cn("mr-2 h-4 w-4", acc.id === field.value ? "opacity-100" : "opacity-0")} />
+                                    {acc.description}
+                                </CommandItem>
+                                ))}
+                            </CommandGroup>
+                            </CommandList>
+                        </Command>
+                        </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Rule
-              </Button>
+              <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+              <Button type="submit">Save Rule</Button>
             </DialogFooter>
           </form>
         </Form>
+    )
+}
+
+function ApproveAndCreateRuleDialog({
+  isOpen,
+  onOpenChange,
+  groupData,
+  client,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  groupData: { supplier: string; txs: ImportedTransaction[]; suggestion: AIAllocationResult | null };
+  client: User | null;
+  onConfirm: (ruleValues: RuleFormValues, groupTxs: ImportedTransaction[]) => void;
+}) {
+  if (!isOpen || !client) return null;
+
+  const defaultValues = {
+    description: `Rule for ${groupData.supplier}`,
+    keywords: groupData.supplier,
+    accountId: groupData.suggestion?.accountId || '',
+    vatType: groupData.suggestion?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat'),
+  };
+
+  const handleSave = (values: RuleFormValues) => {
+    onConfirm(values, groupData.txs);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Approve & Create Rule</DialogTitle>
+          <DialogDescription>
+            Confirm the details below to create a new rule for '{groupData.supplier}' and approve all {groupData.txs.length} transactions in this group.
+          </DialogDescription>
+        </DialogHeader>
+        <RuleForm
+          chartOfAccounts={client.chartOfAccounts || []}
+          defaultValues={defaultValues}
+          onSave={handleSave}
+          onCancel={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -743,7 +696,7 @@ const NewTransactionsTab = React.forwardRef<
     const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
-    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
+    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases' });
     const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -1079,7 +1032,7 @@ const NewTransactionsTab = React.forwardRef<
                 const batch = writeBatch(db);
                 const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
                 chunk.forEach(txId => {
-                    const docRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+                    const docRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.delete(docRef);
                 });
                 await batch.commit();
@@ -1227,7 +1180,7 @@ const NewTransactionsTab = React.forwardRef<
                 onOpenChange={(isOpen) => {
                     setIsCreateRuleOpen(isOpen);
                     if (!isOpen) {
-                        setRuleDefaultValues({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
+                        setRuleDefaultValues({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases' });
                     }
                 }}
                 defaultValues={ruleDefaultValues}
@@ -1497,7 +1450,6 @@ const NewTransactionsTab = React.forwardRef<
                                                             keywords: firstKeyword, 
                                                             accountId: '', 
                                                             vatType: 'standard_rated_purchases',
-                                                            scope: 'client',
                                                         });
                                                      }}>
                                                         Create Rule from Transaction
@@ -2931,18 +2883,20 @@ const ForReviewTab = React.forwardRef<
 ForReviewTab.displayName = 'ForReviewTab';
 
 
-const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData, openCreateRuleDialog }: { 
+const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData, globalRules, onRuleCreated }: { 
     client: User | null; 
     bankAccountId: string | null; 
     chartOfAccounts: ChartOfAccount[], 
     fetchClientData: () => void;
-    openCreateRuleDialog: (defaults: Partial<z.infer<typeof ruleFormSchema>>) => void;
+    globalRules: AllocationRule[];
+    onRuleCreated: () => void;
 }) => {
     const { toast, dismiss } = useToast();
     const [isProcessing, setIsProcessing] = useState(false);
     const [groupSuggestions, setGroupSuggestions] = useState<Record<string, AIAllocationResult>>({});
     const [isDownloading, setIsDownloading] = useState(false);
-    const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+    const [activeApprovalGroup, setActiveApprovalGroup] = useState<{ supplier: string; txs: ImportedTransaction[]; suggestion: AIAllocationResult | null } | null>(null);
+    const [selectedTxs, setSelectedTxs] = useState<string[]>([]);
     
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -2954,6 +2908,70 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     }, [client?.uid, bankAccountId]);
 
     const { documents: transactions, isLoading, refetch } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: 500 });
+    
+    const handleRejectSelected = async (txIdsToReject: string[]) => {
+        if (!client || txIdsToReject.length === 0) return;
+        toast({ title: 'Rejecting transactions...' });
+        try {
+            const batch = writeBatch(db);
+            txIdsToReject.forEach(txId => {
+                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+                batch.update(txRef, { status: 'new', extractedSupplier: null, aiAllocationResult: null });
+            });
+            await batch.commit();
+            toast({ title: 'Transactions Rejected', description: `${txIdsToReject.length} items moved back to 'New'` });
+            setSelectedTxs(prev => prev.filter(id => !txIdsToReject.includes(id)));
+            refetch();
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Error', description: 'Could not reject transactions.', variant: 'destructive'});
+        }
+    };
+    
+    const handleConfirmApprovalAndRuleCreation = async (ruleValues: RuleFormValues, groupTxs: ImportedTransaction[]) => {
+      if (!client) return;
+      
+      const newRule: Omit<AllocationRule, 'id'> = {
+        description: ruleValues.description,
+        keywords: ruleValues.keywords.split(',').map(k => k.trim().toLowerCase()),
+        accountId: ruleValues.accountId,
+        vatType: client.isVatRegistered ? ruleValues.vatType : 'no_vat',
+        type: 'hard',
+        priority: 10,
+        scope: 'global' // For simplicity, new rules are global. This can be changed.
+      };
+      
+      try {
+        const batch = writeBatch(db);
+        
+        // 1. Create the new rule
+        const newRuleRef = doc(collection(db, 'allocationRules'));
+        batch.set(newRuleRef, newRule);
+        
+        // 2. Approve all transactions in the group
+        groupTxs.forEach(tx => {
+            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+            batch.update(txRef, {
+                status: 'allocated',
+                allocatedTo: { value: ruleValues.accountId, type: 'account' },
+                vatType: newRule.vatType,
+                allocatedAt: new Date(),
+            });
+        });
+        
+        await batch.commit();
+        
+        toast({ title: 'Success!', description: `Rule created and ${groupTxs.length} transactions approved.` });
+        
+        onRuleCreated(); // Prop to refetch global rules
+        refetch(); // Refetch this tab's data
+        setActiveApprovalGroup(null);
+
+      } catch (error) {
+          console.error(error);
+          toast({ title: 'Error', description: 'Could not save rule and approve transactions.', variant: 'destructive' });
+      }
+    };
 
     const handleProcessWorkflow = async () => {
         if (!client || !client.uid || transactions.length === 0) return;
@@ -2967,43 +2985,30 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         const toastId = toast({ title: "Starting AI Workflow...", description: `Found ${transactionsToProcess.length} transactions to process.`, duration: Infinity }).id;
 
         try {
-            // Step 1: Extract supplier names
-            toast({ id: toastId, title: "Step 1/3: Extracting Suppliers...", description: "AI is cleaning up transaction descriptions." });
-            const transactionsWithSuppliers = await Promise.all(transactionsToProcess.map(async (tx) => {
-                try {
-                    const { supplier } = await extractSupplierName({ description: tx.cleanedDescription || tx.description });
-                    return { ...tx, extractedSupplier: supplier };
-                } catch (e) {
-                    return { ...tx, extractedSupplier: tx.cleanedDescription?.split(' ')[0].toUpperCase() || 'UNKNOWN' }; // Fallback
-                }
-            }));
-            
-            // Step 2: Group by supplier
-            const groups = transactionsWithSuppliers.reduce((acc, tx) => {
-                const key = tx.extractedSupplier || 'UNKNOWN';
+            const groups = transactionsToProcess.reduce((acc, tx) => {
+                const key = tx.cleanedDescription || 'UNKNOWN';
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
                 return acc;
-            }, {} as Record<string, (ImportedTransaction & {extractedSupplier?: string})[]>);
+            }, {} as Record<string, ImportedTransaction[]>);
             
             const totalGroups = Object.keys(groups).length;
-            toast({ id: toastId, title: `Step 2/3: Allocating Groups...`, description: `Found ${totalGroups} groups.` });
+            toast({ id: toastId, title: `Step 1/2: Allocating Groups...`, description: `Found ${totalGroups} groups.` });
             
-            // Step 3: Allocate each group
             const chartOfAccountsJson = JSON.stringify(chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
             const allUpdatePromises: Promise<any>[] = [];
             let processedCount = 0;
 
-            for (const supplier in groups) {
-                const group = groups[supplier];
+            for (const groupKey in groups) {
+                const group = groups[groupKey];
                 const representativeTx = group[0];
                 
                 processedCount++;
-                toast({ id: toastId, title: `Step 2/3: Allocating Groups (${processedCount}/${totalGroups})`, description: `Analyzing: ${supplier}` });
+                toast({ id: toastId, title: `Step 1/2: Allocating Groups (${processedCount}/${totalGroups})`, description: `Analyzing: ${groupKey}` });
 
                 try {
                     const result = await suggestTransactionAllocation({
-                        description: representativeTx.description,
+                        description: representativeTx.cleanedDescription || representativeTx.description,
                         chartOfAccounts: chartOfAccountsJson,
                         isVatRegistered: client.isVatRegistered || false,
                     });
@@ -3011,26 +3016,34 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     const batch = writeBatch(db);
                     group.forEach(tx => {
                         const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                        batch.update(txRef, {
-                            status: 'ai_review',
-                            extractedSupplier: supplier,
-                            aiAllocationResult: result || null,
-                        });
+                         if (result.confidence >= 80) {
+                             batch.update(txRef, {
+                                status: 'ai_review',
+                                extractedSupplier: groupKey,
+                                aiAllocationResult: result || null,
+                            });
+                         } else {
+                              batch.update(txRef, {
+                                status: 'ai_review',
+                                extractedSupplier: groupKey,
+                                aiAllocationResult: { ...result, accountId: '' }, // Clear account if low confidence
+                            });
+                         }
                     });
                     allUpdatePromises.push(batch.commit());
 
                 } catch (e) {
-                    console.error(`Error allocating group ${supplier}:`, e);
+                    console.error(`Error allocating group ${groupKey}:`, e);
                      const batch = writeBatch(db);
                      group.forEach(tx => {
                          const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                         batch.update(txRef, { status: 'new', extractedSupplier: supplier });
+                         batch.update(txRef, { status: 'new', extractedSupplier: groupKey });
                      });
                      allUpdatePromises.push(batch.commit());
                 }
             }
             
-            toast({ id: toastId, title: `Step 3/3: Finalizing...`, description: 'Saving results.' });
+            toast({ id: toastId, title: `Step 2/2: Finalizing...`, description: 'Saving results.' });
             await Promise.all(allUpdatePromises);
             dismiss(toastId);
             toast({ title: 'AI Workflow Complete!', description: 'Review the suggestions below and approve or reject them.' });
@@ -3053,83 +3066,20 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             if (!groups[key]) groups[key] = [];
             groups[key].push(tx);
         });
-        
-        const initialSuggestions: Record<string, AIAllocationResult> = {};
-        Object.entries(groups).forEach(([key, group]) => {
-            if (group[0] && group[0].aiAllocationResult && group[0].aiAllocationResult.confidence >= 80) {
-                initialSuggestions[key] = group[0].aiAllocationResult;
-            }
-        });
-        setGroupSuggestions(initialSuggestions);
-
         return Object.entries(groups).sort((a,b) => a[0].localeCompare(b[0]));
     }, [transactions]);
     
-    const handleApprove = async (txIds: string[], supplierKey: string) => {
-        if (!client) return;
-        const suggestion = groupSuggestions[supplierKey];
-        if(!suggestion || !suggestion.accountId) {
-            toast({ title: 'Error', description: 'Please select an account for this group.', variant: 'destructive'});
-            return;
-        }
-
-        const batch = writeBatch(db);
-        txIds.forEach(id => {
-            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', id);
-            batch.update(txRef, {
-                status: 'allocated',
-                allocatedTo: { value: suggestion.accountId, type: 'account'},
-                vatType: client.isVatRegistered ? suggestion.vatType : 'no_vat',
-                allocatedAt: new Date(),
-            });
-        });
-        await batch.commit();
-        toast({ title: 'Approved!', description: `${txIds.length} transactions moved to Reviewed.`});
-        refetch();
-    };
-
-    const handleReject = async (txIds: string[]) => {
-         if (!client || txIds.length === 0) return;
-        const batch = writeBatch(db);
-        txIds.forEach(id => {
-            const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', id);
-            batch.update(txRef, {
-                status: 'new',
-                aiAllocationResult: null,
-                extractedSupplier: null,
-            });
-        });
-        await batch.commit();
-        toast({ title: 'Rejected', description: `${txIds.length} transactions moved back to New.`});
-        refetch();
-    };
-
-    const handleGroupSuggestionChange = (supplierKey: string, field: 'accountId' | 'vatType', value: string) => {
-        setGroupSuggestions(prev => ({
-            ...prev,
-            [supplierKey]: {
-                ...(prev[supplierKey] || { confidence: 0, accountId: '', vatType: 'no_vat' }),
-                [field]: value
-            }
-        }))
-    }
-    
-    const handleCreateRule = (supplierKey: string) => {
-        const suggestion = groupSuggestions[supplierKey];
-        if(!suggestion || !suggestion.accountId) {
-            toast({ title: 'Cannot Create Rule', description: 'Please select an account for this group first.', variant: 'destructive'});
-            return;
-        }
-        openCreateRuleDialog({
-            keywords: supplierKey,
-            accountId: suggestion.accountId,
-            vatType: suggestion.vatType,
-            description: `Auto-rule for ${supplierKey}`,
-            scope: 'client',
-        });
-    }
-
     return (
+        <>
+        {activeApprovalGroup && (
+             <ApproveAndCreateRuleDialog 
+                isOpen={!!activeApprovalGroup}
+                onOpenChange={() => setActiveApprovalGroup(null)}
+                groupData={activeApprovalGroup}
+                client={client}
+                onConfirm={handleConfirmApprovalAndRuleCreation}
+             />
+        )}
         <Card>
             <CardHeader>
                 <div className="flex justify-between items-center">
@@ -3164,8 +3114,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 ) : (
                     <div className="space-y-4 max-h-[70vh] overflow-y-auto">
                         {groupedForReview.map(([supplier, txs]) => {
-                             const suggestion = groupSuggestions[supplier];
-                             const originalAISuggestion = txs[0]?.aiAllocationResult;
+                             const suggestion = txs[0]?.aiAllocationResult;
+                             const selectedInGroup = txs.filter(tx => selectedTxs.includes(tx.id));
                              return (
                                 <div key={supplier} className="border rounded-lg">
                                     <div className="p-3 bg-muted/50 flex justify-between items-center flex-wrap gap-4">
@@ -3173,34 +3123,38 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                             <div>
                                                 <h3 className="font-bold">{supplier} <span className="text-sm font-normal text-muted-foreground">({txs.length} items)</span></h3>
                                                 <div className="text-xs text-muted-foreground">
-                                                    Original AI Confidence: {originalAISuggestion?.confidence ? `${originalAISuggestion.confidence}%` : 'N/A'}
+                                                    AI Confidence: {suggestion?.confidence ? `${suggestion.confidence}%` : 'N/A'}
                                                 </div>
                                             </div>
                                         </div>
                                          <div className="flex items-center gap-2">
-                                            <Select value={suggestion?.accountId || ''} onValueChange={(value) => handleGroupSuggestionChange(supplier, 'accountId', value)}>
-                                                <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Select Account..."/></SelectTrigger>
-                                                <SelectContent>
-                                                    {chartOfAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
-                                            <Select value={suggestion?.vatType || 'no_vat'} onValueChange={(value) => handleGroupSuggestionChange(supplier, 'vatType', value as VatType)} disabled={!client?.isVatRegistered}>
-                                                <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="Select VAT..."/></SelectTrigger>
-                                                <SelectContent>
-                                                    {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
+                                            {suggestion?.accountId ? (
+                                                <Badge>{chartOfAccounts.find(c => c.id === suggestion.accountId)?.description}</Badge>
+                                            ) : (
+                                                 <Badge variant="destructive">Needs Selection</Badge>
+                                            )}
+                                             <Badge variant="secondary">{allVatTypes.find(v => v.name === suggestion?.vatType)?.label}</Badge>
                                         </div>
                                         <div className="flex gap-2">
-                                            <Button size="sm" variant="outline" onClick={() => handleCreateRule(supplier)} disabled={!suggestion?.accountId}>Create Rule</Button>
-                                            <Button size="sm" variant="destructive" onClick={() => handleReject(txs.map(t => t.id))}>Reject Group</Button>
-                                            <Button size="sm" onClick={() => handleApprove(txs.map(t => t.id), supplier)} disabled={!suggestion?.accountId}>Approve Group</Button>
+                                            <Button size="sm" variant="destructive" disabled={selectedInGroup.length === 0} onClick={() => handleRejectSelected(selectedInGroup.map(t => t.id))}>Reject Selected</Button>
+                                            <Button size="sm" onClick={() => setActiveApprovalGroup({ supplier, txs, suggestion })} disabled={!suggestion?.accountId}>Approve & Create Rule</Button>
                                         </div>
                                     </div>
-                                    <div className="max-h-48 overflow-y-auto">
+                                    <div className="max-h-60 overflow-y-auto">
                                          <Table>
                                             <TableHeader>
                                                 <TableRow>
+                                                    <TableHead className="w-12"><Checkbox
+                                                        checked={selectedInGroup.length === txs.length}
+                                                        onCheckedChange={(checked) => {
+                                                            const txIds = txs.map(t => t.id);
+                                                            if (checked) {
+                                                                setSelectedTxs(prev => [...prev, ...txIds]);
+                                                            } else {
+                                                                setSelectedTxs(prev => prev.filter(id => !txIds.includes(id)));
+                                                            }
+                                                        }}
+                                                    /></TableHead>
                                                     <TableHead className="w-[120px]">Date</TableHead>
                                                     <TableHead>Description</TableHead>
                                                     <TableHead className="text-right w-[150px]">Amount</TableHead>
@@ -3208,7 +3162,13 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                             </TableHeader>
                                             <TableBody>
                                                 {txs.map(tx => (
-                                                     <TableRow key={tx.id}>
+                                                     <TableRow key={tx.id} data-state={selectedTxs.includes(tx.id) && "selected"}>
+                                                        <TableCell><Checkbox 
+                                                            checked={selectedTxs.includes(tx.id)}
+                                                            onCheckedChange={(checked) => {
+                                                                setSelectedTxs(prev => checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id))
+                                                            }}
+                                                        /></TableCell>
                                                         <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
                                                         <TableCell className="text-xs">{tx.description}</TableCell>
                                                         <TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}</TableCell>
@@ -3224,6 +3184,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 )}
             </CardContent>
         </Card>
+        </>
     )
 }
     
@@ -3242,7 +3203,7 @@ export default function BankTransactionsPage() {
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
-    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
+    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases' });
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
     const reviewedTabRef = useRef<{ refetch: () => void; }>(null);
@@ -3409,18 +3370,6 @@ export default function BankTransactionsPage() {
     
     return (
         <div className="space-y-4">
-             <CreateRuleDialog
-                client={client}
-                onRuleCreated={fetchClientAndRelatedData}
-                open={isCreateRuleOpen}
-                onOpenChange={(isOpen) => {
-                    setIsCreateRuleOpen(isOpen);
-                    if (!isOpen) {
-                        setRuleDefaultValues({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
-                    }
-                }}
-                defaultValues={ruleDefaultValues}
-            />
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-card border rounded-lg">
                 <div className="flex w-full items-center justify-between md:w-auto md:justify-start md:gap-4">
@@ -3533,7 +3482,8 @@ export default function BankTransactionsPage() {
                         bankAccountId={selectedAccountId} 
                         chartOfAccounts={client?.chartOfAccounts || []} 
                         fetchClientData={fetchClientAndRelatedData} 
-                        openCreateRuleDialog={(defaults) => { setRuleDefaultValues(defaults); setIsCreateRuleOpen(true); }}
+                        globalRules={globalRules}
+                        onRuleCreated={fetchClientAndRelatedData}
                     />
                 </TabsContent>
                  <TabsContent value="review" className="mt-0">
