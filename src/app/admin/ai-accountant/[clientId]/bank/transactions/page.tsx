@@ -120,15 +120,11 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
     const [isParsing, setIsParsing] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const { toast } = useToast();
-    const [potentialAllocations, setPotentialAllocations] = useState(0);
-    const [potentialAiAllocations, setPotentialAiAllocations] = useState(0);
     const [importError, setImportError] = useState<string | null>(null);
 
     const resetState = useCallback(() => {
         setFile(null);
         setParsedTransactions([]);
-        setPotentialAllocations(0);
-        setPotentialAiAllocations(0);
         setIsParsing(false);
         setIsUploading(false);
         setImportError(null);
@@ -143,8 +139,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             setImportError(null);
             setFile(selectedFile);
             setParsedTransactions([]);
-            setPotentialAllocations(0);
-            setPotentialAiAllocations(0);
             
             const reader = new FileReader();
             reader.onload = (event) => {
@@ -174,31 +168,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                         })).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
                         
                         setParsedTransactions(transactions);
-
-                        let ruleAllocationCount = 0;
-                        let aiAllocationCount = 0;
-                        
-                        const allRules = [...(client?.allocationRules || []), ...globalRules];
-
-                        if (allRules.length > 0) {
-                            for (const tx of transactions) {
-                                const txDescriptionLower = tx.Description.toLowerCase();
-                                const matchedRule = allRules.find(rule => 
-                                    rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
-                                );
-                                if (matchedRule) {
-                                    ruleAllocationCount++;
-                                }
-                                else if (tx.Amount < 0) {
-                                    aiAllocationCount++;
-                                }
-                            }
-                        } else {
-                            aiAllocationCount = transactions.filter(tx => tx.Amount < 0).length;
-                        }
-                        
-                        setPotentialAllocations(ruleAllocationCount);
-                        setPotentialAiAllocations(aiAllocationCount);
                         setIsParsing(false);
                     }
                 });
@@ -266,7 +235,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 await batch.commit();
             }
 
-            toast({ title: "Import Successful", description: `${parsedTransactions.length} transactions have been imported. ${potentialAllocations} transactions were automatically allocated for review.`});
+            toast({ title: "Import Successful", description: `${parsedTransactions.length} transactions have been imported.`});
             onImportComplete();
             setIsOpen(false);
             resetState();
@@ -300,8 +269,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
 
     const newBalance = useMemo(() => currentBalance + importTotal, [currentBalance, importTotal]);
 
-    const totalAutomated = potentialAllocations + potentialAiAllocations;
-
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
             <DialogTrigger asChild>
@@ -333,9 +300,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1 p-3 rounded-lg bg-muted">
                                     <p className="text-sm font-semibold">{parsedTransactions.length} transactions found.</p>
-                                    <p className="text-sm text-purple-600">
-                                       {totalAutomated} transaction(s) can be automatically processed.
-                                    </p>
                                 </div>
                                 <div className="space-y-1 p-3 rounded-lg bg-muted">
                                     <p className="text-sm text-muted-foreground">New Potential Balance</p>
@@ -1712,8 +1676,8 @@ const ReviewedTab = React.forwardRef<
             if (!reviewedTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                // Create a new query without the limit constraint for fetching all
-                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery.constraints.filter((c: any) => c.type !== 'limit'));
+                // @ts-ignore
+                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
                 setAllTransactions(allDocs);
@@ -2211,34 +2175,7 @@ const ReviewedTab = React.forwardRef<
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
-                    </div>
-                     <div className="flex items-center gap-2 flex-wrap justify-end">
-                        <DateRangePicker onDateChange={setDateRange} />
-                        <Select value={accountFilter} onValueChange={setAccountFilter}>
-                            <SelectTrigger className="w-full md:w-[200px]">
-                                <SelectValue placeholder="Filter by account..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Accounts</SelectItem>
-                                {accountsWithTransactions.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <div className="relative w-full md:w-auto">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                type="search"
-                                placeholder="Search descriptions..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-8 w-full md:w-48"
-                            />
-                        </div>
-                     </div>
-                </div>
-                <div className="p-4 border-t flex items-center gap-2">
-                     <DropdownMenu>
+                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" disabled={selectedTransactions.length === 0}>
                                     <span>Reallocate Selected</span><ChevronsUpDown className="ml-2 h-4 w-4"/>
@@ -2278,6 +2215,31 @@ const ReviewedTab = React.forwardRef<
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
+                    </div>
+                     <div className="flex items-center gap-2 flex-wrap justify-end">
+                        <DateRangePicker onDateChange={setDateRange} />
+                        <Select value={accountFilter} onValueChange={setAccountFilter}>
+                            <SelectTrigger className="w-full md:w-[200px]">
+                                <SelectValue placeholder="Filter by account..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Accounts</SelectItem>
+                                {accountsWithTransactions.map(acc => (
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <div className="relative w-full md:w-auto">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="search"
+                                placeholder="Search descriptions..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-8 w-full md:w-48"
+                            />
+                        </div>
+                     </div>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -2503,7 +2465,8 @@ const ForReviewTab = React.forwardRef<
             if (!reviewTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery.constraints.filter((c: any) => c.type !== 'limit'));
+                // @ts-ignore
+                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
