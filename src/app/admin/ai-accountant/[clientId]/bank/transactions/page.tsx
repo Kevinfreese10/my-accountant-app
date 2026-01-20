@@ -61,42 +61,45 @@ function cleanDescription(description: string): string {
     if (!description) return '';
     let cleaned = description;
 
-    // 2.1 Normalize whitespace & separators
+    // Rule 2: Pre-clean
     cleaned = cleaned.replace(/[\u00A0\u2000-\u200B]/g, " ").replace(/\s+/g, " ").trim();
-
-    // 2.2 Remove common noise tokens
     cleaned = cleaned.replace(/\b(?:ZA|SOUTH\s*AFRICA|S\s*A)\b/gi, '');
     cleaned = cleaned.replace(/[|•·]+/g, '');
 
-    // 7. Strip prefixes
+    // Rule 7: Strip prefixes (using combined rules from section 3)
     const prefixes = [
-        /^\s*(?:cheque\s*card|debit\s*card|card)\s+(?:purchase|purch)\s+/gi,
-        /^\s*(?:eft|internet\s*banking|ib\s*(?:payment|pmt)|online\s*banking|payment|pay\s*and\s*clear)\s+/gi,
-        /^\s*(?:trf|transfer|xfer)\s+/gi,
-        /^\s*(?:debit\s*order|d\/o|debit\s*ord|collection|coll|naedo|early\s*debit)\s+/gi,
-        /^\s*(?:atm|cash\s*withdrawal|withdrawal|cash\s*wd)\s+/gi,
-        /^\s*(?:bank\s*charges?|fees?|service\s*fee|monthly\s*fee|admin\s*fee|commission|charges?)\s+/gi,
+        /^\s*(?:pos|card|cheque\s*card|debit\s*card|mastercard|visa)\s+(?:purchase|purch)?\s+/i,
+        /^\s*(?:eft|internet\s*banking|ib\s*(?:payment|pmt)|online\s*banking|pay\s*and\s*clear|payment|pay|trf|transfer|xfer)\s+/i,
+        /^\s*(?:debit\s*order|d\/o|debit\s*ord|collection|coll|naedo|early\s*debit)\s+/i,
+        /^\s*(?:atm|cash\s*wd|withdrawal|cash\s*withdrawal)\s+/i,
+        /^\s*(?:bank\s*charges?|service\s*fee|fees?|monthly\s*fee|ledger\s*fee|admin\s*fee|commission|charges?)\s+/i,
+        /^\s*(?:interest|int\s*(?:paid|recv|received|earned)?)\s+/i
     ];
     for (const prefix of prefixes) {
         cleaned = cleaned.replace(prefix, '');
     }
 
-    // 4.2 Remove trailing noise
-    cleaned = cleaned.replace(/\s+\b\d{4}\s+\d{4}\b.*$/gi, '');
+    // Rule 4.2: Remove trailing noise
+    cleaned = cleaned.replace(/\s+\b\d{4}\s+\d{4}\b.*$/i, '');
     cleaned = cleaned.replace(/\s+\d{6,}.*$/g, '');
+    
+    // Custom rule to handle trailing alphanumeric codes like `7K3D0`
+    cleaned = cleaned.replace(/\s+[A-Z0-9]{5,20}$/i, '');
 
-    // 4.1 Generic supplier capture
+
+    // Rule 4.1: Generic supplier capture
     const merchantMatch = cleaned.match(/^([A-Z0-9][A-Z0-9&'._-]{1,}(?:\s+[A-Z0-9&'._-]{1,}){0,6})/i);
     let merchant = merchantMatch ? merchantMatch[0] : cleaned;
 
-    // 6. VAT-friendly canonicalization
+    // Rule 6: Canonicalization
     merchant = merchant.toUpperCase();
     merchant = merchant.replace(/[^\w\s&']/g, ' '); // Keep apostrophe
-    merchant = merchant.replace(/\s+/g, ' ');
-    merchant = merchant.replace(/\b(?:PTY|LTD|LIMITED|CC|INC|THE|AND|SERVICES|SERVICE|SOLUTIONS|GROUP|HOLDINGS)\b/gi, '');
-    merchant = merchant.replace(/\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b\.?/gi, '');
-    merchant = merchant.replace(/\b\d{1,2}\b/g, '');
+    merchant = merchant.replace(/\s+/g, ' ').trim();
+    merchant = merchant.replace(/\b(PTY|LTD|LIMITED|CC|INC|THE|AND|SERVICES|SERVICE|SOLUTIONS|GROUP|HOLDINGS)\b/g, '');
+    merchant = merchant.replace(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b\.?/g, '');
+    merchant = merchant.replace(/\s+\d{1,2}$/, ''); // Remove day numbers only if at the very end
     
+    // Re-collapse spaces and trim after replacements
     return merchant.replace(/\s+/g, ' ').trim();
 }
 // #endregion
@@ -821,9 +824,7 @@ const NewTransactionsTab = React.forwardRef<
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
-                 // @ts-ignore
-                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
-                const snapshot = await getDocs(unlimitedQuery);
+                const snapshot = await getDocs(baseQuery);
                 const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -1676,9 +1677,7 @@ const ReviewedTab = React.forwardRef<
             if (!reviewedTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                // @ts-ignore
-                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
-                const snapshot = await getDocs(unlimitedQuery);
+                const snapshot = await getDocs(reviewedTransactionsQuery);
                 const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -2465,9 +2464,7 @@ const ForReviewTab = React.forwardRef<
             if (!reviewTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                // @ts-ignore
-                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
-                const snapshot = await getDocs(unlimitedQuery);
+                const snapshot = await getDocs(reviewTransactionsQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
