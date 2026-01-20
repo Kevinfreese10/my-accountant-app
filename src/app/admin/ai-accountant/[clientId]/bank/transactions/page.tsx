@@ -60,66 +60,66 @@ const formatPrice = (price: number) => {
 function cleanDescription(description: string): string {
     if (!description) return '';
 
-    // A. Universal pre-clean
     let cleaned = description.toUpperCase().trim();
-    cleaned = cleaned.replace(/\s+/g, ' '); // Collapse whitespace
 
-    // Remove dates and times
-    cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, '');
-    cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, '');
-    cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, '');
-
-    // Remove card / terminal / auth codes
-    cleaned = cleaned.replace(/\b(POS|TERM|TERMINAL|AUTH|REF|TXN|TRN)[\s\-]*\d+\b/g, '');
-    
-    // Remove bank noise words (prefixes are more specific)
-    const prefixes = [
-        'CHEQUE CARD PURCHASE', 'CARD PURCHASE', 'POS PURCHASE', 'DEBIT CARD PURCH',
-        'EFT PAYMENT', 'INTERNET TRANSFER', 'IB PAYMENT', 'ONLINE PAYMENT', 'PAYMENT TO', 'PAYMENT',
-        'DEBIT ORDER', 'D/O', 'NAEDO COLLECTION', 'COLLECTION',
-        'ATM WITHDRAWAL', 'CASH WITHDRAWAL',
-        'BANK CHARGES', 'SERVICE FEE', 'MONTHLY FEE',
-        'PURCH', 'TRF', 'TRANSFER', 'XFER', 'DEBIT'
-    ];
-    const prefixRegex = new RegExp(`^\\s*(${prefixes.join('|')})\\s*`, 'i');
-    cleaned = cleaned.replace(prefixRegex, '').trim();
-
-    // Handle special cases where merchant name is squished with numbers
+    // Specific anchor keywords first
     const knownAnchors = ['AFRIHOST', 'AQUAZANIA', 'DISCINSURE'];
-     for (const anchor of knownAnchors) {
+    for (const anchor of knownAnchors) {
         if (cleaned.startsWith(anchor)) {
             return anchor;
         }
     }
+    
+    // A. Universal pre-clean
+    cleaned = cleaned.replace(/\s+/g, ' ');
 
+    // Remove dates (common SA formats) and times
+    cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, '');
+    cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, '');
+    cleaned = cleaned.replace(/\b\d{1,2}\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/g, '');
+    cleaned = cleaned.replace(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{1,2}\b/g, '');
+    cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, '');
+
+    // 7. Ready-to-use “strip prefixes” library
+    const prefixes = [
+        'CHEQUE CARD PURCHASE', 'CARD PURCHASE', 'POS PURCHASE', 'DEBIT CARD PURCH',
+        'EFT PAYMENT', 'INTERNET TRANSFER', 'IB PAYMENT', 'ONLINE PAYMENT', 'PAYMENT TO', 'PAYMENT FROM', 'PAYMENT',
+        'DEBIT ORDER', 'D/O', 'NAEDO COLLECTION', 'COLLECTION', 'DEBIT ORD',
+        'ATM WITHDRAWAL', 'CASH WITHDRAWAL',
+        'BANK CHARGES', 'SERVICE FEE', 'MONTHLY FEE', 'LEDGER FEE', 'ADMIN FEE', 'COMMISSION', 'CHARGES',
+        'PURCH', 'TRF', 'TRANSFER', 'XFER', 'DEBIT', 'CREDIT', 'IB', 'DO', 'ATM'
+    ];
+    // This regex needs to be more flexible to handle variations in prefixes and subsequent text.
+    const prefixRegex = new RegExp(`^\\s*(${prefixes.join('|').replace(/\s/g, '\\s*')})\\s*`, 'i');
+    cleaned = cleaned.replace(prefixRegex, '').trim();
+
+    // Remove card / terminal / auth codes
+    cleaned = cleaned.replace(/\b(POS|TERM|TERMINAL|AUTH|REF|TXN|TRN)[\s\-]*\d+/gi, '');
+    
     // Remove legal entity suffixes
     cleaned = cleaned.replace(/\b(PTY|LTD|LIMITED|CC|INC|CO|COMPANY|SOC)\b/g, '');
     
-    // Remove punctuation & symbols (more comprehensive)
-    cleaned = cleaned.replace(/[*\/#_\-.,'|•·]+/g, ' ');
-    
-    // Remove trailing card numbers and codes after major prefixes are gone
-    cleaned = cleaned.replace(/\s+\d{6,}\*{2,}\d{4,}.*$/, ''); // Masked card numbers
-    cleaned = cleaned.replace(/\s+\d{4,}\s+\d{4,}.*$/, '');   // Unmasked card numbers
+    // Remove punctuation & symbols
+    cleaned = cleaned.replace(/[*\/#_\-.,']/g, ' ');
 
-    // Remove location abbreviations
-    cleaned = cleaned.replace(/\b(CPT|JHB|PTA|DBN|KZN|WC|GAU|EC|GP)\b/g, '');
-    
-    // C. Stop-word list
-    cleaned = cleaned.replace(/\b(SA|SOUTH|AFRICA|STORE|ONLINE|SHOP|PAYMENT|ACCOUNT|AUTOMOTIVE|SERVICE|ST)\b/g, '');
-    
-    // D. Final normalisation
-    cleaned = cleaned.replace(/\s+/g, ' ').trim(); // Collapse spaces
-    
-    // Remove short tokens (less than 3 chars) but keep some known ones
-    let tokens = cleaned.split(' ').filter(token => token.length >= 3 || ['BP'].includes(token));
+    // Remove trailing noise last
+    cleaned = cleaned.replace(/\s+\b\d{4,}\s+\d{4,}.*$/g, ''); // e.g., 4278 4642
+    cleaned = cleaned.replace(/\s+\d{6,}.*$/g, '');           // Long numeric tail
+    cleaned = cleaned.replace(/\s+[A-Z0-9]{10,}\b/g, '');     // long alphanumeric reference codes
 
-    // Keep first 1–3 tokens max
-    if (tokens.length > 3) {
-      tokens = tokens.slice(0, 3);
-    }
+    // C. Stop-word list (post-regex)
+    const stopWords = ['SA', 'SOUTH', 'AFRICA', 'STORE', 'ONLINE', 'SHOP', 'PAYMENT', 'ACCOUNT'];
+    const stopWordRegex = new RegExp(`\\b(${stopWords.join('|')})\\b`, 'g');
+    cleaned = cleaned.replace(stopWordRegex, '');
 
-    cleaned = tokens.join(' ').trim();
+    // D. Final normalisation rules
+    cleaned = cleaned.replace(/\s+/g, ' ').trim(); // Collapse spaces again
+    let tokens = cleaned.split(' ').filter(token => token && token.length >= 2);
+    
+    // Specific edge case for single-word merchants that get split
+    if (description.toUpperCase().includes('PICK N PAY') || description.toUpperCase().includes('PNP')) return 'PICK N PAY';
+
+    cleaned = tokens.slice(0, 3).join(' ').trim(); // Keep first 1-3 tokens
 
     return cleaned;
 }
@@ -203,7 +203,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
     const handleImport = async () => {
         if (!file || !client || !client.uid || !bankAccountId || parsedTransactions.length === 0 || importError) return;
         setIsUploading(true);
-        toast({ title: "Importing...", description: "Processing your file and applying rules."});
+        toast({ title: "Importing...", description: "Processing your file."});
 
         try {
             const allRules = [...(client?.allocationRules || []), ...globalRules];
@@ -235,17 +235,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     status: 'new'
                 };
                 
-                const txDescriptionLower = row.Description.toLowerCase();
-                const matchedRule = allRules.find(rule => 
-                    rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
-                );
-
-                if (matchedRule) {
-                    transaction.status = 'review';
-                    transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
-                    transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
-                }
-
                 allDbOperations.push((batch) => {
                     const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
                     batch.set(newTransactionRef, transaction);
@@ -302,7 +291,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 <DialogHeader>
                     <DialogTitle>Import Bank Statement</DialogTitle>
                     <DialogDescription>
-                        Upload a CSV file to import transactions. The system will automatically allocate transactions based on your rules.
+                        Upload a CSV file to import transactions.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -845,10 +834,7 @@ const NewTransactionsTab = React.forwardRef<
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
-                // @ts-ignore
-                const constraints = baseQuery._query.constraints.filter((c) => c.type !== 'limit');
-                const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...constraints);
-                const snapshot = await getDocs(unlimitedQuery);
+                const snapshot = await getDocs(baseQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -1701,10 +1687,7 @@ const ReviewedTab = React.forwardRef<
             if (!reviewedTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                // @ts-ignore
-                const constraints = reviewedTransactionsQuery._query.constraints.filter((c) => c.type !== 'limit');
-                const unlimitedQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...constraints);
-                const snapshot = await getDocs(unlimitedQuery);
+                const snapshot = await getDocs(reviewedTransactionsQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -2172,7 +2155,7 @@ const ReviewedTab = React.forwardRef<
                         <TabsTrigger value="income">Reviewed Income</TabsTrigger>
                     </TabsList>
                 </Tabs>
-                <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                 <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-2 flex-wrap">
                         <Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -2491,10 +2474,7 @@ const ForReviewTab = React.forwardRef<
             if (!reviewTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                 // @ts-ignore
-                const constraints = reviewTransactionsQuery._query.constraints.filter((c) => c.type !== 'limit');
-                const unlimitedQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...constraints);
-                const snapshot = await getDocs(unlimitedQuery);
+                const snapshot = await getDocs(reviewTransactionsQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
