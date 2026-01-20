@@ -71,14 +71,7 @@ function cleanDescription(description: string): string {
     }
     
     // A. Universal pre-clean
-    cleaned = cleaned.replace(/\s+/g, ' ');
-
-    // Remove dates (common SA formats) and times
-    cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, '');
-    cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, '');
-    cleaned = cleaned.replace(/\b\d{1,2}\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/g, '');
-    cleaned = cleaned.replace(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{1,2}\b/g, '');
-    cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, '');
+    cleaned = cleaned.replace(/[\u00A0\u2000-\u200B]/g, ' ').replace(/\s+/g, ' ').trim();
 
     // 7. Ready-to-use “strip prefixes” library
     const prefixes = [
@@ -89,10 +82,16 @@ function cleanDescription(description: string): string {
         'BANK CHARGES', 'SERVICE FEE', 'MONTHLY FEE', 'LEDGER FEE', 'ADMIN FEE', 'COMMISSION', 'CHARGES',
         'PURCH', 'TRF', 'TRANSFER', 'XFER', 'DEBIT', 'CREDIT', 'IB', 'DO', 'ATM'
     ];
-    // This regex needs to be more flexible to handle variations in prefixes and subsequent text.
     const prefixRegex = new RegExp(`^\\s*(${prefixes.join('|').replace(/\s/g, '\\s*')})\\s*`, 'i');
     cleaned = cleaned.replace(prefixRegex, '').trim();
 
+    // Remove dates (common SA formats) and times
+    cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, '');
+    cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, '');
+    cleaned = cleaned.replace(/\b\d{1,2}\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/g, '');
+    cleaned = cleaned.replace(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{1,2}\b/g, '');
+    cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, '');
+    
     // Remove card / terminal / auth codes
     cleaned = cleaned.replace(/\b(POS|TERM|TERMINAL|AUTH|REF|TXN|TRN)[\s\-]*\d+/gi, '');
     
@@ -109,7 +108,7 @@ function cleanDescription(description: string): string {
 
     // C. Stop-word list (post-regex)
     const stopWords = ['SA', 'SOUTH', 'AFRICA', 'STORE', 'ONLINE', 'SHOP', 'PAYMENT', 'ACCOUNT'];
-    const stopWordRegex = new RegExp(`\\b(${stopWords.join('|')})\\b`, 'g');
+    const stopWordRegex = new RegExp(`\\b(${stopWords.join('|')})\\b`, 'gi');
     cleaned = cleaned.replace(stopWordRegex, '');
 
     // D. Final normalisation rules
@@ -207,9 +206,11 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
 
         try {
             const allRules = [...(client?.allocationRules || []), ...globalRules];
+            allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
             const dailyCounters: { [key: string]: number } = {};
+            let allocatedCount = 0;
             
             parsedTransactions.forEach((row, index) => {
                 const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
@@ -224,7 +225,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
                 
-                let transaction: Omit<ImportedTransaction, 'id'> = {
+                let transaction: Omit<ImportedTransaction, 'id'> & { allocatedAt?: Date } = {
                     clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: reference,
@@ -234,6 +235,23 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     bankAccountId: bankAccountId,
                     status: 'new'
                 };
+                
+                if (transaction.amount < 0 && allRules.length > 0) {
+                    const cleanedDescLower = transaction.cleanedDescription?.toLowerCase() || '';
+                    if(cleanedDescLower) {
+                        const matchedRule = allRules.find(rule => 
+                            rule.keywords.some(kw => cleanedDescLower.includes(kw.toLowerCase()))
+                        );
+
+                        if (matchedRule) {
+                            transaction.status = 'review';
+                            transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
+                            transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
+                            transaction.allocatedAt = new Date();
+                            allocatedCount++;
+                        }
+                    }
+                }
                 
                 allDbOperations.push((batch) => {
                     const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
@@ -248,7 +266,12 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 await batch.commit();
             }
 
-            toast({ title: "Import Successful", description: `${parsedTransactions.length} transactions have been imported.`});
+            let toastDescription = `${parsedTransactions.length} transactions have been imported.`;
+            if (allocatedCount > 0) {
+                toastDescription += ` ${allocatedCount} transaction(s) were automatically allocated for review.`;
+            }
+
+            toast({ title: "Import Successful", description: toastDescription});
             onImportComplete();
             setIsOpen(false);
             resetState();
@@ -831,10 +854,21 @@ const NewTransactionsTab = React.forwardRef<
 
     useEffect(() => {
         const fetchAll = async () => {
-            if (!baseQuery) return;
+            if (!client || !bankAccountId) return;
             setIsFetchingAll(true);
             try {
-                const snapshot = await getDocs(baseQuery);
+                let baseConstraints: QueryConstraint[] = [
+                    where('bankAccountId', '==', bankAccountId),
+                    where('status', '==', 'new'),
+                ];
+                if (activeSubTab === 'expenses') {
+                    baseConstraints.push(where('amount', '<', 0));
+                } else {
+                    baseConstraints.push(where('amount', '>=', 0));
+                }
+                const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...baseConstraints);
+
+                const snapshot = await getDocs(q);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -844,13 +878,13 @@ const NewTransactionsTab = React.forwardRef<
                 setIsFetchingAll(false);
             }
         };
-
+        
         if (showAll) {
             fetchAll();
         } else {
             setAllTransactions([]);
         }
-    }, [showAll, baseQuery, toast]);
+    }, [showAll, baseQuery, toast, client, bankAccountId, activeSubTab]);
 
 
     const transactions = useMemo(() => {
@@ -1684,10 +1718,28 @@ const ReviewedTab = React.forwardRef<
     
     useEffect(() => {
         const fetchAll = async () => {
-            if (!reviewedTransactionsQuery) return;
+            if (!client || !bankAccountId) return;
             setIsFetchingAll(true);
             try {
-                const snapshot = await getDocs(reviewedTransactionsQuery);
+                let baseConstraints: QueryConstraint[] = [
+                    where('bankAccountId', '==', bankAccountId),
+                    where('status', 'in', ['reviewed', 'allocated']),
+                ];
+                if (activeSubTab === 'expenses') {
+                    baseConstraints.push(where('amount', '<', 0));
+                } else {
+                    baseConstraints.push(where('amount', '>=', 0));
+                }
+                 if (dateRange?.from) {
+                    baseConstraints.push(where('date', '>=', dateRange.from.toISOString()));
+                }
+                if (dateRange?.to) {
+                    baseConstraints.push(where('date', '<=', dateRange.to.toISOString()));
+                }
+
+                const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...baseConstraints);
+
+                const snapshot = await getDocs(q);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -1703,7 +1755,7 @@ const ReviewedTab = React.forwardRef<
         } else {
             setAllTransactions([]);
         }
-    }, [showAll, reviewedTransactionsQuery, toast]);
+    }, [showAll, reviewedTransactionsQuery, toast, client, bankAccountId, activeSubTab, dateRange]);
     
     const displayedDocuments = useMemo(() => {
         if (searchResults !== null) {
@@ -2471,10 +2523,22 @@ const ForReviewTab = React.forwardRef<
     
     useEffect(() => {
         const fetchAll = async () => {
-            if (!reviewTransactionsQuery) return;
+             if (!client || !bankAccountId) return;
             setIsFetchingAll(true);
             try {
-                const snapshot = await getDocs(reviewTransactionsQuery);
+                let baseConstraints: QueryConstraint[] = [
+                    where('bankAccountId', '==', bankAccountId),
+                    where('status', '==', 'review'),
+                ];
+                 if (activeSubTab === 'expenses') {
+                    baseConstraints.push(where('amount', '<', 0));
+                } else {
+                    baseConstraints.push(where('amount', '>=', 0));
+                }
+
+                const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...baseConstraints);
+
+                const snapshot = await getDocs(q);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -2490,7 +2554,7 @@ const ForReviewTab = React.forwardRef<
         } else {
             setAllTransactions([]);
         }
-    }, [showAll, reviewTransactionsQuery, toast]);
+    }, [showAll, reviewTransactionsQuery, toast, client, bankAccountId, activeSubTab]);
 
     const handleGroupReview = async () => {
         if (viewMode === 'group') {
