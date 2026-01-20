@@ -66,11 +66,7 @@ function cleanDescription(description: string): string {
         .replace(/\s+/g, " ")
         .trim();
 
-    cleaned = cleaned.replace(/\b(ZA|SOUTH\s*AFRICA|S\s*A)\b/gi, '');
-    cleaned = cleaned.replace(/[|•·*]+/g, '');
-    cleaned = cleaned.trim();
-
-    // 2. Strip Prefixes (from user's step 7)
+    // 2. Strip Prefixes
     const prefixes = [
         /^\s*(?:pos|card|cheque\s*card|debit\s*card|mastercard|visa)\s+(?:purchase|purch)?\s+/i,
         /^\s*PURCH\s+/i,
@@ -80,26 +76,51 @@ function cleanDescription(description: string): string {
         /^\s*(?:bank\s*charges?|service\s*fee|fees?|monthly\s*fee|ledger\s*fee|admin\s*fee|commission|charges?)\s+/i,
         /^\s*(?:interest|int\s*(?:paid|recv|received|earned)?)\s+/i
     ];
-
     for (const prefix of prefixes) {
         cleaned = cleaned.replace(prefix, '');
     }
-    cleaned = cleaned.trim();
 
-    // 3. Remove trailing noise
-    cleaned = cleaned.replace(/\s+\b\d{4}\s+\d{4}.*$/i, ''); // e.g., ' 4278 4642...'
-    cleaned = cleaned.replace(/\s+\d{6,}.*$/g, '');       // e.g., ' 0849092...' or masked card numbers
-    cleaned = cleaned.replace(/\s+[A-Z0-9]{5,20}$/i, ''); // e.g., ' XXVBUVC' or ' 7K3D0'
-    cleaned = cleaned.trim();
+    // 3. Remove trailing card numbers and other obvious transaction codes FIRST.
+    cleaned = cleaned.replace(/\s+\d{6,}\*{6,}\d{4,}.*$/, '');
+    cleaned = cleaned.replace(/\s+\b\d{4}\s+\d{4}.*$/i, ''); 
 
-    // 4. Canonicalize
+    // 4. Handle cases where known merchant names are squished with numbers
+    const knownAnchors = ['DISCINSURE', 'AFRIHOST', 'AQUAZANIA', 'FERSTORAGE'];
+    for (const anchor of knownAnchors) {
+        const regex = new RegExp(`^(${anchor})(\\d+.*)`, 'i');
+        const match = cleaned.match(regex);
+        if (match) {
+            cleaned = anchor;
+            break;
+        }
+    }
+
+    // 5. Split and decide where the merchant name ends.
+    const parts = cleaned.split(' ');
+    let merchantParts = [];
+    for (const part of parts) {
+        // Heuristic: Stop if the part looks like a long reference number/code
+        // e.g., A241316379, JAR1692948, or purely numeric long strings
+        if ((/[A-Z]/.test(part) && /\d/.test(part) && part.length > 8) || /^\d{7,}$/.test(part)) {
+            break;
+        }
+        merchantParts.push(part);
+    }
+    cleaned = merchantParts.join(' ');
+
+    // 6. Final Canonicalization
     let merchant = cleaned.toUpperCase();
-    merchant = merchant.replace(/[^\w\s&']/g, ' '); // Keep apostrophe
-    merchant = merchant.replace(/\b(PTY|LTD|LIMITED|CC|INC|THE|AND|SERVICES?|SOLUTIONS|GROUP|HOLDINGS|ST)\b/g, '');
-    merchant = merchant.replace(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b\.?/gi, '');
-    merchant = merchant.replace(/\s+\d{1,2}$/, ''); // Remove trailing day numbers
     
-    // Final cleanup
+    // Remove generic stop-words
+    merchant = merchant.replace(/\b(PTY|LTD|LIMITED|CC|INC|THE|AND|SERVICES?|SOLUTIONS?|GROUP|HOLDINGS?|AUTOMOTIVE|SA|ST|'S)\b/gi, '');
+    // Remove month fragments
+    merchant = merchant.replace(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b\.?/gi, '');
+    // Remove trailing day numbers
+    merchant = merchant.replace(/\s+\d{1,2}$/, '');
+    // Remove punctuation except ampersand
+    merchant = merchant.replace(/[^\w\s&]/g, ' '); 
+
+    // Collapse whitespace again after all replacements
     return merchant.replace(/\s+/g, ' ').trim();
 }
 // #endregion
@@ -277,7 +298,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             <DialogTrigger asChild>
                 <Button><FileUp className="mr-2 h-4 w-4" /> Import CSV</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-4xl">
+            <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>Import Bank Statement</DialogTitle>
                     <DialogDescription>
@@ -824,7 +845,6 @@ const NewTransactionsTab = React.forwardRef<
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
-                // Remove the limit constraint for fetching all
                 // @ts-ignore
                 const unlimitedQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery._query.constraints.filter((c: any) => c.type !== 'limit'));
                 const snapshot = await getDocs(unlimitedQuery);
@@ -1764,7 +1784,7 @@ const ReviewedTab = React.forwardRef<
                 const batch = writeBatch(db);
                 const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
                 chunk.forEach(txId => {
-                    const docRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+                    const docRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.delete(docRef);
                 });
                 await batch.commit();
