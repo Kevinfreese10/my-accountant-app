@@ -261,6 +261,7 @@ export type User = {
   payrollDueDate?: any;
   submitsEmp201?: boolean;
   submitsEmp501?: boolean;
+  submitsProvisionalTax?: boolean;
   submitsIncomeTax?: boolean;
   submitsAnnualReturns?: boolean;
   submitsBeneficialOwnership?: boolean;
@@ -349,6 +350,7 @@ export type ImportedTransaction = {
     date: string;
     reference: string;
     description: string;
+    cleanedDescription?: string;
     amount: number;
     bankAccountId: string;
     status: 'new' | 'allocated' | 'review' | 'reviewed' | 'ai_processing' | 'ai_review';

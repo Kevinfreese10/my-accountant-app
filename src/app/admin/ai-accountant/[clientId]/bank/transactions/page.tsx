@@ -56,6 +56,51 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
+// #region Description Cleaning
+function cleanDescription(description: string): string {
+    if (!description) return '';
+    let cleaned = description;
+
+    // 2.1 Normalize whitespace & separators
+    cleaned = cleaned.replace(/[\u00A0\u2000-\u200B]/g, " ").replace(/\s+/g, " ").trim();
+
+    // 2.2 Remove common noise tokens
+    cleaned = cleaned.replace(/(?i)\b(?:ZA|SOUTH\s*AFRICA|S\s*A)\b/g, '');
+    cleaned = cleaned.replace(/[|•·]+/g, '');
+
+    // 7. Strip prefixes
+    const prefixes = [
+        /(?i)^\s*(?:cheque\s*card|debit\s*card|card)\s+(?:purchase|purch)\s+/g,
+        /(?i)^\s*(?:eft|internet\s*banking|ib\s*(?:payment|pmt)|online\s*banking|payment|pay\s*and\s*clear)\s+/g,
+        /(?i)^\s*(?:trf|transfer|xfer)\s+/g,
+        /(?i)^\s*(?:debit\s*order|d\/o|debit\s*ord|collection|coll|naedo|early\s*debit)\s+/g,
+        /(?i)^\s*(?:atm|cash\s*withdrawal|withdrawal|cash\s*wd)\s+/g,
+        /(?i)^\s*(?:bank\s*charges?|fees?|service\s*fee|monthly\s*fee|admin\s*fee|commission|charges?)\s+/g,
+    ];
+    for (const prefix of prefixes) {
+        cleaned = cleaned.replace(prefix, '');
+    }
+
+    // 4.2 Remove trailing noise
+    cleaned = cleaned.replace(/(?i)\s+\b\d{4}\s+\d{4}\b.*$/g, '');
+    cleaned = cleaned.replace(/\s+\d{6,}.*$/g, '');
+
+    // 4.1 Generic supplier capture
+    const merchantMatch = cleaned.match(/^([A-Z0-9][A-Z0-9&'._-]{1,}(?:\s+[A-Z0-9&'._-]{1,}){0,6})/i);
+    let merchant = merchantMatch ? merchantMatch[0] : cleaned;
+
+    // 6. VAT-friendly canonicalization
+    merchant = merchant.toUpperCase();
+    merchant = merchant.replace(/[^\w\s&']/g, ' '); // Keep apostrophe
+    merchant = merchant.replace(/\s+/g, ' ');
+    merchant = merchant.replace(/(?i)\b(?:PTY|LTD|LIMITED|CC|INC|THE|AND|SERVICES|SERVICE|SOLUTIONS|GROUP|HOLDINGS)\b/g, '');
+    merchant = merchant.replace(/(?i)\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b\.?/g, '');
+    merchant = merchant.replace(/\b\d{1,2}\b/g, '');
+    
+    return merchant.replace(/\s+/g, ' ').trim();
+}
+// #endregion
+
 // #region Import Dialog
 const importFormSchema = z.object({
   file: z.any().refine(file => file instanceof File, "A CSV or Excel file is required."),
@@ -64,6 +109,7 @@ const importFormSchema = z.object({
 type ParsedTransaction = {
     Date: string;
     Description: string;
+    CleanedDescription: string;
     Amount: number;
 }
 
@@ -123,6 +169,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                         const transactions: ParsedTransaction[] = data.map(row => ({
                             Date: row.Date,
                             Description: row.Description,
+                            CleanedDescription: cleanDescription(row.Description || ''),
                             Amount: parseFloat(row.Amount)
                         })).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
                         
@@ -189,6 +236,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     date: parsedDate.toISOString(),
                     reference: reference,
                     description: row.Description,
+                    cleanedDescription: row.CleanedDescription,
                     amount: row.Amount,
                     bankAccountId: bankAccountId,
                     status: 'new'
@@ -259,7 +307,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             <DialogTrigger asChild>
                 <Button><FileUp className="mr-2 h-4 w-4" /> Import CSV</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="sm:max-w-4xl">
                 <DialogHeader>
                     <DialogTitle>Import Bank Statement</DialogTitle>
                     <DialogDescription>
@@ -293,6 +341,28 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                                     <p className="text-sm text-muted-foreground">New Potential Balance</p>
                                     <p className="text-lg font-bold">{new Intl.NumberFormat('en-GB', { style: 'decimal', minimumFractionDigits: 2 }).format(newBalance)}</p>
                                 </div>
+                            </div>
+                             <div className="max-h-64 overflow-y-auto border rounded-md">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>Original Description</TableHead>
+                                            <TableHead>Cleaned Description</TableHead>
+                                            <TableHead className="text-right">Amount</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {parsedTransactions.map((tx, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell>{tx.Date}</TableCell>
+                                                <TableCell>{tx.Description}</TableCell>
+                                                <TableCell className="font-semibold">{tx.CleanedDescription}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatPrice(tx.Amount)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
                             </div>
                         </div>
                      }
@@ -804,13 +874,15 @@ const NewTransactionsTab = React.forwardRef<
         return () => clearTimeout(debounce);
     }, [searchTerm, handleSearch]);
 
-     useEffect(() => {
+    useEffect(() => {
         const fetchAll = async () => {
             if (!baseQuery) return;
             setIsFetchingAll(true);
             try {
-                const snapshot = await getDocs(baseQuery);
-                const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+                // Create a new query without the limit constraint for fetching all
+                const allQuery = query(baseQuery.firestore, baseQuery.path, ...baseQuery.constraints.filter((c: any) => c.type !== 'limit'));
+                const snapshot = await getDocs(allQuery);
+                const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
                 console.error("Error fetching all transactions:", error);
@@ -1381,7 +1453,10 @@ const NewTransactionsTab = React.forwardRef<
                                             />
                                         </TableCell>
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                        <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
+                                        <TableCell className="whitespace-normal break-words">
+                                            <p>{tx.description}</p>
+                                            {tx.cleanedDescription && <p className="text-xs text-muted-foreground font-mono bg-muted p-1 rounded-sm mt-1">{tx.cleanedDescription}</p>}
+                                        </TableCell>
                                         <TableCell className="font-mono">{tx.reference}</TableCell>
                                         <TableCell>
                                             <Popover>
@@ -1659,8 +1734,10 @@ const ReviewedTab = React.forwardRef<
             if (!reviewedTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                const snapshot = await getDocs(reviewedTransactionsQuery);
-                const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+                // Create a new query without the limit constraint for fetching all
+                const allQuery = query(reviewedTransactionsQuery.firestore, reviewedTransactionsQuery.path, ...reviewedTransactionsQuery.constraints.filter((c: any) => c.type !== 'limit'));
+                const snapshot = await getDocs(allQuery);
+                const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
                 console.error("Error fetching all transactions:", error);
@@ -2446,7 +2523,9 @@ const ForReviewTab = React.forwardRef<
             if (!reviewTransactionsQuery) return;
             setIsFetchingAll(true);
             try {
-                const snapshot = await getDocs(reviewTransactionsQuery);
+                // Create a new query without the limit constraint for fetching all
+                const allQuery = query(reviewTransactionsQuery.firestore, reviewTransactionsQuery.path, ...reviewTransactionsQuery.constraints.filter((c: any) => c.type !== 'limit'));
+                const snapshot = await getDocs(allQuery);
                 const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
                 setAllTransactions(allDocs);
             } catch (error) {
@@ -2494,7 +2573,7 @@ const ForReviewTab = React.forwardRef<
                     const { supplier } = await extractSupplierName({ description: tx.description });
                     return { ...tx, extractedSupplier: supplier };
                 } catch (e) {
-                    return { ...tx, extractedSupplier: tx.description.split(' ')[0].toUpperCase() };
+                    return { ...tx, extractedSupplier: tx.description.split(' ')[0].toUpperCase() }; // Fallback
                 }
             }));
             
