@@ -3238,29 +3238,31 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 const suggestion = groupAllocations[supplier];
                                 return (
                                 <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
-                                    <CollapsibleTrigger className="w-full p-3 bg-muted/50 hover:bg-muted/80 flex justify-between items-center rounded-t-lg">
-                                        <div className="text-left">
+                                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-t-lg">
+                                        <CollapsibleTrigger asChild>
+                                          <button className="flex-grow text-left pr-4">
                                             <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length} items)</span></h3>
                                             {suggestion && <p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%</p>}
-                                        </div>
-                                         <div className="flex items-center gap-2">
-                                             <Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId}>
+                                          </button>
+                                        </CollapsibleTrigger>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            <Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId}>
                                                 <SelectTrigger className="h-8 w-[200px] bg-white"><SelectValue placeholder="Select Account..." /></SelectTrigger>
-                                                <SelectContent onClick={(e) => e.stopPropagation()}>
+                                                <SelectContent>
                                                     {chartOfAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
                                                 </SelectContent>
-                                             </Select>
-                                             <Select onValueChange={(value) => handleAllocationChange(supplier, 'vatType', value)} value={suggestion?.vatType}>
+                                            </Select>
+                                            <Select onValueChange={(value) => handleAllocationChange(supplier, 'vatType', value as VatType)} value={suggestion?.vatType}>
                                                 <SelectTrigger className="h-8 w-[200px] bg-white"><SelectValue placeholder="Select VAT..." /></SelectTrigger>
-                                                <SelectContent onClick={(e) => e.stopPropagation()}>
+                                                <SelectContent>
                                                     {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
                                                 </SelectContent>
-                                             </Select>
-                                            <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); handleRejectSelected(txs.map(t => t.id)); }}>Reject</Button>
-                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleApproveGroup(supplier); }}>Approve</Button>
-                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); setActiveApprovalGroup({ supplier, txs, suggestion }); }}>Create Rule</Button>
-                                         </div>
-                                    </CollapsibleTrigger>
+                                            </Select>
+                                            <Button size="sm" variant="destructive" onClick={() => handleRejectSelected(txs.map(t => t.id))}>Reject</Button>
+                                            <Button size="sm" onClick={() => handleApproveGroup(supplier)}>Approve</Button>
+                                            <Button size="sm" onClick={() => setActiveApprovalGroup({ supplier, txs, suggestion })}>Create Rule</Button>
+                                        </div>
+                                    </div>
                                     <CollapsibleContent>
                                         <Table>
                                             <TableHeader><TableRow><TableHead className="w-12"><Checkbox/></TableHead><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
