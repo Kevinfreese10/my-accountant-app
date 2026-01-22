@@ -6,7 +6,7 @@ import { chartOfAccounts as masterChartOfAccounts, setMasterChartOfAccounts } fr
 import { Input } from "@/components/ui/input";
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, PlusCircle, Edit, Trash2, Loader2, ChevronsUpDown, CheckCheck } from "lucide-react";
+import { ArrowLeft, PlusCircle, Edit, Trash2, Loader2, ChevronsUpDown, CheckCheck, Search } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
@@ -129,6 +129,7 @@ export default function AllocationRulesPage() {
     const { toast } = useToast();
     const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
     const [editingRule, setEditingRule] = useState<Partial<AllocationRule> | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const fetchGlobalRules = async () => {
         setIsLoading(true);
@@ -147,6 +148,15 @@ export default function AllocationRulesPage() {
     useEffect(() => {
         fetchGlobalRules();
     }, []);
+
+    const filteredRules = useMemo(() => {
+        if (!searchTerm.trim()) {
+            return globalRules;
+        }
+        return globalRules.filter(rule =>
+            rule.keywords.some(kw => kw.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+    }, [globalRules, searchTerm]);
 
     const conflictingKeywords = useMemo(() => {
         const keywordAccounts = new Map<string, Set<string>>();
@@ -247,6 +257,15 @@ export default function AllocationRulesPage() {
                         <Button size="sm" onClick={() => handleOpenRuleForm(null)}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Create New Rule
                         </Button>
+                         <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by keyword..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-8 w-64"
+                            />
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -264,7 +283,7 @@ export default function AllocationRulesPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {globalRules.map((rule) => (
+                                {filteredRules.map((rule) => (
                                     <TableRow key={rule.id}>
                                         <TableCell className="font-medium">{rule.description}</TableCell>
                                         <TableCell>
