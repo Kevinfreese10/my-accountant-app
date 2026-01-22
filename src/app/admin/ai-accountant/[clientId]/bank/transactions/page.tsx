@@ -1,4 +1,5 @@
 
+      
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -1280,6 +1281,13 @@ const NewTransactionsTab = React.forwardRef<
                 </Tabs>
                  <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
+                        {bankAccountId && <ImportDialog 
+                            client={client}
+                            bankAccountId={bankAccountId}
+                            currentBalance={0} // TODO: Pass real balance if available
+                            onImportComplete={refetch}
+                            globalRules={globalRules}
+                        />}
                          <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" disabled={selectedTransactions.length === 0}>
@@ -2017,7 +2025,7 @@ const ReviewedTab = React.forwardRef<
             setIsConsistencyCheckOpen(false);
 
         } catch (error) {
-             toast({ title: 'Error', description: 'Could not apply corrections.', variant: 'destructive' });
+             toast({ title: 'Error', description: 'Could not apply corrections.', variant: 'destructive'});
         } finally {
             setIsSaving(false);
         }
