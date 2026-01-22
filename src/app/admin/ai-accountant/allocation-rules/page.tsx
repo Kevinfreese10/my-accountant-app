@@ -269,8 +269,8 @@ export default function AllocationRulesPage() {
                                         <TableCell className="font-medium">{rule.description}</TableCell>
                                         <TableCell>
                                             <div className="flex flex-wrap gap-1 max-w-xs">
-                                                {rule.keywords.map(kw => (
-                                                    <Badge key={kw} variant={conflictingKeywords.has(kw) ? "destructive" : "secondary"}>
+                                                {rule.keywords.map((kw, index) => (
+                                                    <Badge key={`${kw}-${index}`} variant={conflictingKeywords.has(kw) ? "destructive" : "secondary"}>
                                                         {kw}
                                                     </Badge>
                                                 ))}
