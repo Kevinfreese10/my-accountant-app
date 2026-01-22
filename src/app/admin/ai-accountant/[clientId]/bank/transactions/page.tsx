@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown, ChevronRight as ChevronRightIcon, MoreHorizontal, Group } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown, ChevronRight as ChevronRightIcon, MoreHorizontal, Group, RefreshCw } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
@@ -386,8 +386,6 @@ function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, op
     useEffect(() => {
         if (account) {
             form.reset({ id: account.id, name: account.description });
-        } else {
-            form.reset({ id: '', name: '' });
         }
     }, [account, form]);
 
@@ -2977,33 +2975,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
       }
     };
     
-    const consolidateGroups = (groups: Record<string, ImportedTransaction[]>) => {
-        const groupNames = Object.keys(groups).sort((a, b) => a.length - b.length);
-        const consolidatedMap = new Map<string, ImportedTransaction[]>();
-        const mergedGroups = new Set<string>();
-
-        for (const name of groupNames) {
-            if (mergedGroups.has(name)) continue;
-            
-            let bestMatch = name;
-            let mergedTxs = [...groups[name]];
-
-            for (const otherName of groupNames) {
-                if (name === otherName || mergedGroups.has(otherName)) continue;
-                
-                if (otherName.includes(name)) {
-                    mergedTxs.push(...groups[otherName]);
-                    mergedGroups.add(otherName);
-                }
-            }
-            
-            const existing = consolidatedMap.get(bestMatch) || [];
-            consolidatedMap.set(bestMatch, [...existing, ...mergedTxs]);
-        }
-        
-        return Object.fromEntries(consolidatedMap.entries());
-    };
-    
     const runAiAllocation = async (reanalyse = false) => {
         if (!client || !bankAccountId) return;
         
@@ -3020,42 +2991,20 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }
 
         try {
-            // Step 1: Supplier / Keyword Extraction
-            setProgressMessage(`Step 1/4: Extracting supplier names for ${transactionsToProcess.length} transactions...`);
-            const transactionSuppliers = await Promise.all(transactionsToProcess.map(async (tx, index) => {
-                try {
-                    const { supplier } = await extractSupplierName({ description: tx.description });
-                    setProgress(((index + 1) / transactionsToProcess.length) * 25);
-                    return { txId: tx.id, supplier };
-                } catch (e) {
-                    return { txId: tx.id, supplier: 'UNKNOWN' };
-                }
-            }));
-
-            const transactionsWithSuppliers = transactionsToProcess.map(tx => {
-                const found = transactionSuppliers.find(s => s.txId === tx.id);
-                return { ...tx, extractedSupplier: found?.supplier || 'UNKNOWN' };
-            });
-
-            // Step 2: Initial Group Creation
-            setProgressMessage('Step 2/4: Creating initial transaction groups...');
-            const initialGroups = transactionsWithSuppliers.reduce((acc, tx) => {
-                const key = tx.extractedSupplier;
+            // Step 1: Grouping by cleaned description
+            setProgressMessage(`Step 1/2: Grouping ${transactionsToProcess.length} transactions...`);
+            const groups = transactionsToProcess.reduce((acc, tx) => {
+                const key = tx.cleanedDescription || tx.description.split(' ')[0].toUpperCase();
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
                 return acc;
             }, {} as Record<string, ImportedTransaction[]>);
             setProgress(50);
             
-            // Step 3: Group Consolidation
-            setProgressMessage('Step 3/4: Consolidating similar groups...');
-            const consolidatedGroups = consolidateGroups(initialGroups);
-            setProgress(75);
-            
-            const totalGroups = Object.keys(consolidatedGroups).length;
+            const totalGroups = Object.keys(groups).length;
 
-            // Step 4 & 5: AI Allocation & Master Rule Alignment
-            setProgressMessage(`Step 4/4: Getting AI suggestions for ${totalGroups} groups...`);
+            // Step 2: AI Allocation & Master Rule Alignment
+            setProgressMessage(`Step 2/2: Getting AI suggestions for ${totalGroups} groups...`);
             let groupsProcessed = 0;
             const allocationCache = new Map<string, AIAllocationResult>();
             
@@ -3063,27 +3012,26 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             let currentBatch = writeBatch(db);
             let currentBatchSize = 0;
 
-            for (const [supplier, txs] of Object.entries(consolidatedGroups)) {
+            for (const [description, txs] of Object.entries(groups)) {
                 let allocationResult: AIAllocationResult | null = null;
-                if (allocationCache.has(supplier)) {
-                    allocationResult = allocationCache.get(supplier)!;
+                if (allocationCache.has(description)) {
+                    allocationResult = allocationCache.get(description)!;
                 } else {
                     try {
-                        const { accountId, vatType, confidence } = await suggestTransactionAllocation({ description: supplier, chartOfAccounts: JSON.stringify(chartOfAccounts), isVatRegistered: client.isVatRegistered || false });
+                        const { accountId, vatType, confidence } = await suggestTransactionAllocation({ description: description, chartOfAccounts: JSON.stringify(chartOfAccounts), isVatRegistered: client.isVatRegistered || false });
                         
-                        // Step 5: VAT Alignment Logic
                         const rule = globalRules.find(r => r.accountId === accountId);
                         const finalVatType = client.isVatRegistered ? (rule ? rule.vatType : vatType) : 'no_vat';
 
                         allocationResult = { accountId, vatType: finalVatType, confidence };
-                        allocationCache.set(supplier, allocationResult);
+                        allocationCache.set(description, allocationResult);
                     } catch (e) {
-                        console.error(`Failed to get suggestion for ${supplier}:`, e);
+                        console.error(`Failed to get suggestion for ${description}:`, e);
                     }
                 }
                 
                 txs.forEach(tx => {
-                    if (currentBatchSize >= 490) { // Leave some room
+                    if (currentBatchSize >= 490) { 
                         batches.push(currentBatch);
                         currentBatch = writeBatch(db);
                         currentBatchSize = 0;
@@ -3091,21 +3039,19 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
                     currentBatch.update(txRef, {
                         status: 'ai_review',
-                        extractedSupplier: supplier,
+                        extractedSupplier: description,
                         aiAllocationResult: allocationResult,
                     });
                     currentBatchSize++;
                 });
 
                 groupsProcessed++;
-                setProgress(75 + (groupsProcessed / totalGroups) * 25);
+                setProgress(50 + (groupsProcessed / totalGroups) * 50);
             }
-            batches.push(currentBatch); // Add the last batch
+            batches.push(currentBatch);
 
-            // Commit all batches
             await Promise.all(batches.map(b => b.commit()));
 
-            // Finalize
             setProgressMessage('AI Allocation Complete!');
             setProgress(100);
             toast({ title: "AI Allocation Complete", description: "Transactions are now ready for your review." });
@@ -3148,10 +3094,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }
     }
 
-    const handleReanalyseGroupings = async () => {
-        await runAiAllocation(true);
-    };
-    
     const handleAllocationChange = (supplier: string, field: 'accountId' | 'vatType', value: string) => {
         setGroupAllocations(prev => {
             const current = prev[supplier] || { accountId: '', vatType: 'no_vat', confidence: 0 };
@@ -3206,12 +3148,12 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                                 Run AI Allocation
                             </Button>
-                            <Button onClick={handleReanalyseGroupings} disabled={isLoading || isProcessing} variant="outline">
-                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Group className="mr-2 h-4 w-4"/>}
+                            <Button onClick={() => runAiAllocation(true)} disabled={isLoading || isProcessing} variant="outline">
+                                <RefreshCw className="mr-2 h-4 w-4"/>
                                 Re-analyse Groupings
                             </Button>
-                             <Button onClick={handleBulkApprove} disabled={isLoading || isProcessing} variant="outline">
-                                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4"/>}
+                             <Button onClick={handleBulkApprove} disabled={isLoading || isProcessing || Object.keys(groupedTransactions).length === 0} variant="outline">
+                                 <CheckCircle className="mr-2 h-4 w-4"/>
                                  Bulk Approve Allocations
                              </Button>
                          </div>
@@ -3240,7 +3182,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
                                     <div className="flex items-center justify-between p-3 bg-muted/50 rounded-t-lg">
                                         <CollapsibleTrigger asChild>
-                                          <button className="flex-grow text-left pr-4">
+                                          <button className="flex items-center gap-2 flex-grow text-left pr-4">
                                             <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length} items)</span></h3>
                                             {suggestion && <p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%</p>}
                                           </button>
@@ -3296,6 +3238,7 @@ function BankTransactionsPage() {
     const accountId = searchParams.get('accountId');
     
     const [client, setClient] = useState<User | null>(null);
+    const [allAccountTransactions, setAllAccountTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isNewAccountDialogOpen, setIsNewAccountDialogOpen] = useState(false);
     const { toast } = useToast();
     const [isEditAccountDialogOpen, setIsEditAccountDialogOpen] = useState(false);
@@ -3328,6 +3271,25 @@ function BankTransactionsPage() {
     useEffect(() => {
         fetchClientData();
     }, [fetchClientData]);
+    
+    useEffect(() => {
+        if (!clientId || !accountId) return;
+        const q = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('bankAccountId', '==', accountId));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetched = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as (ImportedTransaction | AllocatedTransaction));
+            setAllAccountTransactions(fetched);
+        });
+        return () => unsubscribe();
+    }, [clientId, accountId]);
+    
+    const accountStats = useMemo(() => {
+        if (allAccountTransactions.length === 0) {
+            return { balance: 0, unallocatedCount: 0 };
+        }
+        const balance = allAccountTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+        const unallocatedCount = allAccountTransactions.filter(tx => tx.status === 'new').length;
+        return { balance, unallocatedCount };
+    }, [allAccountTransactions]);
 
     useEffect(() => {
         const fetchCustomers = async () => {
@@ -3407,10 +3369,40 @@ function BankTransactionsPage() {
     if (!client) {
         return <div className="text-center mt-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
+    
+    const handleClearTransactions = async () => {
+        if (!client || !accountId) return;
+
+        toast({ title: "Clearing transactions...", description: "This might take a moment." });
+        
+        const q = query(collection(db, 'aiAccountantClients', client.uid!, 'transactions'), where('bankAccountId', '==', accountId));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            toast({ title: "No transactions to clear." });
+            return;
+        }
+
+        try {
+            const batchSize = 500;
+            for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+                const batch = writeBatch(db);
+                const chunk = snapshot.docs.slice(i, i + batchSize);
+                chunk.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+            }
+            toast({ title: "Transactions Cleared", description: `Removed ${snapshot.size} transactions.`, variant: 'destructive' });
+        } catch (e) {
+            console.error(e);
+            toast({ title: "Error", description: "Failed to clear transactions.", variant: 'destructive' });
+        }
+    }
+
 
     const selectedBankAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === accountId);
     if (!selectedBankAccount && client.chartOfAccounts?.some(acc => acc.accountNumber.startsWith('8400-'))) {
-        // Find the first bank account if no specific one is selected or found
         const firstBankAccount = client.chartOfAccounts?.find(acc => acc.accountNumber.startsWith('8400-'));
         if (firstBankAccount) {
             router.replace(`/admin/ai-accountant/${clientId}/bank/transactions?accountId=${firstBankAccount.accountNumber}`);
@@ -3440,13 +3432,38 @@ function BankTransactionsPage() {
                 open={isEditAccountDialogOpen}
                 onOpenChange={(open) => setIsEditAccountDialogOpen(open)}
             />}
-            <div className="md:flex items-center justify-between">
+            <div className="md:flex items-start justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">{selectedBankAccount?.description}</h1>
                     <p className="text-muted-foreground">{selectedBankAccount?.accountNumber}</p>
+                    <div className="flex gap-4 mt-2 text-sm">
+                        <div>
+                            <span className="text-muted-foreground">Balance: </span>
+                            <span className="font-semibold">{formatPrice(accountStats.balance)}</span>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground">Unallocated: </span>
+                            <span className="font-semibold">{accountStats.unallocatedCount}</span>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mt-4 md:mt-0">
                      <Button variant="outline" onClick={handleRefreshAll}><RotateCcw className="mr-2 h-4 w-4"/> Refresh</Button>
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive"><Trash2 className="mr-2 h-4 w-4" /> Clear Transactions</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>This will permanently delete all transactions in this bank account. This action cannot be undone.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleClearTransactions}>Yes, Delete All</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                      <DropdownMenu>
                          <DropdownMenuTrigger asChild>
                             <Button><Settings className="mr-2 h-4 w-4" /> Manage Bank Account</Button>
@@ -3513,5 +3530,7 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
+
+    
 
     

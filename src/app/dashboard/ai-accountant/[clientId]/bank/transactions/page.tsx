@@ -1,3 +1,4 @@
+
 'use client';
 import { redirect, useSearchParams } from 'next/navigation';
 
@@ -8,3 +9,5 @@ export default function NumeraBankTransactionsRedirectPage({ params }: { params:
   redirect(redirectUrl);
   return null;
 }
+
+    
