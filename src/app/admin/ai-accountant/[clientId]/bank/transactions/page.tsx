@@ -371,13 +371,21 @@ const editAccountSchema = z.object({
   name: z.string().min(3, "Bank account name is required."),
 });
 
-function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, open }: { account: ChartOfAccount, client: User | null, onAccountUpdated: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
+function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, open }: { account: ChartOfAccount | null, client: User | null, onAccountUpdated: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
+    
     const form = useForm<z.infer<typeof editAccountSchema>>({
         resolver: zodResolver(editAccountSchema),
-        defaultValues: { id: account.id, name: account.description },
+        defaultValues: account ? { id: account.id, name: account.description } : {id: '', name: ''},
     });
+    
+    useEffect(() => {
+        if (account) {
+            form.reset({ id: account.id, name: account.description });
+        }
+    }, [account, form]);
+
 
     const handleEditAccount = async (values: z.infer<typeof editAccountSchema>) => {
         if (!client || !client.uid) return;
@@ -400,6 +408,8 @@ function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, op
             setIsSaving(false);
         }
     };
+
+    if (!account) return null;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -780,9 +790,7 @@ const NewTransactionsTab = React.forwardRef<
     const [isAiSelectedDialogOpen, setIsAiSelectedDialogOpen] = useState(false);
     const [isAiAllDialogOpen, setIsAiAllDialogOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [showAll, setShowAll] = useState(false);
-    const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
-    const [isFetchingAll, setIsFetchingAll] = useState(false);
+    
 
 
     type SortField = 'date' | 'description' | 'amount';
@@ -880,43 +888,8 @@ const NewTransactionsTab = React.forwardRef<
         return () => clearTimeout(debounce);
     }, [searchTerm, handleSearch]);
 
-    useEffect(() => {
-        const fetchAll = async () => {
-            if (!client || !bankAccountId) return;
-            setIsFetchingAll(true);
-            try {
-                let baseConstraints: QueryConstraint[] = [
-                    where('bankAccountId', '==', bankAccountId),
-                    where('status', '==', 'new'),
-                ];
-                if (activeSubTab === 'expenses') {
-                    baseConstraints.push(where('amount', '<', 0));
-                } else {
-                    baseConstraints.push(where('amount', '>=', 0));
-                }
-                const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...baseConstraints);
-
-                const snapshot = await getDocs(q);
-                const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
-                setAllTransactions(allDocs);
-            } catch (error) {
-                console.error("Error fetching all transactions:", error);
-                toast({ title: 'Error', description: 'Could not fetch all transactions.', variant: 'destructive' });
-            } finally {
-                setIsFetchingAll(false);
-            }
-        };
-        
-        if (showAll) {
-            fetchAll();
-        } else {
-            setAllTransactions([]);
-        }
-    }, [showAll, baseQuery, toast, client, bankAccountId, activeSubTab]);
-
-
     const transactions = useMemo(() => {
-        let docs = showAll ? allTransactions : (searchResults !== null ? searchResults : paginatedDocuments);
+        let docs = searchResults !== null ? searchResults : paginatedDocuments;
         
         if (sortField === 'description') {
             docs.sort((a, b) => {
@@ -925,7 +898,7 @@ const NewTransactionsTab = React.forwardRef<
             });
         }
         return docs;
-    }, [showAll, allTransactions, searchResults, paginatedDocuments, sortField, sortDirection]);
+    }, [searchResults, paginatedDocuments, sortField, sortDirection]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -1271,7 +1244,7 @@ const NewTransactionsTab = React.forwardRef<
                     <DialogHeader>
                         <DialogTitle>AI Allocate Selected</DialogTitle>
                         <DialogDescription>
-                            The selected transaction(s) will be moved to the AI Workflow tab for processing.
+                            The selected transaction(s) will be moved to the AI workflow tab for processing.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -1446,7 +1419,7 @@ const NewTransactionsTab = React.forwardRef<
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading || isSearching || isFetchingAll ? (
+                            {isLoading || isSearching ? (
                                 <TableRow><TableCell colSpan={8} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                             ) : transactions.length === 0 ? (
                                 <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No new transactions found.</TableCell></TableRow>
@@ -1544,10 +1517,8 @@ const NewTransactionsTab = React.forwardRef<
                     Save Allocations
                 </Button>
                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
-                        {showAll ? 'Show Paginated' : 'Show All'}
-                    </Button>
-                    {!searchTerm && !showAll && (
+                    
+                    {!searchTerm && (
                         <div className="flex items-center space-x-2">
                             <Button
                                 variant="outline"
@@ -2410,9 +2381,7 @@ const ForReviewTab = React.forwardRef<
     const [searchTerm, setSearchTerm] = useState('');
     const [isApprovingAll, setIsApprovingAll] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
-    const [showAll, setShowAll] = useState(false);
-    const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
-    const [isFetchingAll, setIsFetchingAll] = useState(false);
+    
     const [viewMode, setViewMode] = useState<'list' | 'group'>('list');
     const [groupedTransactions, setGroupedTransactions] = useState<Record<string, ImportedTransaction[]>>({});
     const [isGrouping, setIsGrouping] = useState(false);
@@ -2468,7 +2437,7 @@ const ForReviewTab = React.forwardRef<
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewTransactionsQuery, pageSize: PAGE_SIZE });
 
      const transactions = useMemo(() => {
-        let docs = showAll ? allTransactions : (searchTerm ? documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase())) : documents);
+        let docs = searchTerm ? documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase())) : documents;
         
         if (sortField === 'description') {
             docs.sort((a, b) => {
@@ -2478,7 +2447,7 @@ const ForReviewTab = React.forwardRef<
         }
         
         return docs;
-    }, [documents, searchTerm, showAll, allTransactions, sortField, sortDirection]);
+    }, [documents, searchTerm, sortField, sortDirection]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -2489,41 +2458,6 @@ const ForReviewTab = React.forwardRef<
         setViewMode('list');
     }, [activeSubTab, refetch]);
     
-    useEffect(() => {
-        const fetchAll = async () => {
-             if (!client || !bankAccountId) return;
-            setIsFetchingAll(true);
-            try {
-                let baseConstraints: QueryConstraint[] = [
-                    where('bankAccountId', '==', bankAccountId),
-                    where('status', '==', 'review'),
-                ];
-                 if (activeSubTab === 'expenses') {
-                    baseConstraints.push(where('amount', '<', 0));
-                } else {
-                    baseConstraints.push(where('amount', '>=', 0));
-                }
-
-                const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...baseConstraints);
-
-                const snapshot = await getDocs(q);
-                const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
-                setAllTransactions(allDocs);
-            } catch (error) {
-                console.error("Error fetching all transactions:", error);
-                toast({ title: 'Error', description: 'Could not fetch all transactions.', variant: 'destructive' });
-            } finally {
-                setIsFetchingAll(false);
-            }
-        };
-
-        if (showAll) {
-            fetchAll();
-        } else {
-            setAllTransactions([]);
-        }
-    }, [showAll, reviewTransactionsQuery, toast, client, bankAccountId, activeSubTab]);
-
     const handleGroupReview = async () => {
         if (viewMode === 'group') {
             setViewMode('list');
@@ -2866,9 +2800,7 @@ const ForReviewTab = React.forwardRef<
             </CardContent>
             <CardFooter className="flex items-center justify-center p-4">
                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
-                        {showAll ? 'Show Paginated' : 'Show All'}
-                    </Button>
+                    
                     {!searchTerm && (
                         <div className="flex items-center space-x-2">
                             <Button
@@ -3305,7 +3237,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 function BankTransactionsPage() {
     const { clientId } = useParams();
     const searchParams = useSearchParams();
-    const bankAccountId = searchParams.get('bankAccountId');
+    const bankAccountId = searchParams.get('accountId');
     const [client, setClient] = useState<User | null>(null);
     const [isNewAccountDialogOpen, setIsNewAccountDialogOpen] = useState(false);
     const { toast } = useToast();
@@ -3428,13 +3360,13 @@ function BankTransactionsPage() {
 
     return (
         <div>
-             <EditAccountDialog
-                account={selectedAccount!}
+             {selectedAccount && <EditAccountDialog
+                account={selectedAccount}
                 client={client}
                 onAccountUpdated={handleAccountUpdated}
                 open={isEditAccountDialogOpen}
                 onOpenChange={(open) => setIsEditAccountDialogOpen(open)}
-            />
+            />}
             <div className="md:flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">{selectedBankAccount?.description}</h1>
