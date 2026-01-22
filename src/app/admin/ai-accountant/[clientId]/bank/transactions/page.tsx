@@ -21,7 +21,7 @@ import { db } from '@/lib/firebase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator, DropdownMenuGroup, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from "@/components/ui/select";
@@ -385,6 +385,8 @@ function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, op
     useEffect(() => {
         if (account) {
             form.reset({ id: account.id, name: account.description });
+        } else {
+            form.reset({ id: '', name: '' });
         }
     }, [account, form]);
 
@@ -1025,30 +1027,26 @@ const NewTransactionsTab = React.forwardRef<
     
     const handleAiAllocateAll = async () => {
         if (!client || !client.uid || !bankAccountId) return;
-        setIsAiAllocating(true);
-        const toastId = toast({ title: "Gathering transactions...", description: "Finding all new expense transactions to send to the AI.", duration: Infinity }).id;
+        setIsAiAllDialogOpen(false);
+        
+        const q = query(
+            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+            where('bankAccountId', '==', bankAccountId),
+            where('status', '==', 'new'),
+            where('amount', '<', 0) // Only expenses
+        );
 
+        const snapshot = await getDocs(q);
+        const transactionsToProcess = snapshot.docs.map(d => d.id);
+        
+        if (transactionsToProcess.length === 0) {
+            toast({ title: "No new expense transactions found." });
+            return;
+        }
+
+        const toastId = toast({ title: "Gathering transactions...", description: `Found ${transactionsToProcess.length} expenses to process.`}).id;
+        
         try {
-            let q = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'new'),
-                where('amount', '<', 0) // Only expenses
-            );
-
-            const snapshot = await getDocs(q);
-            const transactionsToProcess = snapshot.docs.map(d => d.id);
-
-            if (transactionsToProcess.length === 0) {
-                dismiss(toastId);
-                toast({ title: "No new expense transactions found." });
-                setIsAiAllocating(false);
-                setIsAiAllDialogOpen(false);
-                return;
-            }
-
-            toast({ id: toastId, title: `Moving ${transactionsToProcess.length} transactions...`, description: "Preparing AI workflow." });
-
             for (let i = 0; i < transactionsToProcess.length; i += BATCH_SIZE) {
                 const batch = writeBatch(db);
                 const chunk = transactionsToProcess.slice(i, i + BATCH_SIZE);
@@ -1058,19 +1056,13 @@ const NewTransactionsTab = React.forwardRef<
                 });
                 await batch.commit();
             }
-
             dismiss(toastId);
-            toast({ title: "Transactions Moved", description: `${transactionsToProcess.length} expense transactions sent for AI processing.`});
-            
-            refetch(); // this will empty the current view
+            refetch(); 
             setActiveTab('ai-workflow');
         } catch (error) {
             console.error("Error in AI Allocate All:", error);
             dismiss(toastId);
             toast({ title: 'Error', description: 'Could not move all transactions.', variant: 'destructive'});
-        } finally {
-            setIsAiAllocating(false);
-            setIsAiAllDialogOpen(false);
         }
     };
 
@@ -2977,66 +2969,101 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
       }
     };
     
-    const runAiAllocation = async () => {
+    const consolidateGroups = (groups: Record<string, ImportedTransaction[]>) => {
+        const groupNames = Object.keys(groups).sort((a, b) => a.length - b.length);
+        const consolidatedMap = new Map<string, ImportedTransaction[]>();
+        const mergedGroups = new Set<string>();
+
+        for (const name of groupNames) {
+            if (mergedGroups.has(name)) continue;
+            
+            let bestMatch = name;
+            let mergedTxs = [...groups[name]];
+
+            for (const otherName of groupNames) {
+                if (name === otherName || mergedGroups.has(otherName)) continue;
+                
+                if (otherName.includes(name)) {
+                    mergedTxs.push(...groups[otherName]);
+                    mergedGroups.add(otherName);
+                }
+            }
+            
+            const existing = consolidatedMap.get(bestMatch) || [];
+            consolidatedMap.set(bestMatch, [...existing, ...mergedTxs]);
+        }
+        
+        return Object.fromEntries(consolidatedMap.entries());
+    };
+    
+    const runAiAllocation = async (reanalyse = false) => {
         if (!client || !bankAccountId) return;
         
         setIsProcessing(true);
-        setProgressMessage('Fetching transactions for AI processing...');
-        setProgress(0);
+        
+        const transactionsToProcess = reanalyse 
+            ? transactions.filter(tx => tx.status === 'ai_review')
+            : transactions.filter(tx => tx.status === 'ai_processing');
 
-        const allTransactionsToProcess = transactions.filter(tx => tx.status === 'ai_processing');
-
-        if (allTransactionsToProcess.length === 0) {
+        if (transactionsToProcess.length === 0) {
             toast({ title: 'No transactions to process.' });
             setIsProcessing(false);
             return;
         }
 
         try {
-            // Step 1: Extract Supplier Names
-            setProgressMessage(`Step 1/3: Extracting supplier names for ${allTransactionsToProcess.length} transactions...`);
-            let processedCount = 0;
-            for (const tx of allTransactionsToProcess) {
+            // Step 1: Supplier / Keyword Extraction
+            setProgressMessage(`Step 1/4: Extracting supplier names for ${transactionsToProcess.length} transactions...`);
+            const transactionSuppliers = await Promise.all(transactionsToProcess.map(async (tx, index) => {
                 try {
                     const { supplier } = await extractSupplierName({ description: tx.description });
-                    await updateDoc(doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id), {
-                        extractedSupplier: supplier,
-                    });
+                    setProgress(((index + 1) / transactionsToProcess.length) * 25);
+                    return { txId: tx.id, supplier };
                 } catch (e) {
-                    await updateDoc(doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id), {
-                        extractedSupplier: 'UNKNOWN',
-                    });
+                    return { txId: tx.id, supplier: 'UNKNOWN' };
                 }
-                processedCount++;
-                setProgress((processedCount / allTransactionsToProcess.length) * 33);
-            }
-            
-            // Re-fetch transactions to get the new suppliers
-            await refetch();
-            const updatedTransactions = await getDocs(query(collection(db, 'aiAccountantClients', client.uid!, 'transactions'), where('status', '==', 'ai_processing'))).then(snap => snap.docs.map(d => d.data() as ImportedTransaction));
+            }));
 
-            // Step 2: Group & Suggest
-            const groups = updatedTransactions.reduce((acc, tx) => {
-                const key = tx.extractedSupplier || 'Unassigned';
+            const transactionsWithSuppliers = transactionsToProcess.map(tx => {
+                const found = transactionSuppliers.find(s => s.txId === tx.id);
+                return { ...tx, extractedSupplier: found?.supplier || 'UNKNOWN' };
+            });
+
+            // Step 2: Initial Group Creation
+            setProgressMessage('Step 2/4: Creating initial transaction groups...');
+            const initialGroups = transactionsWithSuppliers.reduce((acc, tx) => {
+                const key = tx.extractedSupplier;
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
                 return acc;
             }, {} as Record<string, ImportedTransaction[]>);
-            const totalGroups = Object.keys(groups).length;
+            setProgress(50);
             
-            setProgressMessage(`Step 2/3: Suggesting allocations for ${totalGroups} groups...`);
+            // Step 3: Group Consolidation
+            setProgressMessage('Step 3/4: Consolidating similar groups...');
+            const consolidatedGroups = consolidateGroups(initialGroups);
+            setProgress(75);
+            
+            const totalGroups = Object.keys(consolidatedGroups).length;
+
+            // Step 4 & 5: AI Allocation & Master Rule Alignment
+            setProgressMessage(`Step 4/4: Getting AI suggestions for ${totalGroups} groups...`);
             let groupsProcessed = 0;
             const allocationCache = new Map<string, AIAllocationResult>();
+            
+            const batches = [];
+            let currentBatch = writeBatch(db);
+            let currentBatchSize = 0;
 
-            for (const [supplier, txs] of Object.entries(groups)) {
+            for (const [supplier, txs] of Object.entries(consolidatedGroups)) {
                 let allocationResult: AIAllocationResult | null = null;
-                if(allocationCache.has(supplier)) {
+                if (allocationCache.has(supplier)) {
                     allocationResult = allocationCache.get(supplier)!;
                 } else {
                     try {
                         const { accountId, vatType, confidence } = await suggestTransactionAllocation({ description: supplier, chartOfAccounts: JSON.stringify(chartOfAccounts), isVatRegistered: client.isVatRegistered || false });
                         
-                        // VAT Alignment Logic
+                        // Step 5: VAT Alignment Logic
                         const rule = globalRules.find(r => r.accountId === accountId);
                         const finalVatType = client.isVatRegistered ? (rule ? rule.vatType : vatType) : 'no_vat';
 
@@ -3047,21 +3074,31 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     }
                 }
                 
-                const batch = writeBatch(db);
                 txs.forEach(tx => {
+                    if (currentBatchSize >= 490) { // Leave some room
+                        batches.push(currentBatch);
+                        currentBatch = writeBatch(db);
+                        currentBatchSize = 0;
+                    }
                     const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                    batch.update(txRef, {
+                    currentBatch.update(txRef, {
                         status: 'ai_review',
+                        extractedSupplier: supplier,
                         aiAllocationResult: allocationResult,
                     });
+                    currentBatchSize++;
                 });
-                await batch.commit();
 
                 groupsProcessed++;
-                setProgress(33 + (groupsProcessed / totalGroups) * 66);
+                setProgress(75 + (groupsProcessed / totalGroups) * 25);
             }
+            batches.push(currentBatch); // Add the last batch
 
-            setProgressMessage('Step 3/3: Finalizing...');
+            // Commit all batches
+            await Promise.all(batches.map(b => b.commit()));
+
+            // Finalize
+            setProgressMessage('AI Allocation Complete!');
             setProgress(100);
             toast({ title: "AI Allocation Complete", description: "Transactions are now ready for your review." });
             
@@ -3104,7 +3141,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     }
 
     const handleReanalyseGroupings = async () => {
-         toast({ title: 'Re-analysing...', description: 'This feature is coming soon.' });
+        await runAiAllocation(true);
     };
     
     const handleAllocationChange = (supplier: string, field: 'accountId' | 'vatType', value: string) => {
@@ -3157,7 +3194,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                      <div className="flex items-center justify-between">
                         <h2>AI Workflow</h2>
                          <div className="flex gap-2">
-                            <Button onClick={runAiAllocation} disabled={isLoading || isProcessing}>
+                            <Button onClick={() => runAiAllocation()} disabled={isLoading || isProcessing}>
                                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                                 Run AI Allocation
                             </Button>
@@ -3362,13 +3399,16 @@ function BankTransactionsPage() {
     }
 
     const selectedBankAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === accountId);
-    if (!selectedBankAccount) {
+    if (!selectedBankAccount && client.chartOfAccounts?.some(acc => acc.accountNumber.startsWith('8400-'))) {
         // Find the first bank account if no specific one is selected or found
         const firstBankAccount = client.chartOfAccounts?.find(acc => acc.accountNumber.startsWith('8400-'));
         if (firstBankAccount) {
             router.replace(`/admin/ai-accountant/${clientId}/bank/transactions?accountId=${firstBankAccount.accountNumber}`);
             return <div className="text-center mt-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
         }
+    }
+    
+    if (!selectedBankAccount) {
         return (
              <div className="text-center mt-8">
                 <Alert variant="destructive" className="max-w-md mx-auto">
@@ -3383,7 +3423,7 @@ function BankTransactionsPage() {
 
     return (
         <div>
-             {selectedAccount && <EditAccountDialog
+            {selectedAccount && <EditAccountDialog
                 account={selectedAccount}
                 client={client}
                 onAccountUpdated={handleAccountUpdated}
