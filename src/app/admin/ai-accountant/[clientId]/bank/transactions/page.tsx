@@ -1574,9 +1574,9 @@ const NewTransactionsTab = React.forwardRef<
                         </div>
                     )}
                  </div>
-             </CardFooter>
+            </CardFooter>
         </Card>
-    )
+    );
 });
 NewTransactionsTab.displayName = 'NewTransactionsTab';
 
@@ -2955,7 +2955,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         description: ruleValues.description,
         keywords: ruleValues.keywords.split(',').map(k => k.trim().toLowerCase()),
         accountId: ruleValues.accountId,
-        vatType: client.isVatRegistered ? ruleValues.vatType : 'no_vat',
+        vatType: ruleValues.vatType,
         type: 'hard',
         priority: 10,
         scope: ruleValues.scope,
@@ -2977,7 +2977,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             batch.update(txRef, {
                 status: 'allocated',
                 allocatedTo: { value: ruleValues.accountId, type: 'account' },
-                vatType: newRule.vatType,
+                vatType: client.isVatRegistered ? ruleValues.vatType : 'no_vat',
                 allocatedAt: new Date(),
             });
         });
@@ -3562,5 +3562,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-    
