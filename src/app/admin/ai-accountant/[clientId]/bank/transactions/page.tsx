@@ -2846,7 +2846,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     globalRules: AllocationRule[];
     onRuleCreated: () => void;
 }) => {
-    const { toast, dismiss } = useToast();
+    const { toast } = useToast();
     const [transactions, setTransactions] = useState<ImportedTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     
@@ -3274,14 +3274,14 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 const suggestion = groupAllocations[supplier];
                                 return (
                                 <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
-                                    <div className="flex items-center p-3 bg-muted/50 rounded-t-lg">
+                                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-t-lg">
                                         <CollapsibleTrigger asChild>
-                                            <button className="flex items-center gap-2 flex-grow text-left pr-4">
+                                            <button className="flex items-center gap-4 text-left pr-4">
                                                 <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length} items)</span></h3>
                                                 {suggestion && <p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%</p>}
                                             </button>
                                         </CollapsibleTrigger>
-                                        <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                                        <div className="flex items-center gap-2 flex-shrink-0">
                                             <Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId || ''}>
                                                 <SelectTrigger className="h-8 w-[200px] bg-white"><SelectValue placeholder="Select Account..." /></SelectTrigger>
                                                 <SelectContent>
@@ -3294,18 +3294,27 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                                     {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
                                                 </SelectContent>
                                             </Select>
-                                            <Button size="sm" variant="destructive" onClick={() => handleRejectSelected(txs.map(t => t.id))}>Reject</Button>
-                                            <Button size="sm" onClick={() => handleApproveGroup(supplier)}>Approve</Button>
-                                            <Button size="sm" onClick={() => setActiveApprovalGroup({ supplier, txs, suggestion })}>Create Rule</Button>
+                                            <div className="flex items-center gap-1">
+                                                <Button size="sm" variant="destructive" onClick={() => handleRejectSelected(txs.map(t => t.id))}>Reject</Button>
+                                                <Button size="sm" onClick={() => handleApproveGroup(supplier)}>Approve</Button>
+                                                <Button size="sm" onClick={() => setActiveApprovalGroup({ supplier, txs, suggestion })}>Create Rule</Button>
+                                            </div>
                                         </div>
                                     </div>
                                     <CollapsibleContent>
                                         <Table>
-                                            <TableHeader><TableRow><TableHead className="w-12"><Checkbox/></TableHead><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="w-12"><Checkbox/></TableHead>
+                                                    <TableHead className="w-[120px]">Date</TableHead>
+                                                    <TableHead>Description</TableHead>
+                                                    <TableHead className="text-right w-[150px]">Amount</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
                                             <TableBody>
                                                 {txs.map(tx => (
                                                     <TableRow key={tx.id}>
-                                                        <TableCell><Checkbox/></TableCell>
+                                                        <TableCell><Checkbox /></TableCell>
                                                         <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
                                                         <TableCell className="text-xs">{tx.description}</TableCell>
                                                         <TableCell className="text-right font-mono text-xs">{formatPrice(tx.amount)}</TableCell>
