@@ -1,5 +1,4 @@
 
-
       
 'use client';
 
@@ -22,6 +21,7 @@ import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, 
 import { db } from '@/lib/firebase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from "@/components/ui/toast";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator, DropdownMenuGroup, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
@@ -2996,6 +2996,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }
 
         try {
+            // Step 1: Grouping based on cleanedDescription
             setProgressMessage(`Step 1/2: Grouping ${transactionsToProcess.length} transactions...`);
             const groups = transactionsToProcess.reduce((acc, tx) => {
                 const key = tx.cleanedDescription || tx.description.split(' ')[0].toUpperCase();
@@ -3005,8 +3006,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             }, {} as Record<string, ImportedTransaction[]>);
             setProgress(50);
             
+            // Step 2: AI Allocation
             const totalGroups = Object.keys(groups).length;
-
             setProgressMessage(`Step 2/2: Getting AI suggestions for ${totalGroups} groups...`);
             let groupsProcessed = 0;
             const allocationCache = new Map<string, AIAllocationResult>();
@@ -3086,8 +3087,10 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         toast({ title: "Bulk Approving...", description: `Approving ${txsToApprove.length} transactions.` });
         try {
             const batch = writeBatch(db);
-            txsToApprove.forEach(tx => {
-                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+            const txIds = txsToApprove.map(tx => tx.id);
+            txIds.forEach(txId => {
+                const tx = txsToApprove.find(t => t.id === txId)!;
+                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                 batch.update(txRef, {
                     status: 'allocated',
                     allocatedTo: { value: tx.aiAllocationResult!.accountId, type: 'account' },
@@ -3096,7 +3099,11 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 });
             });
             await batch.commit();
-            toast({ title: "Success!", description: `${txsToApprove.length} transactions have been moved to Reviewed.`});
+            toast({ 
+                title: "Success!", 
+                description: `${txsToApprove.length} transactions have been moved to Reviewed.`,
+                action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction>,
+            });
             setIsBulkApproveOpen(false);
         } catch (e) {
             console.error(e);
@@ -3118,12 +3125,16 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         if (!client) return;
         const groupTxs = groupedTransactions[supplier];
         const allocation = groupAllocations[supplier];
-        if (!groupTxs || !allocation) return;
+        if (!groupTxs || !allocation || !allocation.accountId) {
+             toast({ title: 'Cannot Approve', description: 'Please select an account to allocate to first.', variant: 'destructive'});
+            return;
+        }
 
         try {
             const batch = writeBatch(db);
-            groupTxs.forEach(tx => {
-                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+            const txIds = groupTxs.map(tx => tx.id);
+            txIds.forEach(txId => {
+                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                 batch.update(txRef, {
                     status: 'allocated',
                     allocatedTo: { value: allocation.accountId, type: 'account' },
@@ -3132,10 +3143,36 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 });
             });
             await batch.commit();
-            toast({ title: 'Group Approved', description: `${groupTxs.length} transactions moved to Reviewed.` });
+            toast({ 
+                title: 'Group Approved', 
+                description: `${groupTxs.length} transactions for '${supplier}' moved to Reviewed.`,
+                action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction>
+            });
         } catch (e) {
             console.error(e);
             toast({ title: 'Error', description: 'Could not approve group.', variant: 'destructive'});
+        }
+    };
+    
+    const handleUndoAction = async (txIds: string[]) => {
+        if (!client || txIds.length === 0) return;
+        toast({ title: "Undoing...", description: "Reverting transactions."});
+        try {
+            const batch = writeBatch(db);
+            txIds.forEach(id => {
+                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', id);
+                batch.update(txRef, { 
+                    status: 'ai_review',
+                    allocatedTo: null, 
+                    allocatedAt: null,
+                    vatType: null 
+                });
+            });
+            await batch.commit();
+            toast({ title: 'Action Undone', description: `${txIds.length} transactions reverted to AI Workflow.`});
+        } catch (error) {
+            console.error("Error undoing action:", error);
+            toast({ title: 'Undo Failed', variant: 'destructive' });
         }
     };
 
@@ -3220,10 +3257,10 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
                                     <div className="flex items-center justify-between p-3 bg-muted/50 rounded-t-lg">
                                         <CollapsibleTrigger asChild>
-                                          <button className="flex items-center gap-2 flex-grow text-left pr-4">
-                                            <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length} items)</span></h3>
-                                            {suggestion && <p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%</p>}
-                                          </button>
+                                            <button className="flex items-center gap-2 flex-grow text-left pr-4">
+                                                <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length} items)</span></h3>
+                                                {suggestion && <p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%</p>}
+                                            </button>
                                         </CollapsibleTrigger>
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             <Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId}>
@@ -3568,6 +3605,8 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
+
+    
 
     
 
