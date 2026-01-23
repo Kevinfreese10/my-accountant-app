@@ -355,7 +355,7 @@ export default function AIAccountantClientsPage() {
         batch.set(newClientDocRef, newClientData);
 
         // 2. Deep copy all sub-collections
-        const subCollections = ['transactions', 'customers', 'suppliers', 'invoices']; // Add any other sub-collections here
+        const subCollections = ['transactions', 'customers', 'suppliers', 'invoices'];
         for (const subCollection of subCollections) {
             const sourceCollectionRef = collection(db, 'aiAccountantClients', selectedClient.id, subCollection);
             const sourceSnapshot = await getDocs(sourceCollectionRef);
@@ -624,3 +624,5 @@ export default function AIAccountantClientsPage() {
     </div>
   );
 }
+
+    
