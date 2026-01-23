@@ -3021,15 +3021,14 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }
 
         try {
-            // Step 1: Grouping & Consolidation
-            setProgressMessage(`Step 1/2: Grouping and consolidating ${transactionsToProcess.length} transactions...`);
+            // Step 1: Grouping
+            setProgressMessage(`Step 1/2: Grouping ${transactionsToProcess.length} transactions...`);
             const groups = transactionsToProcess.reduce((acc, tx) => {
                 const key = tx.cleanedDescription || tx.description.split(' ')[0].toUpperCase();
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
                 return acc;
             }, {} as Record<string, ImportedTransaction[]>);
-            // In a real scenario, a more complex fuzzy matching/consolidation would happen here.
             setProgress(50);
             
             // Step 2: AI Allocation
@@ -3048,15 +3047,21 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     allocationResult = allocationCache.get(description)!;
                 } else {
                     try {
-                        const { accountId, vatType, confidence } = await suggestTransactionAllocation({ description: description, chartOfAccounts: JSON.stringify(chartOfAccounts), isVatRegistered: client.isVatRegistered || false });
+                        const aiResponse = await suggestTransactionAllocation({ description, chartOfAccounts: JSON.stringify(chartOfAccounts), isVatRegistered: client.isVatRegistered || false });
+                        const confidence = aiResponse?.confidence ?? 0;
                         
-                        const rule = globalRules.find(r => r.accountId === accountId);
-                        const finalVatType = client.isVatRegistered ? (rule ? rule.vatType : vatType) : 'no_vat';
-
-                        allocationResult = { accountId, vatType: finalVatType, confidence };
+                        if (confidence >= 80 && aiResponse.accountId) {
+                            const rule = globalRules.find(r => r.accountId === aiResponse.accountId);
+                            const finalVatType = client.isVatRegistered ? (rule ? rule.vatType : aiResponse.vatType) : 'no_vat';
+                            allocationResult = { accountId: aiResponse.accountId, vatType: finalVatType, confidence };
+                        } else {
+                            // Low confidence or no accountId returned, so we treat it as unallocated
+                            allocationResult = { accountId: '', vatType: 'no_vat', confidence };
+                        }
                         allocationCache.set(description, allocationResult);
                     } catch (e) {
                         console.error(`Failed to get suggestion for ${description}:`, e);
+                        allocationResult = null; // Ensure it's null on error
                     }
                 }
                 
@@ -3269,14 +3274,14 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 const suggestion = groupAllocations[supplier];
                                 return (
                                 <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
-                                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-t-lg">
+                                    <div className="flex items-center p-3 bg-muted/50 rounded-t-lg">
                                         <CollapsibleTrigger asChild>
                                             <button className="flex items-center gap-2 flex-grow text-left pr-4">
                                                 <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length} items)</span></h3>
                                                 {suggestion && <p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%</p>}
                                             </button>
                                         </CollapsibleTrigger>
-                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                        <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
                                             <Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId || ''}>
                                                 <SelectTrigger className="h-8 w-[200px] bg-white"><SelectValue placeholder="Select Account..." /></SelectTrigger>
                                                 <SelectContent>
@@ -3321,33 +3326,38 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
 function BankTransactionsPage() {
     const params = useParams();
-    const clientId = params.clientId as string;
-    const searchParams = useSearchParams();
     const router = useRouter();
-    const accountId = searchParams.get('accountId');
+    const accountIdFromUrl = useSearchParams().get('accountId');
     
     const [client, setClient] = useState<User | null>(null);
     const [allAccountTransactions, setAllAccountTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isNewAccountDialogOpen, setIsNewAccountDialogOpen] = useState(false);
     const { toast } = useToast();
     const [isEditAccountDialogOpen, setIsEditAccountDialogOpen] = useState(false);
-    const [selectedAccount, setSelectedAccount] = useState<ChartOfAccount | null>(null);
+    const [selectedAccountForEdit, setSelectedAccountForEdit] = useState<ChartOfAccount | null>(null);
     const [customers, setCustomers] = useState<ClientCustomer[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const [activeTab, setActiveTab] = useState('new-transactions');
+    const [accountId, setAccountId] = useState<string | null>(accountIdFromUrl);
 
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const reviewedTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
 
     const fetchClientData = useCallback(async () => {
+        const clientId = params.clientId as string;
         if (!clientId) return;
         try {
             const clientRef = doc(db, 'aiAccountantClients', clientId);
             const clientSnap = await getDoc(clientRef);
             if (clientSnap.exists()) {
-                setClient(clientSnap.data() as User);
+                const clientData = clientSnap.data() as User;
+                 setClient(clientData);
+                 const bankAccounts = clientData.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('8400-'));
+                 if(!accountId && bankAccounts && bankAccounts.length > 0) {
+                    setAccountId(bankAccounts[0].id);
+                 }
             } else {
                 toast({ title: 'Client Not Found', description: 'Could not load client data.', variant: 'destructive' });
             }
@@ -3355,13 +3365,14 @@ function BankTransactionsPage() {
             console.error("Error fetching client data:", error);
             toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
         }
-    }, [clientId, toast]);
+    }, [params.clientId, toast, accountId]);
 
     useEffect(() => {
         fetchClientData();
     }, [fetchClientData]);
     
     useEffect(() => {
+        const clientId = params.clientId as string;
         if (!clientId || !accountId) return;
         const q = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('bankAccountId', '==', accountId));
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -3369,7 +3380,7 @@ function BankTransactionsPage() {
             setAllAccountTransactions(fetched);
         });
         return () => unsubscribe();
-    }, [clientId, accountId]);
+    }, [params.clientId, accountId]);
     
     const accountStats = useMemo(() => {
         if (allAccountTransactions.length === 0) {
@@ -3381,72 +3392,40 @@ function BankTransactionsPage() {
     }, [allAccountTransactions]);
 
     useEffect(() => {
-        const fetchCustomers = async () => {
-            if (!clientId) return;
+        const clientId = params.clientId as string;
+        if (!clientId) return;
+        const fetchCustomersAndInvoices = async () => {
             try {
-                const q = query(collection(db, `aiAccountantClients/${clientId}/customers`));
-                const querySnapshot = await getDocs(q);
-                const fetchedCustomers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ClientCustomer[];
-                setCustomers(fetchedCustomers);
+                const custQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`));
+                const custSnapshot = await getDocs(custQuery);
+                setCustomers(custSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ClientCustomer[]);
+
+                const invQuery = query(collection(db, `aiAccountantClients/${clientId}/invoices`));
+                const invSnapshot = await getDocs(invQuery);
+                setInvoices(invSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[]);
             } catch (error) {
-                console.error("Error fetching customers:", error);
-                toast({ title: 'Error', description: 'Failed to fetch customers.', variant: 'destructive' });
+                console.error("Error fetching sub-collections:", error);
             }
         };
-    
-        if (client) {
-            fetchCustomers();
-        }
-    }, [client, clientId, toast]);
-    
-    useEffect(() => {
-        const fetchInvoices = async () => {
-            if (!clientId) return;
-            try {
-                const q = query(collection(db, `aiAccountantClients/${clientId}/invoices`));
-                const querySnapshot = await getDocs(q);
-                const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[];
-                setInvoices(fetchedInvoices);
-            } catch (error) {
-                console.error("Error fetching invoices:", error);
-                toast({ title: 'Error', description: 'Failed to fetch invoices.', variant: 'destructive' });
-            }
-        };
-    
-        if (client) {
-            fetchInvoices();
-        }
-    }, [client, clientId, toast]);
+        fetchCustomersAndInvoices();
+    }, [params.clientId]);
 
     useEffect(() => {
         const fetchGlobalRules = async () => {
             try {
                 const q = query(collection(db, 'allocationRules'));
                 const querySnapshot = await getDocs(q);
-                const fetchedRules = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllocationRule[];
-                setGlobalRules(fetchedRules);
+                setGlobalRules(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllocationRule[]);
             } catch (error) {
                 console.error("Error fetching global rules:", error);
-                toast({ title: 'Error', description: 'Failed to fetch global rules.', variant: 'destructive' });
             }
         };
-    
         fetchGlobalRules();
-    }, [toast]);
+    }, []);
 
 
     const handleAccountCreated = useCallback(() => {
         fetchClientData();
-        newTransactionsTabRef.current?.refetch();
-        reviewedTabRef.current?.refetch();
-        forReviewTabRef.current?.refetch();
-    }, [fetchClientData]);
-
-    const handleAccountUpdated = useCallback(() => {
-        fetchClientData();
-        newTransactionsTabRef.current?.refetch();
-        reviewedTabRef.current?.refetch();
-        forReviewTabRef.current?.refetch();
     }, [fetchClientData]);
 
     const handleRefreshAll = () => {
@@ -3455,10 +3434,6 @@ function BankTransactionsPage() {
         forReviewTabRef.current?.refetch();
     };
 
-    if (!client) {
-        return <div className="text-center mt-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-    }
-    
     const handleClearTransactions = async () => {
         if (!client || !accountId) return;
 
@@ -3473,10 +3448,9 @@ function BankTransactionsPage() {
         }
 
         try {
-            const batchSize = 500;
-            for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+            for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
                 const batch = writeBatch(db);
-                const chunk = snapshot.docs.slice(i, i + batchSize);
+                const chunk = snapshot.docs.slice(i, i + BATCH_SIZE);
                 chunk.forEach(doc => {
                     batch.delete(doc.ref);
                 });
@@ -3489,17 +3463,20 @@ function BankTransactionsPage() {
         }
     }
 
-
-    const selectedBankAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === accountId);
-    if (!selectedBankAccount && client.chartOfAccounts?.some(acc => acc.accountNumber.startsWith('8400-'))) {
-        const firstBankAccount = client.chartOfAccounts?.find(acc => acc.accountNumber.startsWith('8400-'));
-        if (firstBankAccount) {
-            router.replace(`/admin/ai-accountant/${clientId}/bank/transactions?accountId=${firstBankAccount.accountNumber}`);
-            return <div className="text-center mt-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-        }
+    if (!client) {
+        return <div className="text-center mt-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
     
-    if (!selectedBankAccount) {
+    const bankAccounts = client.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('8400-')) || [];
+    
+    if (bankAccounts.length > 0 && !accountId) {
+      setAccountId(bankAccounts[0].id);
+      return <div className="text-center mt-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    }
+    
+    const selectedBankAccount = accountId ? bankAccounts.find(acc => acc.id === accountId) : undefined;
+    
+    if (bankAccounts.length === 0) {
         return (
              <div className="text-center mt-8">
                 <Alert variant="destructive" className="max-w-md mx-auto">
@@ -3511,21 +3488,29 @@ function BankTransactionsPage() {
         );
     }
 
-
     return (
         <div>
-            {selectedAccount && <EditAccountDialog
-                account={selectedAccount}
+            {selectedAccountForEdit && <EditAccountDialog
+                account={selectedAccountForEdit}
                 client={client}
-                onAccountUpdated={handleAccountUpdated}
+                onAccountUpdated={handleAccountCreated}
                 open={isEditAccountDialogOpen}
-                onOpenChange={(open) => setIsEditAccountDialogOpen(open)}
+                onOpenChange={(open) => {
+                    setIsEditAccountDialogOpen(open);
+                    if (!open) setSelectedAccountForEdit(null);
+                }}
             />}
             <div className="md:flex items-start justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold">{selectedBankAccount?.description}</h1>
-                    <p className="text-muted-foreground">{selectedBankAccount?.accountNumber}</p>
-                    <div className="flex gap-4 mt-2 text-sm">
+                <div className="flex items-center gap-4">
+                    <Select value={accountId || ''} onValueChange={(val) => setAccountId(val)}>
+                        <SelectTrigger className="w-[280px]">
+                            <SelectValue placeholder="Select a bank account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {bankAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                     <div className="flex gap-4 mt-2 text-sm">
                         <div>
                             <span className="text-muted-foreground">Balance: </span>
                             <span className="font-semibold">{formatPrice(accountStats.balance)}</span>
@@ -3540,7 +3525,7 @@ function BankTransactionsPage() {
                      <Button variant="outline" onClick={handleRefreshAll}><RotateCcw className="mr-2 h-4 w-4"/> Refresh</Button>
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="destructive"><Trash2 className="mr-2 h-4 w-4" /> Clear Transactions</Button>
+                            <Button variant="destructive" disabled={!accountId}><Trash2 className="mr-2 h-4 w-4" /> Clear Transactions</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
@@ -3558,7 +3543,8 @@ function BankTransactionsPage() {
                             <Button><Settings className="mr-2 h-4 w-4" /> Manage Bank Account</Button>
                          </DropdownMenuTrigger>
                          <DropdownMenuContent>
-                            <DropdownMenuItem onClick={() => { setSelectedAccount(selectedBankAccount); setIsEditAccountDialogOpen(true); }}>Edit Account</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setIsNewAccountDialogOpen(true)}>Create New Bank Account</DropdownMenuItem>
+                            <DropdownMenuItem disabled={!selectedBankAccount} onClick={() => { setSelectedAccountForEdit(selectedBankAccount || null); setIsEditAccountDialogOpen(true); }}>Edit Selected Account</DropdownMenuItem>
                          </DropdownMenuContent>
                      </DropdownMenu>
                 </div>
@@ -3619,8 +3605,6 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
-
-    
 
     
 
