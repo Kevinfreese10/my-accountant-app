@@ -1,4 +1,5 @@
 
+
       
 'use client';
 
@@ -2858,6 +2859,10 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const [groupAllocations, setGroupAllocations] = useState<Record<string, { accountId: string; vatType: VatType; confidence: number; }>>({});
     const [activeApprovalGroup, setActiveApprovalGroup] = useState<{ supplier: string; txs: ImportedTransaction[]; suggestion: AIAllocationResult | null } | null>(null);
 
+    // New state for bulk approve dialog
+    const [isBulkApproveOpen, setIsBulkApproveOpen] = useState(false);
+    const [confidenceThreshold, setConfidenceThreshold] = useState(95);
+
     const refetch = useCallback(() => {
         if (!client?.uid || !bankAccountId) {
             setIsLoading(false);
@@ -2889,7 +2894,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
     useEffect(() => {
         const groups = transactions.reduce((acc, tx) => {
-            const key = tx.extractedSupplier || 'Unassigned';
+            const key = tx.cleanedDescription || 'Unassigned';
             if (tx.status === 'ai_review') { // Only group items ready for review
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
@@ -2901,7 +2906,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         const initialAllocations: Record<string, any> = {};
         Object.values(groups).forEach(txs => {
             if (txs.length > 0 && txs[0].aiAllocationResult) {
-                const supplier = txs[0].extractedSupplier;
+                const supplier = txs[0].cleanedDescription;
                 if(supplier) {
                     initialAllocations[supplier] = txs[0].aiAllocationResult;
                 }
@@ -2991,7 +2996,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }
 
         try {
-            // Step 1: Grouping by cleaned description
             setProgressMessage(`Step 1/2: Grouping ${transactionsToProcess.length} transactions...`);
             const groups = transactionsToProcess.reduce((acc, tx) => {
                 const key = tx.cleanedDescription || tx.description.split(' ')[0].toUpperCase();
@@ -3003,7 +3007,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             
             const totalGroups = Object.keys(groups).length;
 
-            // Step 2: AI Allocation & Master Rule Alignment
             setProgressMessage(`Step 2/2: Getting AI suggestions for ${totalGroups} groups...`);
             let groupsProcessed = 0;
             const allocationCache = new Map<string, AIAllocationResult>();
@@ -3068,9 +3071,15 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     
     const handleBulkApprove = async () => {
         if (!client) return;
-        const txsToApprove = transactions.filter(tx => tx.status === 'ai_review' && tx.aiAllocationResult?.accountId);
+        const txsToApprove = transactions.filter(tx => 
+            tx.status === 'ai_review' && 
+            tx.aiAllocationResult?.accountId &&
+            (tx.aiAllocationResult.confidence || 0) >= confidenceThreshold
+        );
+        
         if (txsToApprove.length === 0) {
-            toast({ title: 'Nothing to Approve', description: 'No transactions have a valid AI allocation yet.' });
+            toast({ title: 'Nothing to Approve', description: `No transactions met the ${confidenceThreshold}% confidence threshold.` });
+            setIsBulkApproveOpen(false);
             return;
         }
 
@@ -3088,6 +3097,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             });
             await batch.commit();
             toast({ title: "Success!", description: `${txsToApprove.length} transactions have been moved to Reviewed.`});
+            setIsBulkApproveOpen(false);
         } catch (e) {
             console.error(e);
             toast({ title: 'Error', description: 'Could not approve all transactions.', variant: 'destructive'});
@@ -3152,10 +3162,38 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 <RefreshCw className="mr-2 h-4 w-4"/>
                                 Re-analyse Groupings
                             </Button>
-                             <Button onClick={handleBulkApprove} disabled={isLoading || isProcessing || Object.keys(groupedTransactions).length === 0} variant="outline">
-                                 <CheckCircle className="mr-2 h-4 w-4"/>
-                                 Bulk Approve Allocations
-                             </Button>
+                             <Dialog open={isBulkApproveOpen} onOpenChange={setIsBulkApproveOpen}>
+                                <DialogTrigger asChild>
+                                    <Button disabled={isLoading || isProcessing || Object.keys(groupedTransactions).length === 0} variant="outline">
+                                        <CheckCircle className="mr-2 h-4 w-4"/>
+                                        Bulk Approve Allocations
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Bulk Approve by Confidence</DialogTitle>
+                                        <DialogDescription>
+                                            Select the minimum confidence level to approve transactions. All suggestions at or above this level will be approved.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="py-4 space-y-4">
+                                        <Label>Confidence Threshold: {confidenceThreshold}%</Label>
+                                        <Slider 
+                                            defaultValue={[confidenceThreshold]} 
+                                            min={80}
+                                            max={100} 
+                                            step={1} 
+                                            onValueChange={(value) => setConfidenceThreshold(value[0])}
+                                        />
+                                    </div>
+                                    <DialogFooter>
+                                        <Button variant="ghost" onClick={() => setIsBulkApproveOpen(false)}>Cancel</Button>
+                                        <Button onClick={handleBulkApprove}>
+                                            Approve
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
                          </div>
                      </div>
                  </CardHeader>
