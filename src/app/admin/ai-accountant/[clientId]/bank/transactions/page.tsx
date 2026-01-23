@@ -26,7 +26,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
@@ -80,6 +80,7 @@ function cleanDescription(description: string): string {
         'HOLLARD': 'HOLLARD',
         'MIWAY': 'MIWAY',
         'KING PRICE': 'KING PRICE',
+        'BOOKING.COM': 'BOOKING.COM',
     };
 
     for (const anchor in anchorMap) {
@@ -668,7 +669,7 @@ const RuleForm = ({ chartOfAccounts, defaultValues, onSave, onCancel }: {
 
 function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues }: {
     client: User | null;
-    onRuleCreated: () => void;
+    onRuleCreated: () void;
     open: boolean;
     onOpenChange: (isOpen: boolean) => void;
     defaultValues: Partial<RuleFormValues>;
@@ -1280,7 +1281,7 @@ const NewTransactionsTab = React.forwardRef<
                 </Tabs>
                  <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                        {bankAccountId && <ImportDialog 
+                        {bankAccountId && client && <ImportDialog 
                             client={client}
                             bankAccountId={bankAccountId}
                             currentBalance={0} // TODO: Pass real balance if available
@@ -2221,7 +2222,7 @@ const ReviewedTab = React.forwardRef<
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                    <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete All</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
@@ -2849,19 +2850,18 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const [transactions, setTransactions] = useState<ImportedTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     
-    // AI Processing State
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
     const [progressMessage, setProgressMessage] = useState('');
     
-    // Grouped data state
     const [groupedTransactions, setGroupedTransactions] = useState<Record<string, ImportedTransaction[]>>({});
-    const [groupAllocations, setGroupAllocations] = useState<Record<string, { accountId: string; vatType: VatType; confidence: number; }>>({});
+    const [groupAllocations, setGroupAllocations] = useState<Record<string, AIAllocationResult | null>>({});
     const [activeApprovalGroup, setActiveApprovalGroup] = useState<{ supplier: string; txs: ImportedTransaction[]; suggestion: AIAllocationResult | null } | null>(null);
 
-    // New state for bulk approve dialog
     const [isBulkApproveOpen, setIsBulkApproveOpen] = useState(false);
     const [confidenceThreshold, setConfidenceThreshold] = useState(95);
+
+    const [lastApprovedTxIds, setLastApprovedTxIds] = useState<string[] | null>(null);
 
     const refetch = useCallback(() => {
         if (!client?.uid || !bankAccountId) {
@@ -2895,7 +2895,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     useEffect(() => {
         const groups = transactions.reduce((acc, tx) => {
             const key = tx.cleanedDescription || 'Unassigned';
-            if (tx.status === 'ai_review') { // Only group items ready for review
+            if (tx.status === 'ai_review') {
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
             }
@@ -2903,17 +2903,39 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }, {} as Record<string, ImportedTransaction[]>);
         setGroupedTransactions(groups);
 
-        const initialAllocations: Record<string, any> = {};
+        const initialAllocations: Record<string, AIAllocationResult | null> = {};
         Object.values(groups).forEach(txs => {
-            if (txs.length > 0 && txs[0].aiAllocationResult) {
-                const supplier = txs[0].cleanedDescription;
+            if (txs.length > 0) {
+                const supplier = txs[0].cleanedDescription || txs[0].extractedSupplier;
                 if(supplier) {
-                    initialAllocations[supplier] = txs[0].aiAllocationResult;
+                    initialAllocations[supplier] = txs[0].aiAllocationResult || null;
                 }
             }
         });
         setGroupAllocations(initialAllocations);
     }, [transactions]);
+    
+    const handleUndoAction = async (txIds: string[]) => {
+        if (!client || txIds.length === 0) return;
+        toast({ title: "Undoing...", description: "Reverting transactions."});
+        try {
+            const batch = writeBatch(db);
+            txIds.forEach(id => {
+                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', id);
+                batch.update(txRef, { 
+                    status: 'ai_review',
+                    allocatedTo: null, 
+                    allocatedAt: null,
+                });
+            });
+            await batch.commit();
+            setLastApprovedTxIds(null);
+            toast({ title: 'Action Undone', description: `${txIds.length} transactions reverted to AI Workflow.`});
+        } catch (error) {
+            console.error("Error undoing action:", error);
+            toast({ title: 'Undo Failed', variant: 'destructive' });
+        }
+    };
     
     const handleRejectSelected = async (txIdsToReject: string[]) => {
         if (!client || txIdsToReject.length === 0) return;
@@ -2946,9 +2968,10 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
       try {
         const batch = writeBatch(db);
+        const txIds = groupTxs.map(tx => tx.id);
 
-        groupTxs.forEach(tx => {
-          const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+        txIds.forEach(txId => {
+          const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
           batch.update(txRef, {
             status: 'allocated',
             allocatedTo: { value: ruleValues.accountId, type: 'account' },
@@ -2970,7 +2993,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }
 
         await batch.commit();
-        toast({ title: 'Transactions Approved & Rule Created', description: `${groupTxs.length} transactions approved and new rule created.` });
+        setLastApprovedTxIds(txIds);
+        toast({ title: 'Transactions Approved & Rule Created', description: `${groupTxs.length} transactions approved and new rule created.`, action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction> });
         setActiveApprovalGroup(null);
         fetchClientData();
 
@@ -2984,6 +3008,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         if (!client || !bankAccountId) return;
         
         setIsProcessing(true);
+        setProgress(0);
         
         const transactionsToProcess = reanalyse 
             ? transactions.filter(tx => tx.status === 'ai_review')
@@ -2996,14 +3021,15 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }
 
         try {
-            // Step 1: Grouping based on cleanedDescription
-            setProgressMessage(`Step 1/2: Grouping ${transactionsToProcess.length} transactions...`);
+            // Step 1: Grouping & Consolidation
+            setProgressMessage(`Step 1/2: Grouping and consolidating ${transactionsToProcess.length} transactions...`);
             const groups = transactionsToProcess.reduce((acc, tx) => {
                 const key = tx.cleanedDescription || tx.description.split(' ')[0].toUpperCase();
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
                 return acc;
             }, {} as Record<string, ImportedTransaction[]>);
+            // In a real scenario, a more complex fuzzy matching/consolidation would happen here.
             setProgress(50);
             
             // Step 2: AI Allocation
@@ -3099,6 +3125,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 });
             });
             await batch.commit();
+            setLastApprovedTxIds(txIds);
             toast({ 
                 title: "Success!", 
                 description: `${txsToApprove.length} transactions have been moved to Reviewed.`,
@@ -3116,7 +3143,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             const current = prev[supplier] || { accountId: '', vatType: 'no_vat', confidence: 0 };
             return {
                 ...prev,
-                [supplier]: { ...current, [field]: value }
+                [supplier]: { ...current, [field]: value } as AIAllocationResult
             };
         });
     };
@@ -3143,6 +3170,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 });
             });
             await batch.commit();
+            setLastApprovedTxIds(txIds);
             toast({ 
                 title: 'Group Approved', 
                 description: `${groupTxs.length} transactions for '${supplier}' moved to Reviewed.`,
@@ -3151,28 +3179,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         } catch (e) {
             console.error(e);
             toast({ title: 'Error', description: 'Could not approve group.', variant: 'destructive'});
-        }
-    };
-    
-    const handleUndoAction = async (txIds: string[]) => {
-        if (!client || txIds.length === 0) return;
-        toast({ title: "Undoing...", description: "Reverting transactions."});
-        try {
-            const batch = writeBatch(db);
-            txIds.forEach(id => {
-                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', id);
-                batch.update(txRef, { 
-                    status: 'ai_review',
-                    allocatedTo: null, 
-                    allocatedAt: null,
-                    vatType: null 
-                });
-            });
-            await batch.commit();
-            toast({ title: 'Action Undone', description: `${txIds.length} transactions reverted to AI Workflow.`});
-        } catch (error) {
-            console.error("Error undoing action:", error);
-            toast({ title: 'Undo Failed', variant: 'destructive' });
         }
     };
 
@@ -3189,7 +3195,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             <Card>
                  <CardHeader className="p-4 border-b">
                      <div className="flex items-center justify-between">
-                        <h2>AI Workflow</h2>
+                        <h2>AI Workflow ({Object.keys(groupedTransactions).length} groups)</h2>
                          <div className="flex gap-2">
                             <Button onClick={() => runAiAllocation()} disabled={isLoading || isProcessing}>
                                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -3231,6 +3237,14 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                     </DialogFooter>
                                 </DialogContent>
                             </Dialog>
+                             <Button
+                                variant="ghost"
+                                onClick={() => lastApprovedTxIds && handleUndoAction(lastApprovedTxIds)}
+                                disabled={!lastApprovedTxIds || isProcessing}
+                            >
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Undo Last Approval
+                            </Button>
                          </div>
                      </div>
                  </CardHeader>
@@ -3263,13 +3277,13 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                             </button>
                                         </CollapsibleTrigger>
                                         <div className="flex items-center gap-2 flex-shrink-0">
-                                            <Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId}>
+                                            <Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId || ''}>
                                                 <SelectTrigger className="h-8 w-[200px] bg-white"><SelectValue placeholder="Select Account..." /></SelectTrigger>
                                                 <SelectContent>
                                                     {chartOfAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
                                                 </SelectContent>
                                             </Select>
-                                            <Select onValueChange={(value) => handleAllocationChange(supplier, 'vatType', value as VatType)} value={suggestion?.vatType}>
+                                            <Select onValueChange={(value) => handleAllocationChange(supplier, 'vatType', value as VatType)} value={suggestion?.vatType || 'no_vat'}>
                                                 <SelectTrigger className="h-8 w-[200px] bg-white"><SelectValue placeholder="Select VAT..." /></SelectTrigger>
                                                 <SelectContent>
                                                     {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
@@ -3605,6 +3619,8 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
+
+    
 
     
 
