@@ -669,7 +669,7 @@ const RuleForm = ({ chartOfAccounts, defaultValues, onSave, onCancel }: {
 
 function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues }: {
     client: User | null;
-    onRuleCreated: () void;
+    onRuleCreated: () => void;
     open: boolean;
     onOpenChange: (isOpen: boolean) => void;
     defaultValues: Partial<RuleFormValues>;
@@ -3619,6 +3619,8 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
+
+    
 
     
 
