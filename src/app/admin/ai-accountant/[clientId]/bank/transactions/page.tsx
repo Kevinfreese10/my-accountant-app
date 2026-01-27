@@ -72,10 +72,11 @@ type CleanResult = {
 
 // Example test cases:
 // "CHEQUE CARD PURCHASE PNP Steeledale 1 02 JUN" -> { cleanedDescription: "PNP STEELEDALE 1", merchantKey: "PICK N PAY", paymentChannel: "CARD", merchantMethod: "alias", referenceTokens: [] }
-// "EFT PAYMENT VODACOM 0462814442 B0447335" -> { cleanedDescription: "VODACOM", merchantKey: "VODACOM", paymentChannel: "EFT", merchantMethod: "alias", referenceTokens: ["0462814442", "B0447335"] }
-// "DEBIT ORDER DISCOVERY HEALTH 123456" -> { cleanedDescription: "DISCOVERY HEALTH", merchantKey: "DISCOVERY", paymentChannel: "DEBIT_ORDER", merchantMethod: "anchor", referenceTokens: ["123456"] }
-// "ATM WITHDRAWAL CASH SEND 98765" -> { cleanedDescription: "CASH SEND", merchantKey: "CASH SEND", paymentChannel: "ATM", merchantMethod: "regex", referenceTokens: ["98765"] }
-// "ONLINE PAYMENT TAKEALOT.COM REF12345" -> { cleanedDescription: "TAKEALOT.COM", merchantKey: "TAKEALOT", paymentChannel: "UNKNOWN", merchantMethod: "alias", referenceTokens: ["12345"] }
+// "EFT PAYMENT VODACOM 0462814442 B0447335" -> { cleanedDescription: "VODACOM 0462814442 B0447335", merchantKey: "VODACOM", paymentChannel: "EFT", merchantMethod: "anchor", referenceTokens: [] }
+// "DEBIT ORDER DISCOVERY HEALTH 123456" -> { cleanedDescription: "DISCOVERY HEALTH 123456", merchantKey: "DISCOVERY", paymentChannel: "DEBIT_ORDER", merchantMethod: "anchor", referenceTokens: [] }
+// "ATM WITHDRAWAL CASH SEND 98765" -> { cleanedDescription: "CASH SEND 98765", merchantKey: "CASH SEND", paymentChannel: "ATM", merchantMethod: "regex", referenceTokens: [] }
+// "TELKOMMOBI50487983801152700811" -> { cleanedDescription: "TELKOMMOBI50487983801152700811", merchantKey: "TELKOM", paymentChannel: "UNKNOWN", merchantMethod: "anchor", referenceTokens: [] }
+
 
 function cleanDescription(description: string): CleanResult {
     if (!description) {
@@ -88,7 +89,7 @@ function cleanDescription(description: string): CleanResult {
         };
     }
     
-    const originalUpper = description.toUpperCase();
+    const originalUpper = description.toUpperCase().trim();
     let cleaned = originalUpper;
     const referenceTokens: string[] = [];
     let merchantMethod: CleanResult['merchantMethod'] = 'fallback';
@@ -96,7 +97,7 @@ function cleanDescription(description: string): CleanResult {
 
     // 1. Detect Payment Channel
     let paymentChannel: CleanResult['paymentChannel'] = 'UNKNOWN';
-    if (/\b(CHEQUE CARD|CARD PURCHASE|POS)\b/.test(originalUpper)) paymentChannel = 'CARD';
+    if (/\b(CHEQUE CARD|CARD PURCHASE|POS|CREDIT CARD)\b/.test(originalUpper)) paymentChannel = 'CARD';
     else if (/\b(EFT)\b/.test(originalUpper)) paymentChannel = 'EFT';
     else if (/\b(DEBIT ORDER|D\/O)\b/.test(originalUpper)) paymentChannel = 'DEBIT_ORDER';
     else if (/\b(ATM)\b/.test(originalUpper)) paymentChannel = 'ATM';
@@ -108,9 +109,10 @@ function cleanDescription(description: string): CleanResult {
     while ((match = refRegex.exec(cleaned)) !== null) {
         if (match[2]) referenceTokens.push(match[2]);
     }
-    const codeRegex = /\b[A-Z0-9]{8,}\b/g;
+    // Extract long numeric codes that are likely references
+    const codeRegex = /\b([A-Z]*\d+[A-Z\d]*)\b/g;
     while ((match = codeRegex.exec(cleaned)) !== null) {
-        if (!/^[A-Z]{8,}$/.test(match[0]) || match[0].length > 12) {
+         if (match[0].length > 8 && !/^[A-Z]+$/.test(match[0])) { // More than 8 chars, contains numbers
             referenceTokens.push(match[0]);
         }
     }
@@ -120,7 +122,7 @@ function cleanDescription(description: string): CleanResult {
     const prefixRegex = new RegExp(`^\\s*(${prefixes.join('|').replace(/\s/g, '\\s*')})\\s*`, 'i');
     cleaned = cleaned.replace(prefixRegex, '').trim();
 
-    // 4. Remove noise
+    // 4. Remove noise (dates, times, locations)
     cleaned = cleaned.replace(refRegex, '');
     cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, ''); 
     cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, ''); 
@@ -128,10 +130,7 @@ function cleanDescription(description: string): CleanResult {
     cleaned = cleaned.replace(/\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{1,2}\b/gi, '');
     cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, ''); 
     cleaned = cleaned.replace(/\b(JHB|CPT|DBN|ZA|SOUTH AFRICA|S A)\b/gi, '');
-    referenceTokens.forEach(token => {
-        cleaned = cleaned.replace(token, '');
-    });
-
+    
     // 5. Remove legal entities
     const legalSuffixes = /\b(PTY|LTD|LIMITED|CC|INC|CO|COMPANY|SOC|PROPRIETARY)\b/gi;
     cleaned = cleaned.replace(legalSuffixes, '');
@@ -142,18 +141,29 @@ function cleanDescription(description: string): CleanResult {
     const cleanedDescriptionForReturn = cleaned;
 
     // 7. Derive merchantKey
-    const anchorMap: { [key: string]: string } = { 'DISCOVERY': 'DISCOVERY', 'SANLAM': 'SANLAM', 'OLD MUTUAL': 'OLD MUTUAL', 'MOMENTUM': 'MOMENTUM', 'HOLLARD': 'HOLLARD', 'AFRIHOST': 'AFRIHOST', 'AQUAZANIA': 'AQUAZANIA', 'DISCINSURE': 'DISCINSURE', 'OUTSURANCE': 'OUTSURANCE', 'MIWAY': 'MIWAY', 'KING PRICE': 'KING PRICE', 'BOOKING.COM': 'BOOKING.COM' };
+    const anchorMap: { [key: string]: string } = { 'DISCOVERY': 'DISCOVERY', 'SANLAM': 'SANLAM', 'OLD MUTUAL': 'OLD MUTUAL', 'MOMENTUM': 'MOMENTUM', 'HOLLARD': 'HOLLARD', 'AFRIHOST': 'AFRIHOST', 'AQUAZANIA': 'AQUAZANIA', 'DISCINSURE': 'DISCINSURE', 'OUTSURANCE': 'OUTSURANCE', 'MIWAY': 'MIWAY', 'KING PRICE': 'KING PRICE', 'BOOKING.COM': 'BOOKING.COM', 'TELKOM': 'TELKOM', 'CREDIT CARD': 'CREDIT CARD', 'SDS PROTECT': 'SDS PROTECT' };
     const aliasMap: { [key: string]: string } = { 'PNP': 'PICK N PAY', 'PICKNPAY': 'PICK N PAY', 'VODA': 'VODACOM', 'VODACOMSA': 'VODACOM', 'TAKEALOT.COM': 'TAKEALOT' };
     const genericBlacklist = ["PAYMENT","PURCHASE","TRANSFER","TRF","ONLINE","EFT","CARD","POS","DEBIT","ORDER","ATM","WITHDRAWAL","REF","REFERENCE","BANK","FEE","CHARGE"];
 
-    // a) Anchor check
+    // a) Anchor check - must start with the anchor to handle cases like "TELKOMMOBI..."
     for (const anchor in anchorMap) {
-        if (cleaned.includes(anchor)) {
+        if (originalUpper.startsWith(anchor)) {
             merchantKey = anchorMap[anchor];
             merchantMethod = 'anchor';
             break;
         }
     }
+    // Also check if cleaned contains the full anchor word
+    if (!merchantKey) {
+        for (const anchor in anchorMap) {
+            if (cleaned.includes(anchor)) {
+                merchantKey = anchorMap[anchor];
+                merchantMethod = 'anchor';
+                break;
+            }
+        }
+    }
+
 
     // b) Alias check
     if (!merchantKey) {
@@ -865,6 +875,7 @@ const NewTransactionsTab = React.forwardRef<
     const [isAiSelectedDialogOpen, setIsAiSelectedDialogOpen] = useState(false);
     const [isAiAllDialogOpen, setIsAiAllDialogOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     
 
 
@@ -1197,6 +1208,37 @@ const NewTransactionsTab = React.forwardRef<
         }
     };
     
+    const handleRefreshDescriptions = async () => {
+        if (!client || !client.uid || selectedTransactions.length === 0) return;
+        setIsRefreshing(true);
+        toast({ title: `Refreshing ${selectedTransactions.length} transaction(s)...` });
+    
+        try {
+            const batch = writeBatch(db);
+            const transactionsToRefresh = transactions.filter(tx => selectedTransactions.includes(tx.id));
+    
+            for (const tx of transactionsToRefresh) {
+                const cleanResult = cleanDescription(tx.description);
+                const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                batch.update(txRef, {
+                    cleanedDescription: cleanResult.cleanedDescription,
+                    merchantKey: cleanResult.merchantKey,
+                    paymentChannel: cleanResult.paymentChannel,
+                    merchantMethod: cleanResult.merchantMethod,
+                    referenceTokens: cleanResult.referenceTokens,
+                });
+            }
+            await batch.commit();
+            toast({ title: "Refresh Complete", description: `${transactionsToRefresh.length} transactions have been re-processed.` });
+            refetch(); // This should come from usePaginatedFirestore hook
+            setSelectedTransactions([]);
+        } catch (error) {
+            console.error("Error refreshing descriptions:", error);
+            toast({ title: "Refresh Failed", variant: "destructive" });
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
 
     const handleDownloadExcel = async () => {
         if (!client || !client.uid || !bankAccountId) return;
@@ -1412,6 +1454,10 @@ const NewTransactionsTab = React.forwardRef<
                                </Command>
                             </DropdownMenuContent>
                         </DropdownMenu>
+                         <Button variant="outline" onClick={handleRefreshDescriptions} disabled={isRefreshing || selectedTransactions.length === 0}>
+                            {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Refresh Descriptions
+                        </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" disabled={selectedTransactions.length === 0}>
@@ -1513,7 +1559,7 @@ const NewTransactionsTab = React.forwardRef<
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="whitespace-normal break-words">
                                             <p>{tx.description}</p>
-                                            {tx.cleanedDescription && <p className="text-xs text-muted-foreground font-mono bg-muted p-1 rounded-sm mt-1">{tx.merchantKey}</p>}
+                                            {tx.merchantKey && <p className="text-xs text-muted-foreground font-mono bg-muted p-1 rounded-sm mt-1">{tx.merchantKey}</p>}
                                         </TableCell>
                                         <TableCell className="font-mono">{tx.reference}</TableCell>
                                         <TableCell>
@@ -2444,6 +2490,7 @@ const ReviewedTab = React.forwardRef<
     );
 });
 ReviewedTab.displayName = 'ReviewedTab';
+
 
 const ForReviewTab = React.forwardRef<
     { refetch: () => void },
