@@ -1,5 +1,4 @@
 
-      
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -62,76 +61,142 @@ const formatPrice = (price: number) => {
 };
 
 // #region Description Cleaning
-function cleanDescription(description: string): string {
-    if (!description) return '';
 
-    let cleaned = description.toUpperCase().trim();
+type CleanResult = {
+  cleanedDescription: string;
+  merchantKey: string;
+  paymentChannel: "CARD" | "EFT" | "DEBIT_ORDER" | "ATM" | "TRANSFER" | "UNKNOWN";
+  merchantMethod: "anchor" | "alias" | "regex" | "fallback";
+  referenceTokens: string[];
+};
 
-    // Specific anchors first - this ensures high-accuracy matches are prioritized
-    const anchorMap: { [key: string]: string } = {
-        'AFRIHOST': 'AFRIHOST',
-        'AQUAZANIA': 'AQUAZANIA',
-        'DISCINSURE': 'DISCINSURE',
-        'OUTSURANCE': 'OUTSURANCE',
-        'DISCOVERY': 'DISCOVERY',
-        'SANLAM': 'SANLAM',
-        'OLD MUTUAL': 'OLD MUTUAL',
-        'MOMENTUM': 'MOMENTUM',
-        'HOLLARD': 'HOLLARD',
-        'MIWAY': 'MIWAY',
-        'KING PRICE': 'KING PRICE',
-        'BOOKING.COM': 'BOOKING.COM',
-    };
+// Example test cases:
+// "CHEQUE CARD PURCHASE PNP Steeledale 1 02 JUN" -> { cleanedDescription: "PNP STEELEDALE 1", merchantKey: "PICK N PAY", paymentChannel: "CARD", merchantMethod: "alias", referenceTokens: [] }
+// "EFT PAYMENT VODACOM 0462814442 B0447335" -> { cleanedDescription: "VODACOM", merchantKey: "VODACOM", paymentChannel: "EFT", merchantMethod: "alias", referenceTokens: ["0462814442", "B0447335"] }
+// "DEBIT ORDER DISCOVERY HEALTH 123456" -> { cleanedDescription: "DISCOVERY HEALTH", merchantKey: "DISCOVERY", paymentChannel: "DEBIT_ORDER", merchantMethod: "anchor", referenceTokens: ["123456"] }
+// "ATM WITHDRAWAL CASH SEND 98765" -> { cleanedDescription: "CASH SEND", merchantKey: "CASH SEND", paymentChannel: "ATM", merchantMethod: "regex", referenceTokens: ["98765"] }
+// "ONLINE PAYMENT TAKEALOT.COM REF12345" -> { cleanedDescription: "TAKEALOT.COM", merchantKey: "TAKEALOT", paymentChannel: "UNKNOWN", merchantMethod: "alias", referenceTokens: ["12345"] }
 
-    for (const anchor in anchorMap) {
-        if (cleaned.includes(anchor)) {
-            return anchorMap[anchor];
+function cleanDescription(description: string): CleanResult {
+    if (!description) {
+        return {
+            cleanedDescription: '',
+            merchantKey: 'UNKNOWN',
+            paymentChannel: 'UNKNOWN',
+            merchantMethod: 'fallback',
+            referenceTokens: [],
+        };
+    }
+    
+    const originalUpper = description.toUpperCase();
+    let cleaned = originalUpper;
+    const referenceTokens: string[] = [];
+    let merchantMethod: CleanResult['merchantMethod'] = 'fallback';
+    let merchantKey: string = '';
+
+    // 1. Detect Payment Channel
+    let paymentChannel: CleanResult['paymentChannel'] = 'UNKNOWN';
+    if (/\b(CHEQUE CARD|CARD PURCHASE|POS)\b/.test(originalUpper)) paymentChannel = 'CARD';
+    else if (/\b(EFT)\b/.test(originalUpper)) paymentChannel = 'EFT';
+    else if (/\b(DEBIT ORDER|D\/O)\b/.test(originalUpper)) paymentChannel = 'DEBIT_ORDER';
+    else if (/\b(ATM)\b/.test(originalUpper)) paymentChannel = 'ATM';
+    else if (/\b(TRANSFER|TRF)\b/.test(originalUpper)) paymentChannel = 'TRANSFER';
+
+    // 2. Extract reference tokens before cleaning
+    const refRegex = /\b(REF|AUTH|TXN|TRN)[\s\-]*([A-Z0-9]+)\b/gi;
+    let match;
+    while ((match = refRegex.exec(cleaned)) !== null) {
+        if (match[2]) referenceTokens.push(match[2]);
+    }
+    const codeRegex = /\b[A-Z0-9]{8,}\b/g;
+    while ((match = codeRegex.exec(cleaned)) !== null) {
+        if (!/^[A-Z]{8,}$/.test(match[0]) || match[0].length > 12) {
+            referenceTokens.push(match[0]);
         }
     }
-
-    // 1. Universal Pre-clean
-    cleaned = cleaned.replace(/[\u00A0\u2000-\u200B]/g, ' ').replace(/\s+/g, ' ').trim();
-    cleaned = cleaned.replace(/\b(ZA|SOUTH AFRICA|S A)\b/gi, '');
-    cleaned = cleaned.replace(/[|•·]+/g, '');
-
-    // 2. Strip prefixes first (more aggressive)
-    const prefixes = [
-        'CHEQUE CARD PURCHASE', 'CARD PURCHASE', 'POS PURCHASE', 'DEBIT CARD PURCH', 'PURCH',
-        'EFT PAYMENT', 'INTERNET TRANSFER', 'IB PAYMENT', 'ONLINE PAYMENT', 'PAYMENT TO', 'PAYMENT FROM', 'PAYMENT', 'TRF', 'TRANSFER', 'XFER', 'IB',
-        'DEBIT ORDER', 'D/O', 'NAEDO COLLECTION', 'COLLECTION', 'DEBIT ORD', 'DO',
-        'ATM WITHDRAWAL', 'CASH WITHDRAWAL', 'ATM', 'CASH WD',
-        'BANK CHARGES', 'SERVICE FEE', 'MONTHLY FEE', 'LEDGER FEE', 'ADMIN FEE', 'COMMISSION', 'CHARGES',
-        'DEBIT', 'CREDIT'
-    ];
+    
+    // 3. Strip prefixes
+    const prefixes = ['CHEQUE CARD PURCHASE', 'CARD PURCHASE', 'POS PURCHASE', 'DEBIT CARD PURCH', 'PURCH', 'EFT PAYMENT', 'INTERNET TRANSFER', 'IB PAYMENT', 'ONLINE PAYMENT', 'PAYMENT TO', 'PAYMENT FROM', 'PAYMENT', 'TRF', 'TRANSFER', 'XFER', 'IB', 'DEBIT ORDER', 'D/O', 'NAEDO COLLECTION', 'COLLECTION', 'DEBIT ORD', 'DO', 'ATM WITHDRAWAL', 'CASH WITHDRAWAL', 'ATM', 'CASH WD', 'BANK CHARGES', 'SERVICE FEE', 'MONTHLY FEE', 'LEDGER FEE', 'ADMIN FEE', 'COMMISSION', 'CHARGES', 'DEBIT', 'CREDIT' ];
     const prefixRegex = new RegExp(`^\\s*(${prefixes.join('|').replace(/\s/g, '\\s*')})\\s*`, 'i');
     cleaned = cleaned.replace(prefixRegex, '').trim();
 
-    // 3. Remove noise (dates, times, codes)
+    // 4. Remove noise
+    cleaned = cleaned.replace(refRegex, '');
     cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, ''); 
     cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, ''); 
     cleaned = cleaned.replace(/\b\d{1,2}\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/gi, '');
     cleaned = cleaned.replace(/\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{1,2}\b/gi, '');
     cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, ''); 
-    cleaned = cleaned.replace(/\b(POS|TERM|TERMINAL|AUTH|REF|TXN|TRN)[\s\-]*\d+/gi, '');
-    
-    // 4. Remove trailing noise and legal entities
-    cleaned = cleaned.replace(/\s+\b\d{4,}\s+\d{4,}.*$/g, '');
-    cleaned = cleaned.replace(/\s+[A-Z0-9]{8,}\b/g, '');
-    cleaned = cleaned.replace(/\b(PTY|LTD|LIMITED|CC|INC|CO|COMPANY|SOC|PROPRIETARY)\b/gi, '');
+    cleaned = cleaned.replace(/\b(JHB|CPT|DBN|ZA|SOUTH AFRICA|S A)\b/gi, '');
+    referenceTokens.forEach(token => {
+        cleaned = cleaned.replace(token, '');
+    });
 
-    // 5. Final normalization
+    // 5. Remove legal entities
+    const legalSuffixes = /\b(PTY|LTD|LIMITED|CC|INC|CO|COMPANY|SOC|PROPRIETARY)\b/gi;
+    cleaned = cleaned.replace(legalSuffixes, '');
+    
+    // 6. Final normalization
     cleaned = cleaned.replace(/[*\/#_\-.,']/g, ' ').replace(/\s+/g, ' ').trim();
-
-    // Token-based cleanup
-    let tokens = cleaned.split(' ').filter(token => token && token.length >= 3);
     
-    // Handle common merchant name variations
-    if (description.toUpperCase().includes('PICK N PAY') || description.toUpperCase().includes('PNP')) return 'PICK N PAY';
-    if (description.toUpperCase().includes('DIS-CHEM')) return 'DIS-CHEM';
+    const cleanedDescriptionForReturn = cleaned;
 
-    cleaned = tokens.slice(0, 3).join(' ').trim();
+    // 7. Derive merchantKey
+    const anchorMap: { [key: string]: string } = { 'DISCOVERY': 'DISCOVERY', 'SANLAM': 'SANLAM', 'OLD MUTUAL': 'OLD MUTUAL', 'MOMENTUM': 'MOMENTUM', 'HOLLARD': 'HOLLARD', 'AFRIHOST': 'AFRIHOST', 'AQUAZANIA': 'AQUAZANIA', 'DISCINSURE': 'DISCINSURE', 'OUTSURANCE': 'OUTSURANCE', 'MIWAY': 'MIWAY', 'KING PRICE': 'KING PRICE', 'BOOKING.COM': 'BOOKING.COM' };
+    const aliasMap: { [key: string]: string } = { 'PNP': 'PICK N PAY', 'PICKNPAY': 'PICK N PAY', 'VODA': 'VODACOM', 'VODACOMSA': 'VODACOM', 'TAKEALOT.COM': 'TAKEALOT' };
+    const genericBlacklist = ["PAYMENT","PURCHASE","TRANSFER","TRF","ONLINE","EFT","CARD","POS","DEBIT","ORDER","ATM","WITHDRAWAL","REF","REFERENCE","BANK","FEE","CHARGE"];
 
-    return cleaned || description.toUpperCase().split(' ')[0] || "UNKNOWN";
+    // a) Anchor check
+    for (const anchor in anchorMap) {
+        if (cleaned.includes(anchor)) {
+            merchantKey = anchorMap[anchor];
+            merchantMethod = 'anchor';
+            break;
+        }
+    }
+
+    // b) Alias check
+    if (!merchantKey) {
+        const words = cleaned.split(' ');
+        for (const word of words) {
+            if (aliasMap[word]) {
+                merchantKey = aliasMap[word];
+                merchantMethod = 'alias';
+                break;
+            }
+        }
+    }
+    
+    // c) Regex/Fallback
+    if (!merchantKey) {
+        const tokens = cleaned.split(' ').filter(token => 
+            token && 
+            token.length >= 3 && 
+            !/^\d+$/.test(token) &&
+            !genericBlacklist.includes(token)
+        );
+        if (tokens.length > 0) {
+            if (tokens.indexOf('PICK') !== -1 && tokens.indexOf('N') !== -1 && tokens.indexOf('PAY') !== -1) {
+                merchantKey = 'PICK N PAY';
+            } else {
+                 merchantKey = tokens.slice(0, 2).join(' ');
+            }
+            merchantMethod = 'regex';
+        }
+    }
+
+    if (!merchantKey || genericBlacklist.includes(merchantKey.trim())) {
+        merchantKey = 'UNKNOWN';
+        merchantMethod = 'fallback';
+    }
+
+    return {
+        cleanedDescription: cleanedDescriptionForReturn,
+        merchantKey: merchantKey.trim(),
+        paymentChannel,
+        merchantMethod,
+        referenceTokens: [...new Set(referenceTokens)],
+    };
 }
 // #endregion
 
@@ -143,7 +208,7 @@ const importFormSchema = z.object({
 type ParsedTransaction = {
     Date: string;
     Description: string;
-    CleanedDescription: string;
+    CleanResult: CleanResult;
     Amount: number;
 }
 
@@ -197,7 +262,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                         const transactions: ParsedTransaction[] = data.map(row => ({
                             Date: row.Date,
                             Description: row.Description,
-                            CleanedDescription: cleanDescription(row.Description || ''),
+                            CleanResult: cleanDescription(row.Description || ''),
                             Amount: parseFloat(row.Amount)
                         })).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
                         
@@ -236,22 +301,27 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
                 
+                const cleanResult = row.CleanResult;
                 let transaction: Omit<ImportedTransaction, 'id'> & { allocatedAt?: Date } = {
                     clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: reference,
                     description: row.Description,
-                    cleanedDescription: row.CleanedDescription,
+                    cleanedDescription: cleanResult.cleanedDescription,
+                    merchantKey: cleanResult.merchantKey,
+                    paymentChannel: cleanResult.paymentChannel,
+                    merchantMethod: cleanResult.merchantMethod,
+                    referenceTokens: cleanResult.referenceTokens,
                     amount: row.Amount,
                     bankAccountId: bankAccountId,
                     status: 'new'
                 };
                 
                 if (transaction.amount < 0 && allRules.length > 0) {
-                    const cleanedDescLower = transaction.cleanedDescription?.toLowerCase() || '';
-                    if(cleanedDescLower) {
+                    const merchantKeyLower = transaction.merchantKey?.toLowerCase() || '';
+                    if(merchantKeyLower) {
                         const matchedRule = allRules.find(rule => 
-                            rule.keywords.some(kw => cleanedDescLower.includes(kw.toLowerCase()))
+                            rule.keywords.some(kw => merchantKeyLower.includes(kw.toLowerCase()))
                         );
 
                         if (matchedRule) {
@@ -1443,7 +1513,7 @@ const NewTransactionsTab = React.forwardRef<
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="whitespace-normal break-words">
                                             <p>{tx.description}</p>
-                                            {tx.cleanedDescription && <p className="text-xs text-muted-foreground font-mono bg-muted p-1 rounded-sm mt-1">{tx.cleanedDescription}</p>}
+                                            {tx.cleanedDescription && <p className="text-xs text-muted-foreground font-mono bg-muted p-1 rounded-sm mt-1">{tx.merchantKey}</p>}
                                         </TableCell>
                                         <TableCell className="font-mono">{tx.reference}</TableCell>
                                         <TableCell>
@@ -2894,7 +2964,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
     useEffect(() => {
         const groups = transactions.reduce((acc, tx) => {
-            const key = tx.cleanedDescription || 'Unassigned';
+            const key = tx.merchantKey || 'Unassigned';
             if (tx.status === 'ai_review') {
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
@@ -2906,7 +2976,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         const initialAllocations: Record<string, AIAllocationResult | null> = {};
         Object.values(groups).forEach(txs => {
             if (txs.length > 0) {
-                const supplier = txs[0].cleanedDescription || txs[0].extractedSupplier;
+                const supplier = txs[0].merchantKey;
                 if(supplier) {
                     initialAllocations[supplier] = txs[0].aiAllocationResult || null;
                 }
@@ -2944,7 +3014,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             const batch = writeBatch(db);
             txIdsToReject.forEach(txId => {
                 const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                batch.update(txRef, { status: 'new', extractedSupplier: null, aiAllocationResult: null });
+                batch.update(txRef, { status: 'new', extractedSupplier: null, aiAllocationResult: null, merchantKey: null });
             });
             await batch.commit();
             toast({ title: 'Transactions Rejected', description: `${txIdsToReject.length} items moved back to 'New'` });
@@ -3021,17 +3091,15 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }
 
         try {
-            // Step 1: Grouping
             setProgressMessage(`Step 1/2: Grouping ${transactionsToProcess.length} transactions...`);
             const groups = transactionsToProcess.reduce((acc, tx) => {
-                const key = tx.cleanedDescription || tx.description.split(' ')[0].toUpperCase();
+                const key = tx.merchantKey || 'UNKNOWN';
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(tx);
                 return acc;
             }, {} as Record<string, ImportedTransaction[]>);
             setProgress(50);
             
-            // Step 2: AI Allocation
             const totalGroups = Object.keys(groups).length;
             setProgressMessage(`Step 2/2: Getting AI suggestions for ${totalGroups} groups...`);
             let groupsProcessed = 0;
@@ -3055,13 +3123,12 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             const finalVatType = client.isVatRegistered ? (rule ? rule.vatType : aiResponse.vatType) : 'no_vat';
                             allocationResult = { accountId: aiResponse.accountId, vatType: finalVatType, confidence };
                         } else {
-                            // Low confidence or no accountId returned, so we treat it as unallocated
                             allocationResult = { accountId: '', vatType: 'no_vat', confidence };
                         }
                         allocationCache.set(description, allocationResult);
                     } catch (e) {
                         console.error(`Failed to get suggestion for ${description}:`, e);
-                        allocationResult = null; // Ensure it's null on error
+                        allocationResult = null;
                     }
                 }
                 

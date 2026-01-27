@@ -351,6 +351,10 @@ export type ImportedTransaction = {
     reference: string;
     description: string;
     cleanedDescription?: string;
+    merchantKey?: string;
+    paymentChannel?: "CARD" | "EFT" | "DEBIT_ORDER" | "ATM" | "TRANSFER" | "UNKNOWN";
+    merchantMethod?: "anchor" | "alias" | "regex" | "fallback";
+    referenceTokens?: string[];
     amount: number;
     bankAccountId: string;
     status: 'new' | 'allocated' | 'review' | 'reviewed' | 'ai_processing' | 'ai_review';
