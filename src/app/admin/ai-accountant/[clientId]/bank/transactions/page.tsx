@@ -1209,29 +1209,56 @@ const NewTransactionsTab = React.forwardRef<
     };
     
     const handleRefreshDescriptions = async () => {
-        if (!client || !client.uid || selectedTransactions.length === 0) return;
+        if (!client || !client.uid || !bankAccountId) return;
         setIsRefreshing(true);
-        toast({ title: `Refreshing ${selectedTransactions.length} transaction(s)...` });
+        toast({ title: `Refreshing all new transactions...`, description: "This may take a moment." });
     
         try {
-            const batch = writeBatch(db);
-            const transactionsToRefresh = transactions.filter(tx => selectedTransactions.includes(tx.id));
-    
-            for (const tx of transactionsToRefresh) {
-                const cleanResult = cleanDescription(tx.description);
-                const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
-                batch.update(txRef, {
-                    cleanedDescription: cleanResult.cleanedDescription,
-                    merchantKey: cleanResult.merchantKey,
-                    paymentChannel: cleanResult.paymentChannel,
-                    merchantMethod: cleanResult.merchantMethod,
-                    referenceTokens: cleanResult.referenceTokens,
-                });
+            const q = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'new')
+            );
+            const snapshot = await getDocs(q);
+
+            if (snapshot.empty) {
+                toast({ title: "No new transactions to refresh." });
+                setIsRefreshing(false);
+                return;
             }
-            await batch.commit();
-            toast({ title: "Refresh Complete", description: `${transactionsToRefresh.length} transactions have been re-processed.` });
-            refetch(); // This should come from usePaginatedFirestore hook
-            setSelectedTransactions([]);
+            
+            const transactionsToRefresh = snapshot.docs;
+            let refreshedCount = 0;
+
+            for (let i = 0; i < transactionsToRefresh.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = transactionsToRefresh.slice(i, i + BATCH_SIZE);
+                
+                for (const docSnap of chunk) {
+                    const tx = docSnap.data() as ImportedTransaction;
+                    if (tx.description) {
+                        const cleanResult = cleanDescription(tx.description);
+                        batch.update(docSnap.ref, {
+                            cleanedDescription: cleanResult.cleanedDescription,
+                            merchantKey: cleanResult.merchantKey,
+                            paymentChannel: cleanResult.paymentChannel,
+                            merchantMethod: cleanResult.merchantMethod,
+                            referenceTokens: cleanResult.referenceTokens,
+                        });
+                        refreshedCount++;
+                    }
+                }
+                await batch.commit();
+            }
+
+            if (refreshedCount > 0) {
+                toast({ title: "Refresh Complete", description: `${refreshedCount} transactions have been re-processed.` });
+                refetch(); // This will refetch paginated data
+                setSelectedTransactions([]); // Clear selection as a good practice
+            } else {
+                 toast({ title: 'No Changes', description: 'No transactions needed refreshing.'});
+            }
+            
         } catch (error) {
             console.error("Error refreshing descriptions:", error);
             toast({ title: "Refresh Failed", variant: "destructive" });
@@ -1239,6 +1266,7 @@ const NewTransactionsTab = React.forwardRef<
             setIsRefreshing(false);
         }
     };
+
 
     const handleDownloadExcel = async () => {
         if (!client || !client.uid || !bankAccountId) return;
@@ -1454,7 +1482,7 @@ const NewTransactionsTab = React.forwardRef<
                                </Command>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                         <Button variant="outline" onClick={handleRefreshDescriptions} disabled={isRefreshing || selectedTransactions.length === 0}>
+                         <Button variant="outline" onClick={handleRefreshDescriptions} disabled={isRefreshing}>
                             {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                             Refresh Descriptions
                         </Button>
