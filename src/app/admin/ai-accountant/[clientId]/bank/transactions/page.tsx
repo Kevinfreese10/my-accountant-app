@@ -2975,8 +2975,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const [groupAllocations, setGroupAllocations] = useState<Record<string, AIAllocationResult | null>>({});
     const [activeApprovalGroup, setActiveApprovalGroup] = useState<{ supplier: string; txs: ImportedTransaction[]; suggestion: AIAllocationResult | null } | null>(null);
 
-    const [isBulkApproveOpen, setIsBulkApproveOpen] = useState(false);
-    const [confidenceThreshold, setConfidenceThreshold] = useState(95);
+    const [isSaving, setIsSaving] = useState(false);
+    const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
 
     const [lastApprovedTxIds, setLastApprovedTxIds] = useState<string[] | null>(null);
 
@@ -3215,34 +3215,74 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }
     };
     
-    const handleBulkApprove = async () => {
-        if (!client) return;
-        const txsToApprove = transactions.filter(tx => 
-            tx.status === 'ai_review' && 
-            tx.aiAllocationResult?.accountId &&
-            (tx.aiAllocationResult.confidence || 0) >= confidenceThreshold
-        );
+    const handleSaveChanges = async () => {
+        if (!client || Object.keys(groupAllocations).length === 0) return;
         
-        if (txsToApprove.length === 0) {
-            toast({ title: 'Nothing to Approve', description: `No transactions met the ${confidenceThreshold}% confidence threshold.` });
-            setIsBulkApproveOpen(false);
+        setIsSaving(true);
+        toast({ title: 'Saving allocation suggestions...' });
+
+        try {
+            const batch = writeBatch(db);
+            let updatedCount = 0;
+            
+            for (const supplier in groupAllocations) {
+                const allocation = groupAllocations[supplier];
+                const txs = groupedTransactions[supplier];
+                if (txs && allocation) {
+                    txs.forEach(tx => {
+                        const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+                        batch.update(txRef, { aiAllocationResult: allocation });
+                        updatedCount++;
+                    });
+                }
+            }
+
+            if(updatedCount > 0) {
+                await batch.commit();
+                toast({ title: 'Changes Saved', description: 'AI allocation suggestions have been updated.' });
+            } else {
+                 toast({ title: 'No Changes to Save', description: 'No modifications were detected.' });
+            }
+        } catch (error) {
+            console.error("Error saving changes:", error);
+            toast({ title: 'Save Failed', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleApproveSelected = async () => {
+        if (!client || selectedGroups.length === 0) return;
+        
+        const txsToApprove = selectedGroups.flatMap(supplier => groupedTransactions[supplier] || []);
+        const allocations = selectedGroups.map(supplier => groupAllocations[supplier]);
+        
+        if (allocations.some(alloc => !alloc || !alloc.accountId)) {
+            toast({ title: 'Cannot Approve', description: 'One or more selected groups do not have an account allocated.', variant: 'destructive'});
             return;
         }
 
-        toast({ title: "Bulk Approving...", description: `Approving ${txsToApprove.length} transactions.` });
+        toast({ title: "Approving Selected...", description: `Approving ${txsToApprove.length} transactions.` });
         try {
             const batch = writeBatch(db);
             const txIds = txsToApprove.map(tx => tx.id);
-            txIds.forEach(txId => {
-                const tx = txsToApprove.find(t => t.id === txId)!;
-                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                batch.update(txRef, {
-                    status: 'allocated',
-                    allocatedTo: { value: tx.aiAllocationResult!.accountId, type: 'account' },
-                    vatType: tx.aiAllocationResult!.vatType,
-                    allocatedAt: new Date(),
-                });
+            
+            selectedGroups.forEach(supplier => {
+                const groupTxs = groupedTransactions[supplier];
+                const allocation = groupAllocations[supplier];
+                if (groupTxs && allocation && allocation.accountId) {
+                    groupTxs.forEach(tx => {
+                        const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+                        batch.update(txRef, {
+                            status: 'allocated',
+                            allocatedTo: { value: allocation.accountId, type: 'account' },
+                            vatType: allocation.vatType,
+                            allocatedAt: new Date(),
+                        });
+                    });
+                }
             });
+            
             await batch.commit();
             setLastApprovedTxIds(txIds);
             toast({ 
@@ -3250,12 +3290,12 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 description: `${txsToApprove.length} transactions have been moved to Reviewed.`,
                 action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction>,
             });
-            setIsBulkApproveOpen(false);
+            setSelectedGroups([]);
         } catch (e) {
             console.error(e);
-            toast({ title: 'Error', description: 'Could not approve all transactions.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not approve selected transactions.', variant: 'destructive'});
         }
-    }
+    };
 
     const handleAllocationChange = (supplier: string, field: 'accountId' | 'vatType', value: string) => {
         setGroupAllocations(prev => {
@@ -3324,38 +3364,13 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 <RefreshCw className="mr-2 h-4 w-4"/>
                                 Re-analyse Groupings
                             </Button>
-                             <Dialog open={isBulkApproveOpen} onOpenChange={setIsBulkApproveOpen}>
-                                <DialogTrigger asChild>
-                                    <Button disabled={isLoading || isProcessing || Object.keys(groupedTransactions).length === 0} variant="outline">
-                                        <CheckCircle className="mr-2 h-4 w-4"/>
-                                        Bulk Approve Allocations
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>Bulk Approve by Confidence</DialogTitle>
-                                        <DialogDescription>
-                                            Select the minimum confidence level to approve transactions. All suggestions at or above this level will be approved.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="py-4 space-y-4">
-                                        <Label>Confidence Threshold: {confidenceThreshold}%</Label>
-                                        <Slider 
-                                            defaultValue={[confidenceThreshold]} 
-                                            min={80}
-                                            max={100} 
-                                            step={1} 
-                                            onValueChange={(value) => setConfidenceThreshold(value[0])}
-                                        />
-                                    </div>
-                                    <DialogFooter>
-                                        <Button variant="ghost" onClick={() => setIsBulkApproveOpen(false)}>Cancel</Button>
-                                        <Button onClick={handleBulkApprove}>
-                                            Approve
-                                        </Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
+                            <Button variant="outline" onClick={handleSaveChanges} disabled={isSaving}>
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Save Changes
+                            </Button>
+                            <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0}>
+                                Approve Selected ({selectedGroups.length})
+                            </Button>
                              <Button
                                 variant="ghost"
                                 onClick={() => lastApprovedTxIds && handleUndoAction(lastApprovedTxIds)}
@@ -3390,10 +3405,18 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
                                     <div className="flex items-center justify-between p-3 bg-muted/50 rounded-t-lg">
                                         <CollapsibleTrigger asChild>
-                                            <button className="flex items-center gap-4 text-left pr-4">
+                                             <div className="flex items-center gap-4 text-left pr-4 flex-grow cursor-pointer">
+                                                <Checkbox
+                                                    checked={selectedGroups.includes(supplier)}
+                                                    onCheckedChange={(checked) => {
+                                                        setSelectedGroups(prev => checked ? [...prev, supplier] : prev.filter(s => s !== supplier))
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="ml-2"
+                                                />
                                                 <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length} items)</span></h3>
                                                 {suggestion && <p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%</p>}
-                                            </button>
+                                            </div>
                                         </CollapsibleTrigger>
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             <Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId || ''}>
