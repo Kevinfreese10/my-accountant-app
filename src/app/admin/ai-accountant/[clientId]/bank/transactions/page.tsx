@@ -3369,6 +3369,66 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         }
     };
 
+    const handleDownloadExcel = () => {
+        if (Object.keys(groupedTransactions).length === 0) {
+            toast({ title: "No data to download." });
+            return;
+        }
+
+        const dataToExport = Object.entries(groupedTransactions).flatMap(([supplier, txs]) => 
+            txs.map(tx => ({
+                'Group (Supplier)': supplier,
+                'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
+                'Description': tx.description,
+                'Amount': tx.amount,
+                'Suggested Account': chartOfAccounts.find(acc => acc.id === tx.aiAllocationResult?.accountId)?.description || 'N/A',
+                'Suggested VAT': allVatTypes.find(vat => vat.name === tx.aiAllocationResult?.vatType)?.label || 'N/A',
+                'Allocate to Account': '',
+                'Allocate VAT Type': '',
+            }))
+        );
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+        const accountsList = chartOfAccounts.map(acc => [acc.description]);
+        const vatList = allVatTypes.map(vat => [vat.label]);
+        
+        const ws_accounts = XLSX.utils.aoa_to_sheet(accountsList);
+        const ws_vat = XLSX.utils.aoa_to_sheet(vatList);
+
+        if (!ws['!dataValidations']) {
+            ws['!dataValidations'] = [];
+        }
+
+        const numRows = dataToExport.length;
+        ws['!dataValidations'].push({
+            sqref: `G2:G${numRows + 1}`,
+            type: 'list',
+            allowBlank: true,
+            showDropDown: true,
+            formula1: `AccountsList!$A$1:$A$${accountsList.length}`
+        });
+        
+        ws['!dataValidations'].push({
+            sqref: `H2:H${numRows + 1}`,
+            type: 'list',
+            allowBlank: true,
+            showDropDown: true,
+            formula1: `VATList!$A$1:$A$${vatList.length}`
+        });
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "AI Workflow");
+        XLSX.utils.book_append_sheet(wb, ws_accounts, "AccountsList");
+        XLSX.utils.book_append_sheet(wb, ws_vat, "VATList");
+        
+        if (wb.Sheets['AccountsList']) wb.Sheets['AccountsList']['!props'] = { hidden: true };
+        if (wb.Sheets['VATList']) wb.Sheets['VATList']['!props'] = { hidden: true };
+
+        XLSX.writeFile(wb, `AI_Workflow_Export_${client?.name?.replace(/\s+/g, '_')}.xlsx`);
+        
+        toast({ title: 'Download Started', description: 'Your Excel file is being generated.' });
+    };
+
 
     return (
         <React.Fragment>
@@ -3398,6 +3458,10 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             </Button>
                             <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0}>
                                 Approve Selected ({selectedGroups.length})
+                            </Button>
+                            <Button onClick={handleDownloadExcel} variant="outline" disabled={isLoading || isProcessing || Object.keys(groupedTransactions).length === 0}>
+                                <Download className="mr-2 h-4 w-4"/>
+                                Download Excel
                             </Button>
                              <Button
                                 variant="ghost"
