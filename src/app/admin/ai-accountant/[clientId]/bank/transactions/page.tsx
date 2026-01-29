@@ -1484,7 +1484,7 @@ const NewTransactionsTab = React.forwardRef<
                         </DropdownMenu>
                          <Button variant="outline" onClick={handleRefreshDescriptions} disabled={isRefreshing}>
                             {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                            Refresh Descriptions
+                            Refresh All Descriptions
                         </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -3089,7 +3089,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             const batch = writeBatch(db);
             txIdsToReject.forEach(txId => {
                 const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                batch.update(txRef, { status: 'new', extractedSupplier: null, aiAllocationResult: null, merchantKey: null });
+                batch.update(txRef, { status: 'new', aiAllocationResult: null });
             });
             await batch.commit();
             toast({ title: 'Transactions Rejected', description: `${txIdsToReject.length} items moved back to 'New'` });
@@ -3787,3 +3787,4 @@ export default BankTransactionsPage;
     
 
     
+
