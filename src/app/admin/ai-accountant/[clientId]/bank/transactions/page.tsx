@@ -16,7 +16,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint, setDoc, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint, setDoc, Timestamp, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -3089,7 +3089,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             const batch = writeBatch(db);
             txIdsToReject.forEach(txId => {
                 const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                batch.update(txRef, { status: 'new', aiAllocationResult: null });
+                batch.update(txRef, { status: 'new', aiAllocationResult: deleteField() });
             });
             await batch.commit();
             toast({ title: 'Transactions Rejected', description: `${txIdsToReject.length} items moved back to 'New'` });
@@ -3371,7 +3371,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
 
     return (
-        <div>
+        <React.Fragment>
              <ApproveAndCreateRuleDialog
                 isOpen={!!activeApprovalGroup}
                 onOpenChange={(open) => setActiveApprovalGroup(open ? activeApprovalGroup : null)}
@@ -3494,7 +3494,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     )}
                  </CardContent>
             </Card>
-        </div>
+        </React.Fragment>
     );
 };
 
@@ -3788,3 +3788,4 @@ export default BankTransactionsPage;
 
     
 
+    
