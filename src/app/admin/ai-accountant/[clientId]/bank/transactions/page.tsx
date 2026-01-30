@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -857,8 +858,18 @@ function ApproveAndCreateRuleDialog({
 
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; globalRules: AllocationRule[]; onAccountCreated: () => void; setActiveTab: (tab: string) => void; }
->(({ client, bankAccountId, customers, invoices, fetchClientData, globalRules, onAccountCreated, setActiveTab }, ref) => {
+    { 
+        client: User | null; 
+        bankAccountId: string | null; 
+        customers: ClientCustomer[]; 
+        invoices: Invoice[]; 
+        fetchClientData: () => void; 
+        globalRules: AllocationRule[]; 
+        onAccountCreated: () => void; 
+        setActiveTab: (tab: string) => void;
+        currentBalance: number;
+    }
+>(({ client, bankAccountId, customers, invoices, fetchClientData, globalRules, onAccountCreated, setActiveTab, currentBalance }, ref) => {
     const { toast, dismiss } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -1424,7 +1435,7 @@ const NewTransactionsTab = React.forwardRef<
                         {bankAccountId && client && <ImportDialog 
                             client={client}
                             bankAccountId={bankAccountId}
-                            currentBalance={0} // TODO: Pass real balance if available
+                            currentBalance={currentBalance} 
                             onImportComplete={refetch}
                             globalRules={globalRules}
                         />}
@@ -3800,6 +3811,7 @@ function BankTransactionsPage() {
                             ref={newTransactionsTabRef}
                             client={client}
                             bankAccountId={accountId}
+                            currentBalance={accountStats.balance}
                             customers={customers}
                             invoices={invoices}
                             fetchClientData={fetchClientData}
@@ -3853,3 +3865,4 @@ export default BankTransactionsPage;
     
 
     
+
