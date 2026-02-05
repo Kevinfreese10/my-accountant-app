@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -249,8 +248,8 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     header: true,
                     skipEmptyLines: true,
                     complete: (results) => {
-                        if (results.data.length > 2000) {
-                            setImportError('File is too large. Please import no more than 2000 lines at a time.');
+                        if (results.data.length > 5000) {
+                            setImportError('File is too large. Please import no more than 5000 lines at a time.');
                             setParsedTransactions([]);
                             setIsParsing(false);
                             return;
@@ -3785,13 +3784,3 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
-
-    
-
-    
-
-    
-
-    
-
-    
