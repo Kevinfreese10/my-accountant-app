@@ -49,6 +49,7 @@ import { Slider } from '@/components/ui/slider';
 import { DateRangePicker, type DateRange } from '@/components/ui/date-range-picker';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { startAiAllocationJob } from '@/app/actions';
 
 
 const PAGE_SIZE = 50;
@@ -70,14 +71,6 @@ type CleanResult = {
   merchantMethod: "anchor" | "alias" | "regex" | "fallback";
   referenceTokens: string[];
 };
-
-// Example test cases:
-// "CHEQUE CARD PURCHASE PNP Steeledale 1 02 JUN" -> { cleanedDescription: "PNP STEELEDALE 1", merchantKey: "PICK N PAY", paymentChannel: "CARD", merchantMethod: "alias", referenceTokens: [] }
-// "EFT PAYMENT VODACOM 0462814442 B0447335" -> { cleanedDescription: "VODACOM 0462814442 B0447335", merchantKey: "VODACOM", paymentChannel: "EFT", merchantMethod: "anchor", referenceTokens: [] }
-// "DEBIT ORDER DISCOVERY HEALTH 123456" -> { cleanedDescription: "DISCOVERY HEALTH 123456", merchantKey: "DISCOVERY", paymentChannel: "DEBIT_ORDER", merchantMethod: "anchor", referenceTokens: [] }
-// "ATM WITHDRAWAL CASH SEND 98765" -> { cleanedDescription: "CASH SEND 98765", merchantKey: "CASH SEND", paymentChannel: "ATM", merchantMethod: "regex", referenceTokens: [] }
-// "TELKOMMOBI50487983801152700811" -> { cleanedDescription: "TELKOMMOBI50487983801152700811", merchantKey: "TELKOM", paymentChannel: "UNKNOWN", merchantMethod: "anchor", referenceTokens: [] }
-
 
 function cleanDescription(description: string): CleanResult {
     if (!description) {
@@ -110,7 +103,6 @@ function cleanDescription(description: string): CleanResult {
     while ((match = refRegex.exec(cleaned)) !== null) {
         if (match[2]) referenceTokens.push(match[2]);
     }
-    // Extract long numeric codes that are likely references
     const codeRegex = /\b([A-Z]*\d+[A-Z\d]*)\b/g;
     while ((match = codeRegex.exec(cleaned)) !== null) {
          if (match[0].length > 8 && !/^[A-Z]+$/.test(match[0])) { // More than 8 chars, contains numbers
@@ -146,7 +138,6 @@ function cleanDescription(description: string): CleanResult {
     const aliasMap: { [key: string]: string } = { 'PNP': 'PICK N PAY', 'PICKNPAY': 'PICK N PAY', 'VODA': 'VODACOM', 'VODACOMSA': 'VODACOM', 'TAKEALOT.COM': 'TAKEALOT' };
     const genericBlacklist = ["PAYMENT","PURCHASE","TRANSFER","TRF","ONLINE","EFT","CARD","POS","DEBIT","ORDER","ATM","WITHDRAWAL","REF","REFERENCE","BANK","FEE","CHARGE"];
 
-    // a) Anchor check - must start with the anchor to handle cases like "TELKOMMOBI..."
     for (const anchor in anchorMap) {
         if (originalUpper.startsWith(anchor)) {
             merchantKey = anchorMap[anchor];
@@ -154,7 +145,6 @@ function cleanDescription(description: string): CleanResult {
             break;
         }
     }
-    // Also check if cleaned contains the full anchor word
     if (!merchantKey) {
         for (const anchor in anchorMap) {
             if (cleaned.includes(anchor)) {
@@ -165,8 +155,6 @@ function cleanDescription(description: string): CleanResult {
         }
     }
 
-
-    // b) Alias check
     if (!merchantKey) {
         const words = cleaned.split(' ');
         for (const word of words) {
@@ -178,7 +166,6 @@ function cleanDescription(description: string): CleanResult {
         }
     }
     
-    // c) Regex/Fallback
     if (!merchantKey) {
         const tokens = cleaned.split(' ').filter(token => 
             token && 
@@ -3006,9 +2993,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const [transactions, setTransactions] = useState<ImportedTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [progress, setProgress] = useState(0);
-    const [progressMessage, setProgressMessage] = useState('');
+    const [job, setJob] = useState<AIAllocationJob | null>(null);
+    const [isLoadingJob, setIsLoadingJob] = useState(true);
     
     const [groupedTransactions, setGroupedTransactions] = useState<Record<string, ImportedTransaction[]>>({});
     const [groupAllocations, setGroupAllocations] = useState<Record<string, AIAllocationResult | null>>({});
@@ -3019,18 +3005,18 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
     const [lastApprovedTxIds, setLastApprovedTxIds] = useState<string[] | null>(null);
 
-    const refetch = useCallback(() => {
+    useEffect(() => {
         if (!client?.uid || !bankAccountId) {
             setIsLoading(false);
-            return () => {};
+            return;
         }
-        setIsLoading(true);
-        const q = query(
+
+        const transQuery = query(
             collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
             where('bankAccountId', '==', bankAccountId),
             where('status', 'in', ['ai_processing', 'ai_review'])
         );
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const transUnsubscribe = onSnapshot(transQuery, (snapshot) => {
             const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ImportedTransaction);
             setTransactions(fetched);
             setIsLoading(false);
@@ -3040,14 +3026,31 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             toast({ title: "Error", description: "Could not load workflow transactions.", variant: "destructive" });
         });
 
-        return unsubscribe;
+        const jobsQuery = query(
+            collection(db, 'aiAccountantClients', client.uid, 'jobs'),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+        );
+        const jobUnsubscribe = onSnapshot(jobsQuery, (snapshot) => {
+            if (!snapshot.empty) {
+                const latestJob = snapshot.docs[0].data() as AIAllocationJob;
+                if (latestJob.status === 'running') {
+                    setJob(latestJob);
+                } else {
+                    setJob(null); // Clear job if it's completed or failed
+                }
+            } else {
+                setJob(null);
+            }
+            setIsLoadingJob(false);
+        });
+
+        return () => { 
+            transUnsubscribe();
+            jobUnsubscribe();
+        };
     }, [client?.uid, bankAccountId, toast]);
     
-    useEffect(() => {
-        const unsubscribe = refetch();
-        return () => { unsubscribe() };
-    }, [refetch]);
-
     useEffect(() => {
         const groups = transactions.reduce((acc, tx) => {
             const key = tx.merchantKey || 'Unassigned';
@@ -3070,6 +3073,16 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         });
         setGroupAllocations(initialAllocations);
     }, [transactions]);
+    
+    const handleRunAiAllocation = async (reanalyse = false) => {
+        if (!client || !bankAccountId) return;
+        toast({ title: 'Starting AI Allocation Job...', description: 'The process will run in the background. Please keep this tab open.' });
+        try {
+            await startAiAllocationJob(client.uid, bankAccountId, reanalyse);
+        } catch (e) {
+            toast({ title: 'Failed to start job', variant: 'destructive'});
+        }
+    };
     
     const handleUndoAction = async (txIds: string[]) => {
         if (!client || txIds.length === 0) return;
@@ -3158,100 +3171,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         console.error("Error in confirm and create rule:", error);
         toast({ title: 'Error', description: 'Could not approve and create rule.', variant: 'destructive'});
       }
-    };
-    
-    const runAiAllocation = async (reanalyse = false) => {
-        if (!client || !bankAccountId) return;
-        
-        setIsProcessing(true);
-        setProgress(0);
-        
-        const transactionsToProcess = reanalyse 
-            ? transactions.filter(tx => tx.status === 'ai_review')
-            : transactions.filter(tx => tx.status === 'ai_processing');
-
-        if (transactionsToProcess.length === 0) {
-            toast({ title: 'No transactions to process.' });
-            setIsProcessing(false);
-            return;
-        }
-
-        try {
-            setProgressMessage(`Step 1/2: Grouping ${transactionsToProcess.length} transactions...`);
-            const groups = transactionsToProcess.reduce((acc, tx) => {
-                const key = tx.merchantKey || 'UNKNOWN';
-                if (!acc[key]) acc[key] = [];
-                acc[key].push(tx);
-                return acc;
-            }, {} as Record<string, ImportedTransaction[]>);
-            setProgress(50);
-            
-            const totalGroups = Object.keys(groups).length;
-            setProgressMessage(`Step 2/2: Getting AI suggestions for ${totalGroups} groups...`);
-            let groupsProcessed = 0;
-            const allocationCache = new Map<string, AIAllocationResult>();
-            
-            const batches = [];
-            let currentBatch = writeBatch(db);
-            let currentBatchSize = 0;
-
-            for (const [description, txs] of Object.entries(groups)) {
-                let allocationResult: AIAllocationResult | null = null;
-                if (allocationCache.has(description)) {
-                    allocationResult = allocationCache.get(description)!;
-                } else {
-                    try {
-                        const aiResponse = await suggestTransactionAllocation({ description, chartOfAccounts: JSON.stringify(chartOfAccounts), isVatRegistered: client.isVatRegistered || false });
-                        const confidence = aiResponse?.confidence ?? 0;
-                        
-                        if (confidence >= 80 && aiResponse.accountId) {
-                            const rule = globalRules.find(r => r.accountId === aiResponse.accountId);
-                            const finalVatType = client.isVatRegistered ? (rule ? rule.vatType : aiResponse.vatType) : 'no_vat';
-                            allocationResult = { accountId: aiResponse.accountId, vatType: finalVatType, confidence };
-                        } else {
-                            allocationResult = { accountId: '', vatType: 'no_vat', confidence };
-                        }
-                        allocationCache.set(description, allocationResult);
-                    } catch (e) {
-                        console.error(`Failed to get suggestion for ${description}:`, e);
-                        allocationResult = null;
-                    }
-                }
-                
-                txs.forEach(tx => {
-                    if (currentBatchSize >= 490) { 
-                        batches.push(currentBatch);
-                        currentBatch = writeBatch(db);
-                        currentBatchSize = 0;
-                    }
-                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                    currentBatch.update(txRef, {
-                        status: 'ai_review',
-                        extractedSupplier: description,
-                        aiAllocationResult: allocationResult,
-                    });
-                    currentBatchSize++;
-                });
-
-                groupsProcessed++;
-                setProgress(50 + (groupsProcessed / totalGroups) * 50);
-            }
-            batches.push(currentBatch);
-
-            await Promise.all(batches.map(b => b.commit()));
-
-            setProgressMessage('AI Allocation Complete!');
-            setProgress(100);
-            toast({ title: "AI Allocation Complete", description: "Transactions are now ready for your review." });
-            
-        } catch (error) {
-            console.error("AI Allocation process failed:", error);
-            toast({ title: "AI Allocation Failed", variant: "destructive" });
-        } finally {
-            setIsProcessing(false);
-            setProgress(0);
-            setProgressMessage('');
-        }
     };
     
     const handleSaveChanges = async () => {
@@ -3440,6 +3359,9 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         toast({ title: 'Download Started', description: 'Your Excel file is being generated.' });
     };
 
+    const isProcessing = job?.status === 'running';
+    const progress = job && job.total > 0 ? (job.processed / job.total) * 100 : 0;
+    const transactionsInProcessing = transactions.filter(tx => tx.status === 'ai_processing').length;
 
     return (
         <React.Fragment>
@@ -3455,19 +3377,19 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                      <div className="flex items-center justify-between">
                         <h2>AI Workflow ({Object.keys(groupedTransactions).length} groups)</h2>
                          <div className="flex gap-2">
-                            <Button onClick={() => runAiAllocation()} disabled={isLoading || isProcessing}>
+                            <Button onClick={() => handleRunAiAllocation()} disabled={isLoading || isProcessing || transactionsInProcessing === 0}>
                                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                                 Run AI Allocation
                             </Button>
-                            <Button onClick={() => runAiAllocation(true)} disabled={isLoading || isProcessing} variant="outline">
+                            <Button onClick={() => handleRunAiAllocation(true)} disabled={isLoading || isProcessing} variant="outline">
                                 <RefreshCw className="mr-2 h-4 w-4"/>
                                 Re-analyse Groupings
                             </Button>
-                            <Button variant="outline" onClick={handleSaveChanges} disabled={isSaving}>
+                            <Button variant="outline" onClick={handleSaveChanges} disabled={isSaving || isProcessing}>
                                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 Save Changes
                             </Button>
-                            <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0}>
+                            <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0 || isProcessing}>
                                 Approve Selected ({selectedGroups.length})
                             </Button>
                             <Button onClick={handleDownloadExcel} variant="outline" disabled={isLoading || isProcessing || Object.keys(groupedTransactions).length === 0}>
@@ -3486,19 +3408,27 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                      </div>
                  </CardHeader>
                  <CardContent className="p-4 space-y-4">
-                    {isProcessing && (
-                         <div className="space-y-2">
+                    {isProcessing && job && (
+                         <div className="space-y-2 p-4 border rounded-lg bg-muted">
+                            <h3 className="font-semibold text-center">AI Allocation in Progress...</h3>
                             <Progress value={progress} />
-                            <p className="text-sm text-muted-foreground">{progressMessage}</p>
+                            <p className="text-sm text-muted-foreground text-center">Processing group {job.processed} of {job.total}. Please keep this tab open for the process to complete.</p>
                         </div>
                     )}
-                    {isLoading ? (
+                    {job?.status === 'failed' && (
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4"/>
+                            <AlertTitle>Last Job Failed</AlertTitle>
+                            <AlertDescription>{job.error || 'An unknown error occurred.'}</AlertDescription>
+                        </Alert>
+                    )}
+                    {isLoading || isLoadingJob ? (
                         <div className="text-center py-8">
                             <Loader2 className="animate-spin mx-auto" />
                         </div>
                     ) : transactions.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
-                            No transactions are in the AI Workflow.
+                            No transactions are in the AI Workflow. Go to the 'New Transactions' tab to send some for processing.
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -3865,4 +3795,3 @@ export default BankTransactionsPage;
     
 
     
-
