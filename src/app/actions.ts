@@ -3,7 +3,7 @@
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, AIAllocationResult, VatType } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, AIAllocationResult, VatType, AIAllocationJob } from '@/lib/types';
 import { services as allServices } from '@/lib/data';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
@@ -147,7 +147,7 @@ async function runAllocationProcess(clientId: string, bankAccountId: string, job
             const emails = usersSnap.docs.map(d => d.data().email).filter(Boolean);
             
             if (emails.length > 0) {
-                 const emailHtml = render(<AIAllocationCompleteEmail clientName={client.name || 'your client'} totalProcessed={transactionsToProcess.length} />);
+                 const emailHtml = render(AIAllocationCompleteEmail({ clientName: client.name || 'your client', totalProcessed: transactionsToProcess.length }));
                 await sendEmail({
                     to: emails,
                     subject: `AI Accountant Job Complete for ${client.name}`,
