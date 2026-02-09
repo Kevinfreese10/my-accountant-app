@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,6 +34,7 @@ import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import TaskCompletedEmail from '../emails/TaskCompletedEmail';
 
 
 const db = getFirestore(firebaseApp);
@@ -690,37 +690,6 @@ export default function AdminDashboardPage() {
         // Optimistically update local state
         updateUser({ ...user, archivedNotifications: [...(user.archivedNotifications || []), noteId] });
     };
-
-    const notifications = useMemo(() => {
-        if (!user || orders.length === 0) return [];
-        
-        const relevantOrders = orders.filter(order => {
-            const isAssigned = order.assignedTo?.includes(user.id);
-            const isTagged = tasks.some(task => task.orderId === order.id && task.tags?.includes(user.id));
-            return isAssigned || isTagged;
-        });
-
-        const allNotes: (OrderNote & { orderId: string; orderTitle: string; customerName: string; })[] = [];
-
-        relevantOrders.forEach(order => {
-            const notes = (order.notes || [])
-                .filter(note => note.authorId !== user.id && note.type === 'note')
-                .map(note => {
-                    const date = note.date?.toDate ? note.date.toDate() : new Date(note.date);
-                    return {
-                        ...note,
-                        date,
-                        orderId: order.id,
-                        orderTitle: order.items[0]?.title || 'Untitled Order',
-                        customerName: order.customerName,
-                    };
-                });
-            allNotes.push(...notes);
-        });
-        
-        return allNotes.sort((a, b) => b.date.getTime() - a.date.getTime());
-    }, [orders, tasks, user]);
-    
     
     useEffect(() => {
         setIsLoading(true);
@@ -778,6 +747,58 @@ export default function AdminDashboardPage() {
         }));
         return ['All Tasks', ...Array.from(types)];
     }, [tasks]);
+    
+    const getAuthor = (authorId: string): User | undefined => {
+        return allStaffAndClients.find(u => u.uid === authorId || u.id === authorId);
+    }
+
+    const notifications = useMemo(() => {
+        if (!user) return [];
+    
+        const orderNoteNotifications = orders
+            .flatMap(order => {
+                const isAssigned = order.assignedTo?.includes(user.id);
+                const isTagged = tasks.some(task => task.orderId === order.id && task.tags?.includes(user.id));
+                if (!isAssigned && !isTagged) return [];
+    
+                return (order.notes || [])
+                    .filter(note => note.authorId !== user.id && note.type === 'note' && !archivedNotifications.includes(order.id + (note.date?.toDate ? note.date.toDate().toISOString() : new Date(note.date).toISOString())))
+                    .map(note => {
+                        const author = getAuthor(note.authorId);
+                        const date = note.date?.toDate ? note.date.toDate() : new Date(note.date);
+                        return {
+                            id: order.id + date.toISOString(),
+                            type: 'order_note' as const,
+                            author,
+                            date,
+                            order,
+                            note,
+                        };
+                    });
+            })
+            .filter(Boolean);
+    
+        const taskNotifications = tasks
+            .filter(task => 
+                task.assignedTo.includes(user.id) && 
+                task.createdBy !== user.id && 
+                !archivedNotifications.includes(`task-${task.id}`)
+            )
+            .map(task => {
+                const author = getAuthor(task.createdBy);
+                return {
+                    id: `task-${task.id}`,
+                    type: 'task_assigned' as const,
+                    author,
+                    date: task.createdAt?.toDate ? task.createdAt.toDate() : new Date(),
+                    task,
+                };
+            });
+    
+        const allNotifications = [...orderNoteNotifications, ...taskNotifications];
+        return allNotifications.sort((a, b) => b.date.getTime() - a.date.getTime());
+    }, [orders, tasks, user, archivedNotifications]);
+
 
     const myTasks = useMemo(() => {
         if (!user) return [];
@@ -815,7 +836,7 @@ export default function AdminDashboardPage() {
             return true;
         });
         
-        return deptTasks.sort((a, b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
+        return deptTasks.sort((a, b) => getTaskDate(a).getTime() - b.date.toDate().getTime());
     }, [tasks, user]);
 
     const automatedTasks = useMemo(() => {
@@ -861,13 +882,33 @@ export default function AdminDashboardPage() {
 
     const handleUpdate = async (taskId: string, updates: Partial<Task>) => {
         const originalTask = tasks.find(t => t.id === taskId);
-        if (!originalTask) return;
-
+        if (!originalTask || !user) return;
+    
         try {
             const taskRef = doc(db, 'tasks', taskId);
             await updateDoc(taskRef, updates);
-
+    
             if (updates.status === 'Done') {
+                const creator = allStaffAndClients.find(s => s.id === originalTask.createdBy);
+                if (creator && creator.email && creator.id !== user.id) {
+                    try {
+                        const emailHtml = render(<TaskCompletedEmail
+                            creatorName={creator.name.split(' ')[0]}
+                            taskTitle={originalTask.title}
+                            completedBy={user.name}
+                            taskUrl={`${window.location.origin}/admin/dashboard`}
+                        />);
+                        await sendEmail({
+                            to: creator.email,
+                            subject: `Task Completed: ${originalTask.title}`,
+                            html: emailHtml,
+                        });
+                    } catch (emailError) {
+                        console.error("Failed to send completion email:", emailError);
+                        // Non-blocking, don't show toast for this error
+                    }
+                }
+    
                 if (originalTask.recurrence && originalTask.recurrence !== 'None') {
                     createNextRecurrence(originalTask);
                 }
@@ -875,7 +916,7 @@ export default function AdminDashboardPage() {
             } else {
                 toast({ title: 'Task Updated', description: `The task has been updated.` });
             }
-
+    
         } catch (error) {
             console.error("Error updating task:", error);
             toast({ title: 'Error', description: 'Could not update task.', variant: 'destructive'});
@@ -952,6 +993,26 @@ export default function AdminDashboardPage() {
                 for (const assigneeId of data.assignedTo) {
                     if (assigneeId !== user.id) { // Don't email the user who created the task
                         const assignee = allStaffAndClients.find(s => s.id === assigneeId);
+                        if (assignee && assignee.email) {
+                            try {
+                                const emailHtml = render(<NewTaskEmail
+                                    assigneeName={assignee.name.split(' ')[0]}
+                                    taskTitle={newTask.title}
+                                    taskDescription={newTask.description}
+                                    dueDate={format((newTask.dueDate as Timestamp).toDate(), 'dd/MM/yyyy')}
+                                    assignedBy={user.name}
+                                    taskUrl={`${window.location.origin}/admin/dashboard`}
+                                />);
+                                await sendEmail({
+                                    to: assignee.email,
+                                    subject: `New Task Assigned: ${newTask.title}`,
+                                    html: emailHtml,
+                                });
+                            } catch (emailError) {
+                                console.error(`Failed to send task notification email to ${assignee.email}:`, emailError);
+                                // Non-blocking error
+                            }
+                        }
                     }
                 }
             }
@@ -1015,10 +1076,6 @@ export default function AdminDashboardPage() {
             setViewingTask(null);
         }
     }
-
-    const getAuthor = (authorId: string): User | undefined => {
-        return allStaffAndClients.find(u => u.uid === authorId || u.id === authorId);
-    }
     
     return (
         <div className="space-y-8">
@@ -1071,41 +1128,45 @@ export default function AdminDashboardPage() {
                          <Card className="w-full">
                             <CardHeader>
                                 <CardTitle>Notifications</CardTitle>
-                                <CardDescription>Recent notes on your assigned orders.</CardDescription>
+                                <CardDescription>Recent updates on your assigned orders and tasks.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <ScrollArea className="h-72">
                                     <div className="space-y-4">
-                                        {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
-                                            const author = getAuthor(note.authorId);
-                                            const date = note.date;
-                                            const noteId = note.orderId + date.toISOString();
-
-                                            return (
-                                                <div key={index} className="flex items-start gap-3">
-                                                    <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
-                                                        {author?.name.charAt(0) || 'U'}
-                                                    </div>
-                                                    <div className="flex-1">
+                                        {notifications.map((item) => (
+                                            <div key={item.id} className="flex items-start gap-3">
+                                                <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", item.author ? getUserColor(item.author.id) : 'bg-gray-200')}>
+                                                    {item.author?.name.charAt(0) || '?'}
+                                                </div>
+                                                <div className="flex-1">
+                                                    {item.type === 'order_note' && item.note && (
                                                         <p className="text-sm">
-                                                            <span className="font-semibold">{author?.name || 'Unknown User'}</span>
+                                                            <span className="font-semibold">{item.author?.name || 'Unknown User'}</span>
                                                             <span className="text-muted-foreground"> left a note on order </span>
-                                                            <Link href={`/admin/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                                            <Link href={`/admin/orders/${item.order.id}`} className="font-semibold text-primary hover:underline">{item.order.id}</Link>
                                                         </p>
-                                                        <blockquote className="mt-1 border-l-2 pl-3 text-sm italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
-                                                        <div className="flex items-center justify-between">
-                                                            <p className="text-xs text-muted-foreground mt-1">
-                                                                {formatDistanceToNow(date, { addSuffix: true })}
-                                                            </p>
-                                                                <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
-                                                                <Archive className="mr-2 h-4 w-4"/> Archive
-                                                                </Button>
-                                                        </div>
+                                                    )}
+                                                    {item.type === 'task_assigned' && (
+                                                        <p className="text-sm">
+                                                            <span className="font-semibold">{item.author?.name || 'System'}</span>
+                                                            <span className="text-muted-foreground"> assigned you a new task.</span>
+                                                        </p>
+                                                    )}
+                                                     <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
+                                                        {item.type === 'order_note' ? `"${item.note.text}"` : `"${item.task.title}"`}
+                                                    </blockquote>
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            {formatDistanceToNow(item.date, { addSuffix: true })}
+                                                        </p>
+                                                        <Button size="sm" variant="ghost" onClick={() => archiveNotification(item.id)}>
+                                                            <Archive className="mr-2 h-4 w-4"/> Archive
+                                                        </Button>
                                                     </div>
                                                 </div>
-                                            )
-                                        })}
-                                        {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).length === 0 && (
+                                            </div>
+                                        ))}
+                                        {notifications.length === 0 && (
                                             <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
                                                 <Inbox className="h-12 w-12 mb-4"/>
                                                 <p className="font-semibold">All caught up!</p>
@@ -1196,5 +1257,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-
-    
