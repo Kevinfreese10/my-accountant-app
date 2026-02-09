@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,7 +35,7 @@ import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import TaskCompletedEmail from '../emails/TaskCompletedEmail';
+import TaskCompletedEmail from '@/components/emails/TaskCompletedEmail';
 
 
 const db = getFirestore(firebaseApp);
