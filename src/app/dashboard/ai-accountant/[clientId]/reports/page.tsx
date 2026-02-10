@@ -1,8 +1,10 @@
 
 'use client';
-import { redirect } from 'next/navigation';
+import { redirect, useParams } from 'next/navigation';
 
-export default function NumeraReportsRedirectPage({ params }: { params: { clientId: string }}) {
-  redirect(`/admin/ai-accountant/${params.clientId}/reports/account-transactions`);
+export default function NumeraReportsRedirectPage() {
+  const params = useParams();
+  const clientId = params.clientId as string;
+  redirect(`/admin/ai-accountant/${clientId}/reports/account-transactions`);
   return null;
 }

@@ -1,8 +1,10 @@
 
 'use client';
-import { redirect } from 'next/navigation';
+import { redirect, useParams } from 'next/navigation';
 
-export default function VatTransactionsRedirectPage({ params }: { params: { clientId: string }}) {
-  redirect(`/admin/ai-accountant/${params.clientId}/reports/vat-transactions`);
+export default function VatTransactionsRedirectPage() {
+  const params = useParams();
+  const clientId = params.clientId as string;
+  redirect(`/admin/ai-accountant/${clientId}/reports/vat-transactions`);
   return null;
 }

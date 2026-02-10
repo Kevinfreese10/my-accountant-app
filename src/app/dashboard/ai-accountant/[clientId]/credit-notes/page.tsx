@@ -1,9 +1,11 @@
 
 'use client';
 
-import { redirect } from 'next/navigation';
+import { redirect, useParams } from 'next/navigation';
 
-export default function CreditNotesRedirectPage({ params }: { params: { clientId: string }}) {
-  redirect(`/admin/ai-accountant/${params.clientId}/credit-notes`);
+export default function CreditNotesRedirectPage() {
+  const params = useParams();
+  const clientId = params.clientId as string;
+  redirect(`/admin/ai-accountant/${clientId}/credit-notes`);
   return null;
 }

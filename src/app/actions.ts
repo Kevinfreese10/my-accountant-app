@@ -14,6 +14,7 @@ import ClientDocumentUploadEmail from '@/components/emails/ClientDocumentUploadE
 import DocumentReviewEmail from '@/components/emails/DocumentReviewEmail';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import AIAllocationCompleteEmail from '@/components/emails/AIAllocationCompleteEmail';
+import AIAccountantInviteEmail from '@/components/emails/AIAccountantInviteEmail';
 
 
 const db = getFirestore(firebaseApp);
@@ -178,4 +179,24 @@ export async function startAiAllocationJob(clientId: string, bankAccountId: stri
     runAllocationProcess(clientId, bankAccountId, jobRef.id, reanalyse);
 
     return { jobId: jobRef.id };
+}
+
+export async function sendAiUserInvite(email: string, name: string, password_do_not_expose: string, clientName: string, clientId: string) {
+    const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL}/login`;
+
+    const emailHtml = render(
+        AIAccountantInviteEmail({
+            name: name.split(' ')[0],
+            email: email,
+            password: password_do_not_expose,
+            clientName: clientName,
+            loginUrl: loginUrl,
+        })
+    );
+
+    await sendEmail({
+        to: email,
+        subject: `You've been invited to collaborate on ${clientName}`,
+        html: emailHtml,
+    });
 }

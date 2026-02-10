@@ -1,9 +1,11 @@
 
 'use client';
 
-import { redirect } from 'next/navigation';
+import { redirect, useParams } from 'next/navigation';
 
-export default function AgeAnalysisRedirectPage({ params }: { params: { clientId: string }}) {
-  redirect(`/admin/ai-accountant/${params.clientId}/reports/age-analysis`);
+export default function AgeAnalysisRedirectPage() {
+  const params = useParams();
+  const clientId = params.clientId as string;
+  redirect(`/admin/ai-accountant/${clientId}/reports/age-analysis`);
   return null;
 }

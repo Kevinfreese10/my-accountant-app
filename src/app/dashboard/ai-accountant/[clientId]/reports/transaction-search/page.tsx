@@ -1,7 +1,10 @@
-'use client';
-import { redirect } from 'next/navigation';
 
-export default function TransactionSearchRedirectPage({ params }: { params: { clientId: string }}) {
-  redirect(`/admin/ai-accountant/${params.clientId}/reports/transaction-search`);
+'use client';
+import { redirect, useParams } from 'next/navigation';
+
+export default function TransactionSearchRedirectPage() {
+  const params = useParams();
+  const clientId = params.clientId as string;
+  redirect(`/admin/ai-accountant/${clientId}/reports/transaction-search`);
   return null;
 }
