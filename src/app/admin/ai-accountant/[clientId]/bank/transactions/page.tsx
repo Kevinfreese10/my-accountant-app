@@ -3003,6 +3003,10 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
 
     const [lastApprovedTxIds, setLastApprovedTxIds] = useState<string[] | null>(null);
+    
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const GROUPS_PER_PAGE = 20;
 
     useEffect(() => {
         if (!client?.uid || !bankAccountId) {
@@ -3072,6 +3076,16 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         });
         setGroupAllocations(initialAllocations);
     }, [transactions]);
+    
+    // Pagination logic
+    const sortedGroupEntries = useMemo(() => Object.entries(groupedTransactions).sort((a,b) => a[0].localeCompare(b[0])), [groupedTransactions]);
+    
+    const paginatedGroupEntries = useMemo(() => {
+        const startIndex = (currentPage - 1) * GROUPS_PER_PAGE;
+        return sortedGroupEntries.slice(startIndex, startIndex + GROUPS_PER_PAGE);
+    }, [sortedGroupEntries, currentPage]);
+
+    const totalPages = Math.ceil(sortedGroupEntries.length / GROUPS_PER_PAGE);
     
     const handleRunAiAllocation = async (reanalyse = false) => {
         if (!client || !bankAccountId) return;
@@ -3431,7 +3445,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                         </div>
                     ) : (
                         <div className="space-y-4">
-                             {Object.entries(groupedTransactions).map(([supplier, txs]) => {
+                             {paginatedGroupEntries.map(([supplier, txs]) => {
                                 const suggestion = groupAllocations[supplier];
                                 return (
                                 <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
@@ -3497,6 +3511,11 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                         </div>
                     )}
                  </CardContent>
+                 <CardFooter className="flex justify-center items-center p-4">
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Previous</Button>
+                    <span className="text-sm mx-4">Page {currentPage} of {totalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage >= totalPages}>Next</Button>
+                </CardFooter>
             </Card>
         </React.Fragment>
     );
@@ -3784,3 +3803,6 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
+
+
+    
