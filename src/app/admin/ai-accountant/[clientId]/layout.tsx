@@ -9,7 +9,7 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronLeft, ChevronDown } from 'lucide-react';
+import { ChevronLeft, ChevronDown, BrainCircuit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Menubar,
@@ -19,6 +19,7 @@ import {
   MenubarSeparator,
   MenubarTrigger,
 } from "@/components/ui/menubar";
+import { useAuth } from '@/contexts/AuthContext';
 
 
 const db = getFirestore(firebaseApp);
@@ -29,6 +30,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const { user: currentUser } = useAuth();
     
     useEffect(() => {
         if (clientId) {
@@ -56,12 +58,47 @@ export default function AIAccountantClientLayout({ children }: { children: React
             </div>
         );
     }
+    
+    const backLink = currentUser?.role === 'ai_accountant' ? '/dashboard/ai-accountant/clients' : '/admin/ai-accountant';
 
+    // Restricted view for 'ai_accountant'
+    if (currentUser?.role === 'ai_accountant') {
+        return (
+            <div className="space-y-4">
+                 <div>
+                     <Button variant="outline" size="sm" asChild className="mb-4">
+                        <Link href={backLink}>
+                            <ChevronLeft className="mr-2 h-4 w-4" />
+                            Back to All Clients
+                        </Link>
+                    </Button>
+                    <h1 className="text-2xl font-bold tracking-tight">{client?.companyName || client?.name}</h1>
+                    <p className="text-muted-foreground">AI Accountant Module</p>
+                </div>
+
+                <Menubar className="w-full bg-card">
+                     <MenubarMenu>
+                        <MenubarTrigger asChild>
+                           <Link href={`/admin/ai-accountant/${clientId}/bank/transactions`}>
+                                <BrainCircuit className="mr-2 h-4 w-4" /> AI Workflow
+                           </Link>
+                        </MenubarTrigger>
+                    </MenubarMenu>
+                </Menubar>
+                
+                <main>
+                    {children}
+                </main>
+            </div>
+        )
+    }
+
+    // Full view for admin/staff
     return (
         <div className="space-y-4">
              <div>
                  <Button variant="outline" size="sm" asChild className="mb-4">
-                    <Link href="/admin/ai-accountant">
+                    <Link href={backLink}>
                         <ChevronLeft className="mr-2 h-4 w-4" />
                         Back to All Clients
                     </Link>
@@ -143,5 +180,3 @@ export default function AIAccountantClientLayout({ children }: { children: React
         </div>
     );
 }
-
-    

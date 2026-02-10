@@ -49,6 +49,7 @@ import { DateRangePicker, type DateRange } from '@/components/ui/date-range-pick
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { startAiAllocationJob } from '@/app/actions';
+import { useAuth } from '@/contexts/AuthContext';
 
 
 const PAGE_SIZE = 50;
@@ -3525,6 +3526,7 @@ function BankTransactionsPage() {
     const params = useParams();
     const router = useRouter();
     const accountIdFromUrl = useSearchParams().get('accountId');
+    const { user: currentUser } = useAuth();
     
     const [client, setClient] = useState<User | null>(null);
     const [allAccountTransactions, setAllAccountTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
@@ -3535,7 +3537,7 @@ function BankTransactionsPage() {
     const [customers, setCustomers] = useState<ClientCustomer[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
-    const [activeTab, setActiveTab] = useState('new-transactions');
+    const [activeTab, setActiveTab] = useState(currentUser?.role === 'ai_accountant' ? 'ai-workflow' : 'new-transactions');
     const [accountId, setAccountId] = useState<string | null>(accountIdFromUrl);
 
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
@@ -3684,6 +3686,8 @@ function BankTransactionsPage() {
             </div>
         );
     }
+    
+    const canSeeAllTabs = currentUser?.role === 'admin' || currentUser?.role === 'staff';
 
     return (
         <div>
@@ -3748,12 +3752,18 @@ function BankTransactionsPage() {
             </div>
             <div className="border rounded-lg mt-4">
                  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="w-full">
-                    <TabsList className="grid w-full grid-cols-4 rounded-t-lg rounded-b-none h-auto">
-                        <TabsTrigger value="new-transactions">New Transactions</TabsTrigger>
-                        <TabsTrigger value="ai-workflow">AI Workflow</TabsTrigger>
-                        <TabsTrigger value="for-review">For Review</TabsTrigger>
-                        <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
-                    </TabsList>
+                    {canSeeAllTabs ? (
+                        <TabsList className="grid w-full grid-cols-4 rounded-t-lg rounded-b-none h-auto">
+                            <TabsTrigger value="new-transactions">New Transactions</TabsTrigger>
+                            <TabsTrigger value="ai-workflow">AI Workflow</TabsTrigger>
+                            <TabsTrigger value="for-review">For Review</TabsTrigger>
+                            <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
+                        </TabsList>
+                    ) : (
+                        <TabsList className="grid w-full grid-cols-1 rounded-t-lg rounded-b-none h-auto">
+                            <TabsTrigger value="ai-workflow">AI Workflow</TabsTrigger>
+                        </TabsList>
+                    )}
                     <TabsContent value="new-transactions" className="p-0">
                         <NewTransactionsTab
                             ref={newTransactionsTabRef}
@@ -3803,6 +3813,3 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
-
-
-    
