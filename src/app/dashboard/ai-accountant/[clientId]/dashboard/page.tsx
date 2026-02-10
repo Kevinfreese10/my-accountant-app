@@ -18,12 +18,8 @@ export default function AIAccountantClientDashboardPage() {
         );
     }
     
-    // Admins/staff go to the full dashboard, ai_accountant users go directly to the restricted bank view
-    if (user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor') {
-        redirect(`/admin/ai-accountant/${clientId}/dashboard`);
-    } else { // This would be the ai_accountant user
-        redirect(`/admin/ai-accountant/${clientId}/bank/transactions`);
-    }
-
+    // Redirect all authorized users to the full admin dashboard for the client.
+    redirect(`/admin/ai-accountant/${clientId}/dashboard`);
+    
     return null;
 }

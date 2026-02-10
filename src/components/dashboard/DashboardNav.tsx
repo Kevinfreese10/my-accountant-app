@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -78,7 +77,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3] || user.id;
 
   const navItems = [
-     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'ai_accountant'] },
+     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
      { href: '/dashboard/orders', label: 'My Orders', icon: ShieldCheck, roles: ['client', 'ai_accountant'] },
      { href: '/dashboard/subscriptions', label: 'Subscriptions', icon: BadgeDollarSign, roles: ['client', 'ai_accountant'] },
      { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
@@ -91,6 +90,11 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
     { href: '/admin/services', label: 'Manage Products', icon: Briefcase, roles: ['admin'] },
+  ];
+
+  const aiAccountantNavItems = [
+    { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ai_accountant'] },
+    { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['ai_accountant'] },
   ];
   
   const settingsNavItems = [
@@ -121,6 +125,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
+  const visibleAiAccountantNavItems = aiAccountantNavItems.filter(item => item.roles.includes(user.role));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visiblePartnerNavItems = partnerNavItems.filter(item => item.roles.includes(user.role));
 
@@ -145,7 +150,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
       <SidebarMenu className="flex-1">
         
-        {(user.role === 'client' || user.role === 'ai_accountant') && visibleNavItems.map((item) => (
+        {(user.role === 'client') && visibleNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>
             <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                 <Link href={item.href}>
@@ -156,7 +161,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuItem>
         ))}
         
-        {(hasAIAccountantAccess && (user.role === 'ai_accountant' || user.role === 'client')) && (
+        {(hasAIAccountantAccess && (user.role === 'client')) && (
              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`)} tooltip="AI Accountant">
                     <Link href={`${basePath}/ai-accountant/clients`}>
@@ -166,6 +171,17 @@ export default function DashboardNav({ user }: { user: UserType }) {
                 </SidebarMenuButton>
             </SidebarMenuItem>
         )}
+
+        {user.role === 'ai_accountant' && visibleAiAccountantNavItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+                <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                </Link>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+        ))}
         
         {(user.role === 'admin' || user.role === 'staff') && visibleAdminNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>

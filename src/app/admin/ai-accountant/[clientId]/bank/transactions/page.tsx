@@ -3687,7 +3687,7 @@ function BankTransactionsPage() {
         );
     }
     
-    const canSeeAllTabs = currentUser?.role === 'admin' || currentUser?.role === 'staff';
+    const canSeeAllTabs = currentUser?.role === 'admin' || currentUser?.role === 'staff' || currentUser?.role === 'ai_accountant';
 
     return (
         <div>
