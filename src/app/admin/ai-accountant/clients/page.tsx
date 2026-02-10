@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { User, Task } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc, arrayUnion, arrayRemove, getDoc, collectionGroup } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc, arrayUnion, arrayRemove, getDoc, collectionGroup, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import ClientForm from '@/components/admin/ClientForm';
@@ -27,9 +27,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as XLSX from 'xlsx';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { format } from 'date-fns';
+import { sendAiUserInvite } from '@/app/actions';
+import { Label } from '@/components/ui/label';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 
 
 const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
 
 function ShareClientDialog({ client, onShare, allUsers }: { client: User | null, onShare: (email: string, action: 'add' | 'remove') => void, allUsers: User[] }) {
     const [email, setEmail] = useState('');
@@ -188,6 +192,51 @@ function BackupClientDialog({ client }: { client: User | null }) {
     );
 }
 
+const inviteUserSchema = z.object({
+  name: z.string().min(2, "First name is required."),
+  surname: z.string().min(2, "Surname is required."),
+  email: z.string().email("A valid email is required."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+});
+
+function InviteUserDialog({ client, onCreateAndInvite }: { client: User | null; onCreateAndInvite: (values: z.infer<typeof inviteUserSchema>) => Promise<void> }) {
+    const form = useForm<z.infer<typeof inviteUserSchema>>({
+        resolver: zodResolver(inviteUserSchema),
+        defaultValues: { name: "", surname: "", email: "", password: "" },
+    });
+    const [isInviting, setIsInviting] = useState(false);
+
+    const handleFormSubmit = async (values: z.infer<typeof inviteUserSchema>) => {
+        setIsInviting(true);
+        await onCreateAndInvite(values);
+        setIsInviting(false);
+    };
+    
+    if (!client) return null;
+
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Invite User to "{client.name}"</DialogTitle>
+                <DialogDescription>Create a new user with the 'AI Accountant' role and grant them access to this client.</DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                     <FormField control={form.control} name="surname" render={({ field }) => ( <FormItem><FormLabel>Surname</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                     <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                     <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Temporary Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                    <DialogFooter>
+                         <Button type="submit" disabled={isInviting}>
+                            {isInviting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Create & Invite User
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </DialogContent>
+    );
+}
 
 export default function AIAccountantClientsPage() {
   const [allClients, setAllClients] = useState<User[]>([]);
@@ -198,9 +247,10 @@ export default function AIAccountantClientsPage() {
   const [isDuplicateOpen, setIsDuplicateOpen] = useState(false);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [isRestoreOpen, setIsRestoreOpen] = useState(false);
+  const [isInviteUserOpen, setIsInviteUserOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<User | null>(null);
   const { toast } = useToast();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, reauthenticate } = useAuth();
   
   const fetchClients = async () => {
     if (!currentUser?.uid) return;
@@ -233,15 +283,16 @@ export default function AIAccountantClientsPage() {
     if (!currentUser) return { myClients: [], sharedClients: [], archivedClients: [] };
   
     const activeClients = allClients.filter(c => c.status !== 'Archived');
-    const archived = allClients.filter(c => c.status === 'Archived');
+    let archived = allClients.filter(c => c.status === 'Archived');
     
     if (currentUser.role === 'admin') {
       return { myClients: activeClients, sharedClients: [], archivedClients: archived };
     }
     
-    // For staff users
+    // For non-admin users
     const my = activeClients.filter(c => c.createdBy === currentUser.uid);
     const shared = activeClients.filter(c => c.sharedWith?.includes(currentUser.uid) && c.createdBy !== currentUser.uid);
+    archived = archived.filter(c => c.createdBy === currentUser.uid);
   
     return { myClients: my, sharedClients: shared, archivedClients: archived };
   }, [allClients, currentUser]);
@@ -259,6 +310,11 @@ export default function AIAccountantClientsPage() {
   const handleShareClick = (client: User) => {
     setSelectedClient(client);
     setIsShareOpen(true);
+  }
+
+  const handleInviteUserClick = (client: User) => {
+    setSelectedClient(client);
+    setIsInviteUserOpen(true);
   }
   
   const handleDuplicateClick = (client: User) => {
@@ -327,6 +383,64 @@ export default function AIAccountantClientsPage() {
     } catch(e) {
          console.error(`Error ${archive ? 'archiving' : 'restoring'} client:`, e);
         toast({ title: 'Error', description: `Could not ${archive ? 'archive' : 'restore'} client profile.`, variant: 'destructive'});
+    }
+  };
+  
+    const handleCreateAndInviteUser = async (values: z.infer<typeof inviteUserSchema>) => {
+    if (!selectedClient || !currentUser) return;
+
+    // 0. Check if user already exists
+    const q = query(collection(db, "users"), where("email", "==", values.email));
+    const existingUserSnap = await getDocs(q);
+    if (!existingUserSnap.empty) {
+        toast({ title: "User Already Exists", description: "A user with this email already has a profile. Please use the 'Share Access' feature instead.", variant: "destructive"});
+        return;
+    }
+
+    try {
+        // 1. Create user in Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const newFirebaseUser = userCredential.user;
+        
+        // 2. Re-authenticate admin user to prevent session invalidation
+        if (auth.currentUser) {
+            await reauthenticate(auth.currentUser);
+        }
+
+        // 3. Create user doc in 'users' collection
+        const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
+        await setDoc(newUserDocRef, {
+            id: newFirebaseUser.uid,
+            uid: newFirebaseUser.uid,
+            name: `${values.name} ${values.surname}`,
+            email: values.email,
+            role: 'ai_accountant',
+            createdAt: serverTimestamp(),
+        });
+
+        // 4. Share client with new user
+        const clientRef = doc(db, 'aiAccountantClients', selectedClient.id);
+        await updateDoc(clientRef, { sharedWith: arrayUnion(newFirebaseUser.uid) });
+
+        // 5. Send invitation email
+        await sendAiUserInvite({
+            name: values.name,
+            email: values.email,
+            password_do_not_expose: values.password,
+            clientName: selectedClient.name,
+        });
+
+        toast({ title: 'User Invited!', description: `${values.name} has been created and invited to ${selectedClient.name}.` });
+        setIsInviteUserOpen(false);
+        fetchClients();
+
+    } catch (error: any) {
+        let description = 'Could not create or invite the user. Please try again.';
+        if (error.code === 'auth/email-already-in-use') {
+            description = "This email is already registered in Firebase Authentication, but a user profile wasn't found. This could indicate an orphaned account. Please contact support.";
+        }
+        console.error("Error creating and inviting user:", error);
+        toast({ title: 'Invitation Failed', description, variant: 'destructive' });
     }
   };
 
@@ -510,6 +624,9 @@ export default function AIAccountantClientsPage() {
                                 <DropdownMenuItem onClick={() => handleShareClick(client)}>
                                     <Share2 className="mr-2 h-4 w-4" /> Share Access
                                 </DropdownMenuItem>
+                                 <DropdownMenuItem onClick={() => handleInviteUserClick(client)}>
+                                    <Share2 className="mr-2 h-4 w-4" /> Invite Allocate User
+                                </DropdownMenuItem>
                                  <DropdownMenuItem onClick={() => handleDuplicateClick(client)}>
                                     <Copy className="mr-2 h-4 w-4" /> Duplicate
                                 </DropdownMenuItem>
@@ -590,6 +707,10 @@ export default function AIAccountantClientsPage() {
        <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
           <ShareClientDialog client={selectedClient} onShare={handleShareAction} allUsers={allUsers} />
        </Dialog>
+       
+       <Dialog open={isInviteUserOpen} onOpenChange={setIsInviteUserOpen}>
+          <InviteUserDialog client={selectedClient} onCreateAndInvite={handleCreateAndInviteUser} />
+       </Dialog>
 
         <Dialog open={isDuplicateOpen} onOpenChange={setIsDuplicateOpen}>
           <DuplicateClientDialog client={selectedClient} onDuplicate={handleDuplicateClient} />
@@ -625,4 +746,3 @@ export default function AIAccountantClientsPage() {
   );
 }
 
-    
