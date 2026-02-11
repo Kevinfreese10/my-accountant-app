@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -797,7 +796,7 @@ function ApproveAndCreateRuleDialog({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Approve &amp; Create Rule</DialogTitle>
+          <DialogTitle>Approve & Create Rule</DialogTitle>
           <DialogDescription>
             Confirm the details below to create a new rule for '{groupData.supplier}' and approve all {groupData.txs.length} transactions in this group.
           </DialogDescription>
@@ -815,7 +814,7 @@ function ApproveAndCreateRuleDialog({
 
 // #endregion
 
-const NewTransactionsTab = React.forwardRef&lt;
+const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
     { 
         client: User | null; 
@@ -830,18 +829,18 @@ const NewTransactionsTab = React.forwardRef&lt;
     }
 >(({ client, bankAccountId, customers, invoices, fetchClientData, globalRules, onAccountCreated, setActiveTab, currentBalance }, ref) => {
     const { toast, dismiss } = useToast();
-    const [activeSubTab, setActiveSubTab] = useState&lt;'expenses' | 'income'&gt;('expenses');
-    const [selectedTransactions, setSelectedTransactions] = useState&lt;string[]>([]);
-    const [allocations, setAllocations] = useState&lt;{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
+    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
-    const [ruleDefaultValues, setRuleDefaultValues] = useState&lt;Partial&lt;z.infer&lt;typeof ruleFormSchema&gt;&gt;>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases' });
+    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases' });
     const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearching, setIsSearching] = useState(false);
-    const [searchResults, setSearchResults] = useState&lt;ImportedTransaction[] | null>(null);
+    const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isAiSelectedDialogOpen, setIsAiSelectedDialogOpen] = useState(false);
     const [isAiAllDialogOpen, setIsAiAllDialogOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -851,8 +850,8 @@ const NewTransactionsTab = React.forwardRef&lt;
 
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
-    const [sortField, setSortField] = useState&lt;SortField>('date');
-    const [sortDirection, setSortDirection] = useState&lt;SortDirection>('desc');
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -902,7 +901,7 @@ const NewTransactionsTab = React.forwardRef&lt;
         canGoPrev,
         currentPage,
         refetch
-    } = usePaginatedFirestore&lt;ImportedTransaction>({ baseQuery: baseQuery, pageSize: PAGE_SIZE });
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: baseQuery, pageSize: PAGE_SIZE });
 
      const handleSearch = useCallback(async () => {
         if (!searchTerm.trim()) {
@@ -1358,7 +1357,7 @@ const NewTransactionsTab = React.forwardRef&lt;
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={() => setIsAiSelectedDialogOpen(false)}>Cancel</Button>
                         <Button type="button" onClick={handleAiAllocateSelected} disabled={isAiAllocating}>
-                            {isAiAllocating ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin"/> : &lt;Sparkles className="mr-2 h-4 w-4" />}
+                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                             Allocate Selected
                         </Button>
                     </DialogFooter>
@@ -1376,177 +1375,177 @@ const NewTransactionsTab = React.forwardRef&lt;
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={() => setIsAiAllDialogOpen(false)}>Cancel</Button>
                         <Button type="button" onClick={handleAiAllocateAll} disabled={isAiAllocating}>
-                            {isAiAllocating ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin"/> : &lt;Sparkles className="mr-2 h-4 w-4" />}
+                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                             Yes, Allocate All Expenses
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            &lt;CardHeader className="p-0">
-                &lt;Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
-                    &lt;TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
-                        &lt;TabsTrigger value="expenses">Expenses&lt;/TabsTrigger>
-                        &lt;TabsTrigger value="income">Income&lt;/TabsTrigger>
-                    &lt;/TabsList>
-                &lt;/Tabs>
-                 &lt;div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
-                    &lt;div className="flex items-center gap-2">
-                        {bankAccountId && client && &lt;ImportDialog 
+            <CardHeader className="p-0">
+                <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                        <TabsTrigger value="expenses">Expenses</TabsTrigger>
+                        <TabsTrigger value="income">Income</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+                 <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                        {bankAccountId && client && <ImportDialog 
                             client={client}
                             bankAccountId={bankAccountId}
                             currentBalance={currentBalance} 
                             onImportComplete={refetch}
                             globalRules={globalRules}
                         />}
-                         &lt;DropdownMenu>
-                            &lt;DropdownMenuTrigger asChild>
-                                &lt;Button variant="outline" disabled={selectedTransactions.length === 0}>
-                                    Manual Allocate &lt;ChevronsUpDown className="ml-2 h-4 w-4"/>
-                                &lt;/Button>
-                            &lt;/DropdownMenuTrigger>
-                            &lt;DropdownMenuContent className="w-64 p-0">
-                               &lt;Command>
-                                 &lt;CommandInput placeholder="Search accounts..." />
-                                 &lt;ScrollArea className="h-72">
-                                 &lt;CommandList>
-                                    &lt;CommandEmpty>No results found.&lt;/CommandEmpty>
-                                    &lt;CommandGroup>
-                                        &lt;CommandItem onSelect={() => {setIsCreateGeneralAccountOpen(true);}} className="text-primary cursor-pointer">
-                                            &lt;PlusCircle className="mr-2 h-4 w-4"/>Create new account...
-                                        &lt;/CommandItem>
-                                    &lt;/CommandGroup>
-                                    &lt;DropdownMenuSeparator />
+                         <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                    Manual Allocate <ChevronsUpDown className="ml-2 h-4 w-4"/>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-64 p-0">
+                               <Command>
+                                 <CommandInput placeholder="Search accounts..." />
+                                 <ScrollArea className="h-72">
+                                 <CommandList>
+                                    <CommandEmpty>No results found.</CommandEmpty>
+                                    <CommandGroup>
+                                        <CommandItem onSelect={() => {setIsCreateGeneralAccountOpen(true);}} className="text-primary cursor-pointer">
+                                            <PlusCircle className="mr-2 h-4 w-4"/>Create new account...
+                                        </CommandItem>
+                                    </CommandGroup>
+                                    <DropdownMenuSeparator />
                                     {activeSubTab === 'income' && customers.length > 0 && (
-                                        &lt;CommandGroup heading="Customers">
+                                        <CommandGroup heading="Customers">
                                             {customers.map(c => (
-                                                &lt;CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
                                                     {c.name}
-                                                &lt;/CommandItem>
+                                                </CommandItem>
                                             ))}
-                                        &lt;/CommandGroup>
+                                        </CommandGroup>
                                     )}
-                                    &lt;CommandGroup heading="Accounts">
+                                    <CommandGroup heading="Accounts">
                                         {client?.chartOfAccounts?.map(acc => (
-                                            &lt;DropdownMenuSub key={acc.id}>
-                                                &lt;DropdownMenuSubTrigger>
-                                                    &lt;CommandItem onSelect={(e) => e.preventDefault()} className="w-full">
-                                                        &lt;span>{acc.description}&lt;/span>
-                                                    &lt;/CommandItem>
-                                                &lt;/DropdownMenuSubTrigger>
-                                                &lt;DropdownMenuSubContent>
+                                            <DropdownMenuSub key={acc.id}>
+                                                <DropdownMenuSubTrigger>
+                                                    <CommandItem onSelect={(e) => e.preventDefault()} className="w-full">
+                                                        <span>{acc.description}</span>
+                                                    </CommandItem>
+                                                </DropdownMenuSubTrigger>
+                                                <DropdownMenuSubContent>
                                                     {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                        &lt;DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                        <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
                                                             {vat.label}
-                                                        &lt;/DropdownMenuItem>
+                                                        </DropdownMenuItem>
                                                     )) : (
-                                                        &lt;DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                        <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
                                                             No VAT
-                                                        &lt;/DropdownMenuItem>
+                                                        </DropdownMenuItem>
                                                     )}
-                                                &lt;/DropdownMenuSubContent>
-                                            &lt;/DropdownMenuSub>
+                                                </DropdownMenuSubContent>
+                                            </DropdownMenuSub>
                                         ))}
-                                    &lt;/CommandGroup>
-                                 &lt;/CommandList>
-                                 &lt;/ScrollArea>
-                               &lt;/Command>
-                            &lt;/DropdownMenuContent>
-                        &lt;/DropdownMenu>
-                         &lt;Button variant="outline" onClick={handleRefreshDescriptions} disabled={isRefreshing}>
-                            {isRefreshing ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin"/> : &lt;RefreshCw className="mr-2 h-4 w-4" />}
+                                    </CommandGroup>
+                                 </CommandList>
+                                 </ScrollArea>
+                               </Command>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                         <Button variant="outline" onClick={handleRefreshDescriptions} disabled={isRefreshing}>
+                            {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                             Refresh All Descriptions
-                        &lt;/Button>
-                        &lt;DropdownMenu>
-                            &lt;DropdownMenuTrigger asChild>
-                                &lt;Button variant="outline" disabled={selectedTransactions.length === 0}>
-                                    Actions &lt;MoreHorizontal className="ml-2 h-4 w-4"/>
-                                &lt;/Button>
-                            &lt;/DropdownMenuTrigger>
-                            &lt;DropdownMenuContent>
-                                &lt;AlertDialog>
-                                    &lt;AlertDialogTrigger asChild>
-                                        &lt;DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                    Actions <MoreHorizontal className="ml-2 h-4 w-4"/>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
                                             Delete Selected
-                                        &lt;/DropdownMenuItem>
-                                    &lt;/AlertDialogTrigger>
-                                    &lt;AlertDialogContent>
-                                        &lt;AlertDialogHeader>
-                                            &lt;AlertDialogTitle>Are you sure?&lt;/AlertDialogTitle>
-                                            &lt;AlertDialogDescription>
+                                        </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
                                                 This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
-                                            &lt;/AlertDialogDescription>
-                                        &lt;/AlertDialogHeader>
-                                        &lt;AlertDialogFooter>
-                                            &lt;AlertDialogCancel>Cancel&lt;/AlertDialogCancel>
-                                            &lt;AlertDialogAction onClick={handleBulkDelete}>Yes, Delete&lt;/AlertDialogAction>
-                                        &lt;/AlertDialogFooter>
-                                    &lt;/AlertDialogContent>
-                                &lt;/AlertDialog>
-                            &lt;/DropdownMenuContent>
-                        &lt;/DropdownMenu>
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
 
-                         &lt;Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0 || activeSubTab === 'income'}>
-                            &lt;Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
-                        &lt;/Button>
-                        &lt;Button variant="outline" onClick={() => setIsAiAllDialogOpen(true)} disabled={isAiAllocating || activeSubTab === 'income'}>
-                            &lt;Sparkles className="mr-2 h-4 w-4"/> AI Allocate All
-                        &lt;/Button>
-                        &lt;Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
-                            {isDownloading ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin" /> : &lt;Download className="mr-2 h-4 w-4" />}
+                         <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0 || activeSubTab === 'income'}>
+                            <Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
+                        </Button>
+                        <Button variant="outline" onClick={() => setIsAiAllDialogOpen(true)} disabled={isAiAllocating || activeSubTab === 'income'}>
+                            <Sparkles className="mr-2 h-4 w-4"/> AI Allocate All
+                        </Button>
+                        <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Download Excel
-                        &lt;/Button>
-                    &lt;/div>
-                    &lt;div className="relative">
-                        &lt;Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        &lt;Input
+                        </Button>
+                    </div>
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
                             type="search"
                             placeholder="Search descriptions..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="pl-8 w-64"
                         />
-                    &lt;/div>
-                &lt;/div>
-            &lt;/CardHeader>
-            &lt;CardContent className="p-0">
-                &lt;div className="overflow-x-auto">
-                    &lt;Table>
-                        &lt;TableHeader>
-                            &lt;TableRow>
-                                &lt;TableCell className="w-12 p-2">
-                                     &lt;Checkbox
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableCell className="w-12 p-2">
+                                     <Checkbox
                                         checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
                                         onCheckedChange={(checked) => {
                                             setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
                                         }}
                                     />
-                                &lt;/TableCell>
-                                &lt;TableHead>
-                                    &lt;Button variant="ghost" onClick={() => handleSort('date')}>Date &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>
-                                &lt;/TableHead>
-                                &lt;TableHead>
-                                     &lt;Button variant="ghost" onClick={() => handleSort('description')}>Description &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>
-                                &lt;/TableHead>
-                                &lt;TableHead>Reference&lt;/TableHead>
-                                &lt;TableHead className="w-[250px]">Allocate To&lt;/TableHead>
-                                {client?.isVatRegistered && &lt;TableHead className="w-[180px]">VAT Type&lt;/TableHead>}
-                                &lt;TableHead className="text-right">
-                                     &lt;Button variant="ghost" onClick={() => handleSort('amount')}>Amount &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>
-                                &lt;/TableHead>
-                                &lt;TableHead className="text-right">Actions&lt;/TableHead>
-                            &lt;/TableRow>
-                        &lt;/TableHeader>
-                        &lt;TableBody>
+                                </TableCell>
+                                <TableHead>
+                                    <Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                </TableHead>
+                                <TableHead>
+                                     <Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                </TableHead>
+                                <TableHead>Reference</TableHead>
+                                <TableHead className="w-[250px]">Allocate To</TableHead>
+                                {client?.isVatRegistered && <TableHead className="w-[180px]">VAT Type</TableHead>}
+                                <TableHead className="text-right">
+                                     <Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                </TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {isLoading || isSearching ? (
-                                &lt;TableRow>&lt;TableCell colSpan={8} className="text-center h-24">&lt;Loader2 className="animate-spin mx-auto" />&lt;/TableCell>&lt;/TableRow>
+                                <TableRow><TableCell colSpan={8} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                             ) : transactions.length === 0 ? (
-                                &lt;TableRow>&lt;TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No new transactions found.&lt;/TableCell>&lt;/TableRow>
+                                <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No new transactions found.</TableCell></TableRow>
                             ) : (
                                 transactions.map(tx => (
-                                    &lt;TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
-                                        &lt;TableCell className="p-2">
-                                            &lt;Checkbox
+                                    <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                        <TableCell className="p-2">
+                                            <Checkbox
                                                 checked={selectedTransactions.includes(tx.id)}
                                                 onCheckedChange={(checked) => {
                                                     setSelectedTransactions(prev =>
@@ -1554,61 +1553,61 @@ const NewTransactionsTab = React.forwardRef&lt;
                                                     );
                                                 }}
                                             />
-                                        &lt;/TableCell>
-                                        &lt;TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}&lt;/TableCell>
-                                        &lt;TableCell className="whitespace-normal break-words">
-                                            &lt;p>{tx.description}&lt;/p>
-                                            {tx.merchantKey && &lt;p className="text-xs text-muted-foreground font-mono bg-muted p-1 rounded-sm mt-1">{tx.merchantKey}&lt;/p>}
-                                        &lt;/TableCell>
-                                        &lt;TableCell className="font-mono">{tx.reference}&lt;/TableCell>
-                                        &lt;TableCell>
-                                            &lt;Popover>
-                                                &lt;PopoverTrigger asChild>
-                                                    &lt;Button variant="outline" className="w-full justify-start text-left font-normal h-8">
+                                        </TableCell>
+                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                        <TableCell className="whitespace-normal break-words">
+                                            <p>{tx.description}</p>
+                                            {tx.merchantKey && <p className="text-xs text-muted-foreground font-mono bg-muted p-1 rounded-sm mt-1">{tx.merchantKey}</p>}
+                                        </TableCell>
+                                        <TableCell className="font-mono">{tx.reference}</TableCell>
+                                        <TableCell>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" className="w-full justify-start text-left font-normal h-8">
                                                         {allocations[tx.id] ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.name : "Select..."}
-                                                    &lt;/Button>
-                                                &lt;/PopoverTrigger>
-                                                &lt;PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                                    &lt;Command>
-                                                        &lt;CommandInput placeholder="Search..." />
-                                                        &lt;CommandList>
-                                                            &lt;CommandEmpty>No results found.&lt;/CommandEmpty>
-                                                            &lt;CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer">&lt;PlusCircle className="mr-2 h-4 w-4"/>Create new account...&lt;/CommandItem>
-                                                            &lt;CommandGroup heading="Customers">
-                                                                {customers.map(c => &lt;CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}}))}>{c.name}&lt;/CommandItem>)}
-                                                            &lt;/CommandGroup>
-                                                            &lt;CommandGroup heading="Accounts">
-                                                                {client?.chartOfAccounts?.map(acc => &lt;CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account', vatType: prev[tx.id]?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat') }}}))}>{acc.description}&lt;/CommandItem>)}
-                                                            &lt;/CommandGroup>
-                                                        &lt;/CommandList>
-                                                    &lt;/Command>
-                                                &lt;/PopoverContent>
-                                            &lt;/Popover>
-                                        &lt;/TableCell>
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                    <Command>
+                                                        <CommandInput placeholder="Search..." />
+                                                        <CommandList>
+                                                            <CommandEmpty>No results found.</CommandEmpty>
+                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                            <CommandGroup heading="Customers">
+                                                                {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))}>{c.name}</CommandItem>)}
+                                                            </CommandGroup>
+                                                            <CommandGroup heading="Accounts">
+                                                                {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account', vatType: prev[tx.id]?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat') }}))}>{acc.description}</CommandItem>)}
+                                                            </CommandGroup>
+                                                        </CommandList>
+                                                    </Command>
+                                                </PopoverContent>
+                                            </Popover>
+                                        </TableCell>
                                         {client?.isVatRegistered && (
-                                            &lt;TableCell>
-                                                &lt;Select
+                                            <TableCell>
+                                                <Select
                                                    value={allocations[tx.id]?.vatType}
                                                    onValueChange={(value) => setAllocations(prev => ({...prev, [tx.id]: {...prev[tx.id], vatType: value as VatType}}))}
                                                    disabled={!allocations[tx.id] || allocations[tx.id]?.type === 'customer'}
                                                 >
-                                                    &lt;SelectTrigger className="h-8">&lt;SelectValue placeholder="Select VAT type" />&lt;/SelectTrigger>
-                                                    &lt;SelectContent>
+                                                    <SelectTrigger className="h-8"><SelectValue placeholder="Select VAT type" /></SelectTrigger>
+                                                    <SelectContent>
                                                         {allVatTypes.map(vat => (
-                                                            &lt;SelectItem key={vat.name} value={vat.name}>{vat.label}&lt;/SelectItem>
+                                                            <SelectItem key={vat.name} value={vat.name}>{vat.label}</SelectItem>
                                                         ))}
-                                                    &lt;/SelectContent>
-                                                &lt;/Select>
-                                            &lt;/TableCell>
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
                                         )}
-                                        &lt;TableCell className="text-right font-mono">{formatPrice(tx.amount)}&lt;/TableCell>
-                                        &lt;TableCell className="text-right">
-                                            &lt;DropdownMenu>
-                                                &lt;DropdownMenuTrigger asChild>
-                                                    &lt;Button variant="ghost" size="icon">&lt;MoreHorizontal className="h-4 w-4" />&lt;/Button>
-                                                &lt;/DropdownMenuTrigger>
-                                                &lt;DropdownMenuContent>
-                                                     &lt;DropdownMenuItem onSelect={() => {
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                        <TableCell className="text-right">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                     <DropdownMenuItem onSelect={() => {
                                                         const firstKeyword = tx.description.split(/\s+/)[0];
                                                         setIsCreateRuleOpen(true);
                                                         setRuleDefaultValues({ 
@@ -1619,83 +1618,83 @@ const NewTransactionsTab = React.forwardRef&lt;
                                                         });
                                                      }}>
                                                         Create Rule from Transaction
-                                                    &lt;/DropdownMenuItem>
-                                                &lt;/DropdownMenuContent>
-                                            &lt;/DropdownMenu>
-                                        &lt;/TableCell>
-                                    &lt;/TableRow>
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
                                 ))
                             )}
-                        &lt;/TableBody>
-                    &lt;/Table>
-                &lt;/div>
-            &lt;/CardContent>
-             &lt;CardFooter className="flex items-center justify-between p-4">
-                 &lt;Button onClick={handleSaveAllocations} disabled={isSaving || Object.keys(allocations).length === 0}>
-                    {isSaving ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+             <CardFooter className="flex items-center justify-between p-4">
+                 <Button onClick={handleSaveAllocations} disabled={isSaving || Object.keys(allocations).length === 0}>
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Save Allocations
-                &lt;/Button>
-                 &lt;div className="flex items-center gap-2">
+                </Button>
+                 <div className="flex items-center gap-2">
                     
                     {!searchTerm && (
-                        &lt;div className="flex items-center space-x-2">
-                            &lt;Button
+                        <div className="flex items-center space-x-2">
+                            <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={goToPreviousPage}
                                 disabled={!canGoPrev || isLoading}
                             >
-                                &lt;ChevronLeft className="h-4 w-4" />
+                                <ChevronLeft className="h-4 w-4" />
                                 Previous
-                            &lt;/Button>
-                            &lt;span className="text-sm font-medium">
+                            </Button>
+                            <span className="text-sm font-medium">
                                 Page {currentPage}
-                            &lt;/span>
-                            &lt;Button
+                            </span>
+                            <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={goToNextPage}
                                 disabled={!canGoNext || isLoading}
                             >
                                 Next
-                                &lt;ChevronRight className="h-4 w-4" />
-                            &lt;/Button>
-                        &lt;/div>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
                     )}
-                 &lt;/div>
-            &lt;/CardFooter>
-        &lt;/Card>
+                 </div>
+            </CardFooter>
+        </Card>
     );
 });
 NewTransactionsTab.displayName = 'NewTransactionsTab';
 
 
-const ReviewedTab = React.forwardRef&lt;
+const ReviewedTab = React.forwardRef<
     { refetch: () => void; },
     { client: User | null; bankAccountId: string | null; customers: ClientCustomer[], onAccountCreated: () => void; }
 >(({ client, bankAccountId, customers, onAccountCreated }, ref) => {
     
-    const [dateRange, setDateRange] = useState&lt;DateRange | undefined>(undefined);
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
-    const [changes, setChanges] = useState&lt;{ [txId: string]: Partial&lt;ImportedTransaction> }>({});
+    const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
     const [isDownloading, setIsDownloading] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
-    const [searchResults, setSearchResults] = useState&lt;ImportedTransaction[] | null>(null);
+    const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isSearching, setIsSearching] = useState(false);
-    const [selectedTransactions, setSelectedTransactions] = useState&lt;string[]>([]);
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [isConsistencyCheckOpen, setIsConsistencyCheckOpen] = useState(false);
-    const [inconsistencies, setInconsistencies] = useState&lt;any[]>([]);
-    const [selectedCorrections, setSelectedCorrections] = useState&lt;string[]>([]);
+    const [inconsistencies, setInconsistencies] = useState<any[]>([]);
+    const [selectedCorrections, setSelectedCorrections] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [accountFilter, setAccountFilter] = useState('all');
-    const [activeSubTab, setActiveSubTab] = useState&lt;'expenses' | 'income'&gt;('expenses');
+    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
 
 
     type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
     type SortDirection = 'asc' | 'desc';
-    const [sortField, setSortField] = useState&lt;SortField>('date');
-    const [sortDirection, setSortDirection] = useState&lt;SortDirection>('desc');
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     
     const uniqueChartOfAccounts = useMemo(() => {
         if (!client?.chartOfAccounts) return [];
@@ -1757,7 +1756,7 @@ const ReviewedTab = React.forwardRef&lt;
         canGoPrev,
         currentPage,
         refetch
-    } = usePaginatedFirestore&lt;ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
     
     useEffect(() => {
         const handleSearchAndFilter = async () => {
@@ -2163,7 +2162,7 @@ const ReviewedTab = React.forwardRef&lt;
     };
 
     const handleBulkReallocate = (allocation: { value: string; type: "account" | "customer" | "supplier"; }, vatType: VatType) => {
-      const changesToSave: { [key: string]: Partial&lt;ImportedTransaction> } = {};
+      const changesToSave: { [key: string]: Partial<ImportedTransaction> } = {};
         selectedTransactions.forEach(txId => {
             changesToSave[txId] = {
                 allocatedTo: allocation,
@@ -2265,139 +2264,139 @@ const ReviewedTab = React.forwardRef&lt;
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            &lt;CardHeader className="p-0 border-b">
-                 &lt;Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
-                    &lt;TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
-                        &lt;TabsTrigger value="expenses">Reviewed Expenses&lt;/TabsTrigger>
-                        &lt;TabsTrigger value="income">Reviewed Income&lt;/TabsTrigger>
-                    &lt;/TabsList>
-                &lt;/Tabs>
-                 &lt;div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                    &lt;div className="flex items-center gap-2 flex-wrap">
-                        &lt;Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
-                            {isSaving ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <CardHeader className="p-0 border-b">
+                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                        <TabsTrigger value="expenses">Reviewed Expenses</TabsTrigger>
+                        <TabsTrigger value="income">Reviewed Income</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+                 <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Save Changes
-                        &lt;/Button>
-                         &lt;Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
-                            {isDownloading ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin" /> : &lt;Download className="mr-2 h-4 w-4" />}
+                        </Button>
+                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Download Excel
-                        &lt;/Button>
-                         &lt;AlertDialog>
-                            &lt;AlertDialogTrigger asChild>
-                                &lt;Button variant="outline">
-                                    &lt;Sparkles className="mr-2 h-4 w-4" /> Review Consistency
-                                &lt;/Button>
-                            &lt;/AlertDialogTrigger>
-                            &lt;AlertDialogContent>
-                                &lt;AlertDialogHeader>
-                                    &lt;AlertDialogTitle>Review Allocation Consistency&lt;/AlertDialogTitle>
-                                    &lt;AlertDialogDescription>
+                        </Button>
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="outline">
+                                    <Sparkles className="mr-2 h-4 w-4" /> Review Consistency
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Review Allocation Consistency</AlertDialogTitle>
+                                    <AlertDialogDescription>
                                         This tool will analyze your reviewed transactions to find allocations that are inconsistent with how you've categorized similar items in the past. It will then suggest corrections. Do you want to proceed?
-                                    &lt;/AlertDialogDescription>
-                                &lt;/AlertDialogHeader>
-                                &lt;AlertDialogFooter>
-                                    &lt;AlertDialogCancel>Cancel&lt;/AlertDialogCancel>
-                                    &lt;AlertDialogAction onClick={handleReviewConsistency}>Yes, Review Consistency&lt;/AlertDialogAction>
-                                &lt;/AlertDialogFooter>
-                            &lt;/AlertDialogContent>
-                        &lt;/AlertDialog>
-                         &lt;DropdownMenu>
-                            &lt;DropdownMenuTrigger asChild>
-                                &lt;Button variant="outline" size="sm" disabled={selectedTransactions.length === 0}>
-                                    &lt;span>Reallocate Selected&lt;/span>&lt;ChevronsUpDown className="ml-2 h-4 w-4"/>
-                                &lt;/Button>
-                            &lt;/DropdownMenuTrigger>
-                            &lt;DropdownMenuContent className="w-64">
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleReviewConsistency}>Yes, Review Consistency</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                         <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" disabled={selectedTransactions.length === 0}>
+                                    <span>Reallocate Selected</span><ChevronsUpDown className="ml-2 h-4 w-4"/>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-64">
                                 {client?.chartOfAccounts?.map(acc => (
-                                    &lt;DropdownMenuSub key={acc.id}>
-                                        &lt;DropdownMenuSubTrigger>&lt;span>{acc.description}&lt;/span>&lt;/DropdownMenuSubTrigger>
-                                        &lt;DropdownMenuSubContent>
+                                    <DropdownMenuSub key={acc.id}>
+                                        <DropdownMenuSubTrigger><span>{acc.description}</span></DropdownMenuSubTrigger>
+                                        <DropdownMenuSubContent>
                                             {client.isVatRegistered ? allVatTypes.map(vat => (
-                                                &lt;DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
                                                     {vat.label}
-                                                &lt;/DropdownMenuItem>
+                                                </DropdownMenuItem>
                                             )) : (
-                                                &lt;DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
                                                     No VAT
-                                                &lt;/DropdownMenuItem>
+                                                </DropdownMenuItem>
                                             )}
-                                        &lt;/DropdownMenuSubContent>
-                                    &lt;/DropdownMenuSub>
+                                        </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
                                 ))}
-                            &lt;/DropdownMenuContent>
-                        &lt;/DropdownMenu>
-                        &lt;AlertDialog>
-                            &lt;AlertDialogTrigger asChild>
-                                &lt;Button variant="destructive" size="sm" disabled={selectedTransactions.length === 0}>Delete Selected&lt;/Button>
-                            &lt;/AlertDialogTrigger>
-                            &lt;AlertDialogContent>
-                                &lt;AlertDialogHeader>
-                                    &lt;AlertDialogTitle>Are you sure?&lt;/AlertDialogTitle>
-                                    &lt;AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.&lt;/AlertDialogDescription>
-                                &lt;/AlertDialogHeader>
-                                &lt;AlertDialogFooter>
-                                    &lt;AlertDialogCancel>Cancel&lt;/AlertDialogCancel>
-                                    &lt;AlertDialogAction onClick={handleBulkDelete}>Yes, Delete All&lt;/AlertDialogAction>
-                                &lt;/AlertDialogFooter>
-                            &lt;/AlertDialogContent>
-                        &lt;/AlertDialog>
-                    &lt;/div>
-                     &lt;div className="flex items-center gap-2 flex-wrap justify-end">
-                        &lt;DateRangePicker onDateChange={setDateRange} />
-                        &lt;Select value={accountFilter} onValueChange={setAccountFilter}>
-                            &lt;SelectTrigger className="w-full md:w-[200px]">
-                                &lt;SelectValue placeholder="Filter by account..." />
-                            &lt;/SelectTrigger>
-                            &lt;SelectContent>
-                                &lt;SelectItem value="all">All Accounts&lt;/SelectItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm" disabled={selectedTransactions.length === 0}>Delete Selected</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete All</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                     <div className="flex items-center gap-2 flex-wrap justify-end">
+                        <DateRangePicker onDateChange={setDateRange} />
+                        <Select value={accountFilter} onValueChange={setAccountFilter}>
+                            <SelectTrigger className="w-full md:w-[200px]">
+                                <SelectValue placeholder="Filter by account..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Accounts</SelectItem>
                                 {accountsWithTransactions.map(acc => (
-                                    &lt;SelectItem key={acc.id} value={acc.id}>{acc.description}&lt;/SelectItem>
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
                                 ))}
-                            &lt;/SelectContent>
-                        &lt;/Select>
-                        &lt;div className="relative w-full md:w-auto">
-                            &lt;Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            &lt;Input
+                            </SelectContent>
+                        </Select>
+                        <div className="relative w-full md:w-auto">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
                                 type="search"
                                 placeholder="Search descriptions..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-8 w-full md:w-48"
                             />
-                        &lt;/div>
-                     &lt;/div>
-                &lt;/div>
-            &lt;/CardHeader>
-            &lt;CardContent className="p-0">
-                 &lt;div className="overflow-x-auto">
-                    &lt;Table>
-                        &lt;TableHeader>
-                            &lt;TableRow>
-                                &lt;TableCell className="w-12 p-2">
-                                     &lt;Checkbox
+                        </div>
+                     </div>
+                </div>
+            </CardHeader>
+            <CardContent className="p-0">
+                 <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableCell className="w-12 p-2">
+                                     <Checkbox
                                         checked={displayedDocuments.length > 0 && selectedTransactions.length === displayedDocuments.length}
                                         onCheckedChange={(checked) => {
                                             setSelectedTransactions(checked ? displayedDocuments.map(tx => tx.id) : []);
                                         }}
                                     />
-                                &lt;/TableCell>
-                                &lt;TableHead>&lt;Button variant="ghost" onClick={() => handleSort('date')}>Date &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>&lt;/TableHead>
-                                &lt;TableHead>&lt;Button variant="ghost" onClick={() => handleSort('description')}>Description &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>&lt;/TableHead>
-                                &lt;TableHead>&lt;Button variant="ghost" onClick={() => handleSort('allocatedTo')}>Allocated To &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>&lt;/TableHead>
-                                {client?.isVatRegistered && &lt;TableHead>&lt;Button variant="ghost" onClick={() => handleSort('vatType')}>VAT Type &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>&lt;/TableHead>}
-                                &lt;TableHead className="text-right">&lt;Button variant="ghost" onClick={() => handleSort('amount')}>Amount &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>&lt;/TableHead>
-                            &lt;/TableRow>
-                        &lt;/TableHeader>
-                        &lt;TableBody>
+                                </TableCell>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('allocatedTo')}>Allocated To <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                {client?.isVatRegistered && <TableHead><Button variant="ghost" onClick={() => handleSort('vatType')}>VAT Type <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>}
+                                <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {isLoading || isSearching ? (
-                                &lt;TableRow>&lt;TableCell colSpan={6} className="text-center h-24">&lt;Loader2 className="animate-spin mx-auto" />&lt;/TableCell>&lt;/TableRow>
+                                <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                             ) : displayedDocuments.length === 0 ? (
-                                &lt;TableRow>&lt;TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No reviewed transactions found.&lt;/TableCell>&lt;/TableRow>
+                                <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
                             ) : (
                                 displayedDocuments.map(tx => (
-                                    &lt;TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
-                                        &lt;TableCell className="p-2">
-                                            &lt;Checkbox
+                                    <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                        <TableCell className="p-2">
+                                            <Checkbox
                                                 checked={selectedTransactions.includes(tx.id)}
                                                 onCheckedChange={(checked) => {
                                                     setSelectedTransactions(prev =>
@@ -2405,112 +2404,112 @@ const ReviewedTab = React.forwardRef&lt;
                                                     );
                                                 }}
                                             />
-                                        &lt;/TableCell>
-                                        &lt;TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}&lt;/TableCell>
-                                        &lt;TableCell className="whitespace-normal break-words">{tx.description}&lt;/TableCell>
-                                        &lt;TableCell className="w-[250px]">
-                                            &lt;Popover>
-                                                &lt;PopoverTrigger asChild>
-                                                    &lt;Button variant="outline" className="w-full justify-start text-left font-normal h-8">
+                                        </TableCell>
+                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                        <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
+                                        <TableCell className="w-[250px]">
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" className="w-full justify-start text-left font-normal h-8">
                                                         {changes[tx.id] ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.description || [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.name : getAllocationDescription(tx)}
-                                                    &lt;/Button>
-                                                &lt;/PopoverTrigger>
-                                                &lt;PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                                    &lt;Command>
-                                                        &lt;CommandInput placeholder="Search..." />
-                                                        &lt;CommandList>
-                                                            &lt;CommandEmpty>No results found.&lt;/CommandEmpty>
-                                                            &lt;CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer">&lt;PlusCircle className="mr-2 h-4 w-4"/>Create new account...&lt;/CommandItem>
-                                                            &lt;CommandGroup heading="Customers">
-                                                                {customers.map(c => &lt;CommandItem key={c.id} onSelect={() => handleAllocationChange(tx.id, `customer:${c.id}`)}>{c.name}&lt;/CommandItem>)}
-                                                            &lt;/CommandGroup>
-                                                            &lt;CommandGroup heading="Accounts">
-                                                                {uniqueChartOfAccounts.map(acc => &lt;CommandItem key={acc.id} onSelect={() => handleAllocationChange(tx.id, `account:${acc.id}`)}>{acc.description}&lt;/CommandItem>)}
-                                                            &lt;/CommandGroup>
-                                                        &lt;/CommandList>
-                                                    &lt;/Command>
-                                                &lt;/PopoverContent>
-                                            &lt;/Popover>
-                                        &lt;/TableCell>
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                    <Command>
+                                                        <CommandInput placeholder="Search..." />
+                                                        <CommandList>
+                                                            <CommandEmpty>No results found.</CommandEmpty>
+                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                            <CommandGroup heading="Customers">
+                                                                {customers.map(c => <CommandItem key={c.id} onSelect={() => handleAllocationChange(tx.id, `customer:${c.id}`)}>{c.name}</CommandItem>)}
+                                                            </CommandGroup>
+                                                            <CommandGroup heading="Accounts">
+                                                                {uniqueChartOfAccounts.map(acc => <CommandItem key={acc.id} onSelect={() => handleAllocationChange(tx.id, `account:${acc.id}`)}>{acc.description}</CommandItem>)}
+                                                            </CommandGroup>
+                                                        </CommandList>
+                                                    </Command>
+                                                </PopoverContent>
+                                            </Popover>
+                                        </TableCell>
                                         {client?.isVatRegistered && (
-                                            &lt;TableCell className="w-[200px]">
-                                                &lt;Select
+                                            <TableCell className="w-[200px]">
+                                                <Select
                                                     value={changes[tx.id]?.vatType || tx.vatType}
                                                     onValueChange={(value) => handleVatChange(tx.id, value as VatType)}
                                                     disabled={tx.allocatedTo?.type === 'customer'}
                                                 >
-                                                    &lt;SelectTrigger>&lt;SelectValue/></SelectTrigger>
-                                                    &lt;SelectContent>
+                                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                                    <SelectContent>
                                                         {allVatTypes.map(vt => (
-                                                            &lt;SelectItem key={vt.name} value={vt.name}>{vt.label}&lt;/SelectItem>
+                                                            <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
                                                         ))}
-                                                    &lt;/SelectContent>
-                                                &lt;/Select>
-                                            &lt;/TableCell>
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
                                         )}
-                                        &lt;TableCell className="text-right font-mono">{formatPrice(tx.amount)}&lt;/TableCell>
-                                    &lt;/TableRow>
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                    </TableRow>
                                 ))
                             )}
-                        &lt;/TableBody>
-                    &lt;/Table>
-                &lt;/div>
-            &lt;/CardContent>
-             &lt;CardFooter className="flex items-center justify-end p-4">
-                 &lt;div className="flex items-center gap-2">
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+             <CardFooter className="flex items-center justify-end p-4">
+                 <div className="flex items-center gap-2">
                     {!searchTerm.trim() && (
-                        &lt;div className="flex items-center space-x-2">
-                            &lt;Button
+                        <div className="flex items-center space-x-2">
+                            <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={goToPreviousPage}
                                 disabled={!canGoPrev || isLoading}
                             >
-                                &lt;ChevronLeft className="h-4 w-4" />
+                                <ChevronLeft className="h-4 w-4" />
                                 Previous
-                            &lt;/Button>
-                            &lt;span className="text-sm font-medium">
+                            </Button>
+                            <span className="text-sm font-medium">
                                 Page {currentPage}
-                            &lt;/span>
-                            &lt;Button
+                            </span>
+                            <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={goToNextPage}
                                 disabled={!canGoNext || isLoading}
                             >
                                 Next
-                                &lt;ChevronRight className="h-4 w-4" />
-                            &lt;/Button>
-                        &lt;/div>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
                     )}
-                 &lt;/div>
-            &lt;/CardFooter>
-        &lt;/Card>
+                 </div>
+            </CardFooter>
+        </Card>
     );
 });
 ReviewedTab.displayName = 'ReviewedTab';
 
 
-const ForReviewTab = React.forwardRef&lt;
+const ForReviewTab = React.forwardRef<
     { refetch: () => void },
     { client: User | null; bankAccountId: string | null; fetchClientData: () => void; customers: ClientCustomer[] }
 >(({ client, bankAccountId, fetchClientData, customers }, ref) => {
     const { toast } = useToast();
-    const [activeSubTab, setActiveSubTab] = useState&lt;'expenses' | 'income'&gt;('expenses');
-    const [selectedTransactions, setSelectedTransactions] = useState&lt;string[]>([]);
+    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isApprovingAll, setIsApprovingAll] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     
-    const [viewMode, setViewMode] = useState&lt;'list' | 'group'&gt;('list');
-    const [groupedTransactions, setGroupedTransactions] = useState&lt;Record&lt;string, ImportedTransaction[]> >({});
+    const [viewMode, setViewMode] = useState<'list' | 'group'>('list');
+    const [groupedTransactions, setGroupedTransactions] = useState<Record<string, ImportedTransaction[]> >({});
     const [isGrouping, setIsGrouping] = useState(false);
 
     
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
-    const [sortField, setSortField] = useState&lt;SortField>('date');
-    const [sortDirection, setSortDirection] = useState&lt;SortDirection>('desc');
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -2554,7 +2553,7 @@ const ForReviewTab = React.forwardRef&lt;
         canGoPrev,
         currentPage,
         refetch
-    } = usePaginatedFirestore&lt;ImportedTransaction>({ baseQuery: reviewTransactionsQuery, pageSize: PAGE_SIZE });
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewTransactionsQuery, pageSize: PAGE_SIZE });
 
      const transactions = useMemo(() => {
         let docs = searchTerm ? documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase())) : documents;
@@ -2635,7 +2634,7 @@ const ForReviewTab = React.forwardRef&lt;
 
         toast({ title: "Processing...", description: `Updating ${selectedTransactions.length} transactions.` });
         
-        const updatePromises: Promise&lt;void>[] = [];
+        const updatePromises: Promise<void>[] = [];
         for (let i = 0; i < selectedTransactions.length; i += BATCH_SIZE) {
             const batch = writeBatch(db);
             const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
@@ -2647,7 +2646,7 @@ const ForReviewTab = React.forwardRef&lt;
                     batch.update(transactionRef, { status: 'allocated', allocatedAt: new Date() });
                     if (tx.allocatedTo?.type === 'account' && !client.allocationRules?.some(rule => tx.description.toLowerCase().includes(rule.keywords[0]))) {
                          const coreKeyword = tx.description.split(/\s+/)[0].toLowerCase();
-                        const newRule: Partial&lt;AllocationRule> = {
+                        const newRule: Partial<AllocationRule> = {
                             description: `Auto-generated for: ${tx.description}`,
                             keywords: [coreKeyword],
                             accountId: tx.allocatedTo.value,
@@ -2806,97 +2805,97 @@ const ForReviewTab = React.forwardRef&lt;
                  <div className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Button onClick={handleGroupReview} disabled={isGrouping}>
-                            {isGrouping ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin"/> : &lt;Group className="mr-2 h-4 w-4"/>}
+                            {isGrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Group className="mr-2 h-4 w-4"/>}
                             {viewMode === 'group' ? 'List View' : 'Group Review'}
-                        &lt;/Button>
-                        &lt;Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
-                            &lt;CheckCircle className="mr-2 h-4 w-4" />Approve Selected
-                        &lt;/Button>
-                         &lt;Button onClick={handleApproveAll} disabled={isApprovingAll || isLoading || transactions.length === 0}>
-                            {isApprovingAll ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin"/> : &lt;CheckCircle className="mr-2 h-4 w-4" />}
+                        </Button>
+                        <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
+                            <CheckCircle className="mr-2 h-4 w-4" />Approve Selected
+                        </Button>
+                         <Button onClick={handleApproveAll} disabled={isApprovingAll || isLoading || transactions.length === 0}>
+                            {isApprovingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4" />}
                             Approve All
-                        &lt;/Button>
-                        &lt;Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
-                            &lt;RotateCcw className="mr-2 h-4 w-4" />Reject Selected
-                        &lt;/Button>
-                        &lt;Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
-                            {isDownloading ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin" /> : &lt;Download className="mr-2 h-4 w-4" />}
+                        </Button>
+                        <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
+                            <RotateCcw className="mr-2 h-4 w-4" />Reject Selected
+                        </Button>
+                        <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Download Excel
-                        &lt;/Button>
-                    &lt;/div>
-                     &lt;div className="relative">
-                        &lt;Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        &lt;Input
+                        </Button>
+                    </div>
+                     <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
                             type="search"
                             placeholder="Search descriptions..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="pl-8 w-64"
                         />
-                    &lt;/div>
-                 &lt;/div>
-            &lt;/CardHeader>
-            &lt;CardContent className="p-0">
+                    </div>
+                 </div>
+            </CardHeader>
+            <CardContent className="p-0">
                  {viewMode === 'group' ? (
-                     &lt;div className="space-y-4 p-4 max-h-[70vh] overflow-y-auto">
+                     <div className="space-y-4 p-4 max-h-[70vh] overflow-y-auto">
                         {Object.entries(groupedTransactions).sort((a,b) => a[0].localeCompare(b[0])).map(([supplier, txs]) => (
-                             &lt;div key={supplier} className="border rounded-lg">
-                                &lt;div className={cn("p-3 bg-muted/50 flex justify-between items-center", isGroupInconsistent(txs) && "bg-destructive/10")}>
-                                    &lt;h3 className="font-bold flex items-center gap-2">
-                                        {isGroupInconsistent(txs) && &lt;AlertTriangle className="h-4 w-4 text-destructive"/>}
-                                        {supplier} &lt;span className="text-sm font-normal text-muted-foreground">({txs.length} items)&lt;/span>
-                                    &lt;/h3>
-                                    &lt;div className="flex gap-2">
-                                        &lt;Button size="sm" variant="destructive" onClick={() => handleBulkAction('reject')}>Reject Group&lt;/Button>
-                                        &lt;Button size="sm" onClick={() => handleBulkAction('approve')}>Approve Group&lt;/Button>
-                                    &lt;/div>
-                                &lt;/div>
-                                &lt;Table>
-                                    &lt;TableBody>
+                             <div key={supplier} className="border rounded-lg">
+                                <div className={cn("p-3 bg-muted/50 flex justify-between items-center", isGroupInconsistent(txs) && "bg-destructive/10")}>
+                                    <h3 className="font-bold flex items-center gap-2">
+                                        {isGroupInconsistent(txs) && <AlertTriangle className="h-4 w-4 text-destructive"/>}
+                                        {supplier} <span className="text-sm font-normal text-muted-foreground">({txs.length} items)</span>
+                                    </h3>
+                                    <div className="flex gap-2">
+                                        <Button size="sm" variant="destructive" onClick={() => handleBulkAction('reject')}>Reject Group</Button>
+                                        <Button size="sm" onClick={() => handleBulkAction('approve')}>Approve Group</Button>
+                                    </div>
+                                </div>
+                                <Table>
+                                    <TableBody>
                                         {txs.map(tx => (
-                                            &lt;TableRow key={tx.id}>
-                                                &lt;TableCell className="text-xs w-[100px]">{format(new Date(tx.date), 'dd/MM/yyyy')}&lt;/TableCell>
-                                                &lt;TableCell className="text-xs">{tx.description}&lt;/TableCell>
-                                                &lt;TableCell className="text-xs">{getAllocationDescription(tx)}&lt;/TableCell>
-                                                &lt;TableCell className="text-xs">{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}&lt;/TableCell>
-                                                &lt;TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}&lt;/TableCell>
-                                            &lt;/TableRow>
+                                            <TableRow key={tx.id}>
+                                                <TableCell className="text-xs w-[100px]">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                                <TableCell className="text-xs">{tx.description}</TableCell>
+                                                <TableCell className="text-xs">{getAllocationDescription(tx)}</TableCell>
+                                                <TableCell className="text-xs">{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
+                                                <TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}</TableCell>
+                                            </TableRow>
                                         ))}
-                                    &lt;/TableBody>
-                                &lt;/Table>
-                             &lt;/div>
+                                    </TableBody>
+                                </Table>
+                             </div>
                         ))}
-                    &lt;/div>
+                    </div>
                  ) : (
-                    &lt;div className="overflow-x-auto">
-                        &lt;Table>
-                            &lt;TableHeader>
-                                &lt;TableRow>
-                                    &lt;TableCell className="w-12 p-2">
-                                         &lt;Checkbox
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableCell className="w-12 p-2">
+                                         <Checkbox
                                             checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
                                             onCheckedChange={(checked) => {
                                                 setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
                                             }}
                                         />
-                                    &lt;/TableCell>
-                                    &lt;TableHead>&lt;Button variant="ghost" onClick={() => handleSort('date')}>Date &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>&lt;/TableHead>
-                                    &lt;TableHead>&lt;Button variant="ghost" onClick={() => handleSort('description')}>Description &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>&lt;/TableHead>
-                                    &lt;TableHead>Suggested Allocation&lt;/TableHead>
-                                    {client?.isVatRegistered && &lt;TableHead>Suggested VAT&lt;/TableHead>}
-                                    &lt;TableHead className="text-right">&lt;Button variant="ghost" onClick={() => handleSort('amount')}>Amount &lt;ArrowUpDown className="ml-2 h-4 w-4 inline" />&lt;/Button>&lt;/TableHead>
-                                &lt;/TableRow>
-                            &lt;/TableHeader>
-                            &lt;TableBody>
+                                    </TableCell>
+                                    <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                    <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                    <TableHead>Suggested Allocation</TableHead>
+                                    {client?.isVatRegistered && <TableHead>Suggested VAT</TableHead>}
+                                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
                                 {isLoading ? (
-                                    &lt;TableRow>&lt;TableCell colSpan={6} className="text-center h-24">&lt;Loader2 className="animate-spin mx-auto" />&lt;/TableCell>&lt;/TableRow>
+                                    <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                                 ) : transactions.length === 0 ? (
-                                    &lt;TableRow>&lt;TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No transactions are pending review.&lt;/TableCell>&lt;/TableRow>
+                                    <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No transactions are pending review.</TableCell></TableRow>
                                 ) : (
                                     transactions.map(tx => (
-                                        &lt;TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
-                                            &lt;TableCell className="p-2">
-                                                &lt;Checkbox
+                                        <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                            <TableCell className="p-2">
+                                                <Checkbox
                                                     checked={selectedTransactions.includes(tx.id)}
                                                     onCheckedChange={(checked) => {
                                                         setSelectedTransactions(prev =>
@@ -2904,51 +2903,51 @@ const ForReviewTab = React.forwardRef&lt;
                                                         );
                                                     }}
                                                 />
-                                            &lt;/TableCell>
-                                            &lt;TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}&lt;/TableCell>
-                                            &lt;TableCell className="whitespace-normal break-words">{tx.description}&lt;/TableCell>
-                                            &lt;TableCell>{getAllocationDescription(tx)}&lt;/TableCell>
-                                            {client?.isVatRegistered && &lt;TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}&lt;/TableCell>}
-                                            &lt;TableCell className="text-right font-mono">{formatPrice(tx.amount)}&lt;/TableCell>
-                                        &lt;/TableRow>
+                                            </TableCell>
+                                            <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
+                                            <TableCell>{getAllocationDescription(tx)}</TableCell>
+                                            {client?.isVatRegistered && <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>}
+                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                        </TableRow>
                                     ))
                                 )}
-                            &lt;/TableBody>
-                        &lt;/Table>
-                    &lt;/div>
+                            </TableBody>
+                        </Table>
+                    </div>
                 )}
-            &lt;/CardContent>
-            &lt;CardFooter className="flex items-center justify-center p-4">
-                 &lt;div className="flex items-center gap-2">
+            </CardContent>
+            <CardFooter className="flex items-center justify-center p-4">
+                 <div className="flex items-center gap-2">
                     
                     {!searchTerm && (
-                        &lt;div className="flex items-center space-x-2">
-                            &lt;Button
+                        <div className="flex items-center space-x-2">
+                            <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={goToPreviousPage}
                                 disabled={!canGoPrev || isLoading}
                             >
-                                &lt;ChevronLeft className="h-4 w-4" />
+                                <ChevronLeft className="h-4 w-4" />
                                 Previous
-                            &lt;/Button>
-                            &lt;span className="text-sm font-medium">
+                            </Button>
+                            <span className="text-sm font-medium">
                                 Page {currentPage}
-                            &lt;/span>
-                            &lt;Button
+                            </span>
+                            <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={goToNextPage}
                                 disabled={!canGoNext || isLoading}
                             >
                                 Next
-                                &lt;ChevronRight className="h-4 w-4" />
-                            &lt;/Button>
-                        &lt;/div>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
                     )}
-                 &lt;/div>
-            &lt;/CardFooter>
-        &lt;/Card>
+                 </div>
+            </CardFooter>
+        </Card>
     );
 });
 ForReviewTab.displayName = 'ForReviewTab';
@@ -2963,20 +2962,20 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     onRuleCreated: () => void;
 }) => {
     const { toast } = useToast();
-    const [transactions, setTransactions] = useState&lt;ImportedTransaction[]>([]);
+    const [transactions, setTransactions] = useState<ImportedTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     
-    const [job, setJob] = useState&lt;AIAllocationJob | null>(null);
+    const [job, setJob] = useState<AIAllocationJob | null>(null);
     const [isLoadingJob, setIsLoadingJob] = useState(true);
     
-    const [groupedTransactions, setGroupedTransactions] = useState&lt;Record&lt;string, ImportedTransaction[]> >({});
-    const [groupAllocations, setGroupAllocations] = useState&lt;Record&lt;string, AIAllocationResult | null>>({});
-    const [activeApprovalGroup, setActiveApprovalGroup] = useState&lt;{ supplier: string; txs: ImportedTransaction[]; suggestion: AIAllocationResult | null } | null>(null);
+    const [groupedTransactions, setGroupedTransactions] = useState<Record<string, ImportedTransaction[]> >({});
+    const [groupAllocations, setGroupAllocations] = useState<Record<string, AIAllocationResult | null>>({});
+    const [activeApprovalGroup, setActiveApprovalGroup] = useState<{ supplier: string; txs: ImportedTransaction[]; suggestion: AIAllocationResult | null } | null>(null);
 
     const [isSaving, setIsSaving] = useState(false);
-    const [selectedGroups, setSelectedGroups] = useState&lt;string[]>([]);
+    const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
 
-    const [lastApprovedTxIds, setLastApprovedTxIds] = useState&lt;string[] | null>(null);
+    const [lastApprovedTxIds, setLastApprovedTxIds] = useState<string[] | null>(null);
     
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -3113,7 +3112,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const handleConfirmApprovalAndRuleCreation = async (ruleValues: RuleFormValues, groupTxs: ImportedTransaction[]) => {
       if (!client || !client.uid) return;
       
-      const newRule: Omit&lt;AllocationRule, 'id'> = {
+      const newRule: Omit<AllocationRule, 'id'> = {
         description: ruleValues.description,
         keywords: ruleValues.keywords.split(','),
         accountId: ruleValues.accountId,
@@ -3150,7 +3149,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
 
         await batch.commit();
         setLastApprovedTxIds(txIds);
-        toast({ title: 'Transactions Approved &amp; Rule Created', description: `${groupTxs.length} transactions approved and new rule created.`, action: &lt;ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo&lt;/ToastAction> });
+        toast({ title: 'Transactions Approved & Rule Created', description: `${groupTxs.length} transactions approved and new rule created.`, action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction> });
         setActiveApprovalGroup(null);
         fetchClientData();
 
@@ -3233,7 +3232,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             toast({ 
                 title: "Success!", 
                 description: `${txsToApprove.length} transactions have been moved to Reviewed.`,
-                action: &lt;ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo&lt;/ToastAction>,
+                action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction>,
             });
             setSelectedGroups([]);
         } catch (e) {
@@ -3278,7 +3277,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             toast({ 
                 title: 'Group Approved', 
                 description: `${groupTxs.length} transactions for '${supplier}' moved to Reviewed.`,
-                action: &lt;ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo&lt;/ToastAction>
+                action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction>
             });
         } catch (e) {
             console.error(e);
@@ -3360,73 +3359,73 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 onConfirm={handleConfirmApprovalAndRuleCreation}
             />
             <Card>
-                 &lt;CardHeader className="p-4 border-b">
-                     &lt;div className="flex items-center justify-between">
-                        &lt;h2>AI Workflow ({Object.keys(groupedTransactions).length} groups)&lt;/h2>
-                         &lt;div className="flex gap-2">
-                            &lt;Button onClick={() => handleRunAiAllocation()} disabled={isLoading || isProcessing || transactionsInProcessing === 0}>
-                                {isProcessing ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin"/> : &lt;Sparkles className="mr-2 h-4 w-4" />}
+                 <CardHeader className="p-4 border-b">
+                     <div className="flex items-center justify-between">
+                        <h2>AI Workflow ({Object.keys(groupedTransactions).length} groups)</h2>
+                         <div className="flex gap-2">
+                            <Button onClick={() => handleRunAiAllocation()} disabled={isLoading || isProcessing || transactionsInProcessing === 0}>
+                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                                 Run AI Allocation
-                            &lt;/Button>
-                            &lt;Button onClick={() => handleRunAiAllocation(true)} disabled={isLoading || isProcessing} variant="outline">
-                                &lt;RefreshCw className="mr-2 h-4 w-4"/>
+                            </Button>
+                            <Button onClick={() => handleRunAiAllocation(true)} disabled={isLoading || isProcessing} variant="outline">
+                                <RefreshCw className="mr-2 h-4 w-4"/>
                                 Re-analyse Groupings
-                            &lt;/Button>
-                            &lt;Button variant="outline" onClick={handleSaveChanges} disabled={isSaving || isProcessing}>
-                                {isSaving ? &lt;Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            </Button>
+                            <Button variant="outline" onClick={handleSaveChanges} disabled={isSaving || isProcessing}>
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 Save Changes
-                            &lt;/Button>
-                            &lt;Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0 || isProcessing}>
+                            </Button>
+                            <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0 || isProcessing}>
                                 Approve Selected ({selectedGroups.length})
-                            &lt;/Button>
-                            &lt;Button onClick={handleDownloadExcel} variant="outline" disabled={isLoading || isProcessing || Object.keys(groupedTransactions).length === 0}>
-                                &lt;Download className="mr-2 h-4 w-4"/>
+                            </Button>
+                            <Button onClick={handleDownloadExcel} variant="outline" disabled={isLoading || isProcessing || Object.keys(groupedTransactions).length === 0}>
+                                <Download className="mr-2 h-4 w-4"/>
                                 Download Excel
-                            &lt;/Button>
-                             &lt;Button
+                            </Button>
+                             <Button
                                 variant="ghost"
                                 onClick={() => lastApprovedTxIds && handleUndoAction(lastApprovedTxIds)}
                                 disabled={!lastApprovedTxIds || isProcessing}
                             >
-                                &lt;RotateCcw className="mr-2 h-4 w-4" />
+                                <RotateCcw className="mr-2 h-4 w-4" />
                                 Undo Last Approval
-                            &lt;/Button>
-                         &lt;/div>
-                     &lt;/div>
-                 &lt;/CardHeader>
-                 &lt;CardContent className="p-4 space-y-4">
+                            </Button>
+                         </div>
+                     </div>
+                 </CardHeader>
+                 <CardContent className="p-4 space-y-4">
                     {isProcessing && job && (
-                         &lt;div className="space-y-2 p-4 border rounded-lg bg-muted">
-                            &lt;h3 className="font-semibold text-center">AI Allocation in Progress...&lt;/h3>
-                            &lt;Progress value={progress} />
-                            &lt;p className="text-sm text-muted-foreground text-center">Processing group {job.processed} of {job.total}. Please keep this tab open for the process to complete.&lt;/p>
-                        &lt;/div>
+                         <div className="space-y-2 p-4 border rounded-lg bg-muted">
+                            <h3 className="font-semibold text-center">AI Allocation in Progress...</h3>
+                            <Progress value={progress} />
+                            <p className="text-sm text-muted-foreground text-center">Processing group {job.processed} of {job.total}. Please keep this tab open for the process to complete.</p>
+                        </div>
                     )}
                     {job?.status === 'failed' && (
-                        &lt;Alert variant="destructive">
-                            &lt;AlertTriangle className="h-4 w-4"/>
-                            &lt;AlertTitle>Last Job Failed&lt;/AlertTitle>
-                            &lt;AlertDescription>{job.error || 'An unknown error occurred.'}&lt;/AlertDescription>
-                        &lt;/Alert>
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4"/>
+                            <AlertTitle>Last Job Failed</AlertTitle>
+                            <AlertDescription>{job.error || 'An unknown error occurred.'}</AlertDescription>
+                        </Alert>
                     )}
                     {isLoading || isLoadingJob ? (
-                        &lt;div className="text-center py-8">
-                            &lt;Loader2 className="animate-spin mx-auto" />
-                        &lt;/div>
+                        <div className="text-center py-8">
+                            <Loader2 className="animate-spin mx-auto" />
+                        </div>
                     ) : transactions.length === 0 ? (
-                        &lt;div className="text-center py-8 text-muted-foreground">
+                        <div className="text-center py-8 text-muted-foreground">
                             No transactions are in the AI Workflow. Go to the 'New Transactions' tab to send some for processing.
-                        &lt;/div>
+                        </div>
                     ) : (
-                        &lt;div className="space-y-4">
+                        <div className="space-y-4">
                              {paginatedGroupEntries.map(([supplier, txs]) => {
                                 const suggestion = groupAllocations[supplier];
                                 return (
-                                &lt;Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
-                                    &lt;div className="flex items-center justify-between p-3 bg-muted/50 rounded-t-lg">
-                                        &lt;CollapsibleTrigger asChild>
-                                             &lt;div className="flex items-center gap-4 text-left pr-4 flex-grow cursor-pointer">
-                                                &lt;Checkbox
+                                <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
+                                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-t-lg">
+                                        <CollapsibleTrigger asChild>
+                                             <div className="flex items-center gap-4 text-left pr-4 flex-grow cursor-pointer">
+                                                <Checkbox
                                                     checked={selectedGroups.includes(supplier)}
                                                     onCheckedChange={(checked) => {
                                                         setSelectedGroups(prev => checked ? [...prev, supplier] : prev.filter(s => s !== supplier))
@@ -3434,64 +3433,64 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                                     onClick={(e) => e.stopPropagation()}
                                                     className="ml-2"
                                                 />
-                                                &lt;h3 className="font-bold">{supplier} &lt;span className="font-normal text-muted-foreground">({txs.length} items)&lt;/span>&lt;/h3>
-                                                {suggestion && &lt;p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%&lt;/p>}
-                                            &lt;/div>
-                                        &lt;/CollapsibleTrigger>
-                                        &lt;div className="flex items-center gap-2 flex-shrink-0">
-                                            &lt;Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId || ''}>
-                                                &lt;SelectTrigger className="h-8 w-[200px] bg-white">&lt;SelectValue placeholder="Select Account..." />&lt;/SelectTrigger>
-                                                &lt;SelectContent>
-                                                    {chartOfAccounts.map(acc => &lt;SelectItem key={acc.id} value={acc.id}>{acc.description}&lt;/SelectItem>)}
-                                                &lt;/SelectContent>
-                                            &lt;/Select>
-                                            &lt;Select onValueChange={(value) => handleAllocationChange(supplier, 'vatType', value as VatType)} value={suggestion?.vatType || 'no_vat'}>
-                                                &lt;SelectTrigger className="h-8 w-[200px] bg-white">&lt;SelectValue placeholder="Select VAT..." />&lt;/SelectTrigger>
-                                                &lt;SelectContent>
-                                                    {allVatTypes.map(vt => &lt;SelectItem key={vt.name} value={vt.name}>{vt.label}&lt;/SelectItem>)}
-                                                &lt;/SelectContent>
-                                            &lt;/Select>
-                                            &lt;div className="flex items-center gap-1">
-                                                &lt;Button size="sm" variant="destructive" onClick={() => handleRejectSelected(txs.map(t => t.id))}>Reject&lt;/Button>
-                                                &lt;Button size="sm" onClick={() => handleApproveGroup(supplier)}>Approve&lt;/Button>
-                                                &lt;Button size="sm" onClick={() => setActiveApprovalGroup({ supplier, txs, suggestion })}>Create Rule&lt;/Button>
-                                            &lt;/div>
-                                        &lt;/div>
-                                    &lt;/div>
-                                    &lt;CollapsibleContent>
-                                        &lt;Table>
-                                            &lt;TableHeader>
-                                                &lt;TableRow>
-                                                    &lt;TableHead className="w-12">&lt;Checkbox/>&lt;/TableHead>
-                                                    &lt;TableHead className="w-[120px]">Date&lt;/TableHead>
-                                                    &lt;TableHead>Description&lt;/TableHead>
-                                                    &lt;TableHead className="text-right w-[150px]">Amount&lt;/TableHead>
-                                                &lt;/TableRow>
-                                            &lt;/TableHeader>
-                                            &lt;TableBody>
+                                                <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length} items)</span></h3>
+                                                {suggestion && <p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%</p>}
+                                            </div>
+                                        </CollapsibleTrigger>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            <Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId || ''}>
+                                                <SelectTrigger className="h-8 w-[200px] bg-white"><SelectValue placeholder="Select Account..." /></SelectTrigger>
+                                                <SelectContent>
+                                                    {chartOfAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                            <Select onValueChange={(value) => handleAllocationChange(supplier, 'vatType', value as VatType)} value={suggestion?.vatType || 'no_vat'}>
+                                                <SelectTrigger className="h-8 w-[200px] bg-white"><SelectValue placeholder="Select VAT..." /></SelectTrigger>
+                                                <SelectContent>
+                                                    {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                            <div className="flex items-center gap-1">
+                                                <Button size="sm" variant="destructive" onClick={() => handleRejectSelected(txs.map(t => t.id))}>Reject</Button>
+                                                <Button size="sm" onClick={() => handleApproveGroup(supplier)}>Approve</Button>
+                                                <Button size="sm" onClick={() => setActiveApprovalGroup({ supplier, txs, suggestion })}>Create Rule</Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <CollapsibleContent>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="w-12"><Checkbox/></TableHead>
+                                                    <TableHead className="w-[120px]">Date</TableHead>
+                                                    <TableHead>Description</TableHead>
+                                                    <TableHead className="text-right w-[150px]">Amount</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
                                                 {txs.map(tx => (
-                                                    &lt;TableRow key={tx.id}>
-                                                        &lt;TableCell>&lt;Checkbox />&lt;/TableCell>
-                                                        &lt;TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}&lt;/TableCell>
-                                                        &lt;TableCell className="text-xs">{tx.description}&lt;/TableCell>
-                                                        &lt;TableCell className="text-right font-mono text-xs">{formatPrice(tx.amount)}&lt;/TableCell>
-                                                    &lt;/TableRow>
+                                                    <TableRow key={tx.id}>
+                                                        <TableCell><Checkbox /></TableCell>
+                                                        <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                                        <TableCell className="text-xs">{tx.description}</TableCell>
+                                                        <TableCell className="text-right font-mono text-xs">{formatPrice(tx.amount)}</TableCell>
+                                                    </TableRow>
                                                 ))}
-                                            &lt;/TableBody>
-                                        &lt;/Table>
-                                    &lt;/CollapsibleContent>
-                                &lt;/Collapsible>
-                            ))}
-                        &lt;/div>
+                                            </TableBody>
+                                        </Table>
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            )})}
+                        </div>
                     )}
-                 &lt;/CardContent>
-                 &lt;CardFooter className="flex justify-center items-center p-4">
-                    &lt;Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Previous&lt;/Button>
-                    &lt;span className="text-sm mx-4">Page {currentPage} of {totalPages}&lt;/span>
-                    &lt;Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage >= totalPages}>Next&lt;/Button>
-                &lt;/CardFooter>
-            &lt;/Card>
-        &lt;/React.Fragment>
+                 </CardContent>
+                 <CardFooter className="flex justify-center items-center p-4">
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Previous</Button>
+                    <span className="text-sm mx-4">Page {currentPage} of {totalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage >= totalPages}>Next</Button>
+                </CardFooter>
+            </Card>
+        </React.Fragment>
     );
 };
 
@@ -3501,21 +3500,21 @@ function BankTransactionsPage() {
     const accountIdFromUrl = useSearchParams().get('accountId');
     const { user: currentUser } = useAuth();
     
-    const [client, setClient] = useState&lt;User | null>(null);
-    const [allAccountTransactions, setAllAccountTransactions] = useState&lt;(ImportedTransaction | AllocatedTransaction)[]>([]);
+    const [client, setClient] = useState<User | null>(null);
+    const [allAccountTransactions, setAllAccountTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isNewAccountDialogOpen, setIsNewAccountDialogOpen] = useState(false);
     const { toast } = useToast();
     const [isEditAccountDialogOpen, setIsEditAccountDialogOpen] = useState(false);
-    const [selectedAccountForEdit, setSelectedAccountForEdit] = useState&lt;ChartOfAccount | null>(null);
-    const [customers, setCustomers] = useState&lt;ClientCustomer[]>([]);
-    const [invoices, setInvoices] = useState&lt;Invoice[]>([]);
-    const [globalRules, setGlobalRules] = useState&lt;AllocationRule[]>([]);
+    const [selectedAccountForEdit, setSelectedAccountForEdit] = useState<ChartOfAccount | null>(null);
+    const [customers, setCustomers] = useState<ClientCustomer[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
+    const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const [activeTab, setActiveTab] = useState(currentUser?.role === 'ai_accountant' ? 'ai-workflow' : 'new-transactions');
-    const [accountId, setAccountId] = useState&lt;string | null>(accountIdFromUrl);
+    const [accountId, setAccountId] = useState<string | null>(accountIdFromUrl);
 
-    const newTransactionsTabRef = useRef&lt;{ refetch: () => void }>(null);
-    const reviewedTabRef = useRef&lt;{ refetch: () => void }>(null);
-    const forReviewTabRef = useRef&lt;{ refetch: () => void }>(null);
+    const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
+    const reviewedTabRef = useRef<{ refetch: () => void }>(null);
+    const forReviewTabRef = useRef<{ refetch: () => void }>(null);
 
     const fetchClientData = useCallback(async () => {
         const clientId = params.clientId as string;
@@ -3636,35 +3635,35 @@ function BankTransactionsPage() {
     }
 
     if (!client) {
-        return &lt;div className="text-center mt-8">&lt;Loader2 className="h-8 w-8 animate-spin" />&lt;/div>;
+        return <div className="text-center mt-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
     
     const bankAccounts = client.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('8400-')) || [];
     
     if (bankAccounts.length > 0 && !accountId) {
       setAccountId(bankAccounts[0].id);
-      return &lt;div className="text-center mt-8">&lt;Loader2 className="h-8 w-8 animate-spin" />&lt;/div>;
+      return <div className="text-center mt-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
     
     const selectedBankAccount = accountId ? bankAccounts.find(acc => acc.id === accountId) : undefined;
     
     if (bankAccounts.length === 0) {
         return (
-             &lt;div className="text-center mt-8">
-                &lt;Alert variant="destructive" className="max-w-md mx-auto">
-                    &lt;AlertTitle>No Bank Accounts Found&lt;/AlertTitle>
-                    &lt;AlertDescription>Please create a bank account first to manage transactions.&lt;/AlertDescription>
-                &lt;/Alert>
-                 &lt;CreateAccountDialog client={client} onAccountCreated={handleAccountCreated} open={isNewAccountDialogOpen} onOpenChange={setIsNewAccountDialogOpen} />
-            &lt;/div>
+             <div className="text-center mt-8">
+                <Alert variant="destructive" className="max-w-md mx-auto">
+                    <AlertTitle>No Bank Accounts Found</AlertTitle>
+                    <AlertDescription>Please create a bank account first to manage transactions.</AlertDescription>
+                </Alert>
+                 <CreateAccountDialog client={client} onAccountCreated={handleAccountCreated} open={isNewAccountDialogOpen} onOpenChange={setIsNewAccountDialogOpen} />
+            </div>
         );
     }
     
     const canSeeAllTabs = currentUser?.role === 'admin' || currentUser?.role === 'staff' || currentUser?.role === 'ai_accountant';
 
     return (
-        &lt;div>
-            {selectedAccountForEdit && &lt;EditAccountDialog
+        <div>
+            {selectedAccountForEdit && <EditAccountDialog
                 account={selectedBankAccountForEdit}
                 client={client}
                 onAccountUpdated={handleAccountCreated}
@@ -3674,71 +3673,71 @@ function BankTransactionsPage() {
                     if (!open) setSelectedAccountForEdit(null);
                 }}
             />}
-            &lt;div className="md:flex items-start justify-between">
-                &lt;div className="flex items-center gap-4">
-                    &lt;Select value={accountId || ''} onValueChange={(val) => setAccountId(val)}>
-                        &lt;SelectTrigger className="w-[280px]">
-                            &lt;SelectValue placeholder="Select a bank account" />
-                        &lt;/SelectTrigger>
-                        &lt;SelectContent>
-                            {bankAccounts.map(acc => &lt;SelectItem key={acc.id} value={acc.id}>{acc.description}&lt;/SelectItem>)}
-                        &lt;/SelectContent>
-                    &lt;/Select>
-                     &lt;div className="flex gap-4 mt-2 text-sm">
-                        &lt;div>
-                            &lt;span className="text-muted-foreground">Balance: &lt;/span> 
-                            &lt;span className="font-semibold">{formatPrice(accountStats.balance)}&lt;/span>
-                        &lt;/div>
-                        &lt;div>
-                            &lt;span className="text-muted-foreground">Unallocated: &lt;/span> 
-                            &lt;span className="font-semibold">{accountStats.unallocatedCount}&lt;/span>
-                        &lt;/div>
-                    &lt;/div>
-                &lt;/div>
-                &lt;div className="flex items-center gap-2 mt-4 md:mt-0">
-                     &lt;Button variant="outline" onClick={handleRefreshAll}>&lt;RotateCcw className="mr-2 h-4 w-4"/> Refresh&lt;/Button>
-                     &lt;AlertDialog>
-                        &lt;AlertDialogTrigger asChild>
-                            &lt;Button variant="destructive" disabled={!accountId}>&lt;Trash2 className="mr-2 h-4 w-4" /> Clear Transactions&lt;/Button>
-                        &lt;/AlertDialogTrigger>
-                        &lt;AlertDialogContent>
-                            &lt;AlertDialogHeader>
-                                &lt;AlertDialogTitle>Are you sure?&lt;/AlertDialogTitle>
-                                &lt;AlertDialogDescription>This will permanently delete all transactions in this bank account. This action cannot be undone.&lt;/AlertDialogDescription>
-                            &lt;/AlertDialogHeader>
-                            &lt;AlertDialogFooter>
-                                &lt;AlertDialogCancel>Cancel&lt;/AlertDialogCancel>
-                                &lt;AlertDialogAction onClick={handleClearTransactions}>Yes, Delete All&lt;/AlertDialogAction>
-                            &lt;/AlertDialogFooter>
-                        &lt;/AlertDialogContent>
-                    &lt;/AlertDialog>
-                     &lt;DropdownMenu>
-                         &lt;DropdownMenuTrigger asChild>
-                            &lt;Button>&lt;Settings className="mr-2 h-4 w-4" /> Manage Bank Account&lt;/Button>
-                         &lt;/DropdownMenuTrigger>
-                         &lt;DropdownMenuContent>
-                            &lt;DropdownMenuItem onClick={() => setIsNewAccountDialogOpen(true)}>Create New Bank Account&lt;/DropdownMenuItem>
-                            &lt;DropdownMenuItem disabled={!selectedBankAccount} onClick={() => { setSelectedAccountForEdit(selectedBankAccount || null); setIsEditAccountDialogOpen(true); }}>Edit Selected Account&lt;/DropdownMenuItem>
-                         &lt;/DropdownMenuContent>
-                     &lt;/DropdownMenu>
-                &lt;/div>
-            &lt;/div>
-            &lt;div className="border rounded-lg mt-4">
-                 &lt;Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="w-full">
+            <div className="md:flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                    <Select value={accountId || ''} onValueChange={(val) => setAccountId(val)}>
+                        <SelectTrigger className="w-[280px]">
+                            <SelectValue placeholder="Select a bank account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {bankAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                     <div className="flex gap-4 mt-2 text-sm">
+                        <div>
+                            <span className="text-muted-foreground">Balance: </span> 
+                            <span className="font-semibold">{formatPrice(accountStats.balance)}</span>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground">Unallocated: </span> 
+                            <span className="font-semibold">{accountStats.unallocatedCount}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 mt-4 md:mt-0">
+                     <Button variant="outline" onClick={handleRefreshAll}><RotateCcw className="mr-2 h-4 w-4"/> Refresh</Button>
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={!accountId}><Trash2 className="mr-2 h-4 w-4" /> Clear Transactions</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>This will permanently delete all transactions in this bank account. This action cannot be undone.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleClearTransactions}>Yes, Delete All</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                     <DropdownMenu>
+                         <DropdownMenuTrigger asChild>
+                            <Button><Settings className="mr-2 h-4 w-4" /> Manage Bank Account</Button>
+                         </DropdownMenuTrigger>
+                         <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => setIsNewAccountDialogOpen(true)}>Create New Bank Account</DropdownMenuItem>
+                            <DropdownMenuItem disabled={!selectedBankAccount} onClick={() => { setSelectedAccountForEdit(selectedBankAccount || null); setIsEditAccountDialogOpen(true); }}>Edit Selected Account</DropdownMenuItem>
+                         </DropdownMenuContent>
+                     </DropdownMenu>
+                </div>
+            </div>
+            <div className="border rounded-lg mt-4">
+                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="w-full">
                     {canSeeAllTabs ? (
-                        &lt;TabsList className="grid w-full grid-cols-4 rounded-t-lg rounded-b-none h-auto">
-                            &lt;TabsTrigger value="new-transactions">New Transactions&lt;/TabsTrigger>
-                            &lt;TabsTrigger value="ai-workflow">AI Workflow&lt;/TabsTrigger>
-                            &lt;TabsTrigger value="for-review">For Review&lt;/TabsTrigger>
-                            &lt;TabsTrigger value="reviewed">Reviewed&lt;/TabsTrigger>
-                        &lt;/TabsList>
+                        <TabsList className="grid w-full grid-cols-4 rounded-t-lg rounded-b-none h-auto">
+                            <TabsTrigger value="new-transactions">New Transactions</TabsTrigger>
+                            <TabsTrigger value="ai-workflow">AI Workflow</TabsTrigger>
+                            <TabsTrigger value="for-review">For Review</TabsTrigger>
+                            <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
+                        </TabsList>
                     ) : (
-                        &lt;TabsList className="grid w-full grid-cols-1 rounded-t-lg rounded-b-none h-auto">
-                            &lt;TabsTrigger value="ai-workflow">AI Workflow&lt;/TabsTrigger>
-                        &lt;/TabsList>
+                        <TabsList className="grid w-full grid-cols-1 rounded-t-lg rounded-b-none h-auto">
+                            <TabsTrigger value="ai-workflow">AI Workflow</TabsTrigger>
+                        </TabsList>
                     )}
-                    &lt;TabsContent value="new-transactions" className="p-0">
-                        &lt;NewTransactionsTab
+                    <TabsContent value="new-transactions" className="p-0">
+                        <NewTransactionsTab
                             ref={newTransactionsTabRef}
                             client={client}
                             bankAccountId={accountId}
@@ -3750,9 +3749,9 @@ function BankTransactionsPage() {
                             onAccountCreated={handleAccountCreated}
                             setActiveTab={setActiveTab}
                         />
-                    &lt;/TabsContent>
-                     &lt;TabsContent value="ai-workflow" className="p-0">
-                        &lt;AIWorkflowTab
+                    </TabsContent>
+                     <TabsContent value="ai-workflow" className="p-0">
+                        <AIWorkflowTab
                             client={client}
                             bankAccountId={accountId}
                             chartOfAccounts={client.chartOfAccounts || []}
@@ -3760,32 +3759,31 @@ function BankTransactionsPage() {
                             globalRules={globalRules}
                             onRuleCreated={handleAccountCreated}
                         />
-                    &lt;/TabsContent>
-                    &lt;TabsContent value="for-review" className="p-0">
-                        &lt;ForReviewTab
+                    </TabsContent>
+                    <TabsContent value="for-review" className="p-0">
+                        <ForReviewTab
                             ref={forReviewTabRef}
                             client={client}
                             bankAccountId={accountId}
                             fetchClientData={fetchClientData}
                             customers={customers}
                         />
-                    &lt;/TabsContent>
-                    &lt;TabsContent value="reviewed" className="p-0">
-                        &lt;ReviewedTab
+                    </TabsContent>
+                    <TabsContent value="reviewed" className="p-0">
+                        <ReviewedTab
                             ref={reviewedTabRef}
                             client={client}
                             bankAccountId={accountId}
                             customers={customers}
                             onAccountCreated={handleAccountCreated}
                         />
-                    &lt;/TabsContent>
-                &lt;/Tabs>
-            &lt;/div>
-        &lt;/div>
+                    </TabsContent>
+                </Tabs>
+            </div>
+        </div>
     );
 }
 
 export default BankTransactionsPage;
 
 
-    
