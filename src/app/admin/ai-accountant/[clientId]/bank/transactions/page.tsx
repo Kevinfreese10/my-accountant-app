@@ -2490,469 +2490,6 @@ const ReviewedTab = React.forwardRef<
 ReviewedTab.displayName = 'ReviewedTab';
 
 
-const ForReviewTab = React.forwardRef<
-    { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; fetchClientData: () => void; customers: ClientCustomer[] }
->(({ client, bankAccountId, fetchClientData, customers }, ref) => {
-    const { toast } = useToast();
-    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
-    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isApprovingAll, setIsApprovingAll] = useState(false);
-    const [isDownloading, setIsDownloading] = useState(false);
-    
-    const [viewMode, setViewMode] = useState<'list' | 'group'>('list');
-    const [groupedTransactions, setGroupedTransactions] = useState<Record<string, ImportedTransaction[]> >({});
-    const [isGrouping, setIsGrouping] = useState(false);
-
-    
-    type SortField = 'date' | 'description' | 'amount';
-    type SortDirection = 'asc' | 'desc';
-    const [sortField, setSortField] = useState<SortField>('date');
-    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-
-    const handleSort = (field: SortField) => {
-        if (sortField === field) {
-            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortField(field);
-            setSortDirection('asc');
-        }
-    };
-    
-    const reviewTransactionsQuery = useMemo(() => {
-        if (!client?.uid || !bankAccountId) return null;
-        
-        let constraints: QueryConstraint[] = [
-            where('bankAccountId', '==', bankAccountId),
-            where('status', '==', 'review'),
-        ];
-        
-        if (activeSubTab === 'expenses') {
-            constraints.push(where('amount', '<', 0));
-        } else {
-            constraints.push(where('amount', '>=', 0));
-        }
-
-        if(sortField !== 'amount') {
-             constraints.push(orderBy('amount', activeSubTab === 'expenses' ? 'asc' : 'desc'));
-             constraints.push(orderBy(sortField, sortDirection));
-        } else {
-             constraints.push(orderBy('amount', sortDirection));
-        }
-        
-        return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
-
-    const {
-        documents,
-        isLoading,
-        goToNextPage,
-        goToPreviousPage,
-        canGoNext,
-        canGoPrev,
-        currentPage,
-        refetch
-    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewTransactionsQuery, pageSize: PAGE_SIZE });
-
-     const transactions = useMemo(() => {
-        let docs = searchTerm ? documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase())) : documents;
-        
-        if (sortField === 'description') {
-            docs.sort((a, b) => {
-                const comparison = a.description.localeCompare(b.description);
-                return sortDirection === 'asc' ? comparison : -comparison;
-            });
-        }
-        
-        return docs;
-    }, [documents, searchTerm, sortField, sortDirection]);
-    
-    React.useImperativeHandle(ref, () => ({
-        refetch,
-    }));
-    
-    useEffect(() => {
-        refetch();
-        setViewMode('list');
-    }, [activeSubTab, refetch]);
-    
-    const handleGroupReview = async () => {
-        if (viewMode === 'group') {
-            setViewMode('list');
-            return;
-        }
-
-        if (!client || !bankAccountId) return;
-        setIsGrouping(true);
-        toast({ title: 'Grouping Transactions...', description: 'AI is analyzing descriptions.' });
-
-        try {
-            const queryConstraints: QueryConstraint[] = [
-                where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'review')
-            ];
-            if (activeSubTab === 'expenses') {
-                queryConstraints.push(where('amount', '<', 0));
-            } else {
-                queryConstraints.push(where('amount', '>=', 0));
-            }
-            const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...queryConstraints);
-
-            const snapshot = await getDocs(q);
-            const allReviewTransactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
-
-            const transactionsWithSuppliers = await Promise.all(allReviewTransactions.map(async (tx) => {
-                try {
-                    const { supplier } = await extractSupplierName({ description: tx.description });
-                    return { ...tx, extractedSupplier: supplier };
-                } catch (e) {
-                    return { ...tx, extractedSupplier: tx.description.split(' ')[0].toUpperCase() }; // Fallback
-                }
-            }));
-            
-            const groups: Record<string, ImportedTransaction[]> = {};
-            transactionsWithSuppliers.forEach(tx => {
-                const key = tx.extractedSupplier || 'UNKNOWN';
-                if (!groups[key]) groups[key] = [];
-                groups[key].push(tx);
-            });
-            
-            setGroupedTransactions(groups);
-            setViewMode('group');
-
-        } catch (error) {
-            console.error("Grouping failed:", error);
-            toast({ title: 'Grouping Failed', variant: 'destructive' });
-        } finally {
-            setIsGrouping(false);
-        }
-    };
-
-    const handleBulkAction = async (action: 'approve' | 'reject') => {
-        if (!client || !client.uid || selectedTransactions.length === 0) return;
-
-        toast({ title: "Processing...", description: `Updating ${selectedTransactions.length} transactions.` });
-        
-        const updatePromises: Promise<void>[] = [];
-        for (let i = 0; i < selectedTransactions.length; i += BATCH_SIZE) {
-            const batch = writeBatch(db);
-            const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
-            chunk.forEach(txId => {
-                const tx = transactions.find(t => t.id === txId);
-                if (!tx) return;
-                const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                if (action === 'approve') {
-                    batch.update(transactionRef, { status: 'allocated', allocatedAt: new Date() });
-                    if (tx.allocatedTo?.type === 'account' && !client.allocationRules?.some(rule => tx.description.toLowerCase().includes(rule.keywords[0]))) {
-                         const coreKeyword = tx.description.split(/\s+/)[0].toLowerCase();
-                        const newRule: Partial<AllocationRule> = {
-                            description: `Auto-generated for: ${tx.description}`,
-                            keywords: [coreKeyword],
-                            accountId: tx.allocatedTo.value,
-                            vatType: client.isVatRegistered ? tx.vatType || 'no_vat' : 'no_vat',
-                            type: 'soft',
-                        };
-                        const clientRef = doc(db, 'aiAccountantClients', client.uid!);
-                        batch.update(clientRef, { allocationRules: arrayUnion(newRule) });
-                    }
-                } else { // reject
-                    batch.update(transactionRef, { status: 'new', allocatedTo: null, vatType: null, allocatedAt: null });
-                }
-            });
-            updatePromises.push(batch.commit());
-        }
-
-        try {
-            await Promise.all(updatePromises);
-            toast({ title: `Transactions ${action === 'approve' ? 'Approved' : 'Rejected'}`, description: `${selectedTransactions.length} transactions have been updated.` });
-            setSelectedTransactions([]);
-            refetch();
-            if (action === 'approve') fetchClientData();
-        } catch (error) {
-            console.error(`Error during bulk ${action}:`, error);
-            toast({ title: "Action Failed", variant: "destructive" });
-        }
-    }
-    
-    const handleApproveAll = async () => {
-        if (!client || !client.uid || !bankAccountId) return;
-        
-        setIsApprovingAll(true);
-        toast({ title: "Approving All...", description: `Approving all pending ${activeSubTab}.` });
-
-        try {
-            let q = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
-                where('bankAccountId', '==', bankAccountId), 
-                where('status', '==', 'review')
-            );
-             if (activeSubTab === 'expenses') {
-                q = query(q, where('amount', '<', 0));
-            } else {
-                q = query(q, where('amount', '>=', 0));
-            }
-
-            const snapshot = await getDocs(q);
-            if (snapshot.empty) {
-                toast({ title: "No Transactions to Approve", description: "There are no items pending review in this category." });
-                setIsApprovingAll(false);
-                return;
-            }
-            
-            const allDocs = snapshot.docs;
-            for(let i = 0; i < allDocs.length; i+= BATCH_SIZE) {
-                const batch = writeBatch(db);
-                const chunk = allDocs.slice(i, i + BATCH_SIZE);
-                chunk.forEach(doc => {
-                    batch.update(doc.ref, { status: 'allocated', allocatedAt: new Date() });
-                });
-                await batch.commit();
-            }
-
-            toast({ title: 'All Approved!', description: `${snapshot.size} transactions have been approved and allocated.` });
-            refetch();
-            fetchClientData();
-
-        } catch (error) {
-            console.error("Error approving all transactions:", error);
-            toast({ title: "Approval Failed", description: "An error occurred while approving all transactions.", variant: "destructive" });
-        } finally {
-            setIsApprovingAll(false);
-        }
-    };
-
-    const getAllocationDescription = (tx: ImportedTransaction) => {
-        if (!tx.allocatedTo) return 'N/A';
-        if (tx.allocatedTo.type === 'customer') {
-            return customers.find(c => c.id === tx.allocatedTo?.value)?.name || 'Unknown Customer';
-        }
-        return client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo?.value)?.description || 'Unknown Account';
-    }
-    
-    const handleDownloadExcel = async () => {
-        if (!client || !client.uid || !bankAccountId) return;
-        setIsDownloading(true);
-        toast({ title: "Preparing Download...", description: "Fetching all transactions for review." });
-
-        try {
-            const expensesQuery = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'review'),
-                where('amount', '<', 0)
-            );
-            const incomeQuery = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('status', '==', 'review'),
-                where('amount', '>=', 0)
-            );
-            
-            const [expensesSnapshot, incomeSnapshot] = await Promise.all([
-                getDocs(expensesQuery),
-                getDocs(incomeQuery),
-            ]);
-
-            const mapToExport = (tx: ImportedTransaction) => ({
-                'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
-                'Description': tx.description,
-                'Suggested Allocation': getAllocationDescription(tx),
-                'Suggested VAT': allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A',
-                'Amount': tx.amount,
-            });
-
-            const expensesData = expensesSnapshot.docs.map(doc => mapToExport(doc.data() as ImportedTransaction));
-            const incomeData = incomeSnapshot.docs.map(doc => mapToExport(doc.data() as ImportedTransaction));
-
-            const wb = XLSX.utils.book_new();
-            if (expensesData.length > 0) {
-                const expensesSheet = XLSX.utils.json_to_sheet(expensesData);
-                XLSX.utils.book_append_sheet(wb, expensesSheet, "Expenses For Review");
-            }
-            if (incomeData.length > 0) {
-                const incomeSheet = XLSX.utils.json_to_sheet(incomeData);
-                XLSX.utils.book_append_sheet(wb, incomeSheet, "Income For Review");
-            }
-            
-            XLSX.writeFile(wb, `For_Review_Transactions_${client.name.replace(/\s/g, '_')}.xlsx`);
-
-            toast({ title: 'Download Ready!', description: 'Your Excel file has been downloaded.' });
-        } catch (error) {
-            console.error("Error downloading excel:", error);
-            toast({ title: 'Download Failed', description: 'Could not generate the Excel file.', variant: 'destructive' });
-        } finally {
-            setIsDownloading(false);
-        }
-    };
-
-
-    const isGroupInconsistent = (group: ImportedTransaction[]): boolean => {
-        if (group.length <= 1) return false;
-        const firstAccountId = group[0].allocatedTo?.value;
-        const firstVatType = group[0].vatType;
-        return group.some(tx => tx.allocatedTo?.value !== firstAccountId || tx.vatType !== firstVatType);
-    };
-
-    return (
-        <Card>
-             <CardHeader className="p-0 border-b">
-                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
-                        <TabsTrigger value="expenses">Review Expenses</TabsTrigger>
-                        <TabsTrigger value="income">Review Income</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-                 <div className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Button onClick={handleGroupReview} disabled={isGrouping}>
-                            {isGrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Group className="mr-2 h-4 w-4"/>}
-                            {viewMode === 'group' ? 'List View' : 'Group Review'}
-                        </Button>
-                        <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
-                            <CheckCircle className="mr-2 h-4 w-4" />Approve Selected
-                        </Button>
-                         <Button onClick={handleApproveAll} disabled={isApprovingAll || isLoading || transactions.length === 0}>
-                            {isApprovingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4" />}
-                            Approve All
-                        </Button>
-                        <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
-                            <RotateCcw className="mr-2 h-4 w-4" />Reject Selected
-                        </Button>
-                        <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
-                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                            Download Excel
-                        </Button>
-                    </div>
-                     <div className="relative">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            type="search"
-                            placeholder="Search descriptions..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-8 w-64"
-                        />
-                    </div>
-                 </div>
-            </CardHeader>
-            <CardContent className="p-0">
-                 {viewMode === 'group' ? (
-                     <div className="space-y-4 p-4 max-h-[70vh] overflow-y-auto">
-                        {Object.entries(groupedTransactions).sort((a,b) => a[0].localeCompare(b[0])).map(([supplier, txs]) => (
-                             <div key={supplier} className="border rounded-lg">
-                                <div className={cn("p-3 bg-muted/50 flex justify-between items-center", isGroupInconsistent(txs) && "bg-destructive/10")}>
-                                    <h3 className="font-bold flex items-center gap-2">
-                                        {isGroupInconsistent(txs) && <AlertTriangle className="h-4 w-4 text-destructive"/>}
-                                        {supplier} <span className="text-sm font-normal text-muted-foreground">({txs.length} items)</span>
-                                    </h3>
-                                    <div className="flex gap-2">
-                                        <Button size="sm" variant="destructive" onClick={() => handleBulkAction('reject')}>Reject Group</Button>
-                                        <Button size="sm" onClick={() => handleBulkAction('approve')}>Approve Group</Button>
-                                    </div>
-                                </div>
-                                <Table>
-                                    <TableBody>
-                                        {txs.map(tx => (
-                                            <TableRow key={tx.id}>
-                                                <TableCell className="text-xs w-[100px]">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                                <TableCell className="text-xs">{tx.description}</TableCell>
-                                                <TableCell className="text-xs">{getAllocationDescription(tx)}</TableCell>
-                                                <TableCell className="text-xs">{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
-                                                <TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                             </div>
-                        ))}
-                    </div>
-                 ) : (
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableCell className="w-12 p-2">
-                                         <Checkbox
-                                            checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
-                                            onCheckedChange={(checked) => {
-                                                setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
-                                            }}
-                                        />
-                                    </TableCell>
-                                    <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                    <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                    <TableHead>Suggested Allocation</TableHead>
-                                    {client?.isVatRegistered && <TableHead>Suggested VAT</TableHead>}
-                                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoading ? (
-                                    <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
-                                ) : transactions.length === 0 ? (
-                                    <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No transactions are pending review.</TableCell></TableRow>
-                                ) : (
-                                    transactions.map(tx => (
-                                        <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
-                                            <TableCell className="p-2">
-                                                <Checkbox
-                                                    checked={selectedTransactions.includes(tx.id)}
-                                                    onCheckedChange={(checked) => {
-                                                        setSelectedTransactions(prev =>
-                                                            checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
-                                                        );
-                                                    }}
-                                                />
-                                            </TableCell>
-                                            <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                            <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
-                                            <TableCell>{getAllocationDescription(tx)}</TableCell>
-                                            {client?.isVatRegistered && <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>}
-                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                )}
-            </CardContent>
-            <CardFooter className="flex items-center justify-center p-4">
-                 <div className="flex items-center gap-2">
-                    
-                    {!searchTerm && (
-                        <div className="flex items-center space-x-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={goToPreviousPage}
-                                disabled={!canGoPrev || isLoading}
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                                Previous
-                            </Button>
-                            <span className="text-sm font-medium">
-                                Page {currentPage}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={goToNextPage}
-                                disabled={!canGoNext || isLoading}
-                            >
-                                Next
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    )}
-                 </div>
-            </CardFooter>
-        </Card>
-    );
-});
-ForReviewTab.displayName = 'ForReviewTab';
-
-
 const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData, globalRules, onRuleCreated }: { 
     client: User | null; 
     bankAccountId: string | null; 
@@ -2964,6 +2501,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const { toast } = useToast();
     const [transactions, setTransactions] = useState<ImportedTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     
     const [job, setJob] = useState<AIAllocationJob | null>(null);
     const [isLoadingJob, setIsLoadingJob] = useState(true);
@@ -3027,8 +2565,24 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         };
     }, [client?.uid, bankAccountId, toast]);
     
+    const filteredTransactions = useMemo(() => {
+        if (!dateRange || (!dateRange.from && !dateRange.to)) {
+            return transactions;
+        }
+        return transactions.filter(tx => {
+            try {
+                const txDate = new Date(tx.date);
+                const fromMatch = dateRange.from ? txDate >= dateRange.from : true;
+                const toMatch = dateRange.to ? txDate <= endOfDay(dateRange.to) : true;
+                return fromMatch && toMatch;
+            } catch (e) {
+                return false; // Should not happen with valid dates, but good for safety
+            }
+        });
+    }, [transactions, dateRange]);
+    
     useEffect(() => {
-        const groups = transactions.reduce((acc, tx) => {
+        const groups = filteredTransactions.reduce((acc, tx) => {
             const key = tx.merchantKey || 'Unassigned';
             if (tx.status === 'ai_review') {
                 if (!acc[key]) acc[key] = [];
@@ -3048,7 +2602,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             }
         });
         setGroupAllocations(initialAllocations);
-    }, [transactions]);
+    }, [filteredTransactions]);
     
     // Pagination logic
     const sortedGroupEntries = useMemo(() => Object.entries(groupedTransactions).sort((a,b) => a[0].localeCompare(b[0])), [groupedTransactions]);
@@ -3391,6 +2945,9 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 Undo Last Approval
                             </Button>
                          </div>
+                     </div>
+                      <div className="pt-4">
+                        <DateRangePicker onDateChange={setDateRange} />
                      </div>
                  </CardHeader>
                  <CardContent className="p-4 space-y-4">
@@ -3787,3 +3344,4 @@ function BankTransactionsPage() {
 export default BankTransactionsPage;
 
 
+    
