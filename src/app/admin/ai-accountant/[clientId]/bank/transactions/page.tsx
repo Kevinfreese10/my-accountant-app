@@ -63,7 +63,6 @@ const formatPrice = (price: number) => {
 };
 
 // #region Description Cleaning
-
 type CleanResult = {
   cleanedDescription: string;
   merchantKey: string;
@@ -73,25 +72,15 @@ type CleanResult = {
   overrideRequired: boolean;
 };
 
-
-const PAYMENT_CHANNELS = {
-    CARD: /\b(CHEQUE CARD|CARD PURCHASE|POS|CREDIT CARD|PURCH)\b/,
-    EFT: /\b(EFT|IB PAY|IB TRF)\b/,
-    DEBIT_ORDER: /\b(DEBIT ORDER|D\/O|NAEDO|DO-)\b/,
-    ATM: /\b(ATM WITHDRAWAL|CASH WD)\b/,
-    TRANSFER: /\b(TRANSFER|TRF|PAYMENT)\b/,
-};
-
+const PAYMENT_KEYWORDS = ['CHEQUE CARD PURCHASE', 'CARD PURCHASE', 'POS PURCHASE', 'POS', 'PURCH', 'EFT', 'IB PAY', 'IB TRF', 'DEBIT ORDER', 'D/O', 'NAEDO', 'DO-', 'ATM WITHDRAWAL', 'CASH WD', 'TRANSFER', 'PAYMENT', 'INTERNET PAYMENT'];
 const GATEWAYS = ['FLW', 'PAYFAST', 'PAYPAL', 'STRIPE', 'OZOW', 'YCO', 'DPO', 'PAYU'];
-
 const EXACT_MERCHANTS = [
     'UBER', 'CANVA', 'GOOGLE', 'TAKEALOT', 'NETFLIX', 'VODACOM', 'MTN', 'CELL C', 'TELKOM',
     'DISCOVERY', 'SANLAM', 'OLD MUTUAL', 'MOMENTUM', 'HOLLARD', 'OUTSURANCE', 'MIWAY', 'KING PRICE',
     'AFRIHOST', 'AQUAZANIA', 'DISCINSURE', 'BOOKING.COM', 'SHELL', 'BP', 'ENGEN', 'TOTAL', 'SASOL',
     'PICK N PAY', 'CHECKERS', 'WOOLWORTHS', 'SHOPRITE', 'SPAR', 'CLICKS', 'DISCHEM', 'MR D',
-    'UBER EATS'
+    'UBER EATS', 'KFC', 'HERONS', 'GELMAR', 'GOSFORTH'
 ];
-
 const ALIASES: { [key: string]: string } = {
     'PNP': 'PICK N PAY',
     'P N P': 'PICK N PAY',
@@ -102,24 +91,26 @@ const ALIASES: { [key: string]: string } = {
     'CHECKERSHYP': 'CHECKERS',
     'WWW.GOOGLE.COM': 'GOOGLE',
     'WWW.TAKEALOT.COM': 'TAKEALOT',
-    'UBER.CO': 'UBER'
+    'UBER.CO': 'UBER',
+    'CANVAS': 'CANVA',
 };
-
 const MULTI_WORD_MERCHANTS = [
-    'PICK N PAY', 'UBER EATS', 'CHECKERS HYPER', 'KING PRICE', 'OLD MUTUAL', 'DISC INSURE'
+    'PICK N PAY', 'UBER EATS', 'CHECKERS HYPER', 'KING PRICE', 'OLD MUTUAL', 'DISC INSURE', 'CELL C', 'MR D'
 ];
-
 const DESCRIPTOR_STOPWORDS = [
-    'NEW', 'ONLINE', 'TRIPS', 'EATS', 'STORE', 'SHOP', 'PAYMENT', 'SERVICE', 'SERVICES', 'GROUP', 'TRADING',
-    'LIMITED', 'PTY', 'LTD', 'CO', 'COMPANY', 'SOC', 'PROPRIETARY', 'INC', 'CC', 'FROM', 'TO',
-    'PURCHASE', 'CHEQUE', 'CARD', 'DEBIT', 'ORDER', 'INTERNET', 'TRANSFER'
+    'NEW', 'ONLINE', 'TRIPS', 'EATS', 'STORE', 'SHOP', 'SERVICE', 'SERVICES', 'GROUP', 'TRADING',
+    'LIMITED', 'PROPRIETARY', 'INC', 'CC', 'FROM', 'TO',
+    'PURCHASE', 'CHEQUE', 'CARD', 'DEBIT', 'ORDER', 'INTERNET', 'TRANSFER', 'PAYMENT',
+    'AND'
 ];
+const LEGAL_SUFFIXES = ['PTY', 'LTD', 'CO', 'COMPANY', 'SOC'];
+const FORBIDDEN_TOKENS = [...PAYMENT_KEYWORDS, ...GATEWAYS, ...DESCRIPTOR_STOPWORDS, ...LEGAL_SUFFIXES];
 
 const REFERENCE_REGEX = [
     /\b[A-Z]{1,3}\d{3,}\b/g,      // e.g., I04539, INV12345
     /\b\d{4,}-\d{4,}\b/g,       // e.g., 04539-35779
     /\b\d{8,}\b/g,              // Long numeric strings (8+ digits)
-    /\b\*{6}\d{4}\b/g            // Masked card numbers e.g. ******7600
+    /\b\*{6,}\d{4,}\b/g,         // Masked card numbers e.g. 400568******7600
 ];
 
 function cleanDescription(description: string): CleanResult {
@@ -135,58 +126,67 @@ function cleanDescription(description: string): CleanResult {
     }
     
     // STAGE 1: Normalization
+    const originalForClean = description;
     let workingDesc = description.toUpperCase().replace(/\s+/g, ' ').trim();
-    let originalForClean = workingDesc;
 
-    // Initialize result object
     let paymentChannel: CleanResult['paymentChannel'] = 'UNKNOWN';
     let merchantKey = 'UNKNOWN';
     let confidence: CleanResult['confidence'] = 'LOW';
     const referenceTokens: string[] = [];
 
-    // STAGE 2: Detect Payment Method
-    for (const [channel, regex] of Object.entries(PAYMENT_CHANNELS)) {
-        if (regex.test(workingDesc)) {
-            paymentChannel = channel as CleanResult['paymentChannel'];
+    // STAGE 2: Detect & REMOVE Payment Keywords
+    for (const keyword of PAYMENT_KEYWORDS) {
+        if (workingDesc.startsWith(keyword)) {
+            if (['PURCH', 'CARD', 'POS'].some(k => keyword.includes(k))) paymentChannel = 'CARD';
+            else if (['EFT', 'IB PAY'].some(k => keyword.includes(k))) paymentChannel = 'EFT';
+            else if (['DEBIT ORDER', 'D/O'].some(k => keyword.includes(k))) paymentChannel = 'DEBIT_ORDER';
+            else if (['ATM'].some(k => keyword.includes(k))) paymentChannel = 'ATM';
+            else if (['TRANSFER', 'PAYMENT'].some(k => keyword.includes(k))) paymentChannel = 'TRANSFER';
+            
+            workingDesc = workingDesc.substring(keyword.length).trim();
+            break;
         }
     }
-
-    // STAGE 5: Payment Gateway Handling
-    const gatewayMatch = GATEWAYS.find(gw => workingDesc.startsWith(`${gw}*`));
-    if (gatewayMatch) {
-        workingDesc = workingDesc.substring(gatewayMatch.length + 1).trim();
-        confidence = 'HIGH'; // High confidence that what's left is the merchant
-    }
-
-    // STAGE 4: URL & Domain Intelligence
-    const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+)\.(?:co\.za|com|net|org|za)/;
-    const urlMatch = workingDesc.match(urlRegex);
-    if (urlMatch && urlMatch[1]) {
-        merchantKey = urlMatch[1];
-        confidence = 'HIGH';
-    }
-
-    // STAGE 3: Extract & Store Reference Data
-    if (merchantKey === 'UNKNOWN') {
-        REFERENCE_REGEX.forEach(regex => {
-            const matches = workingDesc.match(regex);
-            if (matches) {
-                matches.forEach(match => {
-                    referenceTokens.push(match);
-                    workingDesc = workingDesc.replace(match, ' ');
-                });
+    
+    // STAGE 3: Gateway + Star Handling
+    if (workingDesc.includes('*')) {
+        const parts = workingDesc.split('*');
+        const leftPart = parts[0].trim();
+        const rightPart = parts.slice(1).join('*').trim();
+        
+        if (GATEWAYS.includes(leftPart)) {
+            workingDesc = rightPart; // Discard gateway, process the rest
+        } else {
+            // Assume left side is the merchant if it's not a common short word
+            if(leftPart.length > 2) {
+              merchantKey = leftPart;
+              workingDesc = rightPart;
+              confidence = 'MEDIUM'; 
+            } else {
+              workingDesc = rightPart; // Discard what's likely noise
             }
-        });
+        }
     }
+    
+    // STAGE 4: Remove Reference Patterns
+    REFERENCE_REGEX.forEach(regex => {
+        const matches = workingDesc.match(regex);
+        if (matches) {
+            matches.forEach(match => {
+                referenceTokens.push(match);
+                workingDesc = workingDesc.replace(match, ' ');
+            });
+        }
+    });
+    
+    // Further cleaning of the working string
+    workingDesc = workingDesc.replace(/[^A-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // Further cleaning after reference extraction
-    workingDesc = workingDesc.replace(/[^A-Z0-9\s*./-]/g, ' ').replace(/\s+/g, ' ').trim();
-
-    // STAGE 7: Merchant Anchor Detection (Locking Logic)
-    if (merchantKey === 'UNKNOWN') {
+    // STAGE 5: Anchor Lock (only if a merchant wasn't found in STAGE 3)
+    if (merchantKey === 'UNKNOWN' || confidence !== 'MEDIUM') {
         const tokens = workingDesc.split(' ');
         
-        // 1. Exact Multi-word Match
+        // Multi-word first
         for (const multi of MULTI_WORD_MERCHANTS) {
             if (workingDesc.includes(multi)) {
                 merchantKey = multi;
@@ -195,9 +195,14 @@ function cleanDescription(description: string): CleanResult {
             }
         }
         
-        // 2. Alias Resolution
+        // Single-word merchants/aliases
         if (merchantKey === 'UNKNOWN') {
             for (const token of tokens) {
+                if (EXACT_MERCHANTS.includes(token)) {
+                    merchantKey = token;
+                    confidence = 'HIGH';
+                    break;
+                }
                 if (ALIASES[token]) {
                     merchantKey = ALIASES[token];
                     confidence = 'MEDIUM';
@@ -205,26 +210,14 @@ function cleanDescription(description: string): CleanResult {
                 }
             }
         }
-        
-        // 3. Exact Single-word Match
-        if (merchantKey === 'UNKNOWN') {
-             for (const token of tokens) {
-                if (EXACT_MERCHANTS.includes(token)) {
-                    merchantKey = token;
-                    confidence = 'HIGH';
-                    break;
-                }
-            }
-        }
     }
-
-    // STAGE 8: Scored Fallback Extraction
+    
+    // STAGE 6: Fallback (if still no good merchant)
     if (merchantKey === 'UNKNOWN') {
         const significantTokens = workingDesc.split(' ').filter(token => 
             token.length >= 3 &&
-            !/^\d+$/.test(token) && // not just numbers
-            !GATEWAYS.includes(token) &&
-            !DESCRIPTOR_STOPWORDS.includes(token)
+            !/^\d+$/.test(token) &&
+            !FORBIDDEN_TOKENS.includes(token)
         );
         if (significantTokens.length > 0) {
             merchantKey = significantTokens[0];
@@ -234,11 +227,25 @@ function cleanDescription(description: string): CleanResult {
 
     // STAGE 9: Self-Check Validation Loop
     if (merchantKey !== 'UNKNOWN') {
-        if (DESCRIPTOR_STOPWORDS.includes(merchantKey) || GATEWAYS.includes(merchantKey) || /^\d+$/.test(merchantKey)) {
+        const finalKeyLower = merchantKey.toLowerCase();
+        // Check if the final key is a forbidden word
+        if (FORBIDDEN_TOKENS.map(f => f.toLowerCase()).includes(finalKeyLower) || /^\d+$/.test(merchantKey)) {
+            // This case should be rare now, but as a safe-guard
             merchantKey = 'UNKNOWN';
             confidence = 'LOW';
+        } else if (confidence === 'MEDIUM' || confidence === 'HIGH') {
+            // It's a good match, but let's clean up any leftover junk
+             const finalTokens = merchantKey.split(' ');
+             const cleanedTokens = finalTokens.filter(t => !DESCRIPTOR_STOPWORDS.includes(t) && !LEGAL_SUFFIXES.includes(t));
+             merchantKey = cleanedTokens.join(' ');
         }
     }
+
+    if (ALIASES[merchantKey]) {
+      merchantKey = ALIASES[merchantKey];
+    }
+    
+    if (merchantKey === '') merchantKey = 'UNKNOWN';
     
     return {
         cleanedDescription: originalForClean,
@@ -246,7 +253,7 @@ function cleanDescription(description: string): CleanResult {
         paymentChannel,
         referenceTokens: [...new Set(referenceTokens)],
         confidence,
-        overrideRequired: confidence === 'LOW',
+        overrideRequired: confidence === 'LOW' || merchantKey === 'UNKNOWN',
     };
 }
 // #endregion
@@ -3868,6 +3875,3 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
-
-
-    
