@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -389,19 +390,17 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 };
                 
                 if (transaction.amount < 0 && allRules.length > 0) {
-                    const merchantKeyLower = transaction.merchantKey?.toLowerCase() || '';
-                    if(merchantKeyLower) {
-                        const matchedRule = allRules.find(rule => 
-                            rule.keywords.some(kw => merchantKeyLower.includes(kw.toLowerCase()))
-                        );
+                    const rawDescriptionLower = row.Description.toLowerCase();
+                    const matchedRule = allRules.find(rule => 
+                        rule.keywords.some(kw => rawDescriptionLower.includes(kw.toLowerCase()))
+                    );
 
-                        if (matchedRule) {
-                            transaction.status = 'review';
-                            transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
-                            transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
-                            transaction.allocatedAt = new Date();
-                            allocatedCount++;
-                        }
+                    if (matchedRule) {
+                        transaction.status = 'review';
+                        transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
+                        transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
+                        transaction.allocatedAt = new Date();
+                        allocatedCount++;
                     }
                 }
                 
