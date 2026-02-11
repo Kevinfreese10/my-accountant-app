@@ -68,9 +68,59 @@ type CleanResult = {
   cleanedDescription: string;
   merchantKey: string;
   paymentChannel: "CARD" | "EFT" | "DEBIT_ORDER" | "ATM" | "TRANSFER" | "UNKNOWN";
-  merchantMethod: "anchor" | "alias" | "regex" | "fallback";
   referenceTokens: string[];
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  overrideRequired: boolean;
 };
+
+
+const PAYMENT_CHANNELS = {
+    CARD: /\b(CHEQUE CARD|CARD PURCHASE|POS|CREDIT CARD|PURCH)\b/,
+    EFT: /\b(EFT|IB PAY|IB TRF)\b/,
+    DEBIT_ORDER: /\b(DEBIT ORDER|D\/O|NAEDO|DO-)\b/,
+    ATM: /\b(ATM WITHDRAWAL|CASH WD)\b/,
+    TRANSFER: /\b(TRANSFER|TRF|PAYMENT)\b/,
+};
+
+const GATEWAYS = ['FLW', 'PAYFAST', 'PAYPAL', 'STRIPE', 'OZOW', 'YCO', 'DPO', 'PAYU'];
+
+const EXACT_MERCHANTS = [
+    'UBER', 'CANVA', 'GOOGLE', 'TAKEALOT', 'NETFLIX', 'VODACOM', 'MTN', 'CELL C', 'TELKOM',
+    'DISCOVERY', 'SANLAM', 'OLD MUTUAL', 'MOMENTUM', 'HOLLARD', 'OUTSURANCE', 'MIWAY', 'KING PRICE',
+    'AFRIHOST', 'AQUAZANIA', 'DISCINSURE', 'BOOKING.COM', 'SHELL', 'BP', 'ENGEN', 'TOTAL', 'SASOL',
+    'PICK N PAY', 'CHECKERS', 'WOOLWORTHS', 'SHOPRITE', 'SPAR', 'CLICKS', 'DISCHEM', 'MR D',
+    'UBER EATS'
+];
+
+const ALIASES: { [key: string]: string } = {
+    'PNP': 'PICK N PAY',
+    'P N P': 'PICK N PAY',
+    'PICKNPAY': 'PICK N PAY',
+    'VODA': 'VODACOM',
+    'VODACOMSA': 'VODACOM',
+    'TAKEALOT.COM': 'TAKEALOT',
+    'CHECKERSHYP': 'CHECKERS',
+    'WWW.GOOGLE.COM': 'GOOGLE',
+    'WWW.TAKEALOT.COM': 'TAKEALOT',
+    'UBER.CO': 'UBER'
+};
+
+const MULTI_WORD_MERCHANTS = [
+    'PICK N PAY', 'UBER EATS', 'CHECKERS HYPER', 'KING PRICE', 'OLD MUTUAL', 'DISC INSURE'
+];
+
+const DESCRIPTOR_STOPWORDS = [
+    'NEW', 'ONLINE', 'TRIPS', 'EATS', 'STORE', 'SHOP', 'PAYMENT', 'SERVICE', 'SERVICES', 'GROUP', 'TRADING',
+    'LIMITED', 'PTY', 'LTD', 'CO', 'COMPANY', 'SOC', 'PROPRIETARY', 'INC', 'CC', 'FROM', 'TO',
+    'PURCHASE', 'CHEQUE', 'CARD', 'DEBIT', 'ORDER', 'INTERNET', 'TRANSFER'
+];
+
+const REFERENCE_REGEX = [
+    /\b[A-Z]{1,3}\d{3,}\b/g,      // e.g., I04539, INV12345
+    /\b\d{4,}-\d{4,}\b/g,       // e.g., 04539-35779
+    /\b\d{8,}\b/g,              // Long numeric strings (8+ digits)
+    /\b\*{6}\d{4}\b/g            // Masked card numbers e.g. ******7600
+];
 
 function cleanDescription(description: string): CleanResult {
     if (!description) {
@@ -78,122 +128,125 @@ function cleanDescription(description: string): CleanResult {
             cleanedDescription: '',
             merchantKey: 'UNKNOWN',
             paymentChannel: 'UNKNOWN',
-            merchantMethod: 'fallback',
             referenceTokens: [],
+            confidence: 'LOW',
+            overrideRequired: true,
         };
     }
     
-    const originalUpper = description.toUpperCase().trim();
-    let cleaned = originalUpper;
-    const referenceTokens: string[] = [];
-    let merchantMethod: CleanResult['merchantMethod'] = 'fallback';
-    let merchantKey: string = '';
+    // STAGE 1: Normalization
+    let workingDesc = description.toUpperCase().replace(/\s+/g, ' ').trim();
+    let originalForClean = workingDesc;
 
-    // 1. Detect Payment Channel
+    // Initialize result object
     let paymentChannel: CleanResult['paymentChannel'] = 'UNKNOWN';
-    if (/\b(CHEQUE CARD|CARD PURCHASE|POS|CREDIT CARD)\b/.test(originalUpper)) paymentChannel = 'CARD';
-    else if (/\b(EFT)\b/.test(originalUpper)) paymentChannel = 'EFT';
-    else if (/\b(DEBIT ORDER|D\/O)\b/.test(originalUpper)) paymentChannel = 'DEBIT_ORDER';
-    else if (/\b(ATM)\b/.test(originalUpper)) paymentChannel = 'ATM';
-    else if (/\b(TRANSFER|TRF)\b/.test(originalUpper)) paymentChannel = 'TRANSFER';
+    let merchantKey = 'UNKNOWN';
+    let confidence: CleanResult['confidence'] = 'LOW';
+    const referenceTokens: string[] = [];
 
-    // 2. Extract reference tokens before cleaning
-    const refRegex = /\b(REF|AUTH|TXN|TRN)[\s\-]*([A-Z0-9]+)\b/gi;
-    let match;
-    while ((match = refRegex.exec(cleaned)) !== null) {
-        if (match[2]) referenceTokens.push(match[2]);
-    }
-    const codeRegex = /\b([A-Z]*\d+[A-Z\d]*)\b/g;
-    while ((match = codeRegex.exec(cleaned)) !== null) {
-         if (match[0].length > 8 && !/^[A-Z]+$/.test(match[0])) { // More than 8 chars, contains numbers
-            referenceTokens.push(match[0]);
+    // STAGE 2: Detect Payment Method
+    for (const [channel, regex] of Object.entries(PAYMENT_CHANNELS)) {
+        if (regex.test(workingDesc)) {
+            paymentChannel = channel as CleanResult['paymentChannel'];
         }
     }
-    
-    // 3. Strip prefixes
-    const prefixes = ['CHEQUE CARD PURCHASE', 'CARD PURCHASE', 'POS PURCHASE', 'DEBIT CARD PURCH', 'PURCH', 'EFT PAYMENT', 'INTERNET TRANSFER', 'IB PAYMENT', 'ONLINE PAYMENT', 'PAYMENT TO', 'PAYMENT FROM', 'PAYMENT', 'TRF', 'TRANSFER', 'XFER', 'IB', 'DEBIT ORDER', 'D/O', 'NAEDO COLLECTION', 'COLLECTION', 'DEBIT ORD', 'DO', 'ATM WITHDRAWAL', 'CASH WITHDRAWAL', 'ATM', 'CASH WD', 'BANK CHARGES', 'SERVICE FEE', 'MONTHLY FEE', 'LEDGER FEE', 'ADMIN FEE', 'COMMISSION', 'CHARGES', 'DEBIT', 'CREDIT' ];
-    const prefixRegex = new RegExp(`^\\s*(${prefixes.join('|').replace(/\s/g, '\\s*')})\\s*`, 'i');
-    cleaned = cleaned.replace(prefixRegex, '').trim();
 
-    // 4. Remove noise (dates, times, locations)
-    cleaned = cleaned.replace(refRegex, '');
-    cleaned = cleaned.replace(/\b\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\b/g, ''); 
-    cleaned = cleaned.replace(/\b\d{4}[\/\-]\d{2}[\/\-]\d{2}\b/g, ''); 
-    cleaned = cleaned.replace(/\b\d{1,2}\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/gi, '');
-    cleaned = cleaned.replace(/\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{1,2}\b/gi, '');
-    cleaned = cleaned.replace(/\b\d{2}:\d{2}(:\d{2})?\b/g, ''); 
-    cleaned = cleaned.replace(/\b(JHB|CPT|DBN|ZA|SOUTH AFRICA|S A)\b/gi, '');
-    
-    // 5. Remove legal entities
-    const legalSuffixes = /\b(PTY|LTD|LIMITED|CC|INC|CO|COMPANY|SOC|PROPRIETARY)\b/gi;
-    cleaned = cleaned.replace(legalSuffixes, '');
-    
-    // 6. Final normalization
-    cleaned = cleaned.replace(/[*\/#_\-.,']/g, ' ').replace(/\s+/g, ' ').trim();
-    
-    const cleanedDescriptionForReturn = cleaned;
-
-    // 7. Derive merchantKey
-    const anchorMap: { [key: string]: string } = { 'DISCOVERY': 'DISCOVERY', 'SANLAM': 'SANLAM', 'OLD MUTUAL': 'OLD MUTUAL', 'MOMENTUM': 'MOMENTUM', 'HOLLARD': 'HOLLARD', 'AFRIHOST': 'AFRIHOST', 'AQUAZANIA': 'AQUAZANIA', 'DISCINSURE': 'DISCINSURE', 'OUTSURANCE': 'OUTSURANCE', 'MIWAY': 'MIWAY', 'KING PRICE': 'KING PRICE', 'BOOKING.COM': 'BOOKING.COM', 'TELKOM': 'TELKOM', 'CREDIT CARD': 'CREDIT CARD', 'SDS PROTECT': 'SDS PROTECT' };
-    const aliasMap: { [key: string]: string } = { 'PNP': 'PICK N PAY', 'PICKNPAY': 'PICK N PAY', 'VODA': 'VODACOM', 'VODACOMSA': 'VODACOM', 'TAKEALOT.COM': 'TAKEALOT' };
-    const genericBlacklist = ["PAYMENT","PURCHASE","TRANSFER","TRF","ONLINE","EFT","CARD","POS","DEBIT","ORDER","ATM","WITHDRAWAL","REF","REFERENCE","BANK","FEE","CHARGE"];
-
-    for (const anchor in anchorMap) {
-        if (originalUpper.startsWith(anchor)) {
-            merchantKey = anchorMap[anchor];
-            merchantMethod = 'anchor';
-            break;
-        }
+    // STAGE 5: Payment Gateway Handling
+    const gatewayMatch = GATEWAYS.find(gw => workingDesc.startsWith(`${gw}*`));
+    if (gatewayMatch) {
+        workingDesc = workingDesc.substring(gatewayMatch.length + 1).trim();
+        confidence = 'HIGH'; // High confidence that what's left is the merchant
     }
-    if (!merchantKey) {
-        for (const anchor in anchorMap) {
-            if (cleaned.includes(anchor)) {
-                merchantKey = anchorMap[anchor];
-                merchantMethod = 'anchor';
+
+    // STAGE 4: URL & Domain Intelligence
+    const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+)\.(?:co\.za|com|net|org|za)/;
+    const urlMatch = workingDesc.match(urlRegex);
+    if (urlMatch && urlMatch[1]) {
+        merchantKey = urlMatch[1];
+        confidence = 'HIGH';
+    }
+
+    // STAGE 3: Extract & Store Reference Data
+    if (merchantKey === 'UNKNOWN') {
+        REFERENCE_REGEX.forEach(regex => {
+            const matches = workingDesc.match(regex);
+            if (matches) {
+                matches.forEach(match => {
+                    referenceTokens.push(match);
+                    workingDesc = workingDesc.replace(match, ' ');
+                });
+            }
+        });
+    }
+
+    // Further cleaning after reference extraction
+    workingDesc = workingDesc.replace(/[^A-Z0-9\s*./-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // STAGE 7: Merchant Anchor Detection (Locking Logic)
+    if (merchantKey === 'UNKNOWN') {
+        const tokens = workingDesc.split(' ');
+        
+        // 1. Exact Multi-word Match
+        for (const multi of MULTI_WORD_MERCHANTS) {
+            if (workingDesc.includes(multi)) {
+                merchantKey = multi;
+                confidence = 'HIGH';
                 break;
+            }
+        }
+        
+        // 2. Alias Resolution
+        if (merchantKey === 'UNKNOWN') {
+            for (const token of tokens) {
+                if (ALIASES[token]) {
+                    merchantKey = ALIASES[token];
+                    confidence = 'MEDIUM';
+                    break;
+                }
+            }
+        }
+        
+        // 3. Exact Single-word Match
+        if (merchantKey === 'UNKNOWN') {
+             for (const token of tokens) {
+                if (EXACT_MERCHANTS.includes(token)) {
+                    merchantKey = token;
+                    confidence = 'HIGH';
+                    break;
+                }
             }
         }
     }
 
-    if (!merchantKey) {
-        const words = cleaned.split(' ');
-        for (const word of words) {
-            if (aliasMap[word]) {
-                merchantKey = aliasMap[word];
-                merchantMethod = 'alias';
-                break;
-            }
-        }
-    }
-    
-    if (!merchantKey) {
-        const tokens = cleaned.split(' ').filter(token => 
-            token && 
-            token.length >= 3 && 
-            !/^\d+$/.test(token) &&
-            !genericBlacklist.includes(token)
+    // STAGE 8: Scored Fallback Extraction
+    if (merchantKey === 'UNKNOWN') {
+        const significantTokens = workingDesc.split(' ').filter(token => 
+            token.length >= 3 &&
+            !/^\d+$/.test(token) && // not just numbers
+            !GATEWAYS.includes(token) &&
+            !DESCRIPTOR_STOPWORDS.includes(token)
         );
-        if (tokens.length > 0) {
-            if (tokens.indexOf('PICK') !== -1 && tokens.indexOf('N') !== -1 && tokens.indexOf('PAY') !== -1) {
-                merchantKey = 'PICK N PAY';
-            } else {
-                 merchantKey = tokens.slice(0, 2).join(' ');
-            }
-            merchantMethod = 'regex';
+        if (significantTokens.length > 0) {
+            merchantKey = significantTokens[0];
+            confidence = 'LOW';
         }
     }
 
-    if (!merchantKey || genericBlacklist.includes(merchantKey.trim())) {
-        merchantKey = 'UNKNOWN';
-        merchantMethod = 'fallback';
+    // STAGE 9: Self-Check Validation Loop
+    if (merchantKey !== 'UNKNOWN') {
+        if (DESCRIPTOR_STOPWORDS.includes(merchantKey) || GATEWAYS.includes(merchantKey) || /^\d+$/.test(merchantKey)) {
+            merchantKey = 'UNKNOWN';
+            confidence = 'LOW';
+        }
     }
-
+    
     return {
-        cleanedDescription: cleanedDescriptionForReturn,
-        merchantKey: merchantKey.trim(),
+        cleanedDescription: originalForClean,
+        merchantKey,
         paymentChannel,
-        merchantMethod,
         referenceTokens: [...new Set(referenceTokens)],
+        confidence,
+        overrideRequired: confidence === 'LOW',
     };
 }
 // #endregion
@@ -308,8 +361,9 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     cleanedDescription: cleanResult.cleanedDescription,
                     merchantKey: cleanResult.merchantKey,
                     paymentChannel: cleanResult.paymentChannel,
-                    merchantMethod: cleanResult.merchantMethod,
                     referenceTokens: cleanResult.referenceTokens,
+                    confidence: cleanResult.confidence,
+                    overrideRequired: cleanResult.overrideRequired,
                     amount: row.Amount,
                     bankAccountId: bankAccountId,
                     status: 'new'
@@ -1240,8 +1294,9 @@ const NewTransactionsTab = React.forwardRef<
                             cleanedDescription: cleanResult.cleanedDescription,
                             merchantKey: cleanResult.merchantKey,
                             paymentChannel: cleanResult.paymentChannel,
-                            merchantMethod: cleanResult.merchantMethod,
                             referenceTokens: cleanResult.referenceTokens,
+                            confidence: cleanResult.confidence,
+                            overrideRequired: cleanResult.overrideRequired,
                         });
                         refreshedCount++;
                     }
@@ -3813,3 +3868,6 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
+
+
+    

@@ -27,6 +27,7 @@ export type AllocationRule = {
   accountId: string;
   vatType: VatType;
   scope?: 'client' | 'global';
+  priority?: number;
 };
 
 export type DocumentUpload = {
@@ -353,8 +354,9 @@ export type ImportedTransaction = {
     cleanedDescription?: string;
     merchantKey?: string;
     paymentChannel?: "CARD" | "EFT" | "DEBIT_ORDER" | "ATM" | "TRANSFER" | "UNKNOWN";
-    merchantMethod?: "anchor" | "alias" | "regex" | "fallback";
     referenceTokens?: string[];
+    confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+    overrideRequired?: boolean;
     amount: number;
     bankAccountId: string;
     status: 'new' | 'allocated' | 'review' | 'reviewed' | 'ai_processing' | 'ai_review';
@@ -472,3 +474,5 @@ export const FindStoryNameOutputSchema = z.object({
   storyName: z.string().optional().describe('The corresponding story name found in the knowledge base. Returns nothing if no match is found.'),
 });
 export type FindStoryNameOutput = z.infer<typeof FindStoryNameOutputSchema>;
+
+    
