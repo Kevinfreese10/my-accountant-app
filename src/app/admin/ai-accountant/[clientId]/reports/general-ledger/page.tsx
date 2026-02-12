@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
-import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs, deleteField } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye, Edit, Trash2, Search, Link as LinkIcon, Scale, ChevronsUpDown } from "lucide-react";
 import { useParams, useSearchParams } from 'next/navigation';
@@ -126,7 +126,7 @@ function ReallocateDialog({ transaction, client, onSave, onOpenChange, open }: {
     );
 }
 
-function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, onReallocate, onDelete }: { 
+function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, onReallocate, onDelete, onClear }: { 
     client: User, 
     transactions: (ImportedTransaction | AllocatedTransaction)[], 
     dateRange?: DateRange, 
@@ -134,7 +134,9 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
     toAccount?: string,
     onReallocate: (tx: any) => void, 
     onDelete: (journalRef: string) => void,
+    onClear: (txIds: string[]) => void
 }) {
+    const [selectedSuspenseTxIds, setSelectedSuspenseTxIds] = useState<string[]>([]);
         
     const filteredTransactions = useMemo(() => {
         let filtered = transactions;
@@ -225,7 +227,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                 }
                 
                  // 2. Contra Account Entry (VAT Exclusive)
-                const contraAccountId = tx.status === 'allocated' ? tx.allocatedTo!.value : suspenseAccountId;
+                const contraAccountId = tx.status === 'allocated' && tx.allocatedTo ? tx.allocatedTo.value : suspenseAccountId;
                 const contraEntry = grouped.get(contraAccountId);
                 if(contraEntry) {
                     const bankAccountName = accountsToDisplay.find(a => a.id === tx.bankAccountId)?.description || 'Bank';
@@ -273,6 +275,27 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
         return Array.from(grouped.values()).filter(g => g.transactions.length > 0);
 
     }, [filteredTransactions, accountsToDisplay, client.isVatRegistered]);
+    
+    const handleSelectSuspenseTx = (id: string, isSelected: boolean) => {
+        if (isSelected) {
+            setSelectedSuspenseTxIds(prev => [...prev, id]);
+        } else {
+            setSelectedSuspenseTxIds(prev => prev.filter(txId => txId !== id));
+        }
+    };
+    
+    const handleSelectAllSuspense = (isSelected: boolean, transactionIds: string[]) => {
+        if (isSelected) {
+            setSelectedSuspenseTxIds(transactionIds);
+        } else {
+            setSelectedSuspenseTxIds([]);
+        }
+    };
+    
+    const handleClearClick = () => {
+        onClear(selectedSuspenseTxIds);
+        setSelectedSuspenseTxIds([]); // Clear selection after action
+    };
 
     const handleDownloadExcel = () => {
         let excelData: any[] = [];
@@ -315,7 +338,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
         worksheet['!cols'] = [{ wch: 12 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
         
         Object.keys(worksheet).forEach(key => {
-            if (/[C-E]\d+/.test(key)) {
+             if (/[C-E]\d+/.test(key)) {
                 const cell = worksheet[key];
                 if (cell.v !== null && typeof cell.v === 'number') {
                     cell.t = 'n';
@@ -335,12 +358,46 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
     return (
         <>
             <div className="max-h-[70vh] overflow-y-auto space-y-6">
-                {groupedTransactions.map(group => (
+                {groupedTransactions.map(group => {
+                    const isSuspenseAccount = group.account.accountNumber === '9500-001';
+                    const groupTxIds = group.transactions.map(tx => tx.id);
+                    return (
                     <div key={group.account.id}>
-                        <h3 className="font-bold text-lg mb-2">{group.account.accountNumber} - {group.account.description}</h3>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-bold text-lg">{group.account.accountNumber} - {group.account.description}</h3>
+                            {isSuspenseAccount && selectedSuspenseTxIds.length > 0 && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button size="sm" variant="destructive">
+                                            Clear Allocation ({selectedSuspenseTxIds.length})
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                     <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will clear the allocation for {selectedSuspenseTxIds.length} transaction(s) and move them back to the 'New' tab for processing. This action cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleClearClick}>Yes, Clear Allocations</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
+                        </div>
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    {isSuspenseAccount && (
+                                        <TableHead className="w-12">
+                                            <Checkbox 
+                                                checked={selectedSuspenseTxIds.length > 0 && selectedSuspenseTxIds.length === groupTxIds.length}
+                                                onCheckedChange={(checked) => handleSelectAllSuspense(!!checked, groupTxIds)}
+                                            />
+                                        </TableHead>
+                                    )}
                                     <TableHead>Date</TableHead>
                                     <TableHead>Description</TableHead>
                                     <TableHead className="text-right">Debit</TableHead>
@@ -352,6 +409,14 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                             <TableBody>
                                 {group.transactions.map((tx, index) => (
                                     <TableRow key={index}>
+                                         {isSuspenseAccount && (
+                                            <TableCell>
+                                                <Checkbox 
+                                                    checked={selectedSuspenseTxIds.includes(tx.id)}
+                                                    onCheckedChange={(checked) => handleSelectSuspenseTx(tx.id, !!checked)}
+                                                />
+                                            </TableCell>
+                                        )}
                                         <TableCell>{format(tx.date, 'dd/MM/yyyy')}</TableCell>
                                         <TableCell>{tx.description}</TableCell>
                                         <TableCell className="text-right font-mono">
@@ -389,7 +454,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                             </TableBody>
                             <TableFooter>
                                 <TableRow>
-                                    <TableCell colSpan={2} className="font-bold">Totals</TableCell>
+                                    <TableCell colSpan={isSuspenseAccount ? 3 : 2} className="font-bold">Totals</TableCell>
                                     <TableCell className="text-right font-bold font-mono">{formatPrice(group.totalDebit)}</TableCell>
                                     <TableCell className="text-right font-bold font-mono">{formatPrice(group.totalCredit)}</TableCell>
                                     <TableCell colSpan={2}></TableCell>
@@ -397,7 +462,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                             </TableFooter>
                         </Table>
                     </div>
-                ))}
+                )})}
             </div>
              <DialogFooter className="mt-4">
                 <Button variant="outline" onClick={handleDownloadExcel}>
@@ -483,6 +548,30 @@ export default function GeneralLedgerPage() {
             console.error("Error reallocating transaction:", error);
             toast({ title: "Error", description: "Could not save the changes.", variant: "destructive" });
         }
+    };
+    
+    const handleClearAllocations = async (txIds: string[]) => {
+      if (!client) return;
+      toast({ title: "Clearing allocations...", description: "Please wait." });
+      try {
+        const batch = writeBatch(db);
+        txIds.forEach(id => {
+          const txRef = doc(db, 'aiAccountantClients', client.id, 'transactions', id);
+          batch.update(txRef, {
+            status: 'new',
+            allocatedTo: deleteField(),
+            vatType: deleteField(),
+            allocatedAt: deleteField(),
+            aiAllocationResult: deleteField()
+          });
+        });
+        await batch.commit();
+        toast({ title: "Success!", description: `${txIds.length} transaction(s) have been reset and sent to the 'New' tab.` });
+        // No need to call fetchAllData, onSnapshot will handle it
+      } catch (e) {
+        console.error(e);
+        toast({ title: 'Error', description: 'Could not clear allocations.', variant: 'destructive' });
+      }
     };
     
      const handleDeleteJournal = async (journalReference: string) => {
@@ -592,6 +681,7 @@ export default function GeneralLedgerPage() {
                                             toAccount={toAccount}
                                             onReallocate={handleReallocateClick}
                                             onDelete={handleDeleteJournal}
+                                            onClear={handleClearAllocations}
                                         />
                                     </DialogContent>
                                 </Dialog>
@@ -615,4 +705,3 @@ export default function GeneralLedgerPage() {
     );
 }
 
-    
