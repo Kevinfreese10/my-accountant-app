@@ -295,7 +295,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     );
 
                     if (matchedRule) {
-                        transaction.status = 'review';
+                        transaction.status = 'reviewed';
                         transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
                         transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
                         transaction.allocatedAt = new Date();
@@ -1012,7 +1012,7 @@ const NewTransactionsTab = React.forwardRef<
                     if (matchedRule) {
                         const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
                         batch.update(transactionRef, {
-                            status: 'review',
+                            status: 'reviewed',
                             allocatedTo: { value: matchedRule.accountId, type: 'account' },
                             vatType: client.isVatRegistered ? matchedRule.vatType : 'no_vat',
                             allocatedAt: new Date(),
@@ -1153,7 +1153,7 @@ const NewTransactionsTab = React.forwardRef<
                 chunk.forEach(txId => {
                     const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.update(transactionRef, {
-                        status: 'review',
+                        status: 'reviewed',
                         allocatedTo: allocation,
                         vatType: client.isVatRegistered ? vatType : 'no_vat',
                         allocatedAt: new Date(),
@@ -1301,7 +1301,7 @@ const NewTransactionsTab = React.forwardRef<
                     if (allocation && allocation.value) {
                          const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
                          batch.update(transactionRef, {
-                            status: 'review',
+                            status: 'reviewed',
                             allocatedTo: { value: allocation.value, type: allocation.type },
                             vatType: client.isVatRegistered ? allocation.vatType || (allocation.type === 'customer' ? 'no_vat' : 'standard_rated_purchases') : 'no_vat',
                             allocatedAt: new Date(),
@@ -1311,7 +1311,7 @@ const NewTransactionsTab = React.forwardRef<
                 }
             }
             await batch.commit();
-            toast({ title: `${count} allocations saved!`, description: 'Transactions moved to Pending Review.' });
+            toast({ title: `${count} allocations saved!`, description: 'Transactions moved to Reviewed.' });
             setAllocations({});
             setSearchTerm('');
             setSearchResults(null);
@@ -1667,228 +1667,6 @@ const NewTransactionsTab = React.forwardRef<
     );
 });
 NewTransactionsTab.displayName = 'NewTransactionsTab';
-
-const ForReviewTab = React.forwardRef<
-    { refetch: () => void; },
-    { client: User | null; bankAccountId: string | null; fetchClientData: () => void; customers: ClientCustomer[] }
->(({ client, bankAccountId, fetchClientData, customers }, ref) => {
-    
-    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
-    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
-    const { toast } = useToast();
-    const [accountFilter, setAccountFilter] = useState('all');
-
-    const baseQuery = useMemo(() => {
-        if (!client?.uid || !bankAccountId) return null;
-        let constraints: QueryConstraint[] = [
-            where('bankAccountId', '==', bankAccountId),
-            where('status', '==', 'review'),
-        ];
-        
-        if (accountFilter !== 'all') {
-            constraints.push(where('allocatedTo.value', '==', accountFilter));
-        }
-        constraints.push(orderBy('date', 'desc'));
-        
-        return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, accountFilter]);
-
-    const {
-        documents: paginatedDocuments,
-        isLoading,
-        goToNextPage,
-        goToPreviousPage,
-        canGoNext,
-        canGoPrev,
-        currentPage,
-        refetch
-    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: baseQuery, pageSize: PAGE_SIZE });
-
-    const transactions = useMemo(() => {
-        if (activeSubTab === 'expenses') {
-            return paginatedDocuments.filter(tx => tx.amount < 0);
-        } else {
-            return paginatedDocuments.filter(tx => tx.amount >= 0);
-        }
-    }, [paginatedDocuments, activeSubTab]);
-
-    React.useImperativeHandle(ref, () => ({
-        refetch,
-    }));
-
-    useEffect(() => {
-        refetch();
-    }, [activeSubTab, accountFilter, refetch]);
-
-    const accountsForFilter = useMemo(() => {
-        if (!client || !client.chartOfAccounts) return [];
-        const accountsInTransactions = new Set(
-            paginatedDocuments.filter(tx => tx.allocatedTo?.type === 'account').map(tx => tx.allocatedTo!.value)
-        );
-        return client.chartOfAccounts.filter(acc => accountsInTransactions.has(acc.id));
-    }, [client, paginatedDocuments]);
-
-    const handleBulkAction = async (action: 'approve' | 'reject') => {
-        if (!client || !client.uid || selectedTransactions.length === 0) return;
-
-        const verb = action === 'approve' ? 'Approving' : 'Rejecting';
-        const pastVerb = action === 'approve' ? 'Approved' : 'Rejected';
-        toast({ title: `${verb} transactions...`, description: `Processing ${selectedTransactions.length} items.` });
-
-        try {
-            const batch = writeBatch(db);
-            selectedTransactions.forEach(txId => {
-                const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                if (action === 'approve') {
-                    batch.update(transactionRef, { status: 'reviewed' });
-                } else { // reject
-                    batch.update(transactionRef, { 
-                        status: 'new',
-                        allocatedTo: deleteField(),
-                        vatType: deleteField(),
-                        allocatedAt: deleteField(),
-                    });
-                }
-            });
-            await batch.commit();
-
-            toast({ title: 'Success', description: `${selectedTransactions.length} transactions have been ${pastVerb.toLowerCase()}.` });
-            setSelectedTransactions([]);
-            refetch();
-        } catch (error) {
-            console.error(`Error ${verb.toLowerCase()} transactions:`, error);
-            toast({ title: 'Error', description: `Could not ${action} transactions.`, variant: 'destructive' });
-        }
-    };
-
-    const getFullAllocationName = (tx: ImportedTransaction): string => {
-        if (!tx.allocatedTo) return 'N/A';
-        const { type, value } = tx.allocatedTo;
-
-        if (type === 'account') {
-            const account = client?.chartOfAccounts?.find(acc => acc.id === value);
-            return account?.description || 'Unknown Account';
-        }
-        if (type === 'customer') {
-            const customer = customers.find(c => c.id === value);
-            return customer?.name || 'Unknown Customer';
-        }
-        return 'Unknown';
-    };
-
-
-    return (
-        <Card>
-            <CardHeader className="p-0">
-                <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
-                        <TabsTrigger value="expenses">Expenses</TabsTrigger>
-                        <TabsTrigger value="income">Income</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-                <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2">
-                         <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
-                            <CheckCheck className="mr-2 h-4 w-4" /> Approve Selected ({selectedTransactions.length})
-                        </Button>
-                        <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
-                            <Ban className="mr-2 h-4 w-4" /> Reject Selected ({selectedTransactions.length})
-                        </Button>
-                    </div>
-                     <div className="w-full sm:w-auto">
-                        <Select value={accountFilter} onValueChange={setAccountFilter}>
-                            <SelectTrigger className="w-full sm:w-[240px]">
-                                <SelectValue placeholder="Filter by account..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Accounts</SelectItem>
-                                {accountsForFilter.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableCell className="w-12 p-2">
-                                     <Checkbox
-                                        checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
-                                        onCheckedChange={(checked) => {
-                                            setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
-                                        }}
-                                    />
-                                </TableCell>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead>Allocated To</TableHead>
-                                <TableHead>VAT Type</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                             {isLoading ? (
-                                <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
-                            ) : transactions.length === 0 ? (
-                                <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No transactions for review.</TableCell></TableRow>
-                            ) : (
-                                transactions.map(tx => (
-                                    <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
-                                        <TableCell className="p-2">
-                                            <Checkbox
-                                                checked={selectedTransactions.includes(tx.id)}
-                                                onCheckedChange={(checked) => {
-                                                    setSelectedTransactions(prev =>
-                                                        checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
-                                                    );
-                                                }}
-                                            />
-                                        </TableCell>
-                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                        <TableCell>{tx.description}</TableCell>
-                                        <TableCell>{getFullAllocationName(tx)}</TableCell>
-                                        <TableCell>{allVatTypes.find(vt => vt.name === tx.vatType)?.label || tx.vatType}</TableCell>
-                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-             <CardFooter className="flex items-center justify-end p-4">
-                 <div className="flex items-center space-x-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToPreviousPage}
-                        disabled={!canGoPrev || isLoading}
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                        Previous
-                    </Button>
-                    <span className="text-sm font-medium">
-                        Page {currentPage}
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToNextPage}
-                        disabled={!canGoNext || isLoading}
-                    >
-                        Next
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
-            </CardFooter>
-        </Card>
-    )
-});
-ForReviewTab.displayName = 'ForReviewTab';
 
 const ReviewedTab = React.forwardRef<
     { refetch: () => void; },
@@ -3302,7 +3080,65 @@ function BankTransactionsPage() {
 
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const reviewedTabRef = useRef<{ refetch: () => void }>(null);
-    const forReviewTabRef = useRef<{ refetch: () => void }>(null);
+    
+    useEffect(() => {
+        const migrateReviewTransactions = async () => {
+            if (!client?.uid) return;
+            
+            const reviewQuery = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('status', '==', 'review')
+            );
+    
+            try {
+                const snapshot = await getDocs(reviewQuery);
+                if (snapshot.empty) {
+                    return;
+                }
+    
+                const batch = writeBatch(db);
+                let migratedCount = 0;
+    
+                snapshot.docs.forEach(docSnap => {
+                    const tx = docSnap.data() as ImportedTransaction;
+                    const docRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', docSnap.id);
+                    
+                    if (tx.allocatedTo && tx.allocatedTo.value) {
+                        batch.update(docRef, { status: 'reviewed' });
+                    } else {
+                        batch.update(docRef, { 
+                            status: 'new',
+                            allocatedTo: deleteField(),
+                            vatType: deleteField(),
+                            allocatedAt: deleteField()
+                        });
+                    }
+                    migratedCount++;
+                });
+    
+                if(migratedCount > 0) {
+                    await batch.commit();
+                    toast({
+                        title: "Data Migration Complete",
+                        description: `${migratedCount} 'For Review' transaction(s) have been moved.`,
+                    });
+                    // Refetch data in tabs
+                    handleRefreshAll();
+                }
+            } catch (error) {
+                console.error("Error migrating 'review' transactions:", error);
+                toast({
+                    title: "Migration Failed",
+                    description: "Could not update transactions from 'For Review' status.",
+                    variant: "destructive"
+                });
+            }
+        };
+    
+        if(client?.uid) {
+            migrateReviewTransactions();
+        }
+    }, [client?.uid, toast]);
 
     const fetchClientData = useCallback(async () => {
         const clientId = params.clientId as string;
@@ -3390,7 +3226,6 @@ function BankTransactionsPage() {
     const handleRefreshAll = () => {
         newTransactionsTabRef.current?.refetch();
         reviewedTabRef.current?.refetch();
-        forReviewTabRef.current?.refetch();
     };
 
     const handleClearTransactions = async () => {
@@ -3518,10 +3353,9 @@ function BankTransactionsPage() {
             <div className="border rounded-lg mt-4">
                  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="w-full">
                     {canSeeAllTabs ? (
-                        <TabsList className="grid w-full grid-cols-4 rounded-t-lg rounded-b-none h-auto">
+                        <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none h-auto">
                             <TabsTrigger value="new-transactions">New Transactions</TabsTrigger>
                             <TabsTrigger value="ai-workflow">AI Workflow</TabsTrigger>
-                            <TabsTrigger value="for-review">For Review</TabsTrigger>
                             <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
                         </TabsList>
                     ) : (
@@ -3551,15 +3385,6 @@ function BankTransactionsPage() {
                             fetchClientData={fetchClientData}
                             globalRules={globalRules}
                             onRuleCreated={handleAccountCreated}
-                        />
-                    </TabsContent>
-                    <TabsContent value="for-review" className="p-0">
-                        <ForReviewTab
-                            ref={forReviewTabRef}
-                            client={client}
-                            bankAccountId={accountId}
-                            fetchClientData={fetchClientData}
-                            customers={customers}
                         />
                     </TabsContent>
                     <TabsContent value="reviewed" className="p-0">
