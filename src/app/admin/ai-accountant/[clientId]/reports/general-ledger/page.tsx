@@ -23,7 +23,7 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { allVatTypes } from "@/lib/vat-types";
 import Link from "next/link";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -39,6 +39,7 @@ const reallocateSchema = z.object({
 });
 
 const formatPrice = (price: number): ReactNode => {
+    if (price === 0) return 'R 0.00';
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
@@ -139,7 +140,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
     const [selectedSuspenseTxIds, setSelectedSuspenseTxIds] = useState<string[]>([]);
         
     const filteredTransactions = useMemo(() => {
-        let filtered = transactions;
+        let filtered = transactions.filter(tx => tx.status === 'allocated' || tx.status === 'reviewed');
         
         if (dateRange) {
              if (dateRange.from) {
@@ -211,7 +212,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                  // 1. Bank Account Entry
                 const bankEntry = grouped.get(tx.bankAccountId);
                 if (bankEntry) {
-                    const contraAccount = tx.status === 'allocated' 
+                    const contraAccount = (tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo 
                         ? accountsToDisplay.find(a => a.id === tx.allocatedTo?.value)?.description || 'Unallocated'
                         : 'Suspense Account';
                     
@@ -227,7 +228,9 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                 }
                 
                  // 2. Contra Account Entry (VAT Exclusive)
-                const contraAccountId = tx.status === 'allocated' && tx.allocatedTo ? tx.allocatedTo.value : suspenseAccountId;
+                const contraAccountId = (tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo 
+                    ? tx.allocatedTo.value 
+                    : suspenseAccountId;
                 const contraEntry = grouped.get(contraAccountId);
                 if(contraEntry) {
                     const bankAccountName = accountsToDisplay.find(a => a.id === tx.bankAccountId)?.description || 'Bank';
