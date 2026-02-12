@@ -255,7 +255,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
-            const dailyCounters: { [key: string]: number } = {};
+            const dailyCounters: { [key: string]: number } } = {};
             let allocatedCount = 0;
             
             parsedTransactions.forEach((row, index) => {
@@ -1684,21 +1684,17 @@ const ForReviewTab = React.forwardRef<
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'review'),
         ];
-        if (activeSubTab === 'expenses') {
-            constraints.push(where('amount', '<', 0));
-        } else {
-            constraints.push(where('amount', '>=', 0));
-        }
+        
         if (accountFilter !== 'all') {
             constraints.push(where('allocatedTo.value', '==', accountFilter));
         }
-        constraints.push(orderBy('allocatedTo.value'), orderBy('date', 'desc'));
+        constraints.push(orderBy('date', 'desc'));
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, activeSubTab, accountFilter]);
+    }, [client?.uid, bankAccountId, accountFilter]);
 
     const {
-        documents: transactions,
+        documents: paginatedDocuments,
         isLoading,
         goToNextPage,
         goToPreviousPage,
@@ -1707,6 +1703,14 @@ const ForReviewTab = React.forwardRef<
         currentPage,
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: baseQuery, pageSize: PAGE_SIZE });
+
+    const transactions = useMemo(() => {
+        if (activeSubTab === 'expenses') {
+            return paginatedDocuments.filter(tx => tx.amount < 0);
+        } else {
+            return paginatedDocuments.filter(tx => tx.amount >= 0);
+        }
+    }, [paginatedDocuments, activeSubTab]);
 
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -1719,10 +1723,10 @@ const ForReviewTab = React.forwardRef<
     const accountsForFilter = useMemo(() => {
         if (!client || !client.chartOfAccounts) return [];
         const accountsInTransactions = new Set(
-            transactions.filter(tx => tx.allocatedTo?.type === 'account').map(tx => tx.allocatedTo!.value)
+            paginatedDocuments.filter(tx => tx.allocatedTo?.type === 'account').map(tx => tx.allocatedTo!.value)
         );
         return client.chartOfAccounts.filter(acc => accountsInTransactions.has(acc.id));
-    }, [client, transactions]);
+    }, [client, paginatedDocuments]);
 
     const handleBulkAction = async (action: 'approve' | 'reject') => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
@@ -2116,58 +2120,42 @@ const ReviewedTab = React.forwardRef<
         }
     };
     
-    const handleSaveChanges = async (changesToSave: typeof changes, transactionIds: string[]) => {
-        if (!client || !client.uid || transactionIds.length === 0) return;
-        setIsSaving(true);
-        toast({ title: 'Saving changes...', description: 'Please wait.' });
-    
-        try {
-            const batch = writeBatch(db);
-            transactionIds.forEach(txId => {
-                const changeData = changesToSave[txId];
-                if (changeData) {
-                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                    const updateData: { [key: string]: any } = {};
-                    if (changeData.allocatedTo) updateData.allocatedTo = changeData.allocatedTo;
-                    if (changeData.vatType) updateData.vatType = changeData.vatType;
-                    if (Object.keys(updateData).length > 0) {
-                        batch.update(txRef, updateData);
-                    }
-                }
-            });
-            await batch.commit();
-    
-            toast({ title: 'Success!', description: 'Your changes have been saved.' });
-            
-            setChanges({});
-            setSelectedTransactions([]);
-            
-             if(searchTerm.trim() || accountFilter !== 'all') {
-                const hasSearch = searchTerm.trim().length > 0;
-                const hasFilter = accountFilter !== 'all';
-                let searchConstraints: QueryConstraint[] = [ where('bankAccountId', '==', bankAccountId!), where('status', 'in', ['reviewed', 'allocated']), ];
-                if (activeSubTab === 'expenses') { searchConstraints.push(where('amount', '<', 0)); } else { searchConstraints.push(where('amount', '>=', 0)); }
-                if (hasFilter) { searchConstraints.push(where('allocatedTo.value', '==', accountFilter)); }
+    const handleSaveChanges = async () => {
+      if (!client || !client.uid || Object.keys(changes).length === 0) return;
+      setIsSaving(true);
+      toast({ title: 'Saving changes...', description: 'Please wait.' });
+  
+      try {
+          const batch = writeBatch(db);
+          Object.keys(changes).forEach(txId => {
+              const changeData = changes[txId];
+              if (changeData) {
+                  const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+                  const updateData: { [key: string]: any } = {};
+                  if (changeData.allocatedTo) updateData.allocatedTo = changeData.allocatedTo;
+                  if (changeData.vatType) updateData.vatType = changeData.vatType;
+                  if (Object.keys(updateData).length > 0) {
+                      batch.update(txRef, updateData);
+                  }
+              }
+          });
+          await batch.commit();
+  
+          toast({ title: 'Success!', description: 'Your changes have been saved.' });
+          
+          setChanges({});
+          setSelectedTransactions([]);
+          
+          // Refetch data to reflect changes
+          refetch();
 
-                const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
-                const snapshot = await getDocs(q);
-                let allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
-
-                if (hasSearch) {
-                    allDocs = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-                }
-                setSearchResults(allDocs);
-            } else {
-                refetch();
-            }
-
-        } catch (error) {
-            console.error('Error saving changes:', error);
-            toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
-        } finally {
-            setIsSaving(false);
-        }
-    }
+      } catch (error) {
+          console.error('Error saving changes:', error);
+          toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
+      } finally {
+          setIsSaving(false);
+      }
+    };
     
     const handleDownloadExcel = async () => {
         if (!client || !client.uid || !bankAccountId) return;
@@ -2386,7 +2374,19 @@ const ReviewedTab = React.forwardRef<
                 vatType: client?.isVatRegistered ? vatType : 'no_vat',
             };
         });
-        handleSaveChanges(changesToSave, selectedTransactions);
+        Object.keys(changesToSave).forEach(txId => {
+            const changeData = changesToSave[txId];
+            if (changeData) {
+                const txRef = doc(db, 'aiAccountantClients', client!.uid!, 'transactions', txId);
+                updateDoc(txRef, {
+                    allocatedTo: changeData.allocatedTo,
+                    vatType: changeData.vatType
+                });
+            }
+        });
+        toast({ title: 'Reallocation Successful' });
+        refetch();
+        setSelectedTransactions([]);
     };
 
 
@@ -2490,7 +2490,7 @@ const ReviewedTab = React.forwardRef<
                 </Tabs>
                  <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <Button onClick={() => handleSaveChanges(changes, Object.keys(changes))} disabled={isSaving || Object.keys(changes).length === 0}>
+                        <Button onClick={handleSaveChanges} disabled={isSaving || Object.keys(changes).length === 0}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Save Changes
                         </Button>
@@ -2499,11 +2499,7 @@ const ReviewedTab = React.forwardRef<
                             Download Excel
                         </Button>
                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="outline">
-                                    <Sparkles className="mr-2 h-4 w-4" /> Review Consistency
-                                </Button>
-                            </AlertDialogTrigger>
+                            <AlertDialogTrigger asChild><Button variant="outline"><Sparkles className="mr-2 h-4 w-4" /> Review Consistency</Button></AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Review Allocation Consistency</AlertDialogTitle>
@@ -2543,13 +2539,11 @@ const ReviewedTab = React.forwardRef<
                             </DropdownMenuContent>
                         </DropdownMenu>
                         <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive" size="sm" disabled={selectedTransactions.length === 0}>Delete Selected</Button>
-                            </AlertDialogTrigger>
+                            <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive">Delete Selected</DropdownMenuItem></AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.</AlertDialogDescription>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>This will delete ALL transactions in this bank account. This action is irreversible.</AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -3585,5 +3579,7 @@ function BankTransactionsPage() {
 
 export default BankTransactionsPage;
 
+
+    
 
     
