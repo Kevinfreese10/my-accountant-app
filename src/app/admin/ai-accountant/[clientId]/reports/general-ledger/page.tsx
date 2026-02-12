@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useState, useEffect, useMemo, ReactNode } from "react";
+import React, { useState, useEffect, useMemo, ReactNode } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs, deleteField } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -39,7 +39,6 @@ const reallocateSchema = z.object({
 });
 
 const formatPrice = (price: number): ReactNode => {
-    if (price === 0) return formatPrice(0);
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
