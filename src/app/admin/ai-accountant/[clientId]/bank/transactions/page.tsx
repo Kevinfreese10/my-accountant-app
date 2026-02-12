@@ -72,6 +72,100 @@ type CleanResult = {
   overrideRequired: boolean;
 };
 
+// Functions provided by user
+function normalize(s: string): string {
+  return (s ?? "")
+    .toUpperCase()
+    .replace(/[\t\r\n]+/g, " ")
+    .replace(/\s*-\s*/g, " - ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tidy(s: string): string {
+  return (s ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[-:]+$/, "")
+    .trim();
+}
+
+function cleanDescriptionNew(input: string): string {
+  const original = normalize(input);
+
+  let desc = original;
+
+  // 1) Leading metadata stripping
+  desc = desc.replace(/^[0-9A-Z]{4,10}\s+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\s+\d+\s+/, "");
+  desc = desc.replace(/^\d{10}\s+\d{2}H\d{2}\s+\d+\s+/, "");
+  desc = desc.replace(/^\d{2}\.\d{2}\.\d{2}\s+/, "");
+
+  // guarded leading numeric ref
+  if (/(IMMEDIATE PAYMENT|FEE|CASH|ATM|TELLER)/.test(desc)) {
+    desc = desc.replace(/^\d+\s+/, "");
+  }
+
+  // 2) Bank-specific prefixes
+  desc = desc.replace(/^FNB OB PMT FNB OB \d+\s+/, "");
+  desc = desc.replace(/^MAGTAPE DEBIT\s+/, "");
+  if (desc.startsWith("CHEQUE CARD PURCHASE ")) {
+    desc = desc.replace(/^CHEQUE CARD PURCHASE\s+/, "");
+  }
+
+  // 3) Anchor keep-from-here rules
+  if (desc.includes(" FEE:") && !desc.startsWith("FEE:")) {
+    const idx = desc.indexOf("FEE:");
+    desc = desc.slice(idx);
+  }
+
+  if (desc.includes("ATM LOCAL CASH ADVANC")) {
+    return "ATM LOCAL CASH ADVANC";
+  }
+
+  // 4) Stop/override rules
+  if (desc.startsWith("TELLER CASH")) {
+    return "TELLER CASH";
+  }
+
+  // 5) Immediate payment extraction
+  if (desc.startsWith("IMMEDIATE PAYMENT ")) {
+    desc = desc.replace(/^IMMEDIATE PAYMENT\s+/, "");
+    desc = desc.replace(/^(?:\d+\s+)+/, "");
+  }
+
+  // 6) IB prefixes with heuristic
+  if (/^IB (PAYMENT|TRANSFER) TO\s+/.test(desc)) {
+    const remainder = desc.replace(/^IB (PAYMENT|TRANSFER) TO\s+/, "");
+    const looksMeaningful =
+      /[A-Z]/.test(remainder) &&
+      (remainder.length <= 40 || /^(PAYMENT|RATES|REFUND|FUEL)\b/.test(remainder));
+
+    if (looksMeaningful) desc = remainder;
+  }
+
+  // 7) Hashtag fee extraction
+  if (desc.startsWith("#")) {
+    const m = desc.match(/^(#.*?FEE[S]?)/);
+    if (m?.[1]) return tidy(m[1]);
+  }
+
+  // 8) Trailing noise
+  desc = desc.replace(/\s\d{6,}$/, "");
+
+  // 9) Final tidy + safety guard
+  desc = tidy(desc);
+
+  if (
+    desc.length < 5 ||
+    /^[\d\s\W]+$/.test(desc) // only digits/punctuation/space
+  ) {
+    return original;
+  }
+
+  return desc;
+}
+
+// Adapter function to work with existing code
 function cleanDescription(description: string): CleanResult {
     if (!description) {
         return {
@@ -84,88 +178,31 @@ function cleanDescription(description: string): CleanResult {
         };
     }
 
-    const originalDescription = description;
-    let workingDesc = description.toUpperCase().trim();
+    const merchantKey = cleanDescriptionNew(description);
+    
+    // Attempt to determine payment channel from original description
     let paymentChannel: CleanResult['paymentChannel'] = 'UNKNOWN';
-
-    // 1. Detect and Remove Prefixes
-    const prefixes: { [key: string]: CleanResult['paymentChannel'] } = {
-        'CHEQUE CARD PURCHASE': 'CARD',
-        'POS PURCHASE': 'CARD',
-        'CARD PURCHASE': 'CARD',
-        'EFT PAYMENT': 'EFT',
-        'DEBIT ORDER': 'DEBIT_ORDER',
-        'AUTOBANK CASH WITHDRAWAL': 'ATM',
-        'INTERNET PAYMENT': 'TRANSFER',
-    };
-    for (const [prefix, channel] of Object.entries(prefixes)) {
-        if (workingDesc.startsWith(prefix)) {
-            workingDesc = workingDesc.substring(prefix.length).trim();
-            paymentChannel = channel;
-            break;
-        }
+    const upperDesc = description.toUpperCase();
+    if (upperDesc.includes('CHEQUE CARD') || upperDesc.includes('POS PURCHASE') || upperDesc.includes('CARD PURCHASE')) {
+        paymentChannel = 'CARD';
+    } else if (upperDesc.includes('EFT PAYMENT') || upperDesc.includes('FNB OB PMT') || upperDesc.includes('MAGTAPE DEBIT')) {
+        paymentChannel = 'EFT';
+    } else if (upperDesc.includes('DEBIT ORDER')) {
+        paymentChannel = 'DEBIT_ORDER';
+    } else if (upperDesc.includes('ATM') || upperDesc.includes('CASH WITHDRAWAL')) {
+        paymentChannel = 'ATM';
+    } else if (upperDesc.includes('INTERNET PAYMENT') || upperDesc.includes('IMMEDIATE PAYMENT') || upperDesc.includes('IB PAYMENT') || upperDesc.includes('IB TRANSFER')) {
+        paymentChannel = 'TRANSFER';
     }
-    
-    // 2. Detect and Remove Suffixes
-    const suffixes = ['IMMEDIATE PAYMENT'];
-    for (const suffix of suffixes) {
-        if (workingDesc.endsWith(suffix)) {
-            workingDesc = workingDesc.substring(0, workingDesc.length - suffix.length).trim();
-        }
-    }
-    
-    // 3. Handle specific pattern 'CASH TO <number>...'
-    workingDesc = workingDesc.replace(/CASH TO\s+\d+.*$/, 'CASH').trim();
-    workingDesc = workingDesc.replace(/CELLPHONE INSTANTMON\s+CASH\s+TO.*$/, 'CELLPHONE INSTANTMON').trim();
 
-
-    // 4. Remove standalone time, date, and long number tokens
-    const referenceTokens: string[] = [];
-    const parts = workingDesc.split(/\s+/);
-    const merchantParts: string[] = [];
-
-    const noisePatterns = [
-        /^\d{8,}$/, // Long numeric strings (e.g., 277701465, 193745066)
-        /^\d{4,}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/, // Full timestamp
-        /^\d{2}H\d{2}$/, // Time format like 13H20
-        /^\d{1,2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/i, // Date format like 12APR
-        /^\d{4,}$/, // Four-digit numbers that are often codes or parts of card numbers
-    ];
-
-    for (const part of parts) {
-        let isNoise = false;
-        if (!part) continue;
-
-        for (const pattern of noisePatterns) {
-            if (pattern.test(part)) {
-                referenceTokens.push(part);
-                isNoise = true;
-                break;
-            }
-        }
-        if (!isNoise) {
-            merchantParts.push(part);
-        }
-    }
-    workingDesc = merchantParts.join(' ').trim();
-    
-    // 5. Final clean-up of trailing words
-    const trailingWords = ['AT', 'TO', 'CI'];
-    for (const word of trailingWords) {
-        if (workingDesc.endsWith(` ${word}`)) {
-            workingDesc = workingDesc.substring(0, workingDesc.length - word.length - 1).trim();
-        }
-    }
-    
-    const merchantKey = workingDesc || 'UNKNOWN';
 
     return {
-        cleanedDescription: originalDescription,
+        cleanedDescription: description,
         merchantKey: merchantKey,
-        paymentChannel,
-        referenceTokens,
-        confidence: 'MEDIUM',
-        overrideRequired: merchantKey === 'UNKNOWN',
+        paymentChannel: paymentChannel,
+        referenceTokens: [], // The new function doesn't extract these, so we'll leave it empty.
+        confidence: 'MEDIUM', // Defaulting confidence
+        overrideRequired: merchantKey === normalize(description) || merchantKey.length < 5,
     };
 }
 // #endregion
@@ -1459,7 +1496,7 @@ const NewTransactionsTab = React.forwardRef<
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" disabled={selectedTransactions.length === 0}>
-                                    Actions <MoreHorizontal className="ml-2 h-4 w-4"/>
+                                    Actions <MoreHorizontal className="ml-2 h-4 w-4" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
@@ -1564,7 +1601,7 @@ const NewTransactionsTab = React.forwardRef<
                                             <Popover>
                                                 <PopoverTrigger asChild>
                                                     <Button variant="outline" className="w-full justify-start text-left font-normal h-8">
-                                                        {allocations[tx.id] ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.name : "Select..."}
+                                                        {allocations[tx.id] ? [...(client.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || [...(client.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.name : "Select..."}
                                                     </Button>
                                                 </PopoverTrigger>
                                                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
@@ -2415,7 +2452,7 @@ const ReviewedTab = React.forwardRef<
                                             <Popover>
                                                 <PopoverTrigger asChild>
                                                     <Button variant="outline" className="w-full justify-start text-left font-normal h-8">
-                                                        {changes[tx.id] ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.description || [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.name : getAllocationDescription(tx)}
+                                                        {changes[tx.id] ? [...(client.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.description || [...(client.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.name : getAllocationDescription(tx)}
                                                     </Button>
                                                 </PopoverTrigger>
                                                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
@@ -2968,8 +3005,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             <SelectContent>
                                 <SelectItem value="all">All Accounts</SelectItem>
                                 {chartOfAccounts.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                ))}
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
                             </SelectContent>
                         </Select>
                      </div>
@@ -3418,10 +3454,6 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
-
-
     
-
     
-
 
