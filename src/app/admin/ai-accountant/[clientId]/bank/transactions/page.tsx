@@ -25,7 +25,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
@@ -1676,22 +1676,26 @@ const ForReviewTab = React.forwardRef<
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const { toast } = useToast();
+    const [accountFilter, setAccountFilter] = useState('all');
 
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
-        let q = query(
-            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+        let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'review'),
-        );
+        ];
         if (activeSubTab === 'expenses') {
-            q = query(q, where('amount', '<', 0));
+            constraints.push(where('amount', '<', 0));
         } else {
-            q = query(q, where('amount', '>=', 0));
+            constraints.push(where('amount', '>=', 0));
         }
-        q = query(q, orderBy('amount', 'desc'));
-        return q;
-    }, [client?.uid, bankAccountId, activeSubTab]);
+        if (accountFilter !== 'all') {
+            constraints.push(where('allocatedTo.value', '==', accountFilter));
+        }
+        constraints.push(orderBy('allocatedTo.value'), orderBy('date', 'desc'));
+        
+        return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
+    }, [client?.uid, bankAccountId, activeSubTab, accountFilter]);
 
     const {
         documents: transactions,
@@ -1710,7 +1714,15 @@ const ForReviewTab = React.forwardRef<
 
     useEffect(() => {
         refetch();
-    }, [activeSubTab, refetch]);
+    }, [activeSubTab, accountFilter, refetch]);
+
+    const accountsForFilter = useMemo(() => {
+        if (!client || !client.chartOfAccounts) return [];
+        const accountsInTransactions = new Set(
+            transactions.filter(tx => tx.allocatedTo?.type === 'account').map(tx => tx.allocatedTo!.value)
+        );
+        return client.chartOfAccounts.filter(acc => accountsInTransactions.has(acc.id));
+    }, [client, transactions]);
 
     const handleBulkAction = async (action: 'approve' | 'reject') => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
@@ -1778,6 +1790,19 @@ const ForReviewTab = React.forwardRef<
                         <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
                             <Ban className="mr-2 h-4 w-4" /> Reject Selected ({selectedTransactions.length})
                         </Button>
+                    </div>
+                     <div className="w-full sm:w-auto">
+                        <Select value={accountFilter} onValueChange={setAccountFilter}>
+                            <SelectTrigger className="w-full sm:w-[240px]">
+                                <SelectValue placeholder="Filter by account..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Accounts</SelectItem>
+                                {accountsForFilter.map(acc => (
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
             </CardHeader>
@@ -2706,6 +2731,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
 
     const [lastApprovedTxIds, setLastApprovedTxIds] = useState<string[] | null>(null);
+    const [accountFilter, setAccountFilter] = useState('all');
     
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -2782,10 +2808,18 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             }
             return acc;
         }, {} as Record<string, ImportedTransaction[]>);
-        setGroupedTransactions(groups);
+        
+        let filteredGroups = groups;
+        if (accountFilter !== 'all') {
+            filteredGroups = Object.entries(groups)
+                .filter(([_, txs]) => txs.some(tx => tx.aiAllocationResult?.accountId === accountFilter))
+                .reduce((acc, [key, val]) => ({ ...acc, [key]: val }), {});
+        }
+
+        setGroupedTransactions(filteredGroups);
 
         const initialAllocations: Record<string, AIAllocationResult | null> = {};
-        Object.values(groups).forEach(txs => {
+        Object.values(filteredGroups).forEach(txs => {
             if (txs.length > 0) {
                 const supplier = txs[0].merchantKey;
                 if(supplier) {
@@ -2794,7 +2828,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             }
         });
         setGroupAllocations(initialAllocations);
-    }, [filteredTransactions]);
+    }, [filteredTransactions, accountFilter]);
     
     // Pagination logic
     const sortedGroupEntries = useMemo(() => Object.entries(groupedTransactions).sort((a,b) => a[0].localeCompare(b[0])), [groupedTransactions]);
@@ -3138,8 +3172,19 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             </Button>
                          </div>
                      </div>
-                      <div className="pt-4">
+                      <div className="pt-4 flex gap-2">
                         <DateRangePicker onDateChange={setDateRange} />
+                        <Select value={accountFilter} onValueChange={setAccountFilter}>
+                            <SelectTrigger className="w-[240px]">
+                                <SelectValue placeholder="Filter by suggested account..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Accounts</SelectItem>
+                                {chartOfAccounts.map(acc => (
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                      </div>
                  </CardHeader>
                  <CardContent className="p-4 space-y-4">
@@ -3171,7 +3216,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 const suggestion = groupAllocations[supplier];
                                 return (
                                 <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
-                                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-t-lg">
+                                    <div className="grid grid-cols-[1fr_auto] items-center p-3 bg-muted/50 rounded-t-lg">
                                         <CollapsibleTrigger asChild>
                                              <div className="flex items-center gap-4 text-left pr-4 flex-grow cursor-pointer">
                                                 <Checkbox
@@ -3424,7 +3469,7 @@ function BankTransactionsPage() {
             />}
             <div className="md:flex items-start justify-between">
                 <div className="flex items-center gap-4">
-                    <Select value={accountId || ''} onValueChange={(val) => setAccountId(val)}>
+                     <Select onValueChange={(val) => {if(val === 'new') { setIsNewAccountDialogOpen(true); } else { setAccountId(val); }}} value={accountId || ''}>
                         <SelectTrigger className="w-[280px]">
                             <SelectValue placeholder="Select a bank account" />
                         </SelectTrigger>
@@ -3452,21 +3497,6 @@ function BankTransactionsPage() {
                 </div>
                 <div className="flex items-center gap-2 mt-4 md:mt-0">
                      <Button variant="outline" onClick={handleRefreshAll}><RotateCcw className="mr-2 h-4 w-4"/> Refresh</Button>
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive" disabled={!accountId}><Trash2 className="mr-2 h-4 w-4" /> Clear All Transactions</Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>This will permanently delete all transactions in this bank account. This action cannot be undone.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleClearTransactions}>Yes, Delete All</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
                      <DropdownMenu>
                          <DropdownMenuTrigger asChild>
                             <Button><Settings className="mr-2 h-4 w-4" /> Manage Bank Account</Button>
