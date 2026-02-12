@@ -255,7 +255,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
-            const dailyCounters: { [key: string]: number } } = {};
+            const dailyCounters: { [key: string]: number } = {};
             let allocatedCount = 0;
             
             parsedTransactions.forEach((row, index) => {
@@ -3408,3 +3408,4 @@ export default BankTransactionsPage;
     
 
     
+
