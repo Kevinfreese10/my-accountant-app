@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, ReactNode } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs, deleteField } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -13,7 +13,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterComponent } from "@/components/ui/table";
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +23,7 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { allVatTypes } from "@/lib/vat-types";
 import Link from "next/link";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -38,8 +38,8 @@ const reallocateSchema = z.object({
   vatType: z.string().min(1, "Please select a VAT type."),
 });
 
-const formatPrice = (price: number) => {
-    if (price === 0) return 'R 0.00';
+const formatPrice = (price: number): ReactNode => {
+    if (price === 0) return formatPrice(0);
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
@@ -136,6 +136,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
     onDelete: (journalRef: string) => void,
     onClear: (txIds: string[]) => void
 }) {
+    
     const [selectedSuspenseTxIds, setSelectedSuspenseTxIds] = useState<string[]>([]);
         
     const filteredTransactions = useMemo(() => {
@@ -452,14 +453,14 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                                     </TableRow>
                                 ))}
                             </TableBody>
-                            <TableFooter>
+                            <TableFooterComponent>
                                 <TableRow>
                                     <TableCell colSpan={isSuspenseAccount ? 3 : 2} className="font-bold">Totals</TableCell>
                                     <TableCell className="text-right font-bold font-mono">{formatPrice(group.totalDebit)}</TableCell>
                                     <TableCell className="text-right font-bold font-mono">{formatPrice(group.totalCredit)}</TableCell>
                                     <TableCell colSpan={2}></TableCell>
                                 </TableRow>
-                            </TableFooter>
+                            </TableFooterComponent>
                         </Table>
                     </div>
                 )})}
@@ -704,4 +705,3 @@ export default function GeneralLedgerPage() {
         </div>
     );
 }
-
