@@ -25,7 +25,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
@@ -1557,7 +1557,7 @@ const NewTransactionsTab = React.forwardRef<
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="whitespace-normal break-words">
                                             <p>{tx.description}</p>
-                                            {tx.merchantKey && <p className="text-xs text-muted-foreground font-mono bg-muted p-1 rounded-sm mt-1">{tx.merchantKey}</p>}
+                                            {tx.merchantKey && <Badge variant="secondary" className="mt-1">{tx.merchantKey}</Badge>}
                                         </TableCell>
                                         <TableCell className="font-mono">{tx.reference}</TableCell>
                                         <TableCell>
@@ -1668,6 +1668,198 @@ const NewTransactionsTab = React.forwardRef<
 });
 NewTransactionsTab.displayName = 'NewTransactionsTab';
 
+const ForReviewTab = React.forwardRef<
+    { refetch: () => void; },
+    { client: User | null; bankAccountId: string | null; fetchClientData: () => void; customers: ClientCustomer[] }
+>(({ client, bankAccountId, fetchClientData, customers }, ref) => {
+    
+    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    const { toast } = useToast();
+
+    const baseQuery = useMemo(() => {
+        if (!client?.uid || !bankAccountId) return null;
+        let q = query(
+            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+            where('bankAccountId', '==', bankAccountId),
+            where('status', '==', 'review'),
+        );
+        if (activeSubTab === 'expenses') {
+            q = query(q, where('amount', '<', 0));
+        } else {
+            q = query(q, where('amount', '>=', 0));
+        }
+        q = query(q, orderBy('amount', 'desc'));
+        return q;
+    }, [client?.uid, bankAccountId, activeSubTab]);
+
+    const {
+        documents: transactions,
+        isLoading,
+        goToNextPage,
+        goToPreviousPage,
+        canGoNext,
+        canGoPrev,
+        currentPage,
+        refetch
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: baseQuery, pageSize: PAGE_SIZE });
+
+    React.useImperativeHandle(ref, () => ({
+        refetch,
+    }));
+
+    useEffect(() => {
+        refetch();
+    }, [activeSubTab, refetch]);
+
+    const handleBulkAction = async (action: 'approve' | 'reject') => {
+        if (!client || !client.uid || selectedTransactions.length === 0) return;
+
+        const verb = action === 'approve' ? 'Approving' : 'Rejecting';
+        const pastVerb = action === 'approve' ? 'Approved' : 'Rejected';
+        toast({ title: `${verb} transactions...`, description: `Processing ${selectedTransactions.length} items.` });
+
+        try {
+            const batch = writeBatch(db);
+            selectedTransactions.forEach(txId => {
+                const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
+                if (action === 'approve') {
+                    batch.update(transactionRef, { status: 'reviewed' });
+                } else { // reject
+                    batch.update(transactionRef, { 
+                        status: 'new',
+                        allocatedTo: deleteField(),
+                        vatType: deleteField(),
+                        allocatedAt: deleteField(),
+                    });
+                }
+            });
+            await batch.commit();
+
+            toast({ title: 'Success', description: `${selectedTransactions.length} transactions have been ${pastVerb.toLowerCase()}.` });
+            setSelectedTransactions([]);
+            refetch();
+        } catch (error) {
+            console.error(`Error ${verb.toLowerCase()} transactions:`, error);
+            toast({ title: 'Error', description: `Could not ${action} transactions.`, variant: 'destructive' });
+        }
+    };
+
+    const getFullAllocationName = (tx: ImportedTransaction): string => {
+        if (!tx.allocatedTo) return 'N/A';
+        const { type, value } = tx.allocatedTo;
+
+        if (type === 'account') {
+            const account = client?.chartOfAccounts?.find(acc => acc.id === value);
+            return account?.description || 'Unknown Account';
+        }
+        if (type === 'customer') {
+            const customer = customers.find(c => c.id === value);
+            return customer?.name || 'Unknown Customer';
+        }
+        return 'Unknown';
+    };
+
+
+    return (
+        <Card>
+            <CardHeader className="p-0">
+                <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                        <TabsTrigger value="expenses">Expenses</TabsTrigger>
+                        <TabsTrigger value="income">Income</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+                <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                         <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
+                            <CheckCheck className="mr-2 h-4 w-4" /> Approve Selected ({selectedTransactions.length})
+                        </Button>
+                        <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
+                            <Ban className="mr-2 h-4 w-4" /> Reject Selected ({selectedTransactions.length})
+                        </Button>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableCell className="w-12 p-2">
+                                     <Checkbox
+                                        checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
+                                        onCheckedChange={(checked) => {
+                                            setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
+                                        }}
+                                    />
+                                </TableCell>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead>Allocated To</TableHead>
+                                <TableHead>VAT Type</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                             {isLoading ? (
+                                <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                            ) : transactions.length === 0 ? (
+                                <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No transactions for review.</TableCell></TableRow>
+                            ) : (
+                                transactions.map(tx => (
+                                    <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                        <TableCell className="p-2">
+                                            <Checkbox
+                                                checked={selectedTransactions.includes(tx.id)}
+                                                onCheckedChange={(checked) => {
+                                                    setSelectedTransactions(prev =>
+                                                        checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
+                                                    );
+                                                }}
+                                            />
+                                        </TableCell>
+                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                        <TableCell>{tx.description}</TableCell>
+                                        <TableCell>{getFullAllocationName(tx)}</TableCell>
+                                        <TableCell>{allVatTypes.find(vt => vt.name === tx.vatType)?.label || tx.vatType}</TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+             <CardFooter className="flex items-center justify-end p-4">
+                 <div className="flex items-center space-x-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousPage}
+                        disabled={!canGoPrev || isLoading}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                    </Button>
+                    <span className="text-sm font-medium">
+                        Page {currentPage}
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextPage}
+                        disabled={!canGoNext || isLoading}
+                    >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            </CardFooter>
+        </Card>
+    )
+});
+ForReviewTab.displayName = 'ForReviewTab';
 
 const ReviewedTab = React.forwardRef<
     { refetch: () => void; },
@@ -3221,7 +3413,7 @@ function BankTransactionsPage() {
     return (
         <div>
             {selectedAccountForEdit && <EditAccountDialog
-                account={selectedBankAccountForEdit}
+                account={selectedAccountForEdit}
                 client={client}
                 onAccountUpdated={handleAccountCreated}
                 open={isEditAccountDialogOpen}
@@ -3237,7 +3429,14 @@ function BankTransactionsPage() {
                             <SelectValue placeholder="Select a bank account" />
                         </SelectTrigger>
                         <SelectContent>
-                            {bankAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                             <SelectGroup>
+                                 <SelectLabel>Bank Accounts</SelectLabel>
+                                {bankAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                            </SelectGroup>
+                            <SelectSeparator/>
+                            <SelectItem value="new">
+                                <span className="flex items-center"><PlusCircle className="mr-2 h-4 w-4"/>Create New Account</span>
+                            </SelectItem>
                         </SelectContent>
                     </Select>
                      <div className="flex gap-4 mt-2 text-sm">
@@ -3255,7 +3454,7 @@ function BankTransactionsPage() {
                      <Button variant="outline" onClick={handleRefreshAll}><RotateCcw className="mr-2 h-4 w-4"/> Refresh</Button>
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="destructive" disabled={!accountId}><Trash2 className="mr-2 h-4 w-4" /> Clear Transactions</Button>
+                            <Button variant="destructive" disabled={!accountId}><Trash2 className="mr-2 h-4 w-4" /> Clear All Transactions</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
@@ -3275,6 +3474,19 @@ function BankTransactionsPage() {
                          <DropdownMenuContent>
                             <DropdownMenuItem onClick={() => setIsNewAccountDialogOpen(true)}>Create New Bank Account</DropdownMenuItem>
                             <DropdownMenuItem disabled={!selectedBankAccount} onClick={() => { setSelectedAccountForEdit(selectedBankAccount || null); setIsEditAccountDialogOpen(true); }}>Edit Selected Account</DropdownMenuItem>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive">Clear Bank Account</DropdownMenuItem></AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>This will delete ALL transactions in this bank account. This action is irreversible.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleClearTransactions}>Yes, Clear Account</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                          </DropdownMenuContent>
                      </DropdownMenu>
                 </div>
