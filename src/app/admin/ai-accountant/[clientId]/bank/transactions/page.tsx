@@ -25,7 +25,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
@@ -2316,19 +2316,34 @@ const ReviewedTab = React.forwardRef<
                                 ))}
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive">Delete Selected</DropdownMenuItem></AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>This will delete ALL transactions in this bank account. This action is irreversible.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete All</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                    Actions <MoreHorizontal className="ml-2 h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                            Delete Selected
+                                        </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will permanently delete the {selectedTransactions.length} selected transaction(s). This action cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                      <div className="flex items-center gap-2 flex-wrap justify-end">
                         <DateRangePicker onDateChange={setDateRange} />
@@ -2988,17 +3003,17 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                 const suggestion = groupAllocations[supplier];
                                 return (
                                 <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
-                                    <div className="grid grid-cols-[1fr_auto] items-center p-3 bg-muted/50 rounded-t-lg">
+                                    <div className="grid grid-cols-[auto_1fr_auto] items-center p-3 bg-muted/50 rounded-t-lg">
+                                        <Checkbox
+                                            checked={selectedGroups.includes(supplier)}
+                                            onCheckedChange={(checked) => {
+                                                setSelectedGroups(prev => checked ? [...prev, supplier] : prev.filter(s => s !== supplier))
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="ml-2"
+                                        />
                                         <CollapsibleTrigger asChild>
-                                             <div className="flex items-center gap-4 text-left pr-4 flex-grow cursor-pointer">
-                                                <Checkbox
-                                                    checked={selectedGroups.includes(supplier)}
-                                                    onCheckedChange={(checked) => {
-                                                        setSelectedGroups(prev => checked ? [...prev, supplier] : prev.filter(s => s !== supplier))
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="ml-2"
-                                                />
+                                             <div className="flex items-center gap-4 text-left px-4 flex-grow cursor-pointer">
                                                 <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length} items)</span></h3>
                                                 {suggestion && <p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%</p>}
                                             </div>
@@ -3307,7 +3322,7 @@ function BankTransactionsPage() {
                                  <SelectLabel>Bank Accounts</SelectLabel>
                                 {bankAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
                             </SelectGroup>
-                            <SelectSeparator/>
+                            <Separator/>
                             <SelectItem value="new">
                                 <span className="flex items-center"><PlusCircle className="mr-2 h-4 w-4"/>Create New Account</span>
                             </SelectItem>
@@ -3408,4 +3423,5 @@ export default BankTransactionsPage;
     
 
     
+
 
