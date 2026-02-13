@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -2373,7 +2372,7 @@ const ReviewedTab = React.forwardRef<
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                             <AlertDialogDescription>
                                                 This will permanently delete the {selectedTransactions.length} selected transaction(s). This action cannot be undone.
                                             </AlertDialogDescription>
@@ -2959,7 +2958,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const transactionsInProcessing = transactions.filter(tx => tx.status === 'ai_processing').length;
 
     return (
-        <React.Fragment>
+        <>
              <ApproveAndCreateRuleDialog
                 isOpen={!!activeApprovalGroup}
                 onOpenChange={(open) => setActiveApprovalGroup(open ? activeApprovalGroup : null)}
@@ -3112,7 +3111,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage >= totalPages}>Next</Button>
                 </CardFooter>
             </Card>
-        </React.Fragment>
+        </>
     );
 };
 
@@ -3343,7 +3342,7 @@ function BankTransactionsPage() {
     return (
         <div>
             {selectedAccountForEdit && <EditAccountDialog
-                account={selectedAccountForEdit}
+                account={selectedBankAccount}
                 client={client}
                 onAccountUpdated={handleAccountCreated}
                 open={isEditAccountDialogOpen}
@@ -3463,3 +3462,6 @@ export default BankTransactionsPage;
     
 
 
+
+
+    
