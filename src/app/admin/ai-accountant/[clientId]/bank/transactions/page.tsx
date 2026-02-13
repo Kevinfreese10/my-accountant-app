@@ -2367,7 +2367,7 @@ const ReviewedTab = React.forwardRef<
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                            Delete Selected
+                                            Delete Selected ({selectedTransactions.length})
                                         </DropdownMenuItem>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -2958,7 +2958,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const transactionsInProcessing = transactions.filter(tx => tx.status === 'ai_processing').length;
 
     return (
-        <>
+        <React.Fragment>
              <ApproveAndCreateRuleDialog
                 isOpen={!!activeApprovalGroup}
                 onOpenChange={(open) => setActiveApprovalGroup(open ? activeApprovalGroup : null)}
@@ -3009,7 +3009,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             <SelectContent>
                                 <SelectItem value="all">All Accounts</SelectItem>
                                 {chartOfAccounts.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}
                             </SelectContent>
                         </Select>
                      </div>
@@ -3111,7 +3111,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage >= totalPages}>Next</Button>
                 </CardFooter>
             </Card>
-        </>
+        </React.Fragment>
     );
 };
 
@@ -3463,5 +3463,7 @@ export default BankTransactionsPage;
 
 
 
+
+    
 
     
