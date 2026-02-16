@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
@@ -513,6 +513,7 @@ const ruleFormSchema = z.object({
   accountId: z.string().min(1, "Account is required."),
   vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
   scope: z.enum(['global', 'client']).default('client'),
+  isPriority: z.boolean().default(false),
 });
 type RuleFormValues = z.infer<typeof ruleFormSchema>;
 
@@ -524,7 +525,7 @@ const RuleForm = ({ chartOfAccounts, defaultValues, onSave, onCancel }: {
 }) => {
     const form = useForm<RuleFormValues>({
         resolver: zodResolver(ruleFormSchema),
-        defaultValues: defaultValues,
+        defaultValues: { ...defaultValues, isPriority: defaultValues.isPriority || false },
     });
     return (
         <Form {...form}>
@@ -580,6 +581,28 @@ const RuleForm = ({ chartOfAccounts, defaultValues, onSave, onCancel }: {
                     </Select>
                 </FormItem>
             )} />
+             <FormField
+                control={form.control}
+                name="isPriority"
+                render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                        <FormControl>
+                            <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                            />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                            <FormLabel>
+                                Priority Rule
+                            </FormLabel>
+                            <FormDescription>
+                                Priority rules will be processed first.
+                            </FormDescription>
+                        </div>
+                    </FormItem>
+                )}
+            />
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
               <Button type="submit">Save Rule</Button>
@@ -601,13 +624,14 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
     const handleSave = async (values: RuleFormValues) => {
         if (!client) return;
 
-        const newRule: Omit<AllocationRule, 'id'> = {
+        const newRule: Partial<AllocationRule> = {
             description: values.description,
             keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
             accountId: values.accountId,
             vatType: values.vatType,
-            type: 'hard', // All rules created from UI are hard rules for now
+            type: 'hard',
             scope: values.scope,
+            priority: values.isPriority ? 1 : 99,
         };
         
         try {
@@ -663,12 +687,13 @@ function ApproveAndCreateRuleDialog({
 }) {
   if (!isOpen || !client) return null;
 
-  const defaultValues = {
+  const defaultValues: Partial<RuleFormValues> = {
     description: `Rule for ${groupData.supplier}`,
     keywords: groupData.supplier,
     accountId: groupData.suggestion?.accountId || '',
     vatType: groupData.suggestion?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat'),
-    scope: 'client' as 'client' | 'global',
+    scope: 'client',
+    isPriority: false,
   };
 
   const handleSave = (values: RuleFormValues) => {
@@ -855,6 +880,7 @@ const NewTransactionsTab = React.forwardRef<
 
         try {
             const allRules = [...(client.allocationRules || []), ...globalRules];
+            allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
             if (allRules.length === 0) {
                 toast({ title: 'No Rules Found', description: 'There are no allocation rules to apply.' });
                 setIsRuleAllocating(false);
@@ -2501,13 +2527,14 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const handleConfirmApprovalAndRuleCreation = async (ruleValues: RuleFormValues, groupTxs: ImportedTransaction[]) => {
       if (!client || !client.uid) return;
       
-      const newRule: Omit<AllocationRule, 'id'> = {
+      const newRule: Partial<AllocationRule> = {
         description: ruleValues.description,
         keywords: ruleValues.keywords.split(','),
         accountId: ruleValues.accountId,
         vatType: ruleValues.vatType,
         type: 'hard',
         scope: ruleValues.scope,
+        priority: ruleValues.isPriority ? 1 : 99,
       };
 
       try {
@@ -2790,7 +2817,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             <SelectContent>
                                 <SelectItem value="all">All Accounts</SelectItem>
                                 {chartOfAccounts.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                      </div>
@@ -3239,3 +3267,5 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
+
+    

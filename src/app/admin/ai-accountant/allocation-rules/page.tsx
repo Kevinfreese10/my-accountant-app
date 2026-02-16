@@ -14,8 +14,7 @@ import { firebaseApp } from "@/lib/firebase";
 import { AllocationRule, ChartOfAccount } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
@@ -26,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 
 const db = getFirestore(firebaseApp);
@@ -36,6 +36,7 @@ const ruleFormSchema = z.object({
   keywords: z.string().min(3, "At least one keyword is required"),
   accountId: z.string().min(1, "Please select an account to allocate to."),
   vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
+  isPriority: z.boolean().default(false),
 });
 
 
@@ -52,6 +53,7 @@ function RuleForm({ rule, onSave, onCancel }: {
             keywords: rule?.keywords?.join(', ') || '',
             accountId: rule?.accountId || '',
             vatType: rule?.vatType || 'no_vat',
+            isPriority: rule?.priority === 1,
         }
     });
     
@@ -114,6 +116,28 @@ function RuleForm({ rule, onSave, onCancel }: {
                     )}
                     />
                 <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField
+                    control={form.control}
+                    name="isPriority"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                        <FormControl>
+                            <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                            />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                            <FormLabel>
+                            Priority Rule
+                            </FormLabel>
+                            <FormDescription>
+                                Priority rules are processed first, before any other rules.
+                            </FormDescription>
+                        </div>
+                        </FormItem>
+                    )}
+                />
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save Rule</Button>
@@ -197,6 +221,7 @@ export default function AllocationRulesPage() {
             accountId: values.accountId,
             vatType: values.vatType,
             type: 'hard' as 'hard',
+            priority: values.isPriority ? 1 : 99,
         };
 
         try {
@@ -279,6 +304,7 @@ export default function AllocationRulesPage() {
                                     <TableHead>Keywords</TableHead>
                                     <TableHead>Allocated Account</TableHead>
                                     <TableHead>VAT Type</TableHead>
+                                    <TableHead>Priority</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -297,6 +323,9 @@ export default function AllocationRulesPage() {
                                         </TableCell>
                                         <TableCell className="text-xs">{getAccountDescription(rule.accountId)}</TableCell>
                                         <TableCell>{rule.vatType}</TableCell>
+                                        <TableCell>
+                                            {rule.priority === 1 && <Badge variant="default">Priority</Badge>}
+                                        </TableCell>
                                         <TableCell className="text-right">
                                              <div className="flex items-center justify-end gap-1">
                                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenRuleForm(rule)}>
