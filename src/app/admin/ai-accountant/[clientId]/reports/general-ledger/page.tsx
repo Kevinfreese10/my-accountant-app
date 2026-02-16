@@ -140,7 +140,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
     const [selectedSuspenseTxIds, setSelectedSuspenseTxIds] = useState<string[]>([]);
         
     const filteredTransactions = useMemo(() => {
-        let filtered = transactions.filter(tx => tx.status === 'allocated' || tx.status === 'reviewed');
+        let filtered = transactions;
         
         if (dateRange) {
              if (dateRange.from) {

@@ -120,7 +120,7 @@ function calculateBalances(client: User, transactions: (ImportedTransaction | Al
             processEntry(tx.bankAccountId, inclusiveAmount);
 
             // 2. Contra Account Entry (exclusive amount)
-            const contraAccountId = tx.status === 'allocated' && tx.allocatedTo 
+            const contraAccountId = (tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo 
                 ? tx.allocatedTo.value 
                 : '9500-001'; // Suspense Account
             
