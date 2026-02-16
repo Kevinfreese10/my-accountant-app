@@ -134,7 +134,7 @@ function calculateBalances(client: User, transactions: (ImportedTransaction | Al
     });
     
     if (retainedIncomeAccount) {
-        balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) + priorPeriodNetIncome);
+        balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) - priorPeriodNetIncome);
     }
     
     return balances;
@@ -567,3 +567,5 @@ export default function TrialBalancePage() {
         </div>
     );
 }
+
+    
