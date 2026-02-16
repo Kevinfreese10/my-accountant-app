@@ -3198,7 +3198,7 @@ function BankTransactionsPage() {
                             <DropdownMenuItem onClick={() => setIsNewAccountDialogOpen(true)}>Create New Bank Account</DropdownMenuItem>
                             <DropdownMenuItem disabled={!selectedBankAccount} onClick={() => { setSelectedAccountForEdit(selectedBankAccount || null); setIsEditAccountDialogOpen(true); }}>Edit Selected Account</DropdownMenuItem>
                              <AlertDialog>
-                                <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive">Clear Bank Account</DropdownMenuItem></AlertDialogTrigger>
+                                <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">Clear Bank Account</DropdownMenuItem></AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -3267,5 +3267,3 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
-
-    
