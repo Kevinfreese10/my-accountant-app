@@ -62,151 +62,6 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-// #region Description Cleaning
-type CleanResult = {
-  cleanedDescription: string;
-  merchantKey: string;
-  paymentChannel: "CARD" | "EFT" | "DEBIT_ORDER" | "ATM" | "TRANSFER" | "UNKNOWN";
-  referenceTokens: string[];
-  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
-  overrideRequired: boolean;
-};
-
-// Functions provided by user
-function normalize(s: string): string {
-  return (s ?? "")
-    .toUpperCase()
-    .replace(/[\t\r\n]+/g, " ")
-    .replace(/\s*-\s*/g, " - ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function tidy(s: string): string {
-  return (s ?? "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/[-:]+$/, "")
-    .trim();
-}
-
-function cleanDescriptionNew(input: string): string {
-  const original = normalize(input);
-
-  let desc = original;
-
-  // 1) Leading metadata stripping
-  desc = desc.replace(/^[0-9A-Z]{4,10}\s+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\s+\d+\s+/, "");
-  desc = desc.replace(/^\d{10}\s+\d{2}H\d{2}\s+\d+\s+/, "");
-  desc = desc.replace(/^\d{2}\.\d{2}\.\d{2}\s+/, "");
-
-  // guarded leading numeric ref
-  if (/(IMMEDIATE PAYMENT|FEE|CASH|ATM|TELLER)/.test(desc)) {
-    desc = desc.replace(/^\d+\s+/, "");
-  }
-
-  // 2) Bank-specific prefixes
-  desc = desc.replace(/^FNB OB PMT FNB OB \d+\s+/, "");
-  desc = desc.replace(/^MAGTAPE DEBIT\s+/, "");
-  if (desc.startsWith("CHEQUE CARD PURCHASE ")) {
-    desc = desc.replace(/^CHEQUE CARD PURCHASE\s+/, "");
-  }
-
-  // 3) Anchor keep-from-here rules
-  if (desc.includes(" FEE:") && !desc.startsWith("FEE:")) {
-    const idx = desc.indexOf("FEE:");
-    desc = desc.slice(idx);
-  }
-
-  if (desc.includes("ATM LOCAL CASH ADVANC")) {
-    return "ATM LOCAL CASH ADVANC";
-  }
-
-  // 4) Stop/override rules
-  if (desc.startsWith("TELLER CASH")) {
-    return "TELLER CASH";
-  }
-
-  // 5) Immediate payment extraction
-  if (desc.startsWith("IMMEDIATE PAYMENT ")) {
-    desc = desc.replace(/^IMMEDIATE PAYMENT\s+/, "");
-    desc = desc.replace(/^(?:\d+\s+)+/, "");
-  }
-
-  // 6) IB prefixes with heuristic
-  if (/^IB (PAYMENT|TRANSFER) TO\s+/.test(desc)) {
-    const remainder = desc.replace(/^IB (PAYMENT|TRANSFER) TO\s+/, "");
-    const looksMeaningful =
-      /[A-Z]/.test(remainder) &&
-      (remainder.length <= 40 || /^(PAYMENT|RATES|REFUND|FUEL)\b/.test(remainder));
-
-    if (looksMeaningful) desc = remainder;
-  }
-
-  // 7) Hashtag fee extraction
-  if (desc.startsWith("#")) {
-    const m = desc.match(/^(#.*?FEE[S]?)/);
-    if (m?.[1]) return tidy(m[1]);
-  }
-
-  // 8) Trailing noise
-  desc = desc.replace(/\s\d{6,}$/, "");
-
-  // 9) Final tidy + safety guard
-  desc = tidy(desc);
-
-  if (
-    desc.length < 5 ||
-    /^[\d\s\W]+$/.test(desc) // only digits/punctuation/space
-  ) {
-    return original;
-  }
-
-  return desc;
-}
-
-// Adapter function to work with existing code
-function cleanDescription(description: string): CleanResult {
-    if (!description) {
-        return {
-            cleanedDescription: '',
-            merchantKey: 'UNKNOWN',
-            paymentChannel: 'UNKNOWN',
-            referenceTokens: [],
-            confidence: 'LOW',
-            overrideRequired: true,
-        };
-    }
-
-    const merchantKey = cleanDescriptionNew(description);
-    
-    // Attempt to determine payment channel from original description
-    let paymentChannel: CleanResult['paymentChannel'] = 'UNKNOWN';
-    const upperDesc = description.toUpperCase();
-    if (upperDesc.includes('CHEQUE CARD') || upperDesc.includes('POS PURCHASE') || upperDesc.includes('CARD PURCHASE')) {
-        paymentChannel = 'CARD';
-    } else if (upperDesc.includes('EFT PAYMENT') || upperDesc.includes('FNB OB PMT') || upperDesc.includes('MAGTAPE DEBIT')) {
-        paymentChannel = 'EFT';
-    } else if (upperDesc.includes('DEBIT ORDER')) {
-        paymentChannel = 'DEBIT_ORDER';
-    } else if (upperDesc.includes('ATM') || upperDesc.includes('CASH WITHDRAWAL')) {
-        paymentChannel = 'ATM';
-    } else if (upperDesc.includes('INTERNET PAYMENT') || upperDesc.includes('IMMEDIATE PAYMENT') || upperDesc.includes('IB PAYMENT') || upperDesc.includes('IB TRANSFER')) {
-        paymentChannel = 'TRANSFER';
-    }
-
-
-    return {
-        cleanedDescription: description,
-        merchantKey: merchantKey,
-        paymentChannel: paymentChannel,
-        referenceTokens: [], // The new function doesn't extract these, so we'll leave it empty.
-        confidence: 'MEDIUM', // Defaulting confidence
-        overrideRequired: merchantKey === normalize(description) || merchantKey.length < 5,
-    };
-}
-// #endregion
-
 // #region Import Dialog
 const importFormSchema = z.object({
   file: z.any().refine(file => file instanceof File, "A CSV or Excel file is required."),
@@ -215,7 +70,6 @@ const importFormSchema = z.object({
 type ParsedTransaction = {
     Date: string;
     Description: string;
-    CleanResult: CleanResult;
     Amount: number;
 }
 
@@ -269,7 +123,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                         const transactions: ParsedTransaction[] = data.map(row => ({
                             Date: row.Date,
                             Description: row.Description,
-                            CleanResult: cleanDescription(row.Description || ''),
                             Amount: parseFloat(row.Amount)
                         })).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
                         
@@ -308,18 +161,11 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
                 
-                const cleanResult = row.CleanResult;
                 let transaction: Omit<ImportedTransaction, 'id'> & { allocatedAt?: Date } = {
                     clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: reference,
                     description: row.Description,
-                    cleanedDescription: cleanResult.cleanedDescription,
-                    merchantKey: cleanResult.merchantKey,
-                    paymentChannel: cleanResult.paymentChannel,
-                    referenceTokens: cleanResult.referenceTokens,
-                    confidence: cleanResult.confidence,
-                    overrideRequired: cleanResult.overrideRequired,
                     amount: row.Amount,
                     bankAccountId: bankAccountId,
                     status: 'new'
@@ -1214,67 +1060,6 @@ const NewTransactionsTab = React.forwardRef<
         }
     };
     
-    const handleRefreshDescriptions = async () => {
-        if (!client || !client.uid || !bankAccountId) return;
-        setIsRefreshing(true);
-        toast({ title: `Refreshing all new transactions...`, description: "This may take a moment." });
-    
-        try {
-            const q = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'new')
-            );
-            const snapshot = await getDocs(q);
-
-            if (snapshot.empty) {
-                toast({ title: "No new transactions to refresh." });
-                setIsRefreshing(false);
-                return;
-            }
-            
-            const transactionsToRefresh = snapshot.docs;
-            let refreshedCount = 0;
-
-            for (let i = 0; i < transactionsToRefresh.length; i += BATCH_SIZE) {
-                const batch = writeBatch(db);
-                const chunk = transactionsToRefresh.slice(i, i + BATCH_SIZE);
-                
-                for (const docSnap of chunk) {
-                    const tx = docSnap.data() as ImportedTransaction;
-                    if (tx.description) {
-                        const cleanResult = cleanDescription(tx.description);
-                        batch.update(docSnap.ref, {
-                            cleanedDescription: cleanResult.cleanedDescription,
-                            merchantKey: cleanResult.merchantKey,
-                            paymentChannel: cleanResult.paymentChannel,
-                            referenceTokens: cleanResult.referenceTokens,
-                            confidence: cleanResult.confidence,
-                            overrideRequired: cleanResult.overrideRequired,
-                        });
-                        refreshedCount++;
-                    }
-                }
-                await batch.commit();
-            }
-
-            if (refreshedCount > 0) {
-                toast({ title: "Refresh Complete", description: `${refreshedCount} transactions have been re-processed.` });
-                refetch(); // This will refetch paginated data
-                setSelectedTransactions([]); // Clear selection as a good practice
-            } else {
-                 toast({ title: 'No Changes', description: 'No transactions needed refreshing.'});
-            }
-            
-        } catch (error) {
-            console.error("Error refreshing descriptions:", error);
-            toast({ title: "Refresh Failed", variant: "destructive" });
-        } finally {
-            setIsRefreshing(false);
-        }
-    };
-
-
     const handleDownloadExcel = async () => {
         if (!client || !client.uid || !bankAccountId) return;
         setIsDownloading(true);
@@ -1489,10 +1274,6 @@ const NewTransactionsTab = React.forwardRef<
                                </Command>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                         <Button variant="outline" onClick={handleRefreshDescriptions} disabled={isRefreshing}>
-                            {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                            Refresh All Descriptions
-                        </Button>
                         <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating}>
                             {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4" />}
                             Apply Rules
@@ -3458,12 +3239,3 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
-    
-    
-
-
-
-
-    
-
-    
