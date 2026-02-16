@@ -171,21 +171,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     status: 'new'
                 };
                 
-                if (transaction.amount < 0 && allRules.length > 0) {
-                    const rawDescriptionLower = row.Description.toLowerCase();
-                    const matchedRule = allRules.find(rule => 
-                        rule.keywords.some(kw => rawDescriptionLower.includes(kw.toLowerCase()))
-                    );
-
-                    if (matchedRule) {
-                        transaction.status = 'reviewed';
-                        transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
-                        transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
-                        transaction.allocatedAt = new Date();
-                        allocatedCount++;
-                    }
-                }
-                
                 allDbOperations.push((batch) => {
                     const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
                     batch.set(newTransactionRef, transaction);
@@ -612,12 +597,13 @@ const RuleForm = ({ chartOfAccounts, defaultValues, onSave, onCancel }: {
     )
 }
 
-function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues }: {
+function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues, transactionDescription }: {
     client: User | null;
     onRuleCreated: () => void;
     open: boolean;
     onOpenChange: (isOpen: boolean) => void;
     defaultValues: Partial<RuleFormValues>;
+    transactionDescription: string | null;
 }) {
     const { toast } = useToast();
     
@@ -660,6 +646,11 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Create New Allocation Rule</DialogTitle>
+                    {transactionDescription && (
+                        <DialogDescription>
+                            From transaction: <span className="italic">"{transactionDescription}"</span>
+                        </DialogDescription>
+                    )}
                 </DialogHeader>
                 <RuleForm 
                     chartOfAccounts={client.chartOfAccounts || []}
@@ -743,6 +734,7 @@ const NewTransactionsTab = React.forwardRef<
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases' });
+    const [transactionDescriptionForRule, setTransactionDescriptionForRule] = useState<string | null>(null);
     const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -1183,9 +1175,11 @@ const NewTransactionsTab = React.forwardRef<
                     setIsCreateRuleOpen(isOpen);
                     if (!isOpen) {
                         setRuleDefaultValues({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases' });
+                        setTransactionDescriptionForRule(null);
                     }
                 }}
                 defaultValues={ruleDefaultValues}
+                transactionDescription={transactionDescriptionForRule}
             />
              <CreateGeneralAccountDialog 
                 client={client}
@@ -1456,11 +1450,12 @@ const NewTransactionsTab = React.forwardRef<
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent>
                                                      <DropdownMenuItem onSelect={() => {
-                                                        const firstKeyword = tx.description.split(/\s+/)[0];
+                                                        const keyword = tx.merchantKey || tx.description.split(/\s+/)[0];
+                                                        setTransactionDescriptionForRule(tx.description);
                                                         setIsCreateRuleOpen(true);
                                                         setRuleDefaultValues({ 
-                                                            description: '', 
-                                                            keywords: firstKeyword, 
+                                                            description: `Rule for: ${keyword}`, 
+                                                            keywords: keyword, 
                                                             accountId: '', 
                                                             vatType: 'standard_rated_purchases',
                                                         });
@@ -2173,7 +2168,7 @@ const ReviewedTab = React.forwardRef<
                             <DropdownMenuContent>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); }} className="text-destructive">
                                             Delete Selected ({selectedTransactions.length})
                                         </DropdownMenuItem>
                                     </AlertDialogTrigger>
@@ -2766,7 +2761,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const transactionsInProcessing = transactions.filter(tx => tx.status === 'ai_processing').length;
 
     return (
-        <React.Fragment>
+        <>
              <ApproveAndCreateRuleDialog
                 isOpen={!!activeApprovalGroup}
                 onOpenChange={(open) => setActiveApprovalGroup(open ? activeApprovalGroup : null)}
@@ -2817,8 +2812,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             <SelectContent>
                                 <SelectItem value="all">All Accounts</SelectItem>
                                 {chartOfAccounts.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                ))}
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
                             </SelectContent>
                         </Select>
                      </div>
@@ -2920,7 +2914,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage >= totalPages}>Next</Button>
                 </CardFooter>
             </Card>
-        </React.Fragment>
+        </>
     );
 };
 
@@ -3198,7 +3192,11 @@ function BankTransactionsPage() {
                             <DropdownMenuItem onClick={() => setIsNewAccountDialogOpen(true)}>Create New Bank Account</DropdownMenuItem>
                             <DropdownMenuItem disabled={!selectedBankAccount} onClick={() => { setSelectedAccountForEdit(selectedBankAccount || null); setIsEditAccountDialogOpen(true); }}>Edit Selected Account</DropdownMenuItem>
                              <AlertDialog>
-                                <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">Clear Bank Account</DropdownMenuItem></AlertDialogTrigger>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => { e.preventDefault(); }}>
+                                        <span className="text-destructive">Clear Bank Account</span>
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -3267,3 +3265,5 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
+
+    
