@@ -14,7 +14,7 @@ import { firebaseApp } from "@/lib/firebase";
 import { AllocationRule, ChartOfAccount } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 
 const db = getFirestore(firebaseApp);
@@ -188,10 +189,11 @@ export default function AllocationRulesPage() {
 
         globalRules.forEach(rule => {
             rule.keywords.forEach(kw => {
-                if (!keywordAccounts.has(kw)) {
-                    keywordAccounts.set(kw, new Set());
+                const keyword = kw.toLowerCase();
+                if (!keywordAccounts.has(keyword)) {
+                    keywordAccounts.set(keyword, new Set());
                 }
-                keywordAccounts.get(kw)!.add(rule.accountId);
+                keywordAccounts.get(keyword)!.add(rule.accountId);
             });
         });
 
@@ -199,6 +201,32 @@ export default function AllocationRulesPage() {
         keywordAccounts.forEach((accounts, kw) => {
             if (accounts.size > 1) {
                 conflicts.add(kw);
+            }
+        });
+
+        return conflicts;
+    }, [globalRules]);
+
+    const conflictingRuleGroups = useMemo(() => {
+        const keywordToRules = new Map<string, AllocationRule[]>();
+
+        globalRules.forEach(rule => {
+            rule.keywords.forEach(kw => {
+                const keyword = kw.toLowerCase();
+                if (!keywordToRules.has(keyword)) {
+                    keywordToRules.set(keyword, []);
+                }
+                keywordToRules.get(keyword)!.push(rule);
+            });
+        });
+
+        const conflicts: { keyword: string; rules: AllocationRule[] }[] = [];
+        keywordToRules.forEach((rules, keyword) => {
+            if (rules.length > 1) {
+                const uniqueAccounts = new Set(rules.map(r => r.accountId));
+                if (uniqueAccounts.size > 1) {
+                    conflicts.push({ keyword, rules });
+                }
             }
         });
 
@@ -276,6 +304,56 @@ export default function AllocationRulesPage() {
                     />
                 </DialogContent>
             </Dialog>
+
+            {conflictingRuleGroups.length > 0 && (
+                <Card className="border-destructive">
+                    <CardHeader>
+                        <CardTitle>Conflicting Rules Detected</CardTitle>
+                        <CardDescription>
+                            The following keywords are used in multiple rules that point to different accounts. This can cause unpredictable behavior during automatic allocation. Please resolve these conflicts by editing or deleting the rules.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Accordion type="single" collapsible className="w-full">
+                            {conflictingRuleGroups.map(({ keyword, rules }) => (
+                                <AccordionItem value={keyword} key={keyword}>
+                                    <AccordionTrigger>
+                                        <div className="flex items-center gap-2">
+                                            <Badge variant="destructive">{keyword}</Badge>
+                                            <span className="text-sm font-medium"> is assigned to {rules.length} different accounts.</span>
+                                        </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Rule Description</TableHead>
+                                                    <TableHead>Allocated Account</TableHead>
+                                                    <TableHead className="text-right">Actions</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {rules.map(rule => (
+                                                    <TableRow key={rule.id}>
+                                                        <TableCell>{rule.description}</TableCell>
+                                                        <TableCell>{getAccountDescription(rule.accountId)}</TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Button variant="outline" size="sm" onClick={() => handleOpenRuleForm(rule)}>
+                                                                <Edit className="h-3 w-3 mr-2"/>
+                                                                Edit
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card>
                 <CardHeader>
