@@ -2812,7 +2812,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             <SelectContent>
                                 <SelectItem value="all">All Accounts</SelectItem>
                                 {chartOfAccounts.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                      </div>
@@ -3265,5 +3266,6 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
+
 
     
