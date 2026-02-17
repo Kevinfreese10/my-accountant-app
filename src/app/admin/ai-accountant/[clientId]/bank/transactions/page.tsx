@@ -718,13 +718,14 @@ const NewTransactionsTab = React.forwardRef<
         bankAccountId: string | null; 
         customers: ClientCustomer[]; 
         invoices: Invoice[]; 
-        fetchClientData: () => void; 
+        fetchClientData: () => void;
+        fetchGlobalRules: () => void;
         globalRules: AllocationRule[]; 
         onAccountCreated: () => void; 
         setActiveTab: (tab: string) => void;
         currentBalance: number;
     }
->(({ client, bankAccountId, customers, invoices, fetchClientData, globalRules, onAccountCreated, setActiveTab, currentBalance }, ref) => {
+>(({ client, bankAccountId, customers, invoices, fetchClientData, fetchGlobalRules, globalRules, onAccountCreated, setActiveTab, currentBalance }, ref) => {
     const { toast, dismiss } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -744,6 +745,7 @@ const NewTransactionsTab = React.forwardRef<
     const [isSaving, setIsSaving] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     
+    const [triggerAllocation, setTriggerAllocation] = useState(false);
 
 
     type SortField = 'date' | 'description' | 'amount';
@@ -940,10 +942,20 @@ const NewTransactionsTab = React.forwardRef<
 
     const handleRuleCreated = useCallback(() => {
         fetchClientData();
-        setTimeout(() => {
-            handleAllocateByRules();
-        }, 1000);
-    }, [fetchClientData, handleAllocateByRules]);
+        fetchGlobalRules();
+        setTriggerAllocation(true);
+    }, [fetchClientData, fetchGlobalRules]);
+
+    useEffect(() => {
+        if (triggerAllocation) {
+            // Use a short timeout to ensure state propagation and re-render completes
+            const timer = setTimeout(() => {
+                handleAllocateByRules();
+                setTriggerAllocation(false);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [triggerAllocation, handleAllocateByRules]);
 
 
     const handleAiAllocateSelected = async () => {
@@ -2810,8 +2822,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             <SelectContent>
                                 <SelectItem value="all">All Accounts</SelectItem>
                                 {chartOfAccounts.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                ))}
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
                             </SelectContent>
                         </Select>
                      </div>
@@ -2977,7 +2988,7 @@ function BankTransactionsPage() {
                     await batch.commit();
                     toast({
                         title: "Data Migration Complete",
-                        description: `${migratedCount} 'For Review' transaction(s) have been moved.`,
+                        description: `${migratedCount} 'For Review' transaction(s) have been moved.",
                     });
                     // Refetch data in tabs
                     handleRefreshAll();
@@ -3019,9 +3030,20 @@ function BankTransactionsPage() {
         }
     }, [params.clientId, toast, accountId]);
 
+    const fetchGlobalRules = useCallback(async () => {
+        try {
+            const q = query(collection(db, 'allocationRules'));
+            const querySnapshot = await getDocs(q);
+            setGlobalRules(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllocationRule[]);
+        } catch (error) {
+            console.error("Error fetching global rules:", error);
+        }
+    }, []);
+
     useEffect(() => {
         fetchClientData();
-    }, [fetchClientData]);
+        fetchGlobalRules();
+    }, [fetchClientData, fetchGlobalRules]);
     
     useEffect(() => {
         const clientId = params.clientId as string;
@@ -3061,20 +3083,6 @@ function BankTransactionsPage() {
         };
         fetchCustomersAndInvoices();
     }, [params.clientId]);
-
-    useEffect(() => {
-        const fetchGlobalRules = async () => {
-            try {
-                const q = query(collection(db, 'allocationRules'));
-                const querySnapshot = await getDocs(q);
-                setGlobalRules(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllocationRule[]);
-            } catch (error) {
-                console.error("Error fetching global rules:", error);
-            }
-        };
-        fetchGlobalRules();
-    }, []);
-
 
     const handleAccountCreated = useCallback(() => {
         fetchClientData();
@@ -3233,6 +3241,7 @@ function BankTransactionsPage() {
                             customers={customers}
                             invoices={invoices}
                             fetchClientData={fetchClientData}
+                            fetchGlobalRules={fetchGlobalRules}
                             globalRules={globalRules}
                             onAccountCreated={handleAccountCreated}
                             setActiveTab={setActiveTab}
@@ -3245,7 +3254,10 @@ function BankTransactionsPage() {
                             chartOfAccounts={client.chartOfAccounts || []}
                             fetchClientData={fetchClientData}
                             globalRules={globalRules}
-                            onRuleCreated={handleAccountCreated}
+                            onRuleCreated={() => {
+                                fetchClientData();
+                                fetchGlobalRules();
+                            }}
                         />
                     </TabsContent>
                     <TabsContent value="reviewed" className="p-0">
@@ -3264,7 +3276,7 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
-
-
     
+    
+
     
