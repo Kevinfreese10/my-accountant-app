@@ -1,4 +1,5 @@
 
+
       
 'use client';
 
@@ -2822,7 +2823,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             <SelectContent>
                                 <SelectItem value="all">All Accounts</SelectItem>
                                 {chartOfAccounts.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                      </div>
@@ -2988,7 +2990,7 @@ function BankTransactionsPage() {
                     await batch.commit();
                     toast({
                         title: "Data Migration Complete",
-                        description: `${migratedCount} 'For Review' transaction(s) have been moved.",
+                        description: `${migratedCount} 'For Review' transaction(s) have been moved.`,
                     });
                     // Refetch data in tabs
                     handleRefreshAll();
