@@ -1,4 +1,5 @@
 
+      
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -141,9 +142,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
         toast({ title: "Importing...", description: "Processing your file."});
 
         try {
-            const allRules = [...(client?.allocationRules || []), ...globalRules];
-            allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
-
             const allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
             const dailyCounters: { [key: string]: number } = {};
             let allocatedCount = 0;
@@ -3268,4 +3266,5 @@ function BankTransactionsPage() {
 export default BankTransactionsPage;
 
 
+    
     
