@@ -14,7 +14,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField, QueryConstraint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -28,16 +28,17 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
-import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from '@/components/ui/command';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from 'cmdk';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, parse, startOfDay, endOfDay } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { DateRangePicker, type DateRange } from '@/components/ui/date-range-picker';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { DateRange } from 'react-day-picker';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { FirestorePermissionError } from '@/firebase/errors';
 import { Button } from '@/components/ui/button';
 
 
@@ -1976,7 +1977,7 @@ const ReviewedTab = React.forwardRef<
                                     <AlertDialogDescription>
                                         This tool will analyze your reviewed transactions to find allocations that are inconsistent with how you've categorized similar items in the past.
                                     </AlertDialogDescription>
-                                </AccordionHeader>
+                                </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction onClick={handleReviewConsistency}>Yes, Review Consistency</AlertDialogAction>
@@ -2188,9 +2189,7 @@ ReviewedTab.displayName = 'ReviewedTab';
 
 function BankTransactionsPage() {
     const params = useParams();
-    const router = useRouter();
     const accountIdFromUrl = useSearchParams().get('accountId');
-    const { user: currentUser } = useAuth();
     
     const [client, setClient] = useState<User | null>(null);
     const [allAccountTransactions, setAllAccountTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
@@ -2450,7 +2449,7 @@ function BankTransactionsPage() {
     }
     
     return (
-        <div>
+        <div className="space-y-4">
             {selectedAccountForEdit && <EditAccountDialog
                 account={selectedBankAccount || null}
                 client={client}
@@ -2462,7 +2461,7 @@ function BankTransactionsPage() {
                 }}
             />}
             <div className="md:flex items-start justify-between">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-2">
                      <Select onValueChange={(val) => {if(val === 'new') { setIsNewAccountDialogOpen(true); } else { setAccountId(val); }}} value={accountId || ''}>
                         <SelectTrigger className="w-[280px]">
                             <SelectValue placeholder="Select a bank account" />
@@ -2478,7 +2477,7 @@ function BankTransactionsPage() {
                             </SelectItem>
                         </SelectContent>
                     </Select>
-                     <div className="flex gap-4 mt-2 text-sm">
+                     <div className="flex gap-4 text-sm">
                         <div>
                             <span className="text-muted-foreground">Balance: </span> 
                             <span className="font-semibold">{formatPrice(accountStats.balance)}</span>
