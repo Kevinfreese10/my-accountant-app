@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -40,7 +41,7 @@ import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths, isSameMonth, addDays, differenceInDays, isAfter, subDays, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths, isSameMonth, addDays, differenceInDays, isAfter, subDays, startOfDay, endOfDay, parse } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
@@ -121,18 +122,32 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                         }
                         
                         const data = results.data as any[];
-                        const transactions: ParsedTransaction[] = data.map(row => ({
-                            Date: row.Date,
-                            Description: row.Description,
-                            Amount: parseFloat(row.Amount)
-                        })).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
+                        const transactions: ParsedTransaction[] = data.map(row => {
+                            // Normalize keys to find Date, Description, Amount
+                            const normalizedRow: any = {};
+                            Object.keys(row).forEach(k => normalizedRow[k.toLowerCase().trim()] = row[k]);
+
+                            const rawDate = normalizedRow.date || '';
+                            const rawDescription = normalizedRow.description || normalizedRow.desc || '';
+                            const rawAmount = String(normalizedRow.amount || '').replace(/[^\d.-]/g, '');
+
+                            return {
+                                Date: rawDate,
+                                Description: rawDescription,
+                                Amount: parseFloat(rawAmount)
+                            };
+                        }).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
                         
+                        if (transactions.length === 0) {
+                            setImportError('No valid transactions found. Ensure headers are: Date, Description, Amount.');
+                        }
+
                         setParsedTransactions(transactions);
                         setIsParsing(false);
                     }
                 });
             };
-            reader.readAsDataURL(selectedFile);
+            reader.readAsText(selectedFile);
         }
     };
     
@@ -146,10 +161,15 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             const dailyCounters: { [key: string]: number } = {};
             
             parsedTransactions.forEach((row, index) => {
-                const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+                // Try to parse South African format first
+                let parsedDate = parse(row.Date, 'dd/MM/yyyy', new Date());
+                if (isNaN(parsedDate.getTime())) {
+                    // Fallback to ISO
+                    parsedDate = new Date(row.Date);
+                }
 
                 if (isNaN(parsedDate.getTime())) {
-                    console.warn(`Skipping row ${index + 2}: Invalid date format.`);
+                    console.warn(`Skipping row ${index + 2}: Invalid date format "${row.Date}".`);
                     return;
                 }
                 
@@ -182,7 +202,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'create',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
             }
@@ -205,7 +225,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
     }, [resetState]);
     
     const handleDownloadExample = () => {
-        const csvContent = "Date,Description,Amount\nDD/MM/YYYY,Example Payment,-150.00\nDD/MM/YYYY,Example Income,1000.50";
+        const csvContent = "Date,Description,Amount\n01/01/2024,Example Payment,-150.00\n02/01/2024,Example Income,1000.50";
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -230,7 +250,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 <DialogHeader>
                     <DialogTitle>Import Bank Statement</DialogTitle>
                     <DialogDescription>
-                        Upload a CSV file to import transactions.
+                        Upload a CSV file to import transactions. Ensure headers are "Date", "Description", and "Amount".
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -312,7 +332,7 @@ function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, op
                         path: clientRef.path,
                         operation: 'update',
                         requestResourceData: { chartOfAccounts: updatedAccounts },
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
 
@@ -391,7 +411,7 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
                     path: clientRef.path,
                     operation: 'update',
                     requestResourceData: updateData,
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
             });
 
@@ -470,7 +490,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
                         path: clientRef.path,
                         operation: 'update',
                         requestResourceData: updateData,
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
             
@@ -650,7 +670,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                             path: ruleRef.path,
                             operation: 'create',
                             requestResourceData: newRule,
-                        } satisfies SecurityRuleContext);
+                        });
                         errorEmitter.emit('permission-error', permissionError);
                     });
                 toast({ title: 'Global Rule Created' });
@@ -663,7 +683,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                             path: clientRef.path,
                             operation: 'update',
                             requestResourceData: updateData,
-                        } satisfies SecurityRuleContext);
+                        });
                         errorEmitter.emit('permission-error', permissionError);
                     });
                 toast({ title: 'Client Rule Created' });
@@ -863,7 +883,7 @@ const NewTransactionsTab = React.forwardRef<
                     const permissionError = new FirestorePermissionError({
                         path: transRef.path,
                         operation: 'list',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                     throw error;
                 });
@@ -938,7 +958,7 @@ const NewTransactionsTab = React.forwardRef<
                     const permissionError = new FirestorePermissionError({
                         path: transRef.path,
                         operation: 'list',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                     throw error;
                 });
@@ -974,7 +994,7 @@ const NewTransactionsTab = React.forwardRef<
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'update',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
             }
@@ -1024,7 +1044,7 @@ const NewTransactionsTab = React.forwardRef<
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'update',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
             }
@@ -1058,7 +1078,7 @@ const NewTransactionsTab = React.forwardRef<
                 const permissionError = new FirestorePermissionError({
                     path: transRef.path,
                     operation: 'list',
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
                 throw error;
             });
@@ -1083,7 +1103,7 @@ const NewTransactionsTab = React.forwardRef<
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'update',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
             }
@@ -1112,7 +1132,7 @@ const NewTransactionsTab = React.forwardRef<
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'delete',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
             }
@@ -1147,7 +1167,7 @@ const NewTransactionsTab = React.forwardRef<
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'update',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
             }
@@ -1193,7 +1213,7 @@ const NewTransactionsTab = React.forwardRef<
                 const permissionError = new FirestorePermissionError({
                     path: `aiAccountantClients/${client.uid}/transactions`,
                     operation: 'update',
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
             });
             toast({ title: `${count} allocations saved!` });
@@ -1677,7 +1697,7 @@ const ReviewedTab = React.forwardRef<
                         const permissionError = new FirestorePermissionError({
                             path: transRef.path,
                             operation: 'list',
-                        } satisfies SecurityRuleContext);
+                        });
                         errorEmitter.emit('permission-error', permissionError);
                         throw error;
                     });
@@ -1782,7 +1802,7 @@ const ReviewedTab = React.forwardRef<
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'delete',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
             }
@@ -1817,7 +1837,7 @@ const ReviewedTab = React.forwardRef<
               const permissionError = new FirestorePermissionError({
                   path: `aiAccountantClients/${client.uid}/transactions`,
                   operation: 'update',
-              } satisfies SecurityRuleContext);
+              });
               errorEmitter.emit('permission-error', permissionError);
           });
   
@@ -1856,7 +1876,7 @@ const ReviewedTab = React.forwardRef<
                 const permissionError = new FirestorePermissionError({
                     path: transRef.path,
                     operation: 'list',
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
                 throw error;
             });
@@ -1983,7 +2003,7 @@ const ReviewedTab = React.forwardRef<
                 const permissionError = new FirestorePermissionError({
                     path: `aiAccountantClients/${client.uid}/transactions`,
                     operation: 'update',
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
             });
             toast({ title: 'Corrections Applied!' });
@@ -2026,7 +2046,7 @@ const ReviewedTab = React.forwardRef<
                     path: txRef.path,
                     operation: 'update',
                     requestResourceData: data,
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
             });
         });
@@ -2407,7 +2427,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             const permissionError = new FirestorePermissionError({
                 path: transRef.path,
                 operation: 'list',
-            } satisfies SecurityRuleContext);
+            });
             errorEmitter.emit('permission-error', permissionError);
             setIsLoading(false);
         });
@@ -2434,7 +2454,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             const permissionError = new FirestorePermissionError({
                 path: jobsRef.path,
                 operation: 'list',
-            } satisfies SecurityRuleContext);
+            });
             errorEmitter.emit('permission-error', permissionError);
             setIsLoadingJob(false);
         });
@@ -2528,7 +2548,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 const permissionError = new FirestorePermissionError({
                     path: `aiAccountantClients/${client.uid}/transactions`,
                     operation: 'update',
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
             });
             setLastApprovedTxIds(null);
@@ -2551,7 +2571,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 const permissionError = new FirestorePermissionError({
                     path: `aiAccountantClients/${client.uid}/transactions`,
                     operation: 'update',
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
             });
             toast({ title: 'Transactions Rejected' });
@@ -2601,7 +2621,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             const permissionError = new FirestorePermissionError({
                 path: `aiAccountantClients/${client.uid}/transactions`,
                 operation: 'update',
-            } satisfies SecurityRuleContext);
+            });
             errorEmitter.emit('permission-error', permissionError);
         });
         setLastApprovedTxIds(txIds);
@@ -2641,7 +2661,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'update',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
                 toast({ title: 'Changes Saved' });
@@ -2689,7 +2709,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 const permissionError = new FirestorePermissionError({
                     path: `aiAccountantClients/${client.uid}/transactions`,
                     operation: 'update',
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
             });
             setLastApprovedTxIds(txIds);
@@ -2738,7 +2758,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 const permissionError = new FirestorePermissionError({
                     path: `aiAccountantClients/${client.uid}/transactions`,
                     operation: 'update',
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
             });
             setLastApprovedTxIds(txIds);
@@ -2944,7 +2964,7 @@ function BankTransactionsPage() {
                         const permissionError = new FirestorePermissionError({
                             path: transRef.path,
                             operation: 'list',
-                        } satisfies SecurityRuleContext);
+                        });
                         errorEmitter.emit('permission-error', permissionError);
                         throw error;
                     });
@@ -2965,7 +2985,7 @@ function BankTransactionsPage() {
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'update',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
                 handleRefreshAll();
@@ -2989,7 +3009,7 @@ function BankTransactionsPage() {
                     const permissionError = new FirestorePermissionError({
                         path: clientRef.path,
                         operation: 'get',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                     throw error;
                 });
@@ -3014,7 +3034,7 @@ function BankTransactionsPage() {
                     const permissionError = new FirestorePermissionError({
                         path: rulesRef.path,
                         operation: 'list',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                     throw error;
                 });
@@ -3041,7 +3061,7 @@ function BankTransactionsPage() {
             const permissionError = new FirestorePermissionError({
                 path: transRef.path,
                 operation: 'list',
-            } satisfies SecurityRuleContext);
+            });
             errorEmitter.emit('permission-error', permissionError);
         });
         return () => unsubscribe();
@@ -3067,7 +3087,7 @@ function BankTransactionsPage() {
                         const permissionError = new FirestorePermissionError({
                             path: custRef.path,
                             operation: 'list',
-                        } satisfies SecurityRuleContext);
+                        });
                         errorEmitter.emit('permission-error', permissionError);
                         throw error;
                     });
@@ -3079,7 +3099,7 @@ function BankTransactionsPage() {
                         const permissionError = new FirestorePermissionError({
                             path: invRef.path,
                             operation: 'list',
-                        } satisfies SecurityRuleContext);
+                        });
                         errorEmitter.emit('permission-error', permissionError);
                         throw error;
                     });
@@ -3120,7 +3140,7 @@ function BankTransactionsPage() {
                 const permissionError = new FirestorePermissionError({
                     path: transRef.path,
                     operation: 'list',
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
                 throw error;
             });
@@ -3138,7 +3158,7 @@ function BankTransactionsPage() {
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'delete',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
             }
