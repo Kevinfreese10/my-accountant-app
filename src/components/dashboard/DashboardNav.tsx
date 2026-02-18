@@ -79,7 +79,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const navItems = [
      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
      { href: '/dashboard/orders', label: 'My Orders', icon: ShieldCheck, roles: ['client', 'ai_accountant'] },
-     { href: '/dashboard/subscriptions', label: 'Subscriptions', icon: BadgeDollarSign, roles: ['client', 'ai_accountant'] },
      { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
   ];
 

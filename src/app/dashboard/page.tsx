@@ -48,7 +48,7 @@ const getUserColor = (userId: string) => {
 };
 
 export default function DashboardPage() {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const [services, setServices] = useState<Service[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
@@ -74,17 +74,6 @@ export default function DashboardPage() {
         localStorage.setItem('archivedNotifications-client', JSON.stringify(newArchived));
     };
     
-    const monthlyPackages = useMemo(() => {
-        const monthlyTitles = [
-            'Monthly Accounting (Non-VAT)',
-            'Monthly Accounting (VAT Registered)',
-            'Monthly Payroll',
-        ];
-        return services
-            .filter(s => monthlyTitles.includes(s.title))
-            .sort((a,b) => monthlyTitles.indexOf(a.title) - monthlyTitles.indexOf(b.title));
-    }, [services]);
-
     useEffect(() => {
         setIsLoading(true);
 
@@ -95,7 +84,7 @@ export default function DashboardPage() {
             setIsLoading(false);
         }, async (error) => {
             const permissionError = new FirestorePermissionError({
-                path: servicesRef.path,
+                path: 'services',
                 operation: 'list',
             } satisfies SecurityRuleContext);
             errorEmitter.emit('permission-error', permissionError);
@@ -108,7 +97,7 @@ export default function DashboardPage() {
             setCategories(fetchedCategories);
         }, async (error) => {
             const permissionError = new FirestorePermissionError({
-                path: categoriesRef.path,
+                path: 'categories',
                 operation: 'list',
             } satisfies SecurityRuleContext);
             errorEmitter.emit('permission-error', permissionError);
@@ -119,7 +108,7 @@ export default function DashboardPage() {
             setAllStaff(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User)));
         }, async (error) => {
             const permissionError = new FirestorePermissionError({
-                path: staffRef.path,
+                path: 'users',
                 operation: 'list',
             } satisfies SecurityRuleContext);
             errorEmitter.emit('permission-error', permissionError);
@@ -140,7 +129,7 @@ export default function DashboardPage() {
                 setIsLoading(false);
             }, async (error) => {
                 const permissionError = new FirestorePermissionError({
-                    path: ordersRef.path,
+                    path: 'orders',
                     operation: 'list',
                 } satisfies SecurityRuleContext);
                 errorEmitter.emit('permission-error', permissionError);
@@ -315,46 +304,6 @@ export default function DashboardPage() {
                     </CardContent>
                 </Card>
 
-
-                <section id="packages">
-                    <div className="space-y-8">
-                        <div>
-                            <h2 className="text-2xl font-bold tracking-tight">Monthly Service Packages</h2>
-                            <p className="text-muted-foreground">Automate your finances with our comprehensive monthly packages.</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
-                            {monthlyPackages.map((pkg) => (
-                                <Card key={pkg.id} className="flex flex-col">
-                                    <CardHeader>
-                                        <CardTitle>{pkg.title}</CardTitle>
-                                        <div className="flex items-baseline pt-2">
-                                            <span className="text-3xl font-bold">{formatPrice(pkg.price)}</span>
-                                            <span className="ml-1.5 text-sm text-muted-foreground">/month</span>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="flex-grow">
-                                        <ul className="space-y-3">
-                                            {pkg.whatsIncluded.map((feature, index) => (
-                                                <li key={index} className="flex items-center gap-2 text-sm">
-                                                    <CheckCircle className="h-4 w-4 text-green-500" />
-                                                    <span>{feature}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </CardContent>
-                                    <CardFooter>
-                                        <Button className="w-full" asChild>
-                                            <Link href="/contact">Contact Us</Link>
-                                        </Button>
-                                    </CardFooter>
-                                </Card>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
-                <Separator />
-
                 <div className="space-y-12">
                     {isLoading ? (
                         <div className="flex justify-center items-center h-40">
@@ -365,7 +314,7 @@ export default function DashboardPage() {
                         <CardHeader>
                              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div>
-                                    <CardTitle>Once-off Services</CardTitle>
+                                    <CardTitle>Services</CardTitle>
                                     <CardDescription>Browse and purchase individual services.</CardDescription>
                                 </div>
                                 <div className="relative w-full sm:max-w-xs">
