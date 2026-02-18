@@ -13,7 +13,7 @@ import { firebaseApp } from "@/lib/firebase";
 import { AllocationRule, ChartOfAccount } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogFooter } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -181,6 +181,7 @@ export default function AllocationRulesPage() {
             return globalRules;
         }
         return globalRules.filter(rule =>
+            rule.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
             rule.keywords.some(kw => kw.toLowerCase().includes(searchTerm.toLowerCase()))
         );
     }, [globalRules, searchTerm]);
@@ -224,7 +225,7 @@ export default function AllocationRulesPage() {
     const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
         const ruleData = {
             description: values.description,
-            keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
+            keywords: values.keywords.split(',').map(k => k.trim().toUpperCase()),
             accountId: values.accountId,
             vatType: values.vatType,
             type: 'hard' as 'hard',
@@ -272,19 +273,15 @@ export default function AllocationRulesPage() {
 
             if (result && result.optimizedKeywords) {
                 const ruleRef = doc(db, 'allocationRules', rule.id);
-                // Combine unique keywords
-                const mergedKeywords = Array.from(new Set([
-                    ...rule.keywords.map(k => k.toUpperCase()),
-                    ...result.optimizedKeywords.map(k => k.toUpperCase())
-                ])).filter(Boolean);
-
+                
+                // Replace with AI optimized keywords
                 await updateDoc(ruleRef, {
-                    keywords: mergedKeywords,
+                    keywords: result.optimizedKeywords.map(k => k.toUpperCase()),
                 });
 
                 toast({
-                    title: 'Rule Updated by AI',
-                    description: result.reasoning || `Added ${result.optimizedKeywords.length} new keywords.`,
+                    title: 'Rule Optimized by AI',
+                    description: result.reasoning || `Keywords have been simplified and normalized.`,
                 });
                 fetchGlobalRules();
             }

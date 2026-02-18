@@ -1,13 +1,12 @@
 'use server';
 /**
- * @fileOverview An AI agent for optimizing allocation rules by expanding keywords.
+ * @fileOverview An AI agent for optimizing allocation rules by expanding and simplifying keywords.
  * 
  * - optimizeAllocationRule - A function that suggests optimized keywords and settings for a rule.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { allVatTypes } from '@/lib/vat-types';
 
 const OptimizeAllocationRuleInputSchema = z.object({
   description: z.string().describe('The current description of the allocation rule.'),
@@ -16,7 +15,7 @@ const OptimizeAllocationRuleInputSchema = z.object({
 export type OptimizeAllocationRuleInput = z.infer<typeof OptimizeAllocationRuleInputSchema>;
 
 const OptimizeAllocationRuleOutputSchema = z.object({
-  optimizedKeywords: z.array(z.string()).describe('An expanded and normalized list of keywords (UPPERCASE).'),
+  optimizedKeywords: z.array(z.string()).describe('A simplified and high-impact list of keywords (UPPERCASE).'),
   reasoning: z.string().describe('A brief, one-sentence explanation of why these keywords were suggested.'),
 });
 export type OptimizeAllocationRuleOutput = z.infer<typeof OptimizeAllocationRuleOutputSchema>;
@@ -31,17 +30,20 @@ const prompt = ai.definePrompt({
   name: 'optimizeAllocationRulePrompt',
   input: { schema: OptimizeAllocationRuleInputSchema },
   output: { schema: OptimizeAllocationRuleOutputSchema },
-  prompt: `You are an expert South African bookkeeping assistant. Your goal is to help a Chartered Accountant optimize automated bank transaction allocation rules by researching common keywords found on bank statements.
+  prompt: `You are an expert South African bookkeeping assistant. Your goal is to optimize automated bank transaction allocation rules by identifying high-impact "root" keywords.
 
 **Rule Description:** {{{description}}}
 **Current Keywords:** {{#each keywords}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 
 **Instructions:**
-1. **Analyze the Description**: Identify the logical merchant category or nature of the transaction (e.g., if it says "Fuel", think of major South African fuel stations like SHELL, ENGEN, BP, TOTAL, SASOL).
-2. **Expand Keywords**: Suggest a comprehensive list of keywords that would appear on a South African bank statement for this category. Include common abbreviations (e.g., "PNP" for "PICK N PAY"), common merchant names, and standard bank noise variations.
-3. **Normalize**: All keywords must be in UPPERCASE.
-4. **Filter**: Avoid generic terms that might cause false positives (e.g., don't use "STORE" if the rule is for a specific shop).
-5. **Reasoning**: Provide a very short explanation of the research results.
+1. **Identify the Core Nature**: Determine the logical category or merchant.
+2. **Find Root Keywords**: Instead of long, specific strings, look for concise words that are common across many variations. 
+   - Example: Instead of "MONTHLY SERVICE FEE", "STOP ORDER FEE", and "OVERDRAFT FEE", suggest "FEE" or "CHARGES".
+   - Example: Instead of "VODACOM PYMNT 123", suggest "VODACOM".
+3. **Broad but Safe**: Ensure keywords are specific enough to avoid false positives (e.g., don't use "STORE" for a clothing shop) but broad enough to cover bank statement noise.
+4. **Prune Redundancy**: If a shorter keyword covers longer ones, only include the short one.
+5. **Normalize**: All keywords must be in UPPERCASE.
+6. **South African Context**: Use knowledge of SA banks (FNB, ABSA, Nedbank, Standard Bank, Capitec) and common merchants (PNP, Checkers, Shell, etc.).
 
 Return the result as structured JSON.`,
 });
