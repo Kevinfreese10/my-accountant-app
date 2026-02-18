@@ -1,4 +1,3 @@
-
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch } from 'firebase/firestore';
@@ -123,6 +122,15 @@ async function runAllocationProcess(clientId: string, bankAccountId: string, job
         const chartOfAccounts = client.chartOfAccounts || [];
         const isVatRegistered = client.isVatRegistered || false;
         
+        // BYOK: Fetch the partner's API key if this client was created by a partner
+        let partnerApiKey: string | undefined;
+        if (client.createdBy) {
+            const partnerSnap = await getDoc(doc(db, 'users', client.createdBy));
+            if (partnerSnap.exists()) {
+                partnerApiKey = partnerSnap.data().geminiApiKey;
+            }
+        }
+
         const globalRulesQuery = query(collection(db, 'allocationRules'));
         const globalRulesSnap = await getDocs(globalRulesQuery);
         const globalRules = globalRulesSnap.docs.map(d => d.data() as AllocationRule);
@@ -160,7 +168,12 @@ async function runAllocationProcess(clientId: string, bankAccountId: string, job
                 allocationResult = allocationCache.get(description)!;
             } else {
                 try {
-                    const aiResponse = await suggestTransactionAllocation({ description, chartOfAccounts: JSON.stringify(chartOfAccounts), isVatRegistered });
+                    const aiResponse = await suggestTransactionAllocation({ 
+                        description, 
+                        chartOfAccounts: JSON.stringify(chartOfAccounts), 
+                        isVatRegistered,
+                        apiKey: partnerApiKey // Pass the partner's API key
+                    });
                     const confidence = aiResponse?.confidence ?? 0;
                     
                     if (confidence >= 80 && aiResponse.accountId) {

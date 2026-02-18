@@ -9,10 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Download, Sparkles, FileText, Upload } from 'lucide-react';
+import { Loader2, Download, Sparkles, FileText, Upload, AlertCircle } from 'lucide-react';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import Papa from 'papaparse';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/contexts/AuthContext';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import Link from 'next/link';
 
 const formSchema = z.object({
   statement: z.custom<FileList>().refine((files) => files && files.length > 0, 'A PDF file is required.'),
@@ -28,6 +31,7 @@ export default function PartnerPdfToCsvPage() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractedTransactions, setExtractedTransactions] = useState<Transaction[]>([]);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -40,16 +44,24 @@ export default function PartnerPdfToCsvPage() {
       return;
     }
 
+    if (!user?.geminiApiKey) {
+        toast({ title: 'AI Key Missing', description: 'Please configure your Gemini API Key in your profile settings.', variant: 'destructive' });
+        return;
+    }
+
     setIsExtracting(true);
     setExtractedTransactions([]);
-    toast({ title: 'Extraction Started...', description: 'The AI is processing your bank statement.' });
+    toast({ title: 'Extraction Started...', description: 'The AI is processing your bank statement using your API key.' });
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
       const dataUrl = reader.result as string;
       try {
-        const result = await extractStatementData({ statementPdf: dataUrl });
+        const result = await extractStatementData({ 
+            statementPdf: dataUrl,
+            apiKey: user.geminiApiKey // Use the partner's key
+        });
         if (!result || !result.transactions || result.transactions.length === 0) {
           toast({ title: 'Extraction Failed', description: 'The AI could not extract any transactions. Please try a different file.', variant: 'destructive' });
         } else {
@@ -94,11 +106,22 @@ export default function PartnerPdfToCsvPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">PDF to CSV Converter</h1>
       </div>
+
+      {!user?.geminiApiKey && (
+          <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Action Required</AlertTitle>
+              <AlertDescription>
+                  You must configure your <strong>Gemini API Key</strong> in your <Link href="/partner/profile" className="underline font-semibold">profile settings</Link> to use this AI tool.
+              </AlertDescription>
+          </Alert>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
         <Card>
           <CardHeader>
             <CardTitle>Upload Bank Statement</CardTitle>
-            <CardDescription>Upload a bank statement in PDF format to extract transactions into a CSV file using AI.</CardDescription>
+            <CardDescription>Upload a bank statement in PDF format to extract transactions into a CSV file using your own Gemini AI key.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -114,13 +137,14 @@ export default function PartnerPdfToCsvPage() {
                           type="file"
                           accept="application/pdf"
                           onChange={(e) => field.onChange(e.target.files)}
+                          disabled={!user?.geminiApiKey}
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button type="submit" disabled={isExtracting}>
+                <Button type="submit" disabled={isExtracting || !user?.geminiApiKey}>
                   {isExtracting ? <Sparkles className="mr-2 h-4 w-4 animate-ping" /> : <Upload className="mr-2 h-4 w-4" />}
                   {isExtracting ? 'Extracting Transactions...' : 'Extract Transactions'}
                 </Button>

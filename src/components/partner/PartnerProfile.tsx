@@ -1,4 +1,3 @@
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -6,14 +5,18 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, BrainCircuit } from 'lucide-react';
 import { useState } from 'react';
+import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+
+const db = getFirestore(firebaseApp);
 
 const formSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
@@ -21,6 +24,7 @@ const formSchema = z.object({
   surname: z.string().min(2, 'Contact surname is required.'),
   email: z.string().email('Please enter a valid email.'),
   contactNumber: z.string().min(10, 'A valid contact number is required.'),
+  geminiApiKey: z.string().optional(),
   address: z.object({
       street: z.string().min(3, 'Street address is required.'),
       city: z.string().min(2, 'City is required.'),
@@ -36,8 +40,7 @@ const formSchema = z.object({
 });
 
 export default function PartnerProfile() {
-  const router = useRouter();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -49,6 +52,7 @@ export default function PartnerProfile() {
       surname: user?.name?.split(' ').slice(1).join(' ') || user?.contactPerson?.split(' ').slice(1).join(' ') || '',
       email: user?.email || '',
       contactNumber: user?.contactNumber || '',
+      geminiApiKey: user?.geminiApiKey || '',
       address: { 
           street: user?.address?.street || '', 
           city: user?.address?.city || '', 
@@ -64,17 +68,38 @@ export default function PartnerProfile() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!user) return;
     setIsSaving(true);
-    // In a real app, you would submit this to your backend
-    console.log('Updating partner profile:', values);
-    setTimeout(() => {
+    
+    try {
+        const userRef = doc(db, 'users', user.uid);
+        const updateData = {
+            companyName: values.companyName,
+            contactNumber: values.contactNumber,
+            geminiApiKey: values.geminiApiKey || '',
+            address: values.address,
+            bankingDetails: values.bankingDetails,
+            name: `${values.name} ${values.surname}`,
+        };
+
+        await updateDoc(userRef, updateData);
+        updateUser({ ...user, ...updateData });
+        
         toast({
             title: 'Profile Updated!',
-            description: `Your company details have been saved.`,
+            description: `Your company details and AI settings have been saved.`,
         });
+    } catch (error) {
+        console.error("Error updating partner profile:", error);
+        toast({
+            title: 'Update Failed',
+            description: 'Could not save your profile. Please try again.',
+            variant: 'destructive',
+        });
+    } finally {
         setIsSaving(false);
-    }, 1500)
+    }
   }
 
   return (
@@ -90,6 +115,44 @@ export default function PartnerProfile() {
                 <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} readOnly disabled /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="contactNumber" render={({ field }) => ( <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
+        </div>
+
+        <div className="space-y-4">
+            <h3 className="text-lg font-medium">AI Configuration</h3>
+            <Card className="border-primary/20 bg-primary/5">
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                        <BrainCircuit className="h-4 w-4 text-primary"/>
+                        Gemini AI Integration
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                        Provide your own Google Gemini API key to enable AI-powered features for your client dashboard.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <FormField 
+                        control={form.control} 
+                        name="geminiApiKey" 
+                        render={({ field }) => ( 
+                            <FormItem>
+                                <FormLabel className="text-xs">Google Gemini API Key</FormLabel>
+                                <FormControl>
+                                    <Input 
+                                        type="password" 
+                                        placeholder="Enter your API key..." 
+                                        {...field} 
+                                        className="bg-white"
+                                    />
+                                </FormControl>
+                                <FormDescription className="text-[10px]">
+                                    Your key is stored securely and never shared. Get a key from the <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-primary hover:underline">Google AI Studio</a>.
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )} 
+                    />
+                </CardContent>
+            </Card>
         </div>
 
         <div className="space-y-4">

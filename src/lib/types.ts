@@ -1,5 +1,3 @@
-
-
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -219,6 +217,7 @@ export type User = {
   contactPerson?: string;
   contactEmail?: string;
   contactNumber?: string;
+  geminiApiKey?: string; // BYOK for Gemini
   address?: {
       street?: string;
       suburb?: string;
@@ -474,5 +473,3 @@ export const FindStoryNameOutputSchema = z.object({
   storyName: z.string().optional().describe('The corresponding story name found in the knowledge base. Returns nothing if no match is found.'),
 });
 export type FindStoryNameOutput = z.infer<typeof FindStoryNameOutputSchema>;
-
-    

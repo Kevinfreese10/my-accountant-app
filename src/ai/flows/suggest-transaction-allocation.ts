@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for suggesting transaction allocations.
@@ -12,11 +11,13 @@ import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import { allVatTypes } from '@/lib/vat-types';
 import { googleAI } from '@genkit-ai/google-genai';
+import { genkit } from 'genkit';
 
 const SuggestTransactionAllocationInputSchema = z.object({
   description: z.string().describe('The bank transaction description (e.g., "PICK N PAY RETAILERS").'),
   chartOfAccounts: z.string().describe('A JSON string of the chart of accounts, with "id", "accountNumber", and "description" fields.'),
   isVatRegistered: z.boolean().describe('Whether the client is registered for VAT.'),
+  apiKey: z.string().optional().describe('An optional Google AI API key to use for this specific suggestion.'),
 });
 export type SuggestTransactionAllocationInput = z.infer<typeof SuggestTransactionAllocationInputSchema>;
 
@@ -30,6 +31,36 @@ export type SuggestTransactionAllocationOutput = z.infer<typeof SuggestTransacti
 export async function suggestTransactionAllocation(
   input: SuggestTransactionAllocationInput
 ): Promise<SuggestTransactionAllocationOutput> {
+  // If an API key is provided, we use a local genkit instance to perform the generation
+  if (input.apiKey) {
+    const customAi = genkit({
+      plugins: [googleAI({ apiKey: input.apiKey })],
+    });
+
+    const { output } = await customAi.generate({
+      model: 'googleai/gemini-2.5-flash',
+      output: { schema: SuggestTransactionAllocationOutputSchema },
+      prompt: `You are an expert South African accountant. Your task is to suggest the correct general ledger account and VAT type for a bank transaction based on its full description.
+
+Analyze the transaction description and choose the most appropriate account from the provided chart of accounts. Also, determine the correct VAT treatment.
+
+**Client VAT Status**: The client is ${input.isVatRegistered ? 'REGISTERED' : 'NOT REGISTERED'} for VAT.
+
+**CRITICAL INSTRUCTION**: If the client is NOT registered for VAT, you MUST set the 'vatType' to 'no_vat' for all transactions.
+
+**Transaction Description**: ${input.description}
+
+**Chart of Accounts**:
+\`\`\`json
+${input.chartOfAccounts}
+\`\`\`
+
+Based on the description, provide the account ID and VAT type. Your confidence should reflect how specific the description is. For example, a transaction for "PICK N PAY" is clearly for 'General Expenses', so confidence should be high (e.g., 95). A generic "DEBIT ORDER" is ambiguous, so confidence should be very low (e.g., 10).`,
+    });
+
+    return output!;
+  }
+
   return suggestTransactionAllocationFlow(input);
 }
 
@@ -67,10 +98,3 @@ const suggestTransactionAllocationFlow = ai.defineFlow(
     return output!;
   }
 );
-
-
-
-
-
-
-

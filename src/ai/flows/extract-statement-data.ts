@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for extracting transaction data from bank statements.
@@ -11,11 +10,13 @@
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
+import { genkit } from 'genkit';
 
 const ExtractStatementDataInputSchema = z.object({
   statementPdf: z.string().describe(
     "A PDF document of a bank statement, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:application/pdf;base64,<encoded_data>'."
   ),
+  apiKey: z.string().optional().describe("An optional Google AI API key to use for this specific extraction."),
 });
 export type ExtractStatementDataInput = z.infer<typeof ExtractStatementDataInputSchema>;
 
@@ -33,6 +34,30 @@ export type ExtractStatementDataOutput = z.infer<typeof ExtractStatementDataOutp
 export async function extractStatementData(
   input: ExtractStatementDataInput
 ): Promise<ExtractStatementDataOutput> {
+  // If an API key is provided, we use a local genkit instance to perform the generation
+  // using the provided key instead of the global system key.
+  if (input.apiKey) {
+    const customAi = genkit({
+      plugins: [googleAI({ apiKey: input.apiKey })],
+    });
+
+    const { output } = await customAi.generate({
+      model: 'googleai/gemini-2.5-flash',
+      output: { schema: ExtractStatementDataOutputSchema },
+      prompt: [
+        { text: `You are an expert OCR and data extraction agent specializing in South African bank statements.
+
+Your task is to analyze the provided bank statement PDF and extract the following information for every single transaction:
+1.  **Date**: The date the transaction occurred, formatted as YYYY-MM-DD.
+2.  **Description**: The full, untruncated description of the transaction as it appears on the statement.
+3.  **Amount**: The transaction amount. It is CRITICAL to use negative numbers for any debits, payments, or withdrawals, and positive numbers for any credits, deposits, or receipts.` },
+        { media: { url: input.statementPdf, contentType: 'application/pdf' } }
+      ],
+    });
+
+    return output!;
+  }
+
   return extractStatementDataFlow(input);
 }
 
