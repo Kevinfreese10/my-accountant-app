@@ -89,6 +89,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
     { href: '/admin/services', label: 'Manage Products', icon: Briefcase, roles: ['admin'] },
+    { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin', 'staff'] },
   ];
 
   const aiAccountantNavItems = [
@@ -117,6 +118,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['partner'] },
     { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['partner'] },
     { href: '/partner/outsourced-orders', label: 'Outsourced Orders', icon: FileText, roles: ['partner'] },
+    { href: '/partner/tools', label: 'Tools', icon: Wrench, roles: ['partner'] },
     { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['partner'] },
   ];
 

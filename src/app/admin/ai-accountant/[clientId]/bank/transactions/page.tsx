@@ -132,7 +132,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     }
                 });
             };
-            reader.readAsText(selectedFile);
+            reader.readAsDataURL(selectedFile);
         }
     };
     
@@ -672,7 +672,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
             onOpenChange(false);
         } catch(e) {
             console.error(e);
-            toast({ title: 'Error', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not create the rule.', variant: 'destructive'});
         }
     };
     
