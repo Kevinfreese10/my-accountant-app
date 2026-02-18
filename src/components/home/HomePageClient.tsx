@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import Link from 'next/link';
@@ -18,6 +16,12 @@ import { Input } from '@/components/ui/input';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { Service } from '@/lib/types';
 import { useEffect, useState, useMemo } from 'react';
+import { getFirestore, collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+
+const db = getFirestore(firebaseApp);
 
 type Category = { 
     id: string; 
@@ -27,13 +31,63 @@ type Category = {
 };
 
 const formatPrice = (price: number) => {
-    // Use simple formatting to avoid hydration mismatch between server/client
     return `R ${price.toLocaleString('en-US')}`;
 };
 
-export default function HomePageClient({ services, categories }: { services: Service[], categories: Category[] }) {
+export default function HomePageClient() {
+  const [services, setServices] = useState<Service[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      
+      const servicesRef = collection(db, 'services');
+      const servicesQuery = query(servicesRef, orderBy('title'));
+      getDocs(servicesQuery)
+        .then((snapshot) => {
+          const fetchedServices = snapshot.docs.map(doc => {
+            const data = doc.data();
+            const serviceData = { id: doc.id, ...data } as any;
+            if (data.createdAt && data.createdAt instanceof Timestamp) {
+                serviceData.createdAt = data.createdAt.toDate().toISOString();
+            }
+            return serviceData as Service;
+          });
+          setServices(fetchedServices);
+        })
+        .catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+            path: servicesRef.path,
+            operation: 'list',
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        });
+
+      const categoriesRef = collection(db, 'categories');
+      const categoriesQuery = query(categoriesRef, orderBy('order'));
+      getDocs(categoriesQuery)
+        .then((snapshot) => {
+          const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+          setCategories(fetchedCategories);
+        })
+        .catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+            path: categoriesRef.path,
+            operation: 'list',
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    };
+
+    fetchData();
+  }, []);
+
   const whyChooseUs = [
     {
       title: 'Expert & Reliable',
@@ -89,7 +143,6 @@ export default function HomePageClient({ services, categories }: { services: Ser
         </div>
       </section>
 
-      {/* Trustindex Reviews Widget */}
       <TrustIndexWidget />
 
       <section className="bg-background pt-16">
@@ -137,7 +190,11 @@ export default function HomePageClient({ services, categories }: { services: Ser
       </section>
       
         <div id="products" className="container mx-auto px-4 space-y-12 scroll-m-20">
-            {categorizedServices.length > 0 ? (
+            {isLoading ? (
+                <div className="flex justify-center items-center h-40">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                </div>
+            ) : categorizedServices.length > 0 ? (
                 categorizedServices.map(category => (
                 <section key={category.name} id={category.name.toLowerCase().replace(/ /g, '-')}>
                     <div className="text-center mb-8">

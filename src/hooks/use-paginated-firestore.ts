@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
@@ -15,6 +14,8 @@ import {
 } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const db = getFirestore(firebaseApp);
 
@@ -32,7 +33,7 @@ export function usePaginatedFirestore<T>({
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
   const [firstDoc, setFirstDoc] = useState<QueryDocumentSnapshot | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageCount, setPageCount] = useState(1); // Assume at least one page
+  const [pageCount, setPageCount] = useState(1);
   const { toast } = useToast();
 
   const fetchPage = useCallback(async (page: number, direction: 'next' | 'prev' | 'initial' = 'initial') => {
@@ -50,7 +51,7 @@ export function usePaginatedFirestore<T>({
             pageQuery = query(baseQuery, startAfter(lastDoc), limit(pageSize));
         } else if (direction === 'prev' && firstDoc) {
             pageQuery = query(baseQuery, endBefore(firstDoc), limitToLast(pageSize));
-        } else { // initial or jumping to a page (not implemented, but good to have)
+        } else {
             pageQuery = query(baseQuery, limit(pageSize));
         }
 
@@ -64,17 +65,21 @@ export function usePaginatedFirestore<T>({
             setCurrentPage(page);
         } else {
              if(direction === 'next') {
-                setPageCount(currentPage); // Lock the page count
-            } else if (direction === 'prev') {
-                // If we go back and get nothing, something is wrong, or we are at the start
-                // Do nothing, stay on the current page
-            } else { // initial fetch returned no docs
+                setPageCount(currentPage);
+            } else {
                 setDocuments([]);
                 setFirstDoc(null);
                 setLastDoc(null);
             }
         }
-    } catch (error) {
+    } catch (error: any) {
+       if (error.code === 'permission-denied') {
+           const permissionError = new FirestorePermissionError({
+               path: '(paginated query)',
+               operation: 'list',
+           } satisfies SecurityRuleContext);
+           errorEmitter.emit('permission-error', permissionError);
+       }
        console.error("Error fetching documents:", error);
        toast({
         title: "Error",
@@ -115,20 +120,21 @@ export function usePaginatedFirestore<T>({
                 setLastDoc(null);
             }
             setIsLoading(false);
-        }).catch(error => {
+        }).catch(async (error) => {
+            if (error.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({
+                    path: '(paginated query)',
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            }
             console.error("Error refetching documents:", error);
-            toast({
-                title: "Error",
-                description: "Could not refresh data.",
-                variant: "destructive",
-            });
             setIsLoading(false);
         });
     }
   }, [baseQuery, pageSize, toast]);
 
 
-  // Initial fetch effect
   useEffect(() => {
     refetch();
   }, [baseQuery]);

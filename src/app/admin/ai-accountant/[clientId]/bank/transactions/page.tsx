@@ -1,6 +1,3 @@
-
-
-      
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -52,10 +49,12 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { startAiAllocationJob } from '@/app/actions';
 import { useAuth } from '@/contexts/AuthContext';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 
 const PAGE_SIZE = 50;
-const BATCH_SIZE = 400; // Firestore batch limit is 500
+const BATCH_SIZE = 400;
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-GB', {
@@ -145,7 +144,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
         try {
             const allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
             const dailyCounters: { [key: string]: number } = {};
-            let allocatedCount = 0;
             
             parsedTransactions.forEach((row, index) => {
                 const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
@@ -180,15 +178,16 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 const batch = writeBatch(db);
                 const chunk = allDbOperations.slice(i, i + BATCH_SIZE);
                 chunk.forEach(op => op(batch));
-                await batch.commit();
+                batch.commit().catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `aiAccountantClients/${client.uid}/transactions`,
+                        operation: 'create',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             }
 
-            let toastDescription = `${parsedTransactions.length} transactions have been imported.`;
-            if (allocatedCount > 0) {
-                toastDescription += ` ${allocatedCount} expense(s) were automatically allocated for review.`;
-            }
-
-            toast({ title: "Import Successful", description: toastDescription});
+            toast({ title: "Import Successful", description: `${parsedTransactions.length} transactions have been imported.`});
             onImportComplete();
             setIsOpen(false);
             resetState();
@@ -307,14 +306,22 @@ function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, op
             ) || [];
 
             const clientRef = doc(db, 'aiAccountantClients', client.uid);
-            await updateDoc(clientRef, { chartOfAccounts: updatedAccounts });
+            updateDoc(clientRef, { chartOfAccounts: updatedAccounts })
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: clientRef.path,
+                        operation: 'update',
+                        requestResourceData: { chartOfAccounts: updatedAccounts },
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
 
-            toast({ title: 'Bank Account Updated', description: `The account name has been changed to ${values.name}.` });
+            toast({ title: 'Bank Account Updated' });
             onAccountUpdated();
             onOpenChange(false);
         } catch (error) {
             console.error("Error updating bank account:", error);
-            toast({ title: 'Error', description: 'Could not update the bank account.', variant: 'destructive' });
+            toast({ title: 'Error', variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -378,17 +385,24 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
             };
 
             const clientRef = doc(db, 'aiAccountantClients', client.uid);
-            await updateDoc(clientRef, {
+            updateDoc(clientRef, {
                 chartOfAccounts: arrayUnion(newAccount)
+            }).catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: clientRef.path,
+                    operation: 'update',
+                    requestResourceData: { chartOfAccounts: arrayUnion(newAccount) },
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
             });
 
-            toast({ title: 'Bank Account Created', description: `Account ${newAccount.description} (${newAccount.accountNumber}) has been added.` });
+            toast({ title: 'Bank Account Created' });
             onAccountCreated();
             form.reset();
             onOpenChange(false);
         } catch (error) {
             console.error("Error creating bank account:", error);
-            toast({ title: 'Error', description: 'Could not create the bank account.', variant: 'destructive' });
+            toast({ title: 'Error', variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -450,15 +464,24 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
             };
 
             const clientRef = doc(db, 'aiAccountantClients', client.uid);
-            await setDoc(clientRef, { chartOfAccounts: arrayUnion(newAccount) }, { merge: true });
+            const updateData = { chartOfAccounts: arrayUnion(newAccount) };
+            setDoc(clientRef, updateData, { merge: true })
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: clientRef.path,
+                        operation: 'update',
+                        requestResourceData: updateData,
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             
-            toast({ title: 'Account Created', description: `Account "${values.description}" has been added.` });
+            toast({ title: 'Account Created' });
             onAccountCreated();
             form.reset();
             onOpenChange(false);
         } catch (error) {
             console.error("Error creating general account:", error);
-            toast({ title: 'Error', description: 'Could not create the account.', variant: 'destructive' });
+            toast({ title: 'Error', variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -621,20 +644,36 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
         
         try {
             if (values.scope === 'global') {
-                await addDoc(collection(db, 'allocationRules'), newRule);
-                toast({ title: 'Global Rule Created', description: 'This rule will apply to all clients.' });
+                const ruleRef = collection(db, 'allocationRules');
+                addDoc(ruleRef, newRule)
+                    .catch(async (error) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: ruleRef.path,
+                            operation: 'create',
+                            requestResourceData: newRule,
+                        } satisfies SecurityRuleContext);
+                        errorEmitter.emit('permission-error', permissionError);
+                    });
+                toast({ title: 'Global Rule Created' });
             } else {
                 const clientRef = doc(db, 'aiAccountantClients', client.uid!);
-                await updateDoc(clientRef, {
-                    allocationRules: arrayUnion(newRule)
-                });
-                toast({ title: 'Client Rule Created', description: 'This rule will apply to this client only.' });
+                const updateData = { allocationRules: arrayUnion(newRule) };
+                updateDoc(clientRef, updateData)
+                    .catch(async (error) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: clientRef.path,
+                            operation: 'update',
+                            requestResourceData: updateData,
+                        } satisfies SecurityRuleContext);
+                        errorEmitter.emit('permission-error', permissionError);
+                    });
+                toast({ title: 'Client Rule Created' });
             }
             onRuleCreated();
             onOpenChange(false);
         } catch(e) {
             console.error(e);
-            toast({ title: 'Error', description: 'Could not create rule.', variant: 'destructive'});
+            toast({ title: 'Error', variant: 'destructive'});
         }
     };
     
@@ -745,7 +784,6 @@ const NewTransactionsTab = React.forwardRef<
     const [isAiAllDialogOpen, setIsAiAllDialogOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    
     const [triggerAllocation, setTriggerAllocation] = useState(false);
 
 
@@ -780,8 +818,6 @@ const NewTransactionsTab = React.forwardRef<
         let finalSortField = sortField;
         let finalSortDirection: 'asc' | 'desc' = sortDirection;
 
-        // Firestore limitation: inequality filters must be on the first orderBy field.
-        // If sorting by something other than amount, we still need amount inequality first.
         if (sortField !== 'amount') {
              constraints.push(orderBy('amount', activeSubTab === 'expenses' ? 'asc' : 'desc'));
              constraints.push(orderBy(finalSortField, finalSortDirection));
@@ -821,10 +857,19 @@ const NewTransactionsTab = React.forwardRef<
         } else {
             searchConstraints.push(where('amount', '>=', 0));
         }
-        const q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...searchConstraints);
+        const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+        const q = query(transRef, ...searchConstraints);
 
         try {
-            const snapshot = await getDocs(q);
+            const snapshot = await getDocs(q)
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: transRef.path,
+                        operation: 'list',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw error;
+                });
             const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
             const filtered = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
             setSearchResults(filtered);
@@ -869,19 +914,19 @@ const NewTransactionsTab = React.forwardRef<
     const handleAllocateByRules = useCallback(async () => {
         if (!client || !client.uid || !bankAccountId) return;
         setIsRuleAllocating(true);
-        toast({ title: "Applying Rules...", description: "Allocating all new transactions based on rules." });
+        toast({ title: "Applying Rules..." });
 
         try {
             const allRules = [...(client.allocationRules || []), ...globalRules];
             allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
             if (allRules.length === 0) {
-                toast({ title: 'No Rules Found', description: 'There are no allocation rules to apply.' });
                 setIsRuleAllocating(false);
                 return;
             }
 
+            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
             let baseQuery = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                transRef,
                 where('bankAccountId', '==', bankAccountId),
                 where('status', '==', 'new')
             );
@@ -891,17 +936,23 @@ const NewTransactionsTab = React.forwardRef<
                 baseQuery = query(baseQuery, where('amount', '>=', 0));
             }
 
-            const snapshot = await getDocs(baseQuery);
+            const snapshot = await getDocs(baseQuery)
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: transRef.path,
+                        operation: 'list',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw error;
+                });
             const allNewTransactions = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
 
             if (allNewTransactions.length === 0) {
-                toast({ title: 'No New Transactions', description: 'No transactions to allocate.' });
                 setIsRuleAllocating(false);
                 return;
             }
             
             let allocatedCount = 0;
-            const updatePromises = [];
             for (let i = 0; i < allNewTransactions.length; i += BATCH_SIZE) {
                 const batch = writeBatch(db);
                 const chunk = allNewTransactions.slice(i, i + BATCH_SIZE);
@@ -922,20 +973,21 @@ const NewTransactionsTab = React.forwardRef<
                         allocatedCount++;
                     }
                 });
-                updatePromises.push(batch.commit());
+                batch.commit().catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `aiAccountantClients/${client.uid}/transactions`,
+                        operation: 'update',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             }
             
-            await Promise.all(updatePromises);
-
             if (allocatedCount > 0) {
-                toast({ title: 'Rules Applied', description: `${allocatedCount} transaction(s) have been allocated for review.` });
+                toast({ title: 'Rules Applied', description: `${allocatedCount} transaction(s) have been allocated.` });
                 refetch();
-            } else {
-                toast({ title: 'No Matches Found', description: 'No transactions matched your existing rules.' });
             }
         } catch (error) {
             console.error("Error applying rules:", error);
-            toast({ title: "Allocation Failed", description: "An error occurred while applying rules.", variant: "destructive" });
         } finally {
             setIsRuleAllocating(false);
         }
@@ -949,7 +1001,6 @@ const NewTransactionsTab = React.forwardRef<
 
     useEffect(() => {
         if (triggerAllocation) {
-            // Use a short timeout to ensure state propagation and re-render completes
             const timer = setTimeout(() => {
                 handleAllocateByRules();
                 setTriggerAllocation(false);
@@ -962,7 +1013,7 @@ const NewTransactionsTab = React.forwardRef<
     const handleAiAllocateSelected = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
-        toast({ title: "Preparing AI Workflow...", description: "Moving selected transactions to the AI workflow tab." });
+        toast({ title: "Preparing AI Workflow..." });
 
         try {
             for (let i = 0; i < selectedTransactions.length; i += BATCH_SIZE) {
@@ -972,16 +1023,21 @@ const NewTransactionsTab = React.forwardRef<
                     const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.update(txRef, { status: 'ai_processing' });
                 });
-                await batch.commit();
+                batch.commit().catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `aiAccountantClients/${client.uid}/transactions`,
+                        operation: 'update',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             }
 
-            toast({ title: "Transactions Moved", description: `${selectedTransactions.length} transactions sent for AI processing.` });
+            toast({ title: "Transactions Moved" });
             setSelectedTransactions([]);
             refetch();
             setActiveTab('ai-workflow');
         } catch (error) {
             console.error("Error moving transactions:", error);
-            toast({ title: "Error", description: "Could not move selected transactions.", variant: 'destructive' });
         } finally {
             setIsAiAllocating(false);
             setIsAiSelectedDialogOpen(false);
@@ -992,14 +1048,23 @@ const NewTransactionsTab = React.forwardRef<
         if (!client || !client.uid || !bankAccountId) return;
         setIsAiAllDialogOpen(false);
         
+        const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
         const q = query(
-            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+            transRef,
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'new'),
-            where('amount', '<', 0) // Only expenses
+            where('amount', '<', 0)
         );
 
-        const snapshot = await getDocs(q);
+        const snapshot = await getDocs(q)
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: transRef.path,
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+                throw error;
+            });
         const transactionsToProcess = snapshot.docs.map(d => d.id);
         
         if (transactionsToProcess.length === 0) {
@@ -1007,7 +1072,7 @@ const NewTransactionsTab = React.forwardRef<
             return;
         }
 
-        const toastId = toast({ title: "Gathering transactions...", description: `Found ${transactionsToProcess.length} expenses to process.`}).id;
+        const toastId = toast({ title: "Gathering transactions...", description: `Found ${transactionsToProcess.length} expenses.`}).id;
         
         try {
             for (let i = 0; i < transactionsToProcess.length; i += BATCH_SIZE) {
@@ -1017,7 +1082,13 @@ const NewTransactionsTab = React.forwardRef<
                     const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.update(txRef, { status: 'ai_processing' });
                 });
-                await batch.commit();
+                batch.commit().catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `aiAccountantClients/${client.uid}/transactions`,
+                        operation: 'update',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             }
             dismiss(toastId);
             refetch(); 
@@ -1025,7 +1096,6 @@ const NewTransactionsTab = React.forwardRef<
         } catch (error) {
             console.error("Error in AI Allocate All:", error);
             dismiss(toastId);
-            toast({ title: 'Error', description: 'Could not move all transactions.', variant: 'destructive'});
         }
     };
 
@@ -1041,20 +1111,25 @@ const NewTransactionsTab = React.forwardRef<
                     const docRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.delete(docRef);
                 });
-                await batch.commit();
+                batch.commit().catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `aiAccountantClients/${client.uid}/transactions`,
+                        operation: 'delete',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             }
-            toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.`, variant: 'destructive' });
+            toast({ title: 'Transactions Deleted', variant: 'destructive' });
             setSelectedTransactions([]);
             refetch();
         } catch (error) {
-            toast({ title: 'Deletion Failed', variant: 'destructive' });
             console.error(error);
         }
     };
 
     const handleBulkAllocate = async (allocation: { value: string, type: 'account' | 'customer' | 'supplier' }, vatType: VatType) => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
-        toast({ title: "Allocating...", description: `Allocating ${selectedTransactions.length} transactions.` });
+        toast({ title: "Allocating..." });
     
         const transactionsToAllocate = selectedTransactions;
     
@@ -1071,9 +1146,15 @@ const NewTransactionsTab = React.forwardRef<
                         allocatedAt: new Date(),
                     });
                 });
-                await batch.commit();
+                batch.commit().catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `aiAccountantClients/${client.uid}/transactions`,
+                        operation: 'update',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             }
-            toast({ title: "Allocation Successful", description: `${transactionsToAllocate.length} transactions have been sent for review.` });
+            toast({ title: "Allocation Successful" });
             
             setSelectedTransactions([]);
             
@@ -1085,56 +1166,6 @@ const NewTransactionsTab = React.forwardRef<
     
         } catch (error) {
             console.error("Error during bulk allocation:", error);
-            toast({ title: "Allocation Failed", variant: "destructive" });
-        }
-    };
-    
-    const handleDownloadExcel = async () => {
-        if (!client || !client.uid || !bankAccountId) return;
-        setIsDownloading(true);
-        toast({ title: "Preparing Download...", description: "Fetching all new transactions." });
-    
-        try {
-            const incomeQuery = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'new'),
-                where('amount', '>=', 0)
-            );
-            const expensesQuery = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('status', '==', 'new'),
-                where('amount', '<', 0)
-            );
-    
-            const [incomeSnapshot, expensesSnapshot] = await Promise.all([
-                getDocs(incomeQuery),
-                getDocs(expensesQuery)
-            ]);
-    
-            const incomeData = incomeSnapshot.docs
-                .map(doc => doc.data() as ImportedTransaction)
-                .map(({ date, description, amount }) => ({ Date: format(new Date(date), 'dd/MM/yyyy'), Description: description, Amount: amount }));
-    
-            const expensesData = expensesSnapshot.docs
-                .map(doc => doc.data() as ImportedTransaction)
-                .map(({ date, description, amount }) => ({ Date: format(new Date(date), 'dd/MM/yyyy'), Description: description, Amount: amount }));
-    
-            const wb = XLSX.utils.book_new();
-            const incomeSheet = XLSX.utils.json_to_sheet(incomeData);
-            const expensesSheet = XLSX.utils.json_to_sheet(expensesData);
-            
-            XLSX.utils.book_append_sheet(wb, incomeSheet, "Income");
-            XLSX.utils.book_append_sheet(wb, expensesSheet, "Expenses");
-    
-            XLSX.writeFile(wb, `New_Transactions_${client.name.replace(/\s/g, '_')}.xlsx`);
-    
-            toast({ title: 'Download Ready!', description: 'Your Excel file has been downloaded.' });
-        } catch (error) {
-            console.error("Error downloading excel:", error);
-            toast({ title: 'Download Failed', description: 'Could not generate the Excel file.', variant: 'destructive' });
-        } finally {
-            setIsDownloading(false);
         }
     };
     
@@ -1161,8 +1192,14 @@ const NewTransactionsTab = React.forwardRef<
                     }
                 }
             }
-            await batch.commit();
-            toast({ title: `${count} allocations saved!`, description: 'Transactions moved to Reviewed.' });
+            batch.commit().catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: `aiAccountantClients/${client.uid}/transactions`,
+                    operation: 'update',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
+            toast({ title: `${count} allocations saved!` });
             setAllocations({});
             setSearchTerm('');
             setSearchResults(null);
@@ -1170,7 +1207,6 @@ const NewTransactionsTab = React.forwardRef<
             
         } catch (error) {
             console.error("Error saving allocations:", error);
-            toast({ title: "Save Failed", description: "Could not save allocations.", variant: "destructive" });
         } finally {
             setIsSaving(false);
         }
@@ -1326,7 +1362,7 @@ const NewTransactionsTab = React.forwardRef<
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                This will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
+                                                This will permanently delete {selectedTransactions.length} selected transaction(s).
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -1343,10 +1379,6 @@ const NewTransactionsTab = React.forwardRef<
                         </Button>
                         <Button variant="outline" onClick={() => setIsAiAllDialogOpen(true)} disabled={isAiAllocating || activeSubTab === 'income'}>
                             <Sparkles className="mr-2 h-4 w-4"/> AI Allocate All
-                        </Button>
-                        <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
-                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                            Download Excel
                         </Button>
                     </div>
                     <div className="relative">
@@ -1620,7 +1652,7 @@ const ReviewedTab = React.forwardRef<
 
             if (!hasSearch && !hasFilter) {
                 setSearchResults(null);
-                refetch(); // This will refetch paginated data
+                refetch();
                 return;
             }
 
@@ -1636,15 +1668,24 @@ const ReviewedTab = React.forwardRef<
                     baseConstraints.push(where('amount', '>=', 0));
                 }
                 
+                const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
                 let finalQuery;
                 if (hasFilter) {
-                    finalQuery = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...baseConstraints, where('allocatedTo.value', '==', accountFilter));
+                    finalQuery = query(transRef, ...baseConstraints, where('allocatedTo.value', '==', accountFilter));
                 } else {
-                    finalQuery = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...baseConstraints);
+                    finalQuery = query(transRef, ...baseConstraints);
                 }
 
-                const snapshot = await getDocs(finalQuery);
-                let allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as ImportedTransaction);
+                const snapshot = await getDocs(finalQuery)
+                    .catch(async (error) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: transRef.path,
+                            operation: 'list',
+                        } satisfies SecurityRuleContext);
+                        errorEmitter.emit('permission-error', permissionError);
+                        throw error;
+                    });
+                let allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
 
                 if (hasSearch) {
                     allDocs = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -1724,7 +1765,7 @@ const ReviewedTab = React.forwardRef<
         setChanges(prev => ({
             ...prev,
             [txId]: {
-                ...(prev[txId] || {}), // Ensure the object exists before spreading
+                ...(prev[txId] || {}),
                 vatType: value
             }
         }));
@@ -1741,13 +1782,18 @@ const ReviewedTab = React.forwardRef<
                     const docRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.delete(docRef);
                 });
-                await batch.commit();
+                batch.commit().catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `aiAccountantClients/${client.uid}/transactions`,
+                        operation: 'delete',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             }
-            toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.`, variant: 'destructive' });
+            toast({ title: 'Transactions Deleted', variant: 'destructive' });
             setSelectedTransactions([]);
             refetch();
         } catch (error) {
-            toast({ title: 'Deletion Failed', variant: 'destructive' });
             console.error(error);
         }
     };
@@ -1755,7 +1801,7 @@ const ReviewedTab = React.forwardRef<
     const handleSaveChanges = async () => {
       if (!client || !client.uid || Object.keys(changes).length === 0) return;
       setIsSaving(true);
-      toast({ title: 'Saving changes...', description: 'Please wait.' });
+      toast({ title: 'Saving changes...' });
   
       try {
           const batch = writeBatch(db);
@@ -1771,71 +1817,35 @@ const ReviewedTab = React.forwardRef<
                   }
               }
           });
-          await batch.commit();
+          batch.commit().catch(async (error) => {
+              const permissionError = new FirestorePermissionError({
+                  path: `aiAccountantClients/${client.uid}/transactions`,
+                  operation: 'update',
+              } satisfies SecurityRuleContext);
+              errorEmitter.emit('permission-error', permissionError);
+          });
   
-          toast({ title: 'Success!', description: 'Your changes have been saved.' });
+          toast({ title: 'Success!' });
           
           setChanges({});
           setSelectedTransactions([]);
-          
-          // Refetch data to reflect changes
           refetch();
 
       } catch (error) {
           console.error('Error saving changes:', error);
-          toast({ title: 'Error', description: 'Could not save your changes.', variant: 'destructive' });
       } finally {
           setIsSaving(false);
       }
     };
     
-    const handleDownloadExcel = async () => {
-        if (!client || !client.uid || !bankAccountId) return;
-        setIsDownloading(true);
-        toast({ title: "Preparing Download...", description: "Fetching all reviewed transactions." });
-
-        try {
-            const q = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('bankAccountId', '==', bankAccountId),
-                where('status', 'in', ['reviewed', 'allocated'])
-            );
-            
-            const snapshot = await getDocs(q);
-
-            const mapToExport = (tx: ImportedTransaction) => ({
-                'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
-                'Description': tx.description,
-                'Allocated To': getAllocationDescription(tx),
-                'VAT Type': allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A',
-                'Amount': tx.amount,
-            });
-
-            const dataToExport = snapshot.docs.map(doc => mapToExport(doc.data() as ImportedTransaction));
-
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(dataToExport);
-            XLSX.utils.book_append_sheet(wb, ws, "Reviewed Transactions");
-            
-            XLSX.writeFile(wb, `Reviewed_Transactions_${client.name.replace(/\s/g, '_')}.xlsx`);
-
-            toast({ title: 'Download Ready!', description: 'Your Excel file has been downloaded.' });
-        } catch (error) {
-            console.error("Error downloading excel:", error);
-            toast({ title: 'Download Failed', description: 'Could not generate the Excel file.', variant: 'destructive' });
-        } finally {
-            setIsDownloading(false);
-        }
-    };
-    
-    
     const handleReviewConsistency = async () => {
         if (!client || !bankAccountId) return;
         setIsConsistencyCheckOpen(false);
-        toast({ title: "Analyzing Transactions...", description: "Checking for allocation inconsistencies." });
+        toast({ title: "Analyzing Transactions..." });
 
+        const transRef = collection(db, 'aiAccountantClients', client.uid!, 'transactions');
         let q = query(
-            collection(db, 'aiAccountantClients', client.uid!, 'transactions'),
+            transRef,
             where('bankAccountId', '==', bankAccountId),
             where('status', 'in', ['reviewed', 'allocated'])
         );
@@ -1845,7 +1855,15 @@ const ReviewedTab = React.forwardRef<
             q = query(q, where('amount', '>=', 0));
         }
 
-        const snapshot = await getDocs(q);
+        const snapshot = await getDocs(q)
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: transRef.path,
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+                throw error;
+            });
         const allReviewed = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
         
         const getGroupKey = (description: string): string => {
@@ -1862,11 +1880,6 @@ const ReviewedTab = React.forwardRef<
             const significantWords = words.filter(w => w.length > 3 && !['cheque', 'card', 'purchase', 'payment', 'debit', 'order', 'eft', 'from', 'pty', 'ltd'].includes(w));
             
             if (significantWords.length > 0) {
-                 const wordCounts = significantWords.reduce((acc, word) => {
-                    acc[word] = (acc[word] || 0) + 1;
-                    return acc;
-                }, {} as {[key: string]: number});
-
                 let mostSignificantWord = '';
                 let maxCount = 0;
 
@@ -1895,10 +1908,10 @@ const ReviewedTab = React.forwardRef<
     
         const foundInconsistencies: any[] = [];
         const hardRules: {[key: string]: string} = {
-            'shell': '3000-033', // Fuel
-            'bp': '3000-033', // Fuel
-            'engen': '3000-033', // Fuel
-            'total': '3000-033', // Fuel,
+            'shell': '3000-033',
+            'bp': '3000-033',
+            'engen': '3000-033',
+            'total': '3000-033',
         };
 
         Object.entries(groups).forEach(([groupKey, group]) => {
@@ -1920,7 +1933,6 @@ const ReviewedTab = React.forwardRef<
                 const currentVatType = tx.vatType || 'no_vat';
                 let isConsistent = currentAllocationId === correctAccountId && currentVatType === correctVatType;
                 
-                // Hard Override Rule Check
                 const hardRuleAccountId = hardRules[groupKey];
                 if (hardRuleAccountId && currentAllocationId !== hardRuleAccountId) {
                      foundInconsistencies.push({
@@ -1947,7 +1959,7 @@ const ReviewedTab = React.forwardRef<
             setSelectedCorrections(foundInconsistencies.map(inc => inc.id));
             setIsConsistencyCheckOpen(true);
         } else {
-            toast({ title: 'No Inconsistencies Found!', description: 'All your allocations look consistent.' });
+            toast({ title: 'No Inconsistencies Found!' });
         }
     };
     
@@ -1955,7 +1967,7 @@ const ReviewedTab = React.forwardRef<
         if (!client || selectedCorrections.length === 0) return;
         
         setIsSaving(true);
-        toast({ title: "Applying Corrections...", description: "Updating transactions." });
+        toast({ title: "Applying Corrections..." });
 
         try {
             const batch = writeBatch(db);
@@ -1969,14 +1981,20 @@ const ReviewedTab = React.forwardRef<
                     });
                 }
             });
-            await batch.commit();
-            toast({ title: 'Corrections Applied!', description: `${selectedCorrections.length} transactions have been updated.` });
+            batch.commit().catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: `aiAccountantClients/${client.uid}/transactions`,
+                    operation: 'update',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
+            toast({ title: 'Corrections Applied!' });
             
             refetch();
             setIsConsistencyCheckOpen(false);
 
         } catch (error) {
-             toast({ title: 'Error', description: 'Could not apply corrections.', variant: 'destructive'});
+             toast({ title: 'Error', variant: 'destructive'});
         } finally {
             setIsSaving(false);
         }
@@ -1999,22 +2017,20 @@ const ReviewedTab = React.forwardRef<
     };
 
     const handleBulkReallocate = (allocation: { value: string; type: "account" | "customer" | "supplier"; }, vatType: VatType) => {
-      const changesToSave: { [key: string]: Partial<ImportedTransaction> } = {};
         selectedTransactions.forEach(txId => {
-            changesToSave[txId] = {
+            const txRef = doc(db, 'aiAccountantClients', client!.uid!, 'transactions', txId);
+            const data = {
                 allocatedTo: allocation,
                 vatType: client?.isVatRegistered ? vatType : 'no_vat',
             };
-        });
-        Object.keys(changesToSave).forEach(txId => {
-            const changeData = changesToSave[txId];
-            if (changeData) {
-                const txRef = doc(db, 'aiAccountantClients', client!.uid!, 'transactions', txId);
-                updateDoc(txRef, {
-                    allocatedTo: changeData.allocatedTo,
-                    vatType: changeData.vatType
-                });
-            }
+            updateDoc(txRef, data).catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: txRef.path,
+                    operation: 'update',
+                    requestResourceData: data,
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
         });
         toast({ title: 'Reallocation Successful' });
         refetch();
@@ -2126,17 +2142,13 @@ const ReviewedTab = React.forwardRef<
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Save Changes
                         </Button>
-                         <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
-                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                            Download Excel
-                        </Button>
                          <AlertDialog>
                             <AlertDialogTrigger asChild><Button variant="outline"><Sparkles className="mr-2 h-4 w-4" /> Review Consistency</Button></AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Review Allocation Consistency</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        This tool will analyze your reviewed transactions to find allocations that are inconsistent with how you've categorized similar items in the past. It will then suggest corrections. Do you want to proceed?
+                                        This tool will analyze your reviewed transactions to find allocations that are inconsistent with how you've categorized similar items in the past.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -2180,14 +2192,14 @@ const ReviewedTab = React.forwardRef<
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); }} className="text-destructive">
-                                            Delete Selected ({selectedTransactions.length})
+                                            Delete Selected
                                         </DropdownMenuItem>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                This will permanently delete the {selectedTransactions.length} selected transaction(s). This action cannot be undone.
+                                                This will permanently delete the selected transaction(s).
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -2374,7 +2386,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     const [lastApprovedTxIds, setLastApprovedTxIds] = useState<string[] | null>(null);
     const [accountFilter, setAccountFilter] = useState('all');
     
-    // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const GROUPS_PER_PAGE = 20;
 
@@ -2384,23 +2395,28 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             return;
         }
 
+        const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
         const transQuery = query(
-            collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
+            transRef, 
             where('bankAccountId', '==', bankAccountId),
             where('status', 'in', ['ai_processing', 'ai_review'])
         );
         const transUnsubscribe = onSnapshot(transQuery, (snapshot) => {
-            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ImportedTransaction);
+            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportedTransaction));
             setTransactions(fetched);
             setIsLoading(false);
-        }, (error) => {
-            console.error(error);
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: transRef.path,
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
             setIsLoading(false);
-            toast({ title: "Error", description: "Could not load workflow transactions.", variant: "destructive" });
         });
 
+        const jobsRef = collection(db, 'aiAccountantClients', client.uid, 'jobs');
         const jobsQuery = query(
-            collection(db, 'aiAccountantClients', client.uid, 'jobs'),
+            jobsRef,
             orderBy('createdAt', 'desc'),
             limit(1)
         );
@@ -2410,11 +2426,18 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 if (latestJob.status === 'running') {
                     setJob(latestJob);
                 } else {
-                    setJob(null); // Clear job if it's completed or failed
+                    setJob(null);
                 }
             } else {
                 setJob(null);
             }
+            setIsLoadingJob(false);
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: jobsRef.path,
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
             setIsLoadingJob(false);
         });
 
@@ -2435,7 +2458,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 const toMatch = dateRange.to ? txDate <= endOfDay(dateRange.to) : true;
                 return fromMatch && toMatch;
             } catch (e) {
-                return false; // Should not happen with valid dates, but good for safety
+                return false;
             }
         });
     }, [transactions, dateRange]);
@@ -2471,7 +2494,6 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         setGroupAllocations(initialAllocations);
     }, [filteredTransactions, accountFilter]);
     
-    // Pagination logic
     const sortedGroupEntries = useMemo(() => Object.entries(groupedTransactions).sort((a,b) => a[0].localeCompare(b[0])), [groupedTransactions]);
     
     const paginatedGroupEntries = useMemo(() => {
@@ -2483,7 +2505,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     
     const handleRunAiAllocation = async (reanalyse = false) => {
         if (!client || !bankAccountId) return;
-        toast({ title: 'Starting AI Allocation Job...', description: 'The process will run in the background. Please keep this tab open.' });
+        toast({ title: 'Starting AI Allocation Job...' });
         try {
             await startAiAllocationJob(client.uid, bankAccountId, reanalyse);
         } catch (e) {
@@ -2493,7 +2515,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
     
     const handleUndoAction = async (txIds: string[]) => {
         if (!client || txIds.length === 0) return;
-        toast({ title: "Undoing...", description: "Reverting transactions."});
+        toast({ title: "Undoing..." });
         try {
             const batch = writeBatch(db);
             txIds.forEach(id => {
@@ -2504,12 +2526,17 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     allocatedAt: null,
                 });
             });
-            await batch.commit();
+            batch.commit().catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: `aiAccountantClients/${client.uid}/transactions`,
+                    operation: 'update',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
             setLastApprovedTxIds(null);
-            toast({ title: 'Action Undone', description: `${txIds.length} transactions reverted to AI Workflow.`});
+            toast({ title: 'Action Undone' });
         } catch (error) {
             console.error("Error undoing action:", error);
-            toast({ title: 'Undo Failed', variant: 'destructive' });
         }
     };
     
@@ -2522,11 +2549,16 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                 batch.update(txRef, { status: 'new', aiAllocationResult: deleteField() });
             });
-            await batch.commit();
-            toast({ title: 'Transactions Rejected', description: `${txIdsToReject.length} items moved back to 'New'` });
+            batch.commit().catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: `aiAccountantClients/${client.uid}/transactions`,
+                    operation: 'update',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
+            toast({ title: 'Transactions Rejected' });
         } catch (error) {
             console.error(error);
-            toast({ title: 'Error', description: 'Could not reject transactions.', variant: 'destructive'});
         }
     };
     
@@ -2560,24 +2592,27 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         if (ruleValues.scope === 'global') {
             const newRuleRef = doc(collection(db, 'allocationRules'));
             batch.set(newRuleRef, newRule);
-            toast({ title: 'Global Rule Created', description: 'This rule will apply to all clients.' });
         } else {
             const clientRef = doc(db, 'aiAccountantClients', client.uid!);
             batch.update(clientRef, {
                 allocationRules: arrayUnion(newRule)
             });
-            toast({ title: 'Client Rule Created', description: 'This rule will apply to this client only.' });
         }
 
-        await batch.commit();
+        batch.commit().catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: `aiAccountantClients/${client.uid}/transactions`,
+                operation: 'update',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+        });
         setLastApprovedTxIds(txIds);
-        toast({ title: 'Transactions Approved & Rule Created', description: `${groupTxs.length} transactions approved and new rule created.`, action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction> });
+        toast({ title: 'Transactions Approved \u0026 Rule Created', action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction> });
         setActiveApprovalGroup(null);
         fetchClientData();
 
       } catch (error) {
         console.error("Error in confirm and create rule:", error);
-        toast({ title: 'Error', description: 'Could not approve and create rule.', variant: 'destructive'});
       }
     };
     
@@ -2604,14 +2639,17 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             }
 
             if(updatedCount > 0) {
-                await batch.commit();
-                toast({ title: 'Changes Saved', description: 'AI allocation suggestions have been updated.' });
-            } else {
-                 toast({ title: 'No Changes to Save', description: 'No modifications were detected.' });
+                batch.commit().catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `aiAccountantClients/${client.uid}/transactions`,
+                        operation: 'update',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
+                toast({ title: 'Changes Saved' });
             }
         } catch (error) {
             console.error("Error saving changes:", error);
-            toast({ title: 'Save Failed', variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -2624,11 +2662,11 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         const allocations = selectedGroups.map(supplier => groupAllocations[supplier]);
         
         if (allocations.some(alloc => !alloc || !alloc.accountId)) {
-            toast({ title: 'Cannot Approve', description: 'One or more selected groups do not have an account allocated.', variant: 'destructive'});
+            toast({ title: 'Cannot Approve', description: 'One or more groups are missing an account.', variant: 'destructive'});
             return;
         }
 
-        toast({ title: "Approving Selected...", description: `Approving ${txsToApprove.length} transactions.` });
+        toast({ title: "Approving Selected..." });
         try {
             const batch = writeBatch(db);
             const txIds = txsToApprove.map(tx => tx.id);
@@ -2649,17 +2687,21 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                 }
             });
             
-            await batch.commit();
+            batch.commit().catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: `aiAccountantClients/${client.uid}/transactions`,
+                    operation: 'update',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
             setLastApprovedTxIds(txIds);
             toast({ 
                 title: "Success!", 
-                description: `${txsToApprove.length} transactions have been moved to Reviewed.`,
                 action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction>,
             });
             setSelectedGroups([]);
         } catch (e) {
             console.error(e);
-            toast({ title: 'Error', description: 'Could not approve selected transactions.', variant: 'destructive'});
         }
     };
 
@@ -2678,7 +2720,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         const groupTxs = groupedTransactions[supplier];
         const allocation = groupAllocations[supplier];
         if (!groupTxs || !allocation || !allocation.accountId) {
-             toast({ title: 'Cannot Approve', description: 'Please select an account to allocate to first.', variant: 'destructive'});
+             toast({ title: 'Cannot Approve', variant: 'destructive'});
             return;
         }
 
@@ -2694,77 +2736,21 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                     allocatedAt: new Date(),
                 });
             });
-            await batch.commit();
+            batch.commit().catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: `aiAccountantClients/${client.uid}/transactions`,
+                    operation: 'update',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
             setLastApprovedTxIds(txIds);
             toast({ 
                 title: 'Group Approved', 
-                description: `${groupTxs.length} transactions for '${supplier}' moved to Reviewed.`,
                 action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction>
             });
         } catch (e) {
             console.error(e);
-            toast({ title: 'Error', description: 'Could not approve group.', variant: 'destructive'});
         }
-    };
-
-    const handleDownloadExcel = () => {
-        if (Object.keys(groupedTransactions).length === 0) {
-            toast({ title: "No data to download." });
-            return;
-        }
-
-        const dataToExport = Object.entries(groupedTransactions).flatMap(([supplier, txs]) => 
-            txs.map(tx => ({
-                'Group (Supplier)': supplier,
-                'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
-                'Description': tx.description,
-                'Amount': tx.amount,
-                'Suggested Account': chartOfAccounts.find(acc => acc.id === tx.aiAllocationResult?.accountId)?.description || 'N/A',
-                'Suggested VAT': allVatTypes.find(vat => vat.name === tx.aiAllocationResult?.vatType)?.label || 'N/A',
-                'Allocate to Account': '',
-                'Allocate VAT Type': '',
-            }))
-        );
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        const accountsList = chartOfAccounts.map(acc => [acc.description]);
-        const vatList = allVatTypes.map(vat => [vat.label]);
-        
-        const ws_accounts = XLSX.utils.aoa_to_sheet(accountsList);
-        const ws_vat = XLSX.utils.aoa_to_sheet(vatList);
-
-        if (!ws['!dataValidations']) {
-            ws['!dataValidations'] = [];
-        }
-
-        const numRows = dataToExport.length;
-        ws['!dataValidations'].push({
-            sqref: `G2:G${numRows + 1}`,
-            type: 'list',
-            allowBlank: true,
-            showDropDown: true,
-            formula1: `AccountsList!$A$1:$A$${accountsList.length}`
-        });
-        
-        ws['!dataValidations'].push({
-            sqref: `H2:H${numRows + 1}`,
-            type: 'list',
-            allowBlank: true,
-            showDropDown: true,
-            formula1: `VATList!$A$1:$A$${vatList.length}`
-        });
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "AI Workflow");
-        XLSX.utils.book_append_sheet(wb, ws_accounts, "AccountsList");
-        XLSX.utils.book_append_sheet(wb, ws_vat, "VATList");
-        
-        if (wb.Sheets['AccountsList']) wb.Sheets['AccountsList']['!props'] = { hidden: true };
-        if (wb.Sheets['VATList']) wb.Sheets['VATList']['!props'] = { hidden: true };
-
-        XLSX.writeFile(wb, `AI_Workflow_Export_${client?.name?.replace(/\s+/g, '_')}.xlsx`);
-        
-        toast({ title: 'Download Started', description: 'Your Excel file is being generated.' });
     };
 
     const isProcessing = job?.status === 'running';
@@ -2783,7 +2769,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             <Card>
                  <CardHeader className="p-4 border-b">
                      <div className="flex items-center justify-between">
-                        <h2>AI Workflow ({Object.keys(groupedTransactions).length} groups)</h2>
+                        <h2>AI Workflow</h2>
                          <div className="flex gap-2">
                             <Button onClick={() => handleRunAiAllocation()} disabled={isLoading || isProcessing || transactionsInProcessing === 0}>
                                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -2791,7 +2777,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             </Button>
                             <Button onClick={() => handleRunAiAllocation(true)} disabled={isLoading || isProcessing} variant="outline">
                                 <RefreshCw className="mr-2 h-4 w-4"/>
-                                Re-analyse Groupings
+                                Re-analyse
                             </Button>
                             <Button variant="outline" onClick={handleSaveChanges} disabled={isSaving || isProcessing}>
                                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -2800,17 +2786,13 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                             <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0 || isProcessing}>
                                 Approve Selected ({selectedGroups.length})
                             </Button>
-                            <Button onClick={handleDownloadExcel} variant="outline" disabled={isLoading || isProcessing || Object.keys(groupedTransactions).length === 0}>
-                                <Download className="mr-2 h-4 w-4"/>
-                                Download Excel
-                            </Button>
                              <Button
                                 variant="ghost"
                                 onClick={() => lastApprovedTxIds && handleUndoAction(lastApprovedTxIds)}
                                 disabled={!lastApprovedTxIds || isProcessing}
                             >
                                 <RotateCcw className="mr-2 h-4 w-4" />
-                                Undo Last Approval
+                                Undo Last
                             </Button>
                          </div>
                      </div>
@@ -2834,14 +2816,14 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                          <div className="space-y-2 p-4 border rounded-lg bg-muted">
                             <h3 className="font-semibold text-center">AI Allocation in Progress...</h3>
                             <Progress value={progress} />
-                            <p className="text-sm text-muted-foreground text-center">Processing group {job.processed} of {job.total}. Please keep this tab open for the process to complete.</p>
+                            <p className="text-sm text-muted-foreground text-center">Processing group {job.processed} of {job.total}.</p>
                         </div>
                     )}
                     {job?.status === 'failed' && (
                         <Alert variant="destructive">
                             <AlertTriangle className="h-4 w-4"/>
                             <AlertTitle>Last Job Failed</AlertTitle>
-                            <AlertDescription>{job.error || 'An unknown error occurred.'}</AlertDescription>
+                            <AlertDescription>{job.error}</AlertDescription>
                         </Alert>
                     )}
                     {isLoading || isLoadingJob ? (
@@ -2850,7 +2832,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                         </div>
                     ) : transactions.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
-                            No transactions are in the AI Workflow. Go to the 'New Transactions' tab to send some for processing.
+                            No transactions are in the AI Workflow.
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -2869,8 +2851,8 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                         />
                                         <CollapsibleTrigger asChild>
                                              <div className="flex items-center gap-4 text-left px-4 flex-grow cursor-pointer">
-                                                <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length} items)</span></h3>
-                                                {suggestion && <p className="text-xs text-muted-foreground">AI Confidence: {suggestion.confidence}%</p>}
+                                                <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length})</span></h3>
+                                                {suggestion && <p className="text-xs text-muted-foreground">Confidence: {suggestion.confidence}%</p>}
                                             </div>
                                         </CollapsibleTrigger>
                                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -2889,7 +2871,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
                                             <div className="flex items-center gap-1">
                                                 <Button size="sm" variant="destructive" onClick={() => handleRejectSelected(txs.map(t => t.id))}>Reject</Button>
                                                 <Button size="sm" onClick={() => handleApproveGroup(supplier)}>Approve</Button>
-                                                <Button size="sm" onClick={() => setActiveApprovalGroup({ supplier, txs, suggestion })}>Create Rule</Button>
+                                                <Button size="sm" onClick={() => setActiveApprovalGroup({ supplier, txs, suggestion })}>Rule</Button>
                                             </div>
                                         </div>
                                     </div>
@@ -2955,67 +2937,64 @@ function BankTransactionsPage() {
         const migrateReviewTransactions = async () => {
             if (!client?.uid) return;
             
-            const reviewQuery = query(
-                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
-                where('status', '==', 'review')
-            );
+            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            const reviewQuery = query(transRef, where('status', '==', 'review'));
     
             try {
-                const snapshot = await getDocs(reviewQuery);
-                if (snapshot.empty) {
-                    return;
-                }
+                const snapshot = await getDocs(reviewQuery)
+                    .catch(async (error) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: transRef.path,
+                            operation: 'list',
+                        } satisfies SecurityRuleContext);
+                        errorEmitter.emit('permission-error', permissionError);
+                        throw error;
+                    });
+                if (snapshot.empty) return;
     
                 const batch = writeBatch(db);
-                let migratedCount = 0;
-    
                 snapshot.docs.forEach(docSnap => {
                     const tx = docSnap.data() as ImportedTransaction;
                     const docRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', docSnap.id);
-                    
-                    if (tx.allocatedTo && tx.allocatedTo.value) {
+                    if (tx.allocatedTo?.value) {
                         batch.update(docRef, { status: 'reviewed' });
                     } else {
-                        batch.update(docRef, { 
-                            status: 'new',
-                            allocatedTo: deleteField(),
-                            vatType: deleteField(),
-                            allocatedAt: deleteField()
-                        });
+                        batch.update(docRef, { status: 'new', allocatedTo: deleteField(), vatType: deleteField(), allocatedAt: deleteField() });
                     }
-                    migratedCount++;
                 });
     
-                if(migratedCount > 0) {
-                    await batch.commit();
-                    toast({
-                        title: "Data Migration Complete",
-                        description: `${migratedCount} 'For Review' transaction(s) have been moved.`,
-                    });
-                    // Refetch data in tabs
-                    handleRefreshAll();
-                }
+                batch.commit().catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `aiAccountantClients/${client.uid}/transactions`,
+                        operation: 'update',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
+                handleRefreshAll();
             } catch (error) {
                 console.error("Error migrating 'review' transactions:", error);
-                toast({
-                    title: "Migration Failed",
-                    description: "Could not update transactions from 'For Review' status.",
-                    variant: "destructive"
-                });
             }
         };
     
         if(client?.uid) {
             migrateReviewTransactions();
         }
-    }, [client?.uid, toast]);
+    }, [client?.uid]);
 
     const fetchClientData = useCallback(async () => {
         const clientId = params.clientId as string;
         if (!clientId) return;
         try {
             const clientRef = doc(db, 'aiAccountantClients', clientId);
-            const clientSnap = await getDoc(clientRef);
+            const clientSnap = await getDoc(clientRef)
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: clientRef.path,
+                        operation: 'get',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw error;
+                });
             if (clientSnap.exists()) {
                 const clientData = clientSnap.data() as User;
                  setClient(clientData);
@@ -3023,19 +3002,24 @@ function BankTransactionsPage() {
                  if(!accountId && bankAccounts && bankAccounts.length > 0) {
                     setAccountId(bankAccounts[0].id);
                  }
-            } else {
-                toast({ title: 'Client Not Found', description: 'Could not load client data.', variant: 'destructive' });
             }
         } catch (error) {
             console.error("Error fetching client data:", error);
-            toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
         }
-    }, [params.clientId, toast, accountId]);
+    }, [params.clientId, accountId]);
 
     const fetchGlobalRules = useCallback(async () => {
         try {
-            const q = query(collection(db, 'allocationRules'));
-            const querySnapshot = await getDocs(q);
+            const rulesRef = collection(db, 'allocationRules');
+            const querySnapshot = await getDocs(rulesRef)
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: rulesRef.path,
+                        operation: 'list',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw error;
+                });
             setGlobalRules(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllocationRule[]);
         } catch (error) {
             console.error("Error fetching global rules:", error);
@@ -3050,10 +3034,17 @@ function BankTransactionsPage() {
     useEffect(() => {
         const clientId = params.clientId as string;
         if (!clientId || !accountId) return;
-        const q = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('bankAccountId', '==', accountId));
+        const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        const q = query(transRef, where('bankAccountId', '==', accountId));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetched = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as (ImportedTransaction | AllocatedTransaction));
             setAllAccountTransactions(fetched);
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: transRef.path,
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
         return () => unsubscribe();
     }, [params.clientId, accountId]);
@@ -3072,12 +3063,28 @@ function BankTransactionsPage() {
         if (!clientId) return;
         const fetchCustomersAndInvoices = async () => {
             try {
-                const custQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`));
-                const custSnapshot = await getDocs(custQuery);
+                const custRef = collection(db, `aiAccountantClients/${clientId}/customers`);
+                const custSnapshot = await getDocs(custRef)
+                    .catch(async (error) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: custRef.path,
+                            operation: 'list',
+                        } satisfies SecurityRuleContext);
+                        errorEmitter.emit('permission-error', permissionError);
+                        throw error;
+                    });
                 setCustomers(custSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ClientCustomer[]);
 
-                const invQuery = query(collection(db, `aiAccountantClients/${clientId}/invoices`));
-                const invSnapshot = await getDocs(invQuery);
+                const invRef = collection(db, `aiAccountantClients/${clientId}/invoices`);
+                const invSnapshot = await getDocs(invRef)
+                    .catch(async (error) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: invRef.path,
+                            operation: 'list',
+                        } satisfies SecurityRuleContext);
+                        errorEmitter.emit('permission-error', permissionError);
+                        throw error;
+                    });
                 setInvoices(invSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[]);
             } catch (error) {
                 console.error("Error fetching sub-collections:", error);
@@ -3097,30 +3104,40 @@ function BankTransactionsPage() {
 
     const handleClearTransactions = async () => {
         if (!client || !accountId) return;
-
-        toast({ title: "Clearing transactions...", description: "This might take a moment." });
+        toast({ title: "Clearing transactions..." });
         
-        const q = query(collection(db, 'aiAccountantClients', client.uid!, 'transactions'), where('bankAccountId', '==', accountId));
-        const snapshot = await getDocs(q);
+        const transRef = collection(db, 'aiAccountantClients', client.uid!, 'transactions');
+        const q = query(transRef, where('bankAccountId', '==', accountId));
+        const snapshot = await getDocs(q)
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: transRef.path,
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+                throw error;
+            });
 
-        if (snapshot.empty) {
-            toast({ title: "No transactions to clear." });
-            return;
-        }
+        if (snapshot.empty) return;
 
         try {
             for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
                 const batch = writeBatch(db);
                 const chunk = snapshot.docs.slice(i, i + BATCH_SIZE);
-                chunk.forEach(doc => {
-                    batch.delete(doc.ref);
+                chunk.forEach(docSnap => {
+                    batch.delete(docSnap.ref);
                 });
-                await batch.commit();
+                batch.commit().catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `aiAccountantClients/${client.uid}/transactions`,
+                        operation: 'delete',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             }
-            toast({ title: "Transactions Cleared", description: `Removed ${snapshot.size} transactions.`, variant: 'destructive' });
+            toast({ title: "Transactions Cleared", variant: 'destructive' });
         } catch (e) {
             console.error(e);
-            toast({ title: "Error", description: "Failed to clear transactions.", variant: 'destructive' });
         }
     }
 
@@ -3142,7 +3159,7 @@ function BankTransactionsPage() {
              <div className="text-center mt-8">
                 <Alert variant="destructive" className="max-w-md mx-auto">
                     <AlertTitle>No Bank Accounts Found</AlertTitle>
-                    <AlertDescription>Please create a bank account first to manage transactions.</AlertDescription>
+                    <AlertDescription>Please create a bank account first.</AlertDescription>
                 </Alert>
                  <CreateAccountDialog client={client} onAccountCreated={handleAccountCreated} open={isNewAccountDialogOpen} onOpenChange={setIsNewAccountDialogOpen} />
             </div>
@@ -3154,7 +3171,7 @@ function BankTransactionsPage() {
     return (
         <div>
             {selectedAccountForEdit && <EditAccountDialog
-                account={selectedBankAccount}
+                account={selectedBankAccount || null}
                 client={client}
                 onAccountUpdated={handleAccountCreated}
                 open={isEditAccountDialogOpen}
@@ -3195,7 +3212,7 @@ function BankTransactionsPage() {
                      <Button variant="outline" onClick={handleRefreshAll}><RotateCcw className="mr-2 h-4 w-4"/> Refresh</Button>
                      <DropdownMenu>
                          <DropdownMenuTrigger asChild>
-                            <Button><Settings className="mr-2 h-4 w-4" /> Manage Bank Account</Button>
+                            <Button><Settings className="mr-2 h-4 w-4" /> Manage</Button>
                          </DropdownMenuTrigger>
                          <DropdownMenuContent>
                             <DropdownMenuItem onClick={() => setIsNewAccountDialogOpen(true)}>Create New Bank Account</DropdownMenuItem>
@@ -3208,7 +3225,7 @@ function BankTransactionsPage() {
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                         <AlertDialogDescription>This will delete ALL transactions in this bank account. This action is irreversible.</AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -3278,7 +3295,3 @@ function BankTransactionsPage() {
 }
 
 export default BankTransactionsPage;
-    
-    
-
-    
