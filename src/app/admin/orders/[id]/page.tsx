@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -30,7 +29,7 @@ import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
 import PaymentFollowUpEmail from '@/components/emails/PaymentFollowUpEmail';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { sendDocumentReviewFeedback } from '@/app/actions';
+import { sendDocumentReviewFeedback, notifyOfNewNote } from '@/app/actions';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { proofreadNote } from '@/ai/flows/proofread-note';
 import { customAlphabet } from 'nanoid';
@@ -207,6 +206,24 @@ export default function AdminOrderDetailsPage() {
       await updateDoc(orderRef, {
         notes: arrayUnion(newNote),
       });
+
+      // Notification logic
+      const isOutsourced = !!order.resellerId;
+      const emailTo = isOutsourced && order.documentContact === 'client' ? order.endCustomerEmail : order.customerEmail;
+      const recipientName = isOutsourced && order.documentContact === 'client' ? order.endCustomerName : order.customerName;
+
+      if (emailTo && recipientName) {
+          notifyOfNewNote({
+              recipientEmail: emailTo,
+              recipientName: recipientName,
+              senderName: currentUser.name,
+              orderId: order.originalOrderId || order.id,
+              notePreview: values.noteText.substring(0, 150) + (values.noteText.length > 150 ? '...' : ''),
+              actionUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${order.id}`,
+              isToClient: true,
+              resellerId: order.resellerId
+          }).catch(err => console.error("Failed to send note notification:", err));
+      }
 
       toast({ title: "Note Added", description: "Your note has been saved." });
       noteForm.reset();

@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -23,7 +22,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { notifyStaffOfDocumentUpload } from '@/app/actions';
+import { notifyStaffOfDocumentUpload, notifyOfNewNote } from '@/app/actions';
 
 
 const db = getFirestore(firebaseApp);
@@ -221,8 +220,6 @@ export default function ClientOrderDetailsPage() {
       type: 'note',
       subject: null,
       attachments: attachments.length > 0 ? attachments : null,
-      attachmentUrl: null, // Legacy
-      attachmentName: null, // Legacy
     };
 
     try {
@@ -230,6 +227,23 @@ export default function ClientOrderDetailsPage() {
       await updateDoc(orderRef, {
         notes: arrayUnion(newNote),
       });
+
+      // Notification logic
+      if (order.assignedTo && order.assignedTo.length > 0) {
+          const assigneeId = order.assignedTo[0];
+          const assigneeMember = allStaff.find(s => s.id === assigneeId);
+          if (assigneeMember && assigneeMember.email) {
+              notifyOfNewNote({
+                  recipientEmail: assigneeMember.email,
+                  recipientName: assigneeMember.name,
+                  senderName: currentUser.name,
+                  orderId: order.originalOrderId || order.id,
+                  notePreview: values.noteText.substring(0, 150) + (values.noteText.length > 150 ? '...' : ''),
+                  actionUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/orders/${order.id}`,
+                  isToClient: false
+              }).catch(err => console.error("Failed to send note notification to staff:", err));
+          }
+      }
 
       toast({ title: "Note Added", description: "Your note has been saved." });
       noteForm.reset();

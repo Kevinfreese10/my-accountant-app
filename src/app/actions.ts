@@ -15,6 +15,7 @@ import DocumentReviewEmail from '@/components/emails/DocumentReviewEmail';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import AIAllocationCompleteEmail from '@/components/emails/AIAllocationCompleteEmail';
 import AIAccountantInviteEmail from '@/components/emails/AIAccountantInviteEmail';
+import NewNoteNotificationEmail from '@/components/emails/NewNoteNotificationEmail';
 
 
 const db = getFirestore(firebaseApp);
@@ -50,6 +51,44 @@ export async function sendDocumentReviewFeedback({ orderId, clientName, clientEm
     await sendEmail({
         to: clientEmail,
         subject: `Feedback on Your Submitted Documents for Order #${orderId}`,
+        html: emailHtml,
+        resellerId: resellerId,
+    });
+}
+
+export async function notifyOfNewNote({ 
+    recipientEmail, 
+    recipientName, 
+    senderName, 
+    orderId, 
+    notePreview, 
+    actionUrl, 
+    isToClient,
+    resellerId 
+}: { 
+    recipientEmail: string, 
+    recipientName: string, 
+    senderName: string, 
+    orderId: string, 
+    notePreview: string, 
+    actionUrl: string, 
+    isToClient: boolean,
+    resellerId?: string 
+}) {
+    const emailHtml = render(
+        NewNoteNotificationEmail({
+            recipientName,
+            senderName,
+            orderId,
+            notePreview,
+            actionUrl,
+            isToClient
+        })
+    );
+
+    await sendEmail({
+        to: recipientEmail,
+        subject: `New Note on Order #${orderId}`,
         html: emailHtml,
         resellerId: resellerId,
     });
@@ -122,7 +161,7 @@ async function runAllocationProcess(clientId: string, bankAccountId: string, job
             
             const batch = writeBatch(db);
             txs.forEach(tx => {
-                const txRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
                 batch.update(txRef, {
                     status: 'ai_review',
                     extractedSupplier: description,
