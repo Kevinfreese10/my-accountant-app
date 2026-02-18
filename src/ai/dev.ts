@@ -1,5 +1,3 @@
-
-
 export * from '@/ai/flows/faq-ai-responder';
 export * from '@/ai/flows/generate-faq-from-queries';
 export * from '@/ai/flows/generate-service-details';
@@ -15,15 +13,4 @@ export * from '@/ai/flows/find-story-name';
 export * from '@/ai/flows/extract-supplier-name';
 export * from '@/ai/flows/proofread-note';
 export * from '@/ai/flows/analyze-blog-post-seo';
-
-
-
-
-    
-
-
-
-
-
-
-
+export * from '@/ai/flows/optimize-allocation-rule';

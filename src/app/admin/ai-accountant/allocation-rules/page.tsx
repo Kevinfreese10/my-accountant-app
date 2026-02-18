@@ -1,4 +1,3 @@
-
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -6,7 +5,7 @@ import { chartOfAccounts as masterChartOfAccounts, setMasterChartOfAccounts } fr
 import { Input } from "@/components/ui/input";
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, PlusCircle, Edit, Trash2, Loader2, ChevronsUpDown, CheckCheck, Search } from "lucide-react";
+import { ArrowLeft, PlusCircle, Edit, Trash2, Loader2, ChevronsUpDown, CheckCheck, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
@@ -28,6 +27,7 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandG
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { optimizeAllocationRule } from "@/ai/dev";
 
 
 const db = getFirestore(firebaseApp);
@@ -156,6 +156,7 @@ export default function AllocationRulesPage() {
     const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
     const [editingRule, setEditingRule] = useState<Partial<AllocationRule> | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [optimizingRuleId, setOptimizingRuleId] = useState<string | null>(null);
 
     const fetchGlobalRules = async () => {
         setIsLoading(true);
@@ -183,29 +184,6 @@ export default function AllocationRulesPage() {
             rule.keywords.some(kw => kw.toLowerCase().includes(searchTerm.toLowerCase()))
         );
     }, [globalRules, searchTerm]);
-
-    const conflictingKeywords = useMemo(() => {
-        const keywordAccounts = new Map<string, Set<string>>();
-
-        globalRules.forEach(rule => {
-            rule.keywords.forEach(kw => {
-                const keyword = kw.toLowerCase();
-                if (!keywordAccounts.has(keyword)) {
-                    keywordAccounts.set(keyword, new Set());
-                }
-                keywordAccounts.get(keyword)!.add(rule.accountId);
-            });
-        });
-
-        const conflicts = new Set<string>();
-        keywordAccounts.forEach((accounts, kw) => {
-            if (accounts.size > 1) {
-                conflicts.add(kw);
-            }
-        });
-
-        return conflicts;
-    }, [globalRules]);
 
     const conflictingRuleGroups = useMemo(() => {
         const keywordToRules = new Map<string, AllocationRule[]>();
@@ -281,6 +259,42 @@ export default function AllocationRulesPage() {
             console.error(error);
         }
     }
+
+    const handleOptimizeRule = async (rule: AllocationRule) => {
+        setOptimizingRuleId(rule.id);
+        toast({ title: 'AI Researching Keywords...', description: `Updating rule: ${rule.description}` });
+        
+        try {
+            const result = await optimizeAllocationRule({
+                description: rule.description,
+                keywords: rule.keywords,
+            });
+
+            if (result && result.optimizedKeywords) {
+                const ruleRef = doc(db, 'allocationRules', rule.id);
+                // Combine unique keywords
+                const mergedKeywords = Array.from(new Set([
+                    ...rule.keywords.map(k => k.toUpperCase()),
+                    ...result.optimizedKeywords.map(k => k.toUpperCase())
+                ])).filter(Boolean);
+
+                await updateDoc(ruleRef, {
+                    keywords: mergedKeywords,
+                });
+
+                toast({
+                    title: 'Rule Updated by AI',
+                    description: result.reasoning || `Added ${result.optimizedKeywords.length} new keywords.`,
+                });
+                fetchGlobalRules();
+            }
+        } catch (e) {
+            console.error("AI Rule Optimization Error:", e);
+            toast({ title: 'AI Update Failed', description: 'There was an error researching keywords.', variant: 'destructive'});
+        } finally {
+            setOptimizingRuleId(null);
+        }
+    };
 
     return (
         <div className="space-y-8">
@@ -374,7 +388,9 @@ export default function AllocationRulesPage() {
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <Loader2 className="animate-spin mx-auto"/>
+                        <div className="py-8 text-center">
+                            <Loader2 className="animate-spin mx-auto h-8 w-8 text-primary"/>
+                        </div>
                     ) : (
                         <Table>
                             <TableHeader>
@@ -394,7 +410,7 @@ export default function AllocationRulesPage() {
                                         <TableCell>
                                             <div className="flex flex-wrap gap-1 max-w-xs">
                                                 {rule.keywords.map((kw, index) => (
-                                                    <Badge key={`${kw}-${index}`} variant={conflictingKeywords.has(kw) ? "destructive" : "secondary"}>
+                                                    <Badge key={`${kw}-${index}`} variant="secondary">
                                                         {kw}
                                                     </Badge>
                                                 ))}
@@ -407,6 +423,15 @@ export default function AllocationRulesPage() {
                                         </TableCell>
                                         <TableCell className="text-right">
                                              <div className="flex items-center justify-end gap-1">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-7 w-7 text-primary" 
+                                                    onClick={() => handleOptimizeRule(rule)}
+                                                    disabled={optimizingRuleId === rule.id}
+                                                >
+                                                    {optimizingRuleId === rule.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                                </Button>
                                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenRuleForm(rule)}>
                                                     <Edit className="h-4 w-4" />
                                                 </Button>
