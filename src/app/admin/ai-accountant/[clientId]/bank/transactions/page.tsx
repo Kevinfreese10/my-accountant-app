@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -1490,7 +1489,7 @@ const NewTransactionsTab = React.forwardRef<
                                                         <CommandInput placeholder="Search..." />
                                                         <CommandList>
                                                             <CommandEmpty>No results found.</CommandEmpty>
-                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary @cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
                                                             <CommandGroup heading="Customers">
                                                                 {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))}>{c.name}</CommandItem>)}
                                                             </CommandGroup>
@@ -2164,7 +2163,7 @@ const ReviewedTab = React.forwardRef<
                 </DialogContent>
             </Dialog>
             <CardHeader className="p-0 border-b">
-                 <Tabs value={activeTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
+                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
                         <TabsTrigger value="expenses">Reviewed Expenses</TabsTrigger>
                         <TabsTrigger value="income">Reviewed Income</TabsTrigger>
@@ -2323,7 +2322,7 @@ const ReviewedTab = React.forwardRef<
                                                         <CommandInput placeholder="Search..." />
                                                         <CommandList>
                                                             <CommandEmpty>No results found.</CommandEmpty>
-                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary @cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
                                                             <CommandGroup heading="Customers">
                                                                 {customers.map(c => <CommandItem key={c.id} onSelect={() => handleAllocationChange(tx.id, `customer:${c.id}`)}>{c.name}</CommandItem>)}
                                                             </CommandGroup>
@@ -3130,7 +3129,7 @@ function BankTransactionsPage() {
                 }));
 
             } catch (error) {
-                console.error("Error fetching sub-collections:", error);
+                console.error("Error fetching customers and invoices:", error);
             }
         };
         fetchCustomersAndInvoices();
