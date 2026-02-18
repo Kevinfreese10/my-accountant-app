@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Users, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server, Paperclip, Sparkles, Pencil } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Users, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server, Paperclip, Sparkles, Pencil, BellRing } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -29,7 +29,7 @@ import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
 import PaymentFollowUpEmail from '@/components/emails/PaymentFollowUpEmail';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { sendDocumentReviewFeedback, notifyOfNewNote } from '@/app/actions';
+import { sendDocumentReviewFeedback, notifyOfNewNote, sendOutstandingDocumentsReminder } from '@/app/actions';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { proofreadNote } from '@/ai/flows/proofread-note';
 import { customAlphabet } from 'nanoid';
@@ -79,6 +79,7 @@ export default function AdminOrderDetailsPage() {
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [isProofreading, setIsProofreading] = useState(false);
   const [isGeneratingDiscount, setIsGeneratingDiscount] = useState(false);
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
   
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [documentToReject, setDocumentToReject] = useState<DocumentUpload | null>(null);
@@ -358,6 +359,53 @@ export default function AdminOrderDetailsPage() {
             setIsSendingFeedback(false);
         }
     }
+
+    const handleSendFollowUp = async () => {
+        if (!order) return;
+        
+        const isOutsourced = !!order.resellerId;
+        const emailTo = isOutsourced && order.documentContact === 'client' ? order.endCustomerEmail : order.customerEmail;
+        const clientName = isOutsourced && order.documentContact === 'client' ? order.endCustomerName : order.customerName;
+
+        if (!emailTo || !clientName) {
+            toast({ title: "Cannot send reminder", description: "Missing client contact details.", variant: "destructive" });
+            return;
+        }
+
+        setIsSendingReminder(true);
+        toast({ title: "Sending Reminder...", description: "Notifying the client of outstanding documents." });
+
+        try {
+            await sendOutstandingDocumentsReminder({
+                orderId: order.originalOrderId || order.id,
+                clientName: clientName,
+                clientEmail: emailTo,
+                resellerId: order.resellerId
+            });
+
+             const emailNote: OrderNote = {
+                text: `Sent 'Outstanding Documents Reminder' email to ${emailTo}.`,
+                subject: `Action Required: Outstanding Documents for Order #${order.originalOrderId || order.id}`,
+                authorId: currentUser?.uid || 'system',
+                date: Timestamp.now(),
+                type: 'email',
+                attachments: null,
+            };
+
+            const orderRef = doc(db, 'orders', order.id);
+            await updateDoc(orderRef, {
+                notes: arrayUnion(emailNote),
+            });
+            await fetchOrderAndStaff();
+
+            toast({ title: "Reminder Sent!", description: "The client has been notified to log in and upload missing items." });
+        } catch(e) {
+            console.error(e);
+            toast({ title: "Failed to Send Reminder", variant: "destructive" });
+        } finally {
+            setIsSendingReminder(false);
+        }
+    }
   
   if (currentUser && currentUser.role === 'client') {
       return (
@@ -547,8 +595,16 @@ export default function AdminOrderDetailsPage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Required Information</CardTitle>
-                            <CardDescription>Documents and information needed from the client to complete this order.</CardDescription>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle>Required Information</CardTitle>
+                                    <CardDescription>Documents and information needed from the client to complete this order.</CardDescription>
+                                </div>
+                                <Button variant="outline" size="sm" onClick={handleSendFollowUp} disabled={isSendingReminder}>
+                                    {isSendingReminder ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <BellRing className="h-4 w-4 mr-2"/>}
+                                    Follow Up
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent>
                              <div className="space-y-4">
@@ -628,7 +684,7 @@ export default function AdminOrderDetailsPage() {
                                     {order.discountCode ? 'Discount Generated' : 'Generate 10% Discount'}
                                 </Button>
                             </div>
-                            <Separator/>
+                            <Separator className="my-4" />
                             <Form {...noteForm}>
                             <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4">
                                  <FormField
@@ -668,7 +724,7 @@ export default function AdminOrderDetailsPage() {
                                 </div>
                             </form>
                             </Form>
-                             <Separator/>
+                             <Separator className="my-4" />
                             <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                                 {order.notes && order.notes.length > 0 ? (
                                     order.notes.slice().reverse().map((note, index) => {

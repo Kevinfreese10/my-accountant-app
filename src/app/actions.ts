@@ -16,6 +16,7 @@ import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-all
 import AIAllocationCompleteEmail from '@/components/emails/AIAllocationCompleteEmail';
 import AIAccountantInviteEmail from '@/components/emails/AIAccountantInviteEmail';
 import NewNoteNotificationEmail from '@/components/emails/NewNoteNotificationEmail';
+import OutstandingDocumentsEmail from '@/components/emails/OutstandingDocumentsEmail';
 
 
 const db = getFirestore(firebaseApp);
@@ -89,6 +90,23 @@ export async function notifyOfNewNote({
     await sendEmail({
         to: recipientEmail,
         subject: `New Note on Order #${orderId}`,
+        html: emailHtml,
+        resellerId: resellerId,
+    });
+}
+
+export async function sendOutstandingDocumentsReminder({ orderId, clientName, clientEmail, resellerId }: { orderId: string, clientName: string, clientEmail: string, resellerId?: string }) {
+    const emailHtml = render(
+        OutstandingDocumentsEmail({
+            clientName,
+            orderId,
+            orderUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${orderId}`,
+        })
+    );
+
+    await sendEmail({
+        to: clientEmail,
+        subject: `Action Required: Outstanding Documents for Order #${orderId}`,
         html: emailHtml,
         resellerId: resellerId,
     });
