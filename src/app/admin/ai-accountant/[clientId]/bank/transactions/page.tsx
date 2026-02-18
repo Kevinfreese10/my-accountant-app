@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -47,10 +46,10 @@ import { Slider } from '@/components/ui/slider';
 import { DateRangePicker, type DateRange } from '@/components/ui/date-range-picker';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { startAiAllocationJob } from '@/app/actions';
 import { useAuth } from '@/contexts/AuthContext';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { Button } from '@/components/ui/button';
 
 
 const PAGE_SIZE = 50;
@@ -735,54 +734,6 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
     );
 }
 
-function ApproveAndCreateRuleDialog({
-  isOpen,
-  onOpenChange,
-  groupData,
-  client,
-  onConfirm,
-}: {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  groupData: { supplier: string; txs: ImportedTransaction[]; suggestion: AIAllocationResult | null };
-  client: User | null;
-  onConfirm: (ruleValues: RuleFormValues, groupTxs: ImportedTransaction[]) => void;
-}) {
-  if (!isOpen || !client) return null;
-
-  const defaultValues: Partial<RuleFormValues> = {
-    description: `Rule for ${groupData.supplier}`,
-    keywords: groupData.supplier,
-    accountId: groupData.suggestion?.accountId || '',
-    vatType: groupData.suggestion?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat'),
-    scope: 'client',
-    isPriority: false,
-  };
-
-  const handleSave = (values: RuleFormValues) => {
-    onConfirm(values, groupData.txs);
-  };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Approve & Create Rule</DialogTitle>
-          <DialogDescription>
-            Confirm the details below to create a new rule for '{groupData.supplier}' and approve all {groupData.txs.length} transactions in this group.
-          </DialogDescription>
-        </DialogHeader>
-        <RuleForm
-          chartOfAccounts={client.chartOfAccounts || []}
-          defaultValues={defaultValues}
-          onSave={handleSave}
-          onCancel={() => onOpenChange(false)}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // #endregion
 
 const NewTransactionsTab = React.forwardRef<
@@ -808,13 +759,10 @@ const NewTransactionsTab = React.forwardRef<
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases' });
     const [transactionDescriptionForRule, setTransactionDescriptionForRule] = useState<string | null>(null);
-    const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
-    const [isAiSelectedDialogOpen, setIsAiSelectedDialogOpen] = useState(false);
-    const [isAiAllDialogOpen, setIsAiAllDialogOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [triggerAllocation, setTriggerAllocation] = useState(false);
 
@@ -1042,96 +990,6 @@ const NewTransactionsTab = React.forwardRef<
     }, [triggerAllocation, handleAllocateByRules]);
 
 
-    const handleAiAllocateSelected = async () => {
-        if (!client || !client.uid || selectedTransactions.length === 0) return;
-        setIsAiAllocating(true);
-        toast({ title: "Preparing AI Workflow..." });
-
-        try {
-            for (let i = 0; i < selectedTransactions.length; i += BATCH_SIZE) {
-                const batch = writeBatch(db);
-                const chunk = selectedTransactions.slice(i, i + BATCH_SIZE);
-                chunk.forEach(txId => {
-                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                    batch.update(txRef, { status: 'ai_processing' });
-                });
-                batch.commit().catch(async (error) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: `aiAccountantClients/${client.uid}/transactions`,
-                        operation: 'update',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                });
-            }
-
-            toast({ title: "Transactions Moved" });
-            setSelectedTransactions([]);
-            refetch();
-            setActiveTab('ai-workflow');
-        } catch (error) {
-            console.error("Error moving transactions:", error);
-        } finally {
-            setIsAiAllocating(false);
-            setIsAiSelectedDialogOpen(false);
-        }
-    };
-    
-    const handleAiAllocateAll = async () => {
-        if (!client || !client.uid || !bankAccountId) return;
-        setIsAiAllDialogOpen(false);
-        
-        const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
-        const q = query(
-            transRef,
-            where('bankAccountId', '==', bankAccountId),
-            where('status', '==', 'new'),
-            where('amount', '<', 0)
-        );
-
-        const snapshot = await getDocs(q)
-            .catch(async (error) => {
-                const permissionError = new FirestorePermissionError({
-                    path: transRef.path,
-                    operation: 'list',
-                });
-                errorEmitter.emit('permission-error', permissionError);
-                throw error;
-            });
-        const transactionsToProcess = snapshot.docs.map(d => d.id);
-        
-        if (transactionsToProcess.length === 0) {
-            toast({ title: "No new expense transactions found." });
-            return;
-        }
-
-        const toastId = toast({ title: "Gathering transactions...", description: `Found ${transactionsToProcess.length} expenses.`}).id;
-        
-        try {
-            for (let i = 0; i < transactionsToProcess.length; i += BATCH_SIZE) {
-                const batch = writeBatch(db);
-                const chunk = transactionsToProcess.slice(i, i + BATCH_SIZE);
-                chunk.forEach(txId => {
-                    const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                    batch.update(txRef, { status: 'ai_processing' });
-                });
-                batch.commit().catch(async (error) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: `aiAccountantClients/${client.uid}/transactions`,
-                        operation: 'update',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                });
-            }
-            dismiss(toastId);
-            refetch(); 
-            setActiveTab('ai-workflow');
-        } catch (error) {
-            console.error("Error in AI Allocate All:", error);
-            dismiss(toastId);
-        }
-    };
-
-
     const handleBulkDelete = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
 
@@ -1267,42 +1125,6 @@ const NewTransactionsTab = React.forwardRef<
                 onOpenChange={setIsCreateGeneralAccountOpen}
              />
 
-             <Dialog open={isAiSelectedDialogOpen} onOpenChange={setIsAiSelectedDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>AI Allocate Selected</DialogTitle>
-                        <DialogDescription>
-                            The selected transaction(s) will be moved to the AI workflow tab for processing.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button type="button" variant="ghost" onClick={() => setIsAiSelectedDialogOpen(false)}>Cancel</Button>
-                        <Button type="button" onClick={handleAiAllocateSelected} disabled={isAiAllocating}>
-                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
-                            Allocate Selected
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-             <Dialog open={isAiAllDialogOpen} onOpenChange={setIsAiAllDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>AI Allocate All</DialogTitle>
-                        <DialogDescription>
-                            This will send ALL new expenses in this bank account to the AI workflow for processing. Are you sure?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button type="button" variant="ghost" onClick={() => setIsAiAllDialogOpen(false)}>Cancel</Button>
-                        <Button type="button" onClick={handleAiAllocateAll} disabled={isAiAllocating}>
-                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
-                            Yes, Allocate All Expenses
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
             <CardHeader className="p-0">
                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
@@ -1315,7 +1137,7 @@ const NewTransactionsTab = React.forwardRef<
                         {bankAccountId && client && <ImportDialog 
                             client={client}
                             bankAccountId={bankAccountId}
-                            currentBalance={currentBalance} 
+                            currentBalance={accountStats.balance} 
                             onImportComplete={refetch}
                             globalRules={globalRules}
                         />}
@@ -1405,13 +1227,6 @@ const NewTransactionsTab = React.forwardRef<
                                 </AlertDialog>
                             </DropdownMenuContent>
                         </DropdownMenu>
-
-                         <Button variant="outline" onClick={() => setIsAiSelectedDialogOpen(true)} disabled={isAiAllocating || selectedTransactions.length === 0 || activeSubTab === 'income'}>
-                            <Sparkles className="mr-2 h-4 w-4"/> AI Allocate Selected
-                        </Button>
-                        <Button variant="outline" onClick={() => setIsAiAllDialogOpen(true)} disabled={isAiAllocating || activeSubTab === 'income'}>
-                            <Sparkles className="mr-2 h-4 w-4"/> AI Allocate All
-                        </Button>
                     </div>
                     <div className="relative">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -2393,558 +2208,6 @@ const ReviewedTab = React.forwardRef<
 ReviewedTab.displayName = 'ReviewedTab';
 
 
-const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData, globalRules, onRuleCreated }: { 
-    client: User | null; 
-    bankAccountId: string | null; 
-    chartOfAccounts: ChartOfAccount[], 
-    fetchClientData: () => void;
-    globalRules: AllocationRule[];
-    onRuleCreated: () => void;
-}) => {
-    const { toast } = useToast();
-    const [transactions, setTransactions] = useState<ImportedTransaction[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-    
-    const [job, setJob] = useState<AIAllocationJob | null>(null);
-    const [isLoadingJob, setIsLoadingJob] = useState(true);
-    
-    const [groupedTransactions, setGroupedTransactions] = useState<Record<string, ImportedTransaction[]> >({});
-    const [groupAllocations, setGroupAllocations] = useState<Record<string, AIAllocationResult | null>>({});
-    const [activeApprovalGroup, setActiveApprovalGroup] = useState<{ supplier: string; txs: ImportedTransaction[]; suggestion: AIAllocationResult | null } | null>(null);
-
-    const [isSaving, setIsSaving] = useState(false);
-    const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-
-    const [lastApprovedTxIds, setLastApprovedTxIds] = useState<string[] | null>(null);
-    const [accountFilter, setAccountFilter] = useState('all');
-    
-    const [currentPage, setCurrentPage] = useState(1);
-    const GROUPS_PER_PAGE = 20;
-
-    useEffect(() => {
-        if (!client?.uid || !bankAccountId) {
-            setIsLoading(false);
-            return;
-        }
-
-        const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
-        const transQuery = query(
-            transRef, 
-            where('bankAccountId', '==', bankAccountId),
-            where('status', 'in', ['ai_processing', 'ai_review'])
-        );
-        const transUnsubscribe = onSnapshot(transQuery, (snapshot) => {
-            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportedTransaction));
-            setTransactions(fetched);
-            setIsLoading(false);
-        }, async (error) => {
-            const permissionError = new FirestorePermissionError({
-                path: transRef.path,
-                operation: 'list',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            setIsLoading(false);
-        });
-
-        const jobsRef = collection(db, 'aiAccountantClients', client.uid, 'jobs');
-        const jobsQuery = query(
-            jobsRef,
-            orderBy('createdAt', 'desc'),
-            limit(1)
-        );
-        const jobUnsubscribe = onSnapshot(jobsQuery, (snapshot) => {
-            if (!snapshot.empty) {
-                const latestJob = snapshot.docs[0].data() as AIAllocationJob;
-                if (latestJob.status === 'running') {
-                    setJob(latestJob);
-                } else {
-                    setJob(null);
-                }
-            } else {
-                setJob(null);
-            }
-            setIsLoadingJob(false);
-        }, async (error) => {
-            const permissionError = new FirestorePermissionError({
-                path: jobsRef.path,
-                operation: 'list',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            setIsLoadingJob(false);
-        });
-
-        return () => { 
-            transUnsubscribe();
-            jobUnsubscribe();
-        };
-    }, [client?.uid, bankAccountId, toast]);
-    
-    const filteredTransactions = useMemo(() => {
-        if (!dateRange || (!dateRange.from && !dateRange.to)) {
-            return transactions;
-        }
-        return transactions.filter(tx => {
-            try {
-                const txDate = new Date(tx.date);
-                const fromMatch = dateRange.from ? txDate >= dateRange.from : true;
-                const toMatch = dateRange.to ? txDate <= endOfDay(dateRange.to) : true;
-                return fromMatch && toMatch;
-            } catch (e) {
-                return false;
-            }
-        });
-    }, [transactions, dateRange]);
-    
-    useEffect(() => {
-        const groups = filteredTransactions.reduce((acc, tx) => {
-            const key = tx.merchantKey || 'Unassigned';
-            if (tx.status === 'ai_review') {
-                if (!acc[key]) acc[key] = [];
-                acc[key].push(tx);
-            }
-            return acc;
-        }, {} as Record<string, ImportedTransaction[]>);
-        
-        let filteredGroups = groups;
-        if (accountFilter !== 'all') {
-            filteredGroups = Object.entries(groups)
-                .filter(([_, txs]) => txs.some(tx => tx.aiAllocationResult?.accountId === accountFilter))
-                .reduce((acc, [key, val]) => ({ ...acc, [key]: val }), {});
-        }
-
-        setGroupedTransactions(filteredGroups);
-
-        const initialAllocations: Record<string, AIAllocationResult | null> = {};
-        Object.values(filteredGroups).forEach(txs => {
-            if (txs.length > 0) {
-                const supplier = txs[0].merchantKey;
-                if(supplier) {
-                    initialAllocations[supplier] = txs[0].aiAllocationResult || null;
-                }
-            }
-        });
-        setGroupAllocations(initialAllocations);
-    }, [filteredTransactions, accountFilter]);
-    
-    const sortedGroupEntries = useMemo(() => Object.entries(groupedTransactions).sort((a,b) => a[0].localeCompare(b[0])), [groupedTransactions]);
-    
-    const paginatedGroupEntries = useMemo(() => {
-        const startIndex = (currentPage - 1) * GROUPS_PER_PAGE;
-        return sortedGroupEntries.slice(startIndex, startIndex + GROUPS_PER_PAGE);
-    }, [sortedGroupEntries, currentPage]);
-
-    const totalPages = Math.ceil(sortedGroupEntries.length / GROUPS_PER_PAGE);
-    
-    const handleRunAiAllocation = async (reanalyse = false) => {
-        if (!client || !bankAccountId) return;
-        toast({ title: 'Starting AI Allocation Job...' });
-        try {
-            await startAiAllocationJob(client.uid, bankAccountId, reanalyse);
-        } catch (e) {
-            toast({ title: 'Failed to start job', variant: 'destructive'});
-        }
-    };
-    
-    const handleUndoAction = async (txIds: string[]) => {
-        if (!client || txIds.length === 0) return;
-        toast({ title: "Undoing..." });
-        try {
-            const batch = writeBatch(db);
-            txIds.forEach(id => {
-                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', id);
-                batch.update(txRef, { 
-                    status: 'ai_review',
-                    allocatedTo: null, 
-                    allocatedAt: null,
-                });
-            });
-            batch.commit().catch(async (error) => {
-                const permissionError = new FirestorePermissionError({
-                    path: `aiAccountantClients/${client.uid}/transactions`,
-                    operation: 'update',
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            });
-            setLastApprovedTxIds(null);
-            toast({ title: 'Action Undone' });
-        } catch (error) {
-            console.error("Error undoing action:", error);
-        }
-    };
-    
-    const handleRejectSelected = async (txIdsToReject: string[]) => {
-        if (!client || txIdsToReject.length === 0) return;
-        toast({ title: 'Rejecting transactions...' });
-        try {
-            const batch = writeBatch(db);
-            txIdsToReject.forEach(txId => {
-                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                batch.update(txRef, { status: 'new', aiAllocationResult: deleteField() });
-            });
-            batch.commit().catch(async (error) => {
-                const permissionError = new FirestorePermissionError({
-                    path: `aiAccountantClients/${client.uid}/transactions`,
-                    operation: 'update',
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            });
-            toast({ title: 'Transactions Rejected' });
-        } catch (error) {
-            console.error(error);
-        }
-    };
-    
-    const handleConfirmApprovalAndRuleCreation = async (ruleValues: RuleFormValues, groupTxs: ImportedTransaction[]) => {
-      if (!client || !client.uid) return;
-      
-      const newRule: Partial<AllocationRule> = {
-        description: ruleValues.description,
-        keywords: ruleValues.keywords.split(','),
-        accountId: ruleValues.accountId,
-        vatType: ruleValues.vatType,
-        type: 'hard',
-        scope: ruleValues.scope,
-        priority: ruleValues.isPriority ? 1 : 99,
-      };
-
-      try {
-        const batch = writeBatch(db);
-        const txIds = groupTxs.map(tx => tx.id);
-
-        txIds.forEach(txId => {
-          const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-          batch.update(txRef, {
-            status: 'allocated',
-            allocatedTo: { value: ruleValues.accountId, type: 'account' },
-            vatType: client.isVatRegistered ? ruleValues.vatType : 'no_vat',
-            allocatedAt: new Date(),
-          });
-        });
-
-        if (ruleValues.scope === 'global') {
-            const newRuleRef = doc(collection(db, 'allocationRules'));
-            batch.set(newRuleRef, newRule);
-        } else {
-            const clientRef = doc(db, 'aiAccountantClients', client.uid!);
-            batch.update(clientRef, {
-                allocationRules: arrayUnion(newRule)
-            });
-        }
-
-        batch.commit().catch(async (error) => {
-            const permissionError = new FirestorePermissionError({
-                path: `aiAccountantClients/${client.uid}/transactions`,
-                operation: 'update',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
-        setLastApprovedTxIds(txIds);
-        toast({ title: 'Approved & Rule Created', action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction> });
-        setActiveApprovalGroup(null);
-        fetchClientData();
-
-      } catch (error) {
-        console.error("Error in confirm and create rule:", error);
-      }
-    };
-    
-    const handleSaveChanges = async () => {
-        if (!client || Object.keys(groupAllocations).length === 0) return;
-        
-        setIsSaving(true);
-        toast({ title: 'Saving suggestions...' });
-
-        try {
-            const batch = writeBatch(db);
-            let updatedCount = 0;
-            
-            for (const supplier in groupAllocations) {
-                const allocation = groupAllocations[supplier];
-                const txs = groupedTransactions[supplier];
-                if (txs && allocation) {
-                    txs.forEach(tx => {
-                        const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                        batch.update(txRef, { aiAllocationResult: allocation });
-                        updatedCount++;
-                    });
-                }
-            }
-
-            if(updatedCount > 0) {
-                batch.commit().catch(async (error) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: `aiAccountantClients/${client.uid}/transactions`,
-                        operation: 'update',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                });
-                toast({ title: 'Changes Saved' });
-            }
-        } catch (error) {
-            console.error("Error saving changes:", error);
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const handleApproveSelected = async () => {
-        if (!client || selectedGroups.length === 0) return;
-        
-        const txsToApprove = selectedGroups.flatMap(supplier => groupedTransactions[supplier] || []);
-        const allocations = selectedGroups.map(supplier => groupAllocations[supplier]);
-        
-        if (allocations.some(alloc => !alloc || !alloc.accountId)) {
-            toast({ title: 'Missing Account', variant: 'destructive'});
-            return;
-        }
-
-        toast({ title: "Approving Selected..." });
-        try {
-            const batch = writeBatch(db);
-            const txIds = txsToApprove.map(tx => tx.id);
-            
-            selectedGroups.forEach(supplier => {
-                const groupTxs = groupedTransactions[supplier];
-                const allocation = groupAllocations[supplier];
-                if (groupTxs && allocation && allocation.accountId) {
-                    groupTxs.forEach(tx => {
-                        const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                        batch.update(txRef, {
-                            status: 'allocated',
-                            allocatedTo: { value: allocation.accountId, type: 'account' },
-                            vatType: allocation.vatType,
-                            allocatedAt: new Date(),
-                        });
-                    });
-                }
-            });
-            
-            batch.commit().catch(async (error) => {
-                const permissionError = new FirestorePermissionError({
-                    path: `aiAccountantClients/${client.uid}/transactions`,
-                    operation: 'update',
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            });
-            setLastApprovedTxIds(txIds);
-            toast({ 
-                title: "Success!", 
-                action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction>,
-            });
-            setSelectedGroups([]);
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
-    const handleAllocationChange = (supplier: string, field: 'accountId' | 'vatType', value: string) => {
-        setGroupAllocations(prev => {
-            const current = prev[supplier] || { accountId: '', vatType: 'no_vat', confidence: 0 };
-            return {
-                ...prev,
-                [supplier]: { ...current, [field]: value } as AIAllocationResult
-            };
-        });
-    };
-
-    const handleApproveGroup = async (supplier: string) => {
-        if (!client) return;
-        const groupTxs = groupedTransactions[supplier];
-        const allocation = groupAllocations[supplier];
-        if (!groupTxs || !allocation || !allocation.accountId) {
-             toast({ title: 'Missing Account', variant: 'destructive'});
-            return;
-        }
-
-        try {
-            const batch = writeBatch(db);
-            const txIds = groupTxs.map(tx => tx.id);
-            txIds.forEach(txId => {
-                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                batch.update(txRef, {
-                    status: 'allocated',
-                    allocatedTo: { value: allocation.accountId, type: 'account' },
-                    vatType: allocation.vatType,
-                    allocatedAt: new Date(),
-                });
-            });
-            batch.commit().catch(async (error) => {
-                const permissionError = new FirestorePermissionError({
-                    path: `aiAccountantClients/${client.uid}/transactions`,
-                    operation: 'update',
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            });
-            setLastApprovedTxIds(txIds);
-            toast({ 
-                title: 'Group Approved', 
-                action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction>
-            });
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
-    const isProcessing = job?.status === 'running';
-    const progress = job && job.total > 0 ? (job.processed / job.total) * 100 : 0;
-    const transactionsInProcessing = transactions.filter(tx => tx.status === 'ai_processing').length;
-
-    return (
-        <>
-             <ApproveAndCreateRuleDialog
-                isOpen={!!activeApprovalGroup}
-                onOpenChange={(open) => setActiveApprovalGroup(open ? activeApprovalGroup : null)}
-                groupData={activeApprovalGroup || { supplier: '', txs: [], suggestion: null }}
-                client={client}
-                onConfirm={handleConfirmApprovalAndRuleCreation}
-            />
-            <Card>
-                 <CardHeader className="p-4 border-b">
-                     <div className="flex items-center justify-between">
-                        <h2>AI Workflow</h2>
-                         <div className="flex gap-2">
-                            <Button onClick={() => handleRunAiAllocation()} disabled={isLoading || isProcessing || transactionsInProcessing === 0}>
-                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
-                                Run AI Allocation
-                            </Button>
-                            <Button onClick={() => handleRunAiAllocation(true)} disabled={isLoading || isProcessing} variant="outline">
-                                <RefreshCw className="mr-2 h-4 w-4"/>
-                                Re-analyse
-                            </Button>
-                            <Button variant="outline" onClick={handleSaveChanges} disabled={isSaving || isProcessing}>
-                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Save Changes
-                            </Button>
-                            <Button onClick={handleApproveSelected} disabled={selectedGroups.length === 0 || isProcessing}>
-                                Approve Selected ({selectedGroups.length})
-                            </Button>
-                             <Button
-                                variant="ghost"
-                                onClick={() => lastApprovedTxIds && handleUndoAction(lastApprovedTxIds)}
-                                disabled={!lastApprovedTxIds || isProcessing}
-                            >
-                                <RotateCcw className="mr-2 h-4 w-4" />
-                                Undo Last
-                            </Button>
-                         </div>
-                     </div>
-                      <div className="pt-4 flex gap-2">
-                        <DateRangePicker onDateChange={setDateRange} />
-                        <Select value={accountFilter} onValueChange={setAccountFilter}>
-                            <SelectTrigger className="w-[240px]">
-                                <SelectValue placeholder="Filter by suggested account..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Accounts</SelectItem>
-                                {chartOfAccounts.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                     </div>
-                 </CardHeader>
-                 <CardContent className="p-4 space-y-4">
-                    {isProcessing && job && (
-                         <div className="space-y-2 p-4 border rounded-lg bg-muted">
-                            <h3 className="font-semibold text-center">AI Allocation in Progress...</h3>
-                            <Progress value={progress} />
-                            <p className="text-sm text-muted-foreground text-center">Processing group {job.processed} of {job.total}.</p>
-                        </div>
-                    )}
-                    {job?.status === 'failed' && (
-                        <Alert variant="destructive">
-                            <AlertTriangle className="h-4 w-4"/>
-                            <AlertTitle>Last Job Failed</AlertTitle>
-                            <AlertDescription>{job.error}</AlertDescription>
-                        </Alert>
-                    )}
-                    {isLoading || isLoadingJob ? (
-                        <div className="text-center py-8">
-                            <Loader2 className="animate-spin mx-auto" />
-                        </div>
-                    ) : transactions.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                            No transactions are in the AI Workflow.
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                             {paginatedGroupEntries.map(([supplier, txs]) => {
-                                const suggestion = groupAllocations[supplier];
-                                return (
-                                <Collapsible key={supplier} className="border rounded-lg" defaultOpen={true}>
-                                    <div className="grid grid-cols-[auto_1fr_auto] items-center p-3 bg-muted/50 rounded-t-lg">
-                                        <Checkbox
-                                            checked={selectedGroups.includes(supplier)}
-                                            onCheckedChange={(checked) => {
-                                                setSelectedGroups(prev => checked ? [...prev, supplier] : prev.filter(s => s !== supplier))
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="ml-2"
-                                        />
-                                        <CollapsibleTrigger asChild>
-                                             <div className="flex items-center gap-4 text-left px-4 flex-grow cursor-pointer">
-                                                <h3 className="font-bold">{supplier} <span className="font-normal text-muted-foreground">({txs.length})</span></h3>
-                                                {suggestion && <p className="text-xs text-muted-foreground">Confidence: {suggestion.confidence}%</p>}
-                                            </div>
-                                        </CollapsibleTrigger>
-                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                            <Select onValueChange={(value) => handleAllocationChange(supplier, 'accountId', value)} value={suggestion?.accountId || ''}>
-                                                <SelectTrigger className="h-8 w-[200px] bg-white"><SelectValue placeholder="Select Account..." /></SelectTrigger>
-                                                <SelectContent>
-                                                    {chartOfAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
-                                            <Select onValueChange={(value) => handleAllocationChange(supplier, 'vatType', value as VatType)} value={suggestion?.vatType || 'no_vat'}>
-                                                <SelectTrigger className="h-8 w-[200px] bg-white"><SelectValue placeholder="Select VAT..." /></SelectTrigger>
-                                                <SelectContent>
-                                                    {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
-                                            <div className="flex items-center gap-1">
-                                                <Button size="sm" variant="destructive" onClick={() => handleRejectSelected(txs.map(t => t.id))}>Reject</Button>
-                                                <Button size="sm" onClick={() => handleApproveGroup(supplier)}>Approve</Button>
-                                                <Button size="sm" onClick={() => setActiveApprovalGroup({ supplier, txs, suggestion })}>Rule</Button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <CollapsibleContent>
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="w-12"><Checkbox/></TableHead>
-                                                    <TableHead className="w-[120px]">Date</TableHead>
-                                                    <TableHead>Description</TableHead>
-                                                    <TableHead className="text-right w-[150px]">Amount</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {txs.map(tx => (
-                                                    <TableRow key={tx.id}>
-                                                        <TableCell><Checkbox /></TableCell>
-                                                        <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                                        <TableCell className="text-xs">{tx.description}</TableCell>
-                                                        <TableCell className="text-right font-mono text-xs">{formatPrice(tx.amount)}</TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </CollapsibleContent>
-                                </Collapsible>
-                            )})}
-                        </div>
-                    )}
-                 </CardContent>
-                 <CardFooter className="flex justify-center items-center p-4">
-                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Previous</Button>
-                    <span className="text-sm mx-4">Page {currentPage} of {totalPages}</span>
-                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage >= totalPages}>Next</Button>
-                </CardFooter>
-            </Card>
-        </>
-    );
-};
-
 function BankTransactionsPage() {
     const params = useParams();
     const router = useRouter();
@@ -2960,7 +2223,7 @@ function BankTransactionsPage() {
     const [customers, setCustomers] = useState<ClientCustomer[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
-    const [activeTab, setActiveTab] = useState(currentUser?.role === 'ai_accountant' ? 'ai-workflow' : 'new-transactions');
+    const [activeTab, setActiveTab] = useState('new-transactions');
     const [accountId, setAccountId] = useState<string | null>(accountIdFromUrl);
 
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
@@ -3208,8 +2471,6 @@ function BankTransactionsPage() {
         );
     }
     
-    const canSeeAllTabs = currentUser?.role === 'admin' || currentUser?.role === 'staff' || currentUser?.role === 'ai_accountant';
-
     return (
         <div>
             {selectedAccountForEdit && <EditAccountDialog
@@ -3282,17 +2543,10 @@ function BankTransactionsPage() {
             </div>
             <div className="border rounded-lg mt-4">
                  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="w-full">
-                    {canSeeAllTabs ? (
-                        <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none h-auto">
-                            <TabsTrigger value="new-transactions">New Transactions</TabsTrigger>
-                            <TabsTrigger value="ai-workflow">AI Workflow</TabsTrigger>
-                            <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
-                        </TabsList>
-                    ) : (
-                        <TabsList className="grid w-full grid-cols-1 rounded-t-lg rounded-b-none h-auto">
-                            <TabsTrigger value="ai-workflow">AI Workflow</TabsTrigger>
-                        </TabsList>
-                    )}
+                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                        <TabsTrigger value="new-transactions">New Transactions</TabsTrigger>
+                        <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
+                    </TabsList>
                     <TabsContent value="new-transactions" className="p-0">
                         <NewTransactionsTab
                             ref={newTransactionsTabRef}
@@ -3306,19 +2560,6 @@ function BankTransactionsPage() {
                             globalRules={globalRules}
                             onAccountCreated={handleAccountCreated}
                             setActiveTab={setActiveTab}
-                        />
-                    </TabsContent>
-                     <TabsContent value="ai-workflow" className="p-0">
-                        <AIWorkflowTab
-                            client={client}
-                            bankAccountId={accountId}
-                            chartOfAccounts={client.chartOfAccounts || []}
-                            fetchClientData={fetchClientData}
-                            globalRules={globalRules}
-                            onRuleCreated={() => {
-                                fetchClientData();
-                                fetchGlobalRules();
-                            }}
                         />
                     </TabsContent>
                     <TabsContent value="reviewed" className="p-0">
