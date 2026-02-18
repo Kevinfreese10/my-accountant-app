@@ -834,6 +834,14 @@ export default function AdminDashboardPage() {
         ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks, user]);
 
+    const completedTasks = useMemo(() => {
+        if (!user) return [];
+        return tasks.filter(task => 
+            (Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id) || task.createdBy === user.id) &&
+            task.status === 'Done'
+        ).sort((a, b) => getTaskDate(b).getTime() - getTaskDate(a).getTime());
+    }, [tasks, user]);
+
     const upcomingAutomatedTasks = useMemo(() => {
         const now = startOfToday();
         const thirtyDaysFromNow = addDays(now, 30);
@@ -860,7 +868,7 @@ export default function AdminDashboardPage() {
             return true;
         });
         
-        return deptTasks.sort((a, b) => getTaskDate(a).getTime() - b.date.toDate().getTime());
+        return deptTasks.sort((a, b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks, user]);
 
     const handleAdd = () => {
