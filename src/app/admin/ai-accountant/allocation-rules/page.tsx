@@ -157,6 +157,7 @@ export default function AllocationRulesPage() {
     const [editingRule, setEditingRule] = useState<Partial<AllocationRule> | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [optimizingRuleId, setOptimizingRuleId] = useState<string | null>(null);
+    const [isOptimizingAll, setIsOptimizingAll] = useState(false);
 
     const fetchGlobalRules = async () => {
         setIsLoading(true);
@@ -293,6 +294,41 @@ export default function AllocationRulesPage() {
         }
     };
 
+    const handleOptimizeAll = async () => {
+        setIsOptimizingAll(true);
+        toast({ title: 'Bulk Optimization Started', description: `Optimizing ${globalRules.length} rules. This may take a minute.` });
+        
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const rule of globalRules) {
+            try {
+                const result = await optimizeAllocationRule({
+                    description: rule.description,
+                    keywords: rule.keywords,
+                });
+
+                if (result && result.optimizedKeywords) {
+                    const ruleRef = doc(db, 'allocationRules', rule.id);
+                    await updateDoc(ruleRef, {
+                        keywords: result.optimizedKeywords.map(k => k.toUpperCase()),
+                    });
+                    successCount++;
+                }
+            } catch (e) {
+                console.error(`Failed to optimize rule ${rule.id}:`, e);
+                failCount++;
+            }
+        }
+
+        toast({
+            title: 'Bulk Optimization Complete',
+            description: `Successfully optimized ${successCount} rules. ${failCount > 0 ? `${failCount} failed.` : ''}`,
+        });
+        fetchGlobalRules();
+        setIsOptimizingAll(false);
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
@@ -369,9 +405,20 @@ export default function AllocationRulesPage() {
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
-                        <Button size="sm" onClick={() => handleOpenRuleForm(null)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Create New Rule
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button size="sm" onClick={() => handleOpenRuleForm(null)}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Create New Rule
+                            </Button>
+                            <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={handleOptimizeAll} 
+                                disabled={isOptimizingAll || globalRules.length === 0}
+                            >
+                                {isOptimizingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4 text-primary" />}
+                                Optimize All with AI
+                            </Button>
+                        </div>
                          <div className="relative">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
@@ -425,7 +472,7 @@ export default function AllocationRulesPage() {
                                                     size="icon" 
                                                     className="h-7 w-7 text-primary" 
                                                     onClick={() => handleOptimizeRule(rule)}
-                                                    disabled={optimizingRuleId === rule.id}
+                                                    disabled={optimizingRuleId === rule.id || isOptimizingAll}
                                                 >
                                                     {optimizingRuleId === rule.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                                                 </Button>
