@@ -12,14 +12,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail, Scale, CheckCheck, ChevronsUpDown, ChevronRight as ChevronRightIcon, MoreHorizontal, Group, RefreshCw } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint, setDoc, Timestamp, deleteField } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { ToastAction } from "@/components/ui/toast";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator, DropdownMenuGroup, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,24 +27,14 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
-import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
-import { extractStatementData } from '@/ai/flows/extract-statement-data';
-import { extractStatementPeriod } from '@/ai/flows/extract-statement-period';
-import { suggestIncomeAllocation } from '@/ai/flows/suggest-income-allocation';
-import { extractSupplierName } from '@/ai/flows/extract-supplier-name';
-import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths, isSameMonth, addDays, differenceInDays, isAfter, subDays, startOfDay, endOfDay, parse } from 'date-fns';
+import { format, parse, startOfDay, endOfDay } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Slider } from '@/components/ui/slider';
 import { DateRangePicker, type DateRange } from '@/components/ui/date-range-picker';
 import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuth } from '@/contexts/AuthContext';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -63,10 +52,6 @@ const formatPrice = (price: number) => {
 };
 
 // #region Import Dialog
-const importFormSchema = z.object({
-  file: z.any().refine(file => file instanceof File, "A CSV or Excel file is required."),
-});
-
 type ParsedTransaction = {
     Date: string;
     Description: string;
@@ -121,7 +106,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                         
                         const data = results.data as any[];
                         const transactions: ParsedTransaction[] = data.map(row => {
-                            // Normalize keys to find Date, Description, Amount
                             const normalizedRow: any = {};
                             Object.keys(row).forEach(k => normalizedRow[k.toLowerCase().trim()] = row[k]);
 
@@ -162,10 +146,8 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             parsedTransactions.forEach((row, index) => {
-                // Try to parse South African format first
                 let parsedDate = parse(row.Date, 'dd/MM/yyyy', new Date());
                 if (isNaN(parsedDate.getTime())) {
-                    // Fallback to ISO
                     parsedDate = new Date(row.Date);
                 }
 
@@ -189,7 +171,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     status: 'new'
                 };
 
-                // Apply allocation rules automatically during import
                 const txDescriptionLower = row.Description.toLowerCase();
                 const matchedRule = allRules.find(rule =>
                     rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
@@ -751,7 +732,7 @@ const NewTransactionsTab = React.forwardRef<
         currentBalance: number;
     }
 >(({ client, bankAccountId, customers, invoices, fetchClientData, fetchGlobalRules, globalRules, onAccountCreated, setActiveTab, currentBalance }, ref) => {
-    const { toast, dismiss } = useToast();
+    const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
@@ -795,14 +776,11 @@ const NewTransactionsTab = React.forwardRef<
              constraints.push(where('amount', '>=', 0));
         }
         
-        let finalSortField = sortField;
-        let finalSortDirection: 'asc' | 'desc' = sortDirection;
-
         if (sortField !== 'amount') {
              constraints.push(orderBy('amount', activeSubTab === 'expenses' ? 'asc' : 'desc'));
-             constraints.push(orderBy(finalSortField, finalSortDirection));
+             constraints.push(orderBy(sortField, sortDirection));
         } else {
-             constraints.push(orderBy('amount', finalSortDirection));
+             constraints.push(orderBy('amount', sortDirection));
         }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
@@ -1137,7 +1115,7 @@ const NewTransactionsTab = React.forwardRef<
                         {bankAccountId && client && <ImportDialog 
                             client={client}
                             bankAccountId={bankAccountId}
-                            currentBalance={accountStats.balance} 
+                            currentBalance={currentBalance} 
                             onImportComplete={refetch}
                             globalRules={globalRules}
                         />}
@@ -1304,7 +1282,7 @@ const NewTransactionsTab = React.forwardRef<
                                                         <CommandInput placeholder="Search..." />
                                                         <CommandList>
                                                             <CommandEmpty>No results found.</CommandEmpty>
-                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary @cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
                                                             <CommandGroup heading="Customers">
                                                                 {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))}>{c.name}</CommandItem>)}
                                                             </CommandGroup>
@@ -1998,7 +1976,7 @@ const ReviewedTab = React.forwardRef<
                                     <AlertDialogDescription>
                                         This tool will analyze your reviewed transactions to find allocations that are inconsistent with how you've categorized similar items in the past.
                                     </AlertDialogDescription>
-                                </AlertDialogHeader>
+                                </AccordionHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction onClick={handleReviewConsistency}>Yes, Review Consistency</AlertDialogAction>
