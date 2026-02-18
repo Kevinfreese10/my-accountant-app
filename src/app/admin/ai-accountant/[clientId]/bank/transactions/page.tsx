@@ -160,6 +160,9 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             const allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
             const dailyCounters: { [key: string]: number } = {};
             
+            const allRules = [...(client.allocationRules || []), ...globalRules];
+            allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
+
             parsedTransactions.forEach((row, index) => {
                 // Try to parse South African format first
                 let parsedDate = parse(row.Date, 'dd/MM/yyyy', new Date());
@@ -178,7 +181,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
                 
-                let transaction: Omit<ImportedTransaction, 'id'> & { allocatedAt?: Date } = {
+                let transaction: Omit<ImportedTransaction, 'id'> & { allocatedAt?: Date | Timestamp } = {
                     clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: reference,
@@ -187,6 +190,19 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     bankAccountId: bankAccountId,
                     status: 'new'
                 };
+
+                // Apply allocation rules automatically during import
+                const txDescriptionLower = row.Description.toLowerCase();
+                const matchedRule = allRules.find(rule =>
+                    rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
+                );
+
+                if (matchedRule) {
+                    transaction.status = 'reviewed';
+                    transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
+                    transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
+                    transaction.allocatedAt = Timestamp.now();
+                }
                 
                 allDbOperations.push((batch) => {
                     const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
@@ -421,7 +437,7 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
             onOpenChange(false);
         } catch (error) {
             console.error("Error creating bank account:", error);
-            toast({ title: 'Error', variant: 'destructive' });
+            toast({ title: 'Error', description: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -2148,7 +2164,7 @@ const ReviewedTab = React.forwardRef<
                 </DialogContent>
             </Dialog>
             <CardHeader className="p-0 border-b">
-                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
+                 <Tabs value={activeTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
                         <TabsTrigger value="expenses">Reviewed Expenses</TabsTrigger>
                         <TabsTrigger value="income">Reviewed Income</TabsTrigger>
