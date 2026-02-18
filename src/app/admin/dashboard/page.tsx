@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,6 +35,8 @@ import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import TaskCompletedEmail from '@/components/emails/TaskCompletedEmail';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 
 const db = getFirestore(firebaseApp);
@@ -66,11 +67,9 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
       if (task.dueDate instanceof Date) {
           return task.dueDate;
       }
-      // Firestore Timestamps have a toDate() method
       if (typeof (task.dueDate as any).toDate === 'function') {
           return (task.dueDate as any).toDate();
       }
-      // Fallback for string dates
       return new Date(task.dueDate);
     }
 
@@ -418,7 +417,6 @@ const userColors = [
 ];
 
 const getUserColor = (userId: string) => {
-  // Simple hash function to get a consistent color for a user
   const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return userColors[hash % userColors.length];
 };
@@ -427,11 +425,9 @@ const getTaskDate = (task: Task): Date => {
   if (task.dueDate instanceof Date) {
       return task.dueDate;
   }
-  // Firestore Timestamps have a toDate() method
   if (task.dueDate && typeof (task.dueDate as any).toDate === 'function') {
       return (task.dueDate as any).toDate();
   }
-  // Fallback for string dates
   return new Date(task.dueDate);
 }
 
@@ -687,39 +683,66 @@ export default function AdminDashboardPage() {
         const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, {
             archivedNotifications: arrayUnion(noteId)
+        }).catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'update',
+                requestResourceData: { archivedNotifications: arrayUnion(noteId) },
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
-        // Optimistically update local state
         updateUser({ ...user, archivedNotifications: [...(user.archivedNotifications || []), noteId] });
     };
     
     useEffect(() => {
         setIsLoading(true);
-        const usersQuery = query(collection(db, "users"));
-        getDocs(usersQuery).then(usersSnapshot => {
+        const usersRef = collection(db, "users");
+        getDocs(usersRef).then(usersSnapshot => {
             const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
             setAllStaffAndClients(fetchedUsers);
-        }).catch(error => {
-            console.error("Error fetching users:", error);
-            toast({ title: "Error", description: "Could not fetch user data.", variant: "destructive" });
+        }).catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: usersRef.path,
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
 
-        const tasksQuery = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
+        const tasksRef = collection(db, 'tasks');
+        const tasksQuery = query(tasksRef, orderBy('dueDate', 'asc'));
         const tasksUnsubscribe = onSnapshot(tasksQuery, (snapshot) => {
             const fetchedTasks = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
             setTasks(fetchedTasks);
             if (isLoading) setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching tasks in real-time:", error);
-            toast({ title: "Error", description: "Could not fetch tasks data.", variant: "destructive" });
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: tasksRef.path,
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
             if (isLoading) setIsLoading(false);
         });
 
-        const ordersQuery = query(collection(db, 'orders'), orderBy('date', 'desc'));
+        const ordersRef = collection(db, 'orders');
+        const ordersQuery = query(ordersRef, orderBy('date', 'desc'));
         const ordersUnsubscribe = onSnapshot(ordersQuery, (snapshot) => {
-            const fetchedOrders = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order));
+            const fetchedOrders = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    ...data,
+                    id: doc.id,
+                    date: data.date?.toDate ? data.date.toDate().toISOString() : new Date().toISOString(),
+                    notes: (data.notes || []).map((note: any) => ({...note, date: note.date?.toDate ? note.date.toDate().toISOString() : new Date().toISOString()})),
+                    itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt?.toDate ? log.receivedAt.toDate().toISOString() : new Date().toISOString() })),
+                } as Order;
+            });
             setOrders(fetchedOrders);
-        }, (error) => {
-            console.error("Error fetching orders in real-time:", error);
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: ordersRef.path,
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
 
         return () => {
@@ -840,18 +863,6 @@ export default function AdminDashboardPage() {
         return deptTasks.sort((a, b) => getTaskDate(a).getTime() - b.date.toDate().getTime());
     }, [tasks, user]);
 
-    const automatedTasks = useMemo(() => {
-        return tasks.filter(task => task.recurrence && task.recurrence !== 'None' && task.status !== 'Done');
-    }, [tasks]);
-    
-    const completedTasks = useMemo(() => {
-        if (!user) return [];
-        return tasks.filter(task => 
-            task.status === 'Done' &&
-            (task.assignedTo.includes(user.id) || (user.role === 'admin' && task.createdBy === 'system'))
-        );
-    }, [tasks, user]);
-
     const handleAdd = () => {
         setSelectedTask(null);
         setIsFormOpen(true);
@@ -868,60 +879,61 @@ export default function AdminDashboardPage() {
     }
     
     const handleDelete = async (taskId: string) => {
-        try {
-            await deleteDoc(doc(db, 'tasks', taskId));
-            toast({
-                title: 'Task Deleted',
-                description: 'The task has been successfully removed.',
-                variant: 'destructive',
+        const taskRef = doc(db, 'tasks', taskId);
+        deleteDoc(taskRef)
+            .then(() => {
+                toast({ title: 'Task Deleted', variant: 'destructive' });
             })
-        } catch (error) {
-            console.error("Error deleting task:", error);
-            toast({ title: 'Error', description: 'Could not delete task.', variant: 'destructive'});
-        }
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: taskRef.path,
+                    operation: 'delete',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
     };
 
     const handleUpdate = async (taskId: string, updates: Partial<Task>) => {
         const originalTask = tasks.find(t => t.id === taskId);
         if (!originalTask || !user) return;
     
-        try {
-            const taskRef = doc(db, 'tasks', taskId);
-            await updateDoc(taskRef, updates);
-    
-            if (updates.status === 'Done') {
-                const creator = allStaffAndClients.find(s => s.id === originalTask.createdBy);
-                if (creator && creator.email && creator.id !== user.id) {
-                    try {
-                        const emailHtml = render(<TaskCompletedEmail
-                            creatorName={creator.name.split(' ')[0]}
-                            taskTitle={originalTask.title}
-                            completedBy={user.name}
-                            taskUrl={`${window.location.origin}/admin/dashboard`}
-                        />);
-                        await sendEmail({
-                            to: creator.email,
-                            subject: `Task Completed: ${originalTask.title}`,
-                            html: emailHtml,
-                        });
-                    } catch (emailError) {
-                        console.error("Failed to send completion email:", emailError);
-                        // Non-blocking, don't show toast for this error
+        const taskRef = doc(db, 'tasks', taskId);
+        updateDoc(taskRef, updates)
+            .then(() => {
+                if (updates.status === 'Done') {
+                    const creator = allStaffAndClients.find(s => s.id === originalTask.createdBy);
+                    if (creator && creator.email && creator.id !== user.id) {
+                        try {
+                            const emailHtml = render(<TaskCompletedEmail
+                                creatorName={creator.name.split(' ')[0]}
+                                taskTitle={originalTask.title}
+                                completedBy={user.name}
+                                taskUrl={`${window.location.origin}/admin/dashboard`}
+                            />);
+                            sendEmail({
+                                to: creator.email,
+                                subject: `Task Completed: ${originalTask.title}`,
+                                html: emailHtml,
+                            });
+                        } catch (emailError) {}
                     }
+        
+                    if (originalTask.recurrence && originalTask.recurrence !== 'None') {
+                        createNextRecurrence(originalTask);
+                    }
+                    toast({ title: 'Task Completed!' });
+                } else {
+                    toast({ title: 'Task Updated' });
                 }
-    
-                if (originalTask.recurrence && originalTask.recurrence !== 'None') {
-                    createNextRecurrence(originalTask);
-                }
-                toast({ title: 'Task Completed!', description: `The task has been marked as "Done".` });
-            } else {
-                toast({ title: 'Task Updated', description: `The task has been updated.` });
-            }
-    
-        } catch (error) {
-            console.error("Error updating task:", error);
-            toast({ title: 'Error', description: 'Could not update task.', variant: 'destructive'});
-        }
+            })
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: taskRef.path,
+                    operation: 'update',
+                    requestResourceData: updates,
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
     };
 
     const createNextRecurrence = async (completedTask: Task) => {
@@ -931,17 +943,10 @@ export default function AdminDashboardPage() {
         const currentDueDate = getTaskDate(completedTask);
 
         switch (completedTask.recurrence) {
-            case 'Monthly':
-                nextDueDate = addMonths(currentDueDate, 1);
-                break;
-            case 'Bi-Monthly':
-                nextDueDate = addMonths(currentDueDate, 2);
-                break;
-            case 'Annually':
-                nextDueDate = addYears(currentDueDate, 1);
-                break;
-            default:
-                return; // No need to create for 'Daily', 'Weekly' for now
+            case 'Monthly': nextDueDate = addMonths(currentDueDate, 1); break;
+            case 'Bi-Monthly': nextDueDate = addMonths(currentDueDate, 2); break;
+            case 'Annually': nextDueDate = addYears(currentDueDate, 1); break;
+            default: return;
         }
         
         const { id, ...restOfTask } = completedTask;
@@ -950,23 +955,23 @@ export default function AdminDashboardPage() {
             dueDate: Timestamp.fromDate(nextDueDate),
             status: 'To-Do' as const,
             createdAt: Timestamp.now(),
-            comments: [], // Clear comments for the new task
+            comments: [],
         };
         
-        try {
-            await addDoc(collection(db, 'tasks'), newTaskData);
-            toast({ title: 'Next Task Created', description: `Next recurring task for "${completedTask.title}" has been created.` });
-        } catch (error) {
-            console.error('Error creating next recurring task:', error);
-        }
+        addDoc(collection(db, 'tasks'), newTaskData)
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'tasks',
+                    operation: 'create',
+                    requestResourceData: newTaskData,
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
     };
 
 
     const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority' | 'createdAt'>) => {
-        if (!user || !user.id) {
-            toast({ title: 'Authentication Error', description: 'Could not identify the current user. Please log in again.', variant: 'destructive'});
-            return;
-        };
+        if (!user || !user.id) return;
         setIsLoading(true);
 
         const taskData = {
@@ -975,11 +980,19 @@ export default function AdminDashboardPage() {
         };
         
         try {
-            if (selectedTask?.id) { // This is an update
+            if (selectedTask?.id) {
                 const taskRef = doc(db, 'tasks', selectedTask.id);
-                await updateDoc(taskRef, { ...taskData });
-                toast({ title: 'Task Updated', description: 'The task details have been saved.' });
-            } else { // This is a new task or tasks
+                await updateDoc(taskRef, { ...taskData })
+                    .catch(async (error) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: taskRef.path,
+                            operation: 'update',
+                            requestResourceData: taskData,
+                        } satisfies SecurityRuleContext);
+                        errorEmitter.emit('permission-error', permissionError);
+                    });
+                toast({ title: 'Task Updated' });
+            } else {
                 const newTask: Omit<Task, 'id' | 'priority'> = {
                     ...taskData,
                     status: 'To-Do',
@@ -987,12 +1000,19 @@ export default function AdminDashboardPage() {
                     createdAt: Timestamp.now(),
                     comments: [],
                 };
-                await addDoc(collection(db, 'tasks'), newTask);
-                toast({ title: 'Task Created', description: `Task assigned.` });
+                await addDoc(collection(db, 'tasks'), newTask)
+                    .catch(async (error) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: 'tasks',
+                            operation: 'create',
+                            requestResourceData: newTask,
+                        } satisfies SecurityRuleContext);
+                        errorEmitter.emit('permission-error', permissionError);
+                    });
+                toast({ title: 'Task Created' });
 
-                // Send email notifications
                 for (const assigneeId of data.assignedTo) {
-                    if (assigneeId !== user.id) { // Don't email the user who created the task
+                    if (assigneeId !== user.id) {
                         const assignee = allStaffAndClients.find(s => s.id === assigneeId);
                         if (assignee && assignee.email) {
                             try {
@@ -1004,15 +1024,12 @@ export default function AdminDashboardPage() {
                                     assignedBy={user.name}
                                     taskUrl={`${window.location.origin}/admin/dashboard`}
                                 />);
-                                await sendEmail({
+                                sendEmail({
                                     to: assignee.email,
                                     subject: `New Task Assigned: ${newTask.title}`,
                                     html: emailHtml,
                                 });
-                            } catch (emailError) {
-                                console.error(`Failed to send task notification email to ${assignee.email}:`, emailError);
-                                // Non-blocking error
-                            }
+                            } catch (emailError) {}
                         }
                     }
                 }
@@ -1021,7 +1038,6 @@ export default function AdminDashboardPage() {
             setSelectedTask(null);
         } catch (error) {
             console.error("Error saving task:", error);
-            toast({ title: 'Error', description: 'Could not save the task.', variant: 'destructive'});
         } finally {
             setIsLoading(false);
         }
@@ -1036,19 +1052,16 @@ export default function AdminDashboardPage() {
             authorId: user.id,
         };
 
-        try {
-            const taskRef = doc(db, 'tasks', taskId);
-            await updateDoc(taskRef, {
-                comments: arrayUnion(newComment),
-            });
-            
+        const taskRef = doc(db, 'tasks', taskId);
+        updateDoc(taskRef, {
+            comments: arrayUnion(newComment),
+        })
+        .then(() => {
             const newCommentForState = { ...newComment, date: new Date() };
-
             if (selectedTask) {
                  const updatedComments = [...(selectedTask.comments || []), newCommentForState];
                  setSelectedTask({ ...selectedTask, comments: updatedComments });
             }
-           
             setTasks(prevTasks => prevTasks.map(t => {
                 if (t.id === taskId) {
                     const existingComments = t.comments?.map(c => c.date.toDate ? c : {...c, date: new Date(c.date)}) || [];
@@ -1056,26 +1069,26 @@ export default function AdminDashboardPage() {
                 }
                 return t;
             }));
-
-            toast({ title: 'Comment Posted', description: 'Your comment has been added.' });
-        } catch (error) {
-            console.error("Error posting comment:", error);
-            toast({ title: 'Error', description: 'Could not post comment.', variant: 'destructive' });
-        }
+            toast({ title: 'Comment Posted' });
+        })
+        .catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: taskRef.path,
+                operation: 'update',
+                requestResourceData: { comments: arrayUnion(newComment) },
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+        });
     }
 
     const handleFormOpenChange = (open: boolean) => {
         setIsFormOpen(open);
-        if (!open) {
-            setSelectedTask(null);
-        }
+        if (!open) setSelectedTask(null);
     }
 
     const handleViewOpenChange = (open: boolean) => {
         setIsViewOpen(open);
-        if(!open) {
-            setViewingTask(null);
-        }
+        if(!open) setViewingTask(null);
     }
     
     return (

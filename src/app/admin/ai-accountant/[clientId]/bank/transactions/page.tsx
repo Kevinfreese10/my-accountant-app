@@ -139,7 +139,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
     const handleImport = async () => {
         if (!file || !client || !client.uid || !bankAccountId || parsedTransactions.length === 0 || importError) return;
         setIsUploading(true);
-        toast({ title: "Importing...", description: "Processing your file."});
+        toast({ title: "Importing..." });
 
         try {
             const allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
@@ -193,7 +193,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             resetState();
         } catch (error) {
             console.error("Error importing transactions:", error);
-            toast({ title: "Import Failed", description: "An error occurred during the import process.", variant: "destructive"});
+            toast({ title: "Import Failed", variant: "destructive"});
         } finally {
             setIsUploading(false);
         }
@@ -385,13 +385,12 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
             };
 
             const clientRef = doc(db, 'aiAccountantClients', client.uid);
-            updateDoc(clientRef, {
-                chartOfAccounts: arrayUnion(newAccount)
-            }).catch(async (error) => {
+            const updateData = { chartOfAccounts: arrayUnion(newAccount) };
+            updateDoc(clientRef, updateData).catch(async (error) => {
                 const permissionError = new FirestorePermissionError({
                     path: clientRef.path,
                     operation: 'update',
-                    requestResourceData: { chartOfAccounts: arrayUnion(newAccount) },
+                    requestResourceData: updateData,
                 } satisfies SecurityRuleContext);
                 errorEmitter.emit('permission-error', permissionError);
             });
@@ -776,14 +775,12 @@ const NewTransactionsTab = React.forwardRef<
     const [transactionDescriptionForRule, setTransactionDescriptionForRule] = useState<string | null>(null);
     const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
-    const [isDownloading, setIsDownloading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isAiSelectedDialogOpen, setIsAiSelectedDialogOpen] = useState(false);
     const [isAiAllDialogOpen, setIsAiAllDialogOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [isRefreshing, setIsRefreshing] = useState(false);
     const [triggerAllocation, setTriggerAllocation] = useState(false);
 
 
@@ -1563,7 +1560,6 @@ const ReviewedTab = React.forwardRef<
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
     const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
-    const [isDownloading, setIsDownloading] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isSearching, setIsSearching] = useState(false);
@@ -1925,7 +1921,9 @@ const ReviewedTab = React.forwardRef<
                 }
             });
             
-            const [mostCommonKey] = Object.entries(allocationCounts).reduce((a, b) => a[1] > b[1] ? a : b);
+            const entries = Object.entries(allocationCounts);
+            if (entries.length === 0) return;
+            const [mostCommonKey] = entries.reduce((a, b) => a[1] > b[1] ? a : b);
             const [correctAccountId, correctVatType] = mostCommonKey.split('_');
     
             group.forEach(tx => {
@@ -2607,7 +2605,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
             errorEmitter.emit('permission-error', permissionError);
         });
         setLastApprovedTxIds(txIds);
-        toast({ title: 'Transactions Approved \u0026 Rule Created', action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction> });
+        toast({ title: 'Approved & Rule Created', action: <ToastAction altText="Undo" onClick={() => handleUndoAction(txIds)}>Undo</ToastAction> });
         setActiveApprovalGroup(null);
         fetchClientData();
 
@@ -2620,7 +2618,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         if (!client || Object.keys(groupAllocations).length === 0) return;
         
         setIsSaving(true);
-        toast({ title: 'Saving allocation suggestions...' });
+        toast({ title: 'Saving suggestions...' });
 
         try {
             const batch = writeBatch(db);
@@ -2662,7 +2660,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         const allocations = selectedGroups.map(supplier => groupAllocations[supplier]);
         
         if (allocations.some(alloc => !alloc || !alloc.accountId)) {
-            toast({ title: 'Cannot Approve', description: 'One or more groups are missing an account.', variant: 'destructive'});
+            toast({ title: 'Missing Account', variant: 'destructive'});
             return;
         }
 
@@ -2720,7 +2718,7 @@ const AIWorkflowTab = ({ client, bankAccountId, chartOfAccounts, fetchClientData
         const groupTxs = groupedTransactions[supplier];
         const allocation = groupAllocations[supplier];
         if (!groupTxs || !allocation || !allocation.accountId) {
-             toast({ title: 'Cannot Approve', variant: 'destructive'});
+             toast({ title: 'Missing Account', variant: 'destructive'});
             return;
         }
 
@@ -3073,7 +3071,7 @@ function BankTransactionsPage() {
                         errorEmitter.emit('permission-error', permissionError);
                         throw error;
                     });
-                setCustomers(custSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ClientCustomer[]);
+                setCustomers(custSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClientCustomer)));
 
                 const invRef = collection(db, `aiAccountantClients/${clientId}/invoices`);
                 const invSnapshot = await getDocs(invRef)
@@ -3085,7 +3083,16 @@ function BankTransactionsPage() {
                         errorEmitter.emit('permission-error', permissionError);
                         throw error;
                     });
-                setInvoices(invSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[]);
+                setInvoices(invSnapshot.docs.map(docSnap => {
+                    const data = docSnap.data();
+                    return { 
+                        id: docSnap.id, 
+                        ...data,
+                        invoiceDate: data.invoiceDate.toDate(),
+                        dueDate: data.dueDate.toDate(),
+                    } as Invoice
+                }));
+
             } catch (error) {
                 console.error("Error fetching sub-collections:", error);
             }

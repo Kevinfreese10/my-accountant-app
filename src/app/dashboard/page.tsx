@@ -1,4 +1,3 @@
-
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -21,6 +20,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const db = getFirestore(firebaseApp);
 
@@ -32,7 +33,6 @@ type Category = {
 };
 
 const formatPrice = (price: number) => {
-    // Use simple formatting to avoid hydration mismatch between server/client
     return `R ${price.toLocaleString('en-US')}`;
 };
 
@@ -88,26 +88,47 @@ export default function DashboardPage() {
     useEffect(() => {
         setIsLoading(true);
 
-        const servicesUnsubscribe = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snapshot) => {
+        const servicesRef = collection(db, 'services');
+        const servicesUnsubscribe = onSnapshot(query(servicesRef, orderBy('title')), (snapshot) => {
             const fetchedServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
             setServices(fetchedServices);
             setIsLoading(false);
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: servicesRef.path,
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+            setIsLoading(false);
         });
         
-        const categoriesUnsubscribe = onSnapshot(query(collection(db, 'categories'), orderBy('order')), (snapshot) => {
+        const categoriesRef = collection(db, 'categories');
+        const categoriesUnsubscribe = onSnapshot(query(categoriesRef, orderBy('order')), (snapshot) => {
             const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
             setCategories(fetchedCategories);
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: categoriesRef.path,
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
 
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
-        const staffUnsubscribe = onSnapshot(staffQuery, (snapshot) => {
+        const staffRef = collection(db, "users");
+        const staffUnsubscribe = onSnapshot(query(staffRef, where('role', 'in', ['staff', 'admin'])), (snapshot) => {
             setAllStaff(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User)));
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: staffRef.path,
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
 
         let ordersUnsubscribe = () => {};
         if (user) {
-            const ordersQuery = query(collection(db, 'orders'), where('userId', '==', user.uid), orderBy('date', 'desc'));
-            ordersUnsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+            const ordersRef = collection(db, 'orders');
+            ordersUnsubscribe = onSnapshot(query(ordersRef, where('userId', '==', user.uid), orderBy('date', 'desc')), (snapshot) => {
                 setOrders(snapshot.docs.map(doc => {
                     const data = doc.data();
                     return { 
@@ -117,8 +138,12 @@ export default function DashboardPage() {
                     } as Order;
                 }));
                 setIsLoading(false);
-            }, (error) => {
-                console.error("Error fetching orders:", error);
+            }, async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: ordersRef.path,
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
                 setIsLoading(false);
             });
         } else {
@@ -156,12 +181,12 @@ export default function DashboardPage() {
 
     const handleBuyNow = async (service: Service) => {
         if (!user) {
-            toast({ title: 'Not Logged In', description: 'Please log in to make a purchase.', variant: 'destructive'});
+            toast({ title: 'Not Logged In', variant: 'destructive'});
             return;
         }
 
         setIsProcessingPayment(true);
-        toast({ title: "Processing Order...", description: "Please wait while we prepare your order."});
+        toast({ title: "Processing Order..." });
 
         try {
             const orderId = await getNextOrderId();
@@ -180,13 +205,20 @@ export default function DashboardPage() {
                 department: service.department || null,
             };
 
-            await setDoc(doc(db, 'orders', orderId), orderData);
+            await setDoc(doc(db, 'orders', orderId), orderData)
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: `orders/${orderId}`,
+                        operation: 'create',
+                        requestResourceData: orderData,
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             
             router.push(`/order-confirmation/${orderId}`);
 
         } catch (error) {
             console.error("Error creating order:", error);
-            toast({ title: 'Error', description: 'Could not create your order.', variant: 'destructive'});
             setIsProcessingPayment(false);
         }
     };

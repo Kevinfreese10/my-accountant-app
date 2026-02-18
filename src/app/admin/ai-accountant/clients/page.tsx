@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -30,6 +29,8 @@ import { format } from 'date-fns';
 import { sendAiUserInvite } from '@/app/actions';
 import { Label } from '@/components/ui/label';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 
 const db = getFirestore(firebaseApp);
@@ -140,18 +141,26 @@ function BackupClientDialog({ client }: { client: User | null }) {
     const handleBackup = async () => {
         if (!client) return;
         setIsBackingUp(true);
-        toast({ title: 'Backup Started', description: `Creating a backup for ${client.name}. This may take a moment.` });
+        toast({ title: 'Backup Started' });
 
         try {
-            // This would be a server-side function in a real app
             const backupData: any = {
-                client: { ...client, id: undefined, uid: undefined }, // Don't backup IDs
+                client: { ...client, id: undefined, uid: undefined },
                 subCollections: {}
             };
             
             const subCollections = ['transactions', 'customers', 'suppliers', 'invoices'];
             for (const sub of subCollections) {
-                const snapshot = await getDocs(collection(db, 'aiAccountantClients', client.id, sub));
+                const subRef = collection(db, 'aiAccountantClients', client.id, sub);
+                const snapshot = await getDocs(subRef)
+                    .catch(async (error) => {
+                        const permissionError = new FirestorePermissionError({
+                            path: subRef.path,
+                            operation: 'list',
+                        } satisfies SecurityRuleContext);
+                        errorEmitter.emit('permission-error', permissionError);
+                        throw error;
+                    });
                 backupData.subCollections[sub] = snapshot.docs.map(d => d.data());
             }
 
@@ -164,7 +173,7 @@ function BackupClientDialog({ client }: { client: User | null }) {
             link.click();
             document.body.removeChild(link);
             
-            toast({ title: 'Backup Complete', description: 'Your backup file has been downloaded.' });
+            toast({ title: 'Backup Complete' });
 
         } catch (error) {
             console.error("Backup failed:", error);
@@ -256,18 +265,36 @@ export default function AIAccountantClientsPage() {
     if (!currentUser?.uid) return;
     setIsLoading(true);
     try {
-        const usersSnapshot = await getDocs(collection(db, "users"));
+        const usersRef = collection(db, "users");
+        const usersSnapshot = await getDocs(usersRef)
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: usersRef.path,
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+                throw error;
+            });
         const allUsersData = usersSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User));
         setAllUsers(allUsersData);
         
-        const clientsQuery = query(collection(db, "aiAccountantClients"), orderBy("name"));
-        const clientsSnapshot = await getDocs(clientsQuery);
+        const clientsRef = collection(db, "aiAccountantClients");
+        const clientsQuery = query(clientsRef, orderBy("name"));
+        const clientsSnapshot = await getDocs(clientsQuery)
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: clientsRef.path,
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+                throw error;
+            });
         const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setAllClients(fetchedClients);
 
     } catch (error) {
         console.error("Error fetching data:", error);
-        toast({ title: 'Error', description: 'Could not fetch AI Accountant clients.', variant: 'destructive'});
+        toast({ title: 'Error', variant: 'destructive'});
     } finally {
         setIsLoading(false);
     }
@@ -289,7 +316,6 @@ export default function AIAccountantClientsPage() {
       return { myClients: activeClients, sharedClients: [], archivedClients: archived };
     }
     
-    // For non-admin users
     const my = activeClients.filter(c => c.createdBy === currentUser.uid);
     const shared = activeClients.filter(c => c.sharedWith?.includes(currentUser.uid) && c.createdBy !== currentUser.uid);
     archived = archived.filter(c => c.createdBy === currentUser.uid);
@@ -329,7 +355,7 @@ export default function AIAccountantClientsPage() {
   
    const handleRestoreClick = (client: User) => {
     setSelectedClient(client);
-    toast({ title: 'Coming Soon', description: 'Restore functionality is not yet implemented.' });
+    toast({ title: 'Coming Soon' });
   }
 
   const handleShareAction = async (email: string, action: 'add' | 'remove') => {
@@ -338,21 +364,25 @@ export default function AIAccountantClientsPage() {
     const userToShareWith = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
 
     if (!userToShareWith) {
-        toast({ title: 'User Not Found', description: `No user with the email "${email}" exists.`, variant: 'destructive'});
+        toast({ title: 'User Not Found', variant: 'destructive'});
         return;
     }
 
     const clientRef = doc(db, 'aiAccountantClients', selectedClient.id);
 
     try {
-        if (action === 'add') {
-            await updateDoc(clientRef, { sharedWith: arrayUnion(userToShareWith.uid) });
-            toast({ title: 'Client Shared', description: `${selectedClient.name} has been shared with ${userToShareWith.name}.` });
-        } else {
-            await updateDoc(clientRef, { sharedWith: arrayRemove(userToShareWith.uid) });
-            toast({ title: 'Access Removed', description: `Access for ${userToShareWith.name} has been removed from ${selectedClient.name}.` });
-        }
-        fetchClients(); // Refetch to update the list
+        const updateData = action === 'add' ? { sharedWith: arrayUnion(userToShareWith.uid) } : { sharedWith: arrayRemove(userToShareWith.uid) };
+        updateDoc(clientRef, updateData)
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: clientRef.path,
+                    operation: 'update',
+                    requestResourceData: updateData,
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
+        toast({ title: action === 'add' ? 'Client Shared' : 'Access Removed' });
+        fetchClients();
     } catch(e) {
         console.error("Error sharing client:", e);
         toast({ title: 'Error', description: 'Could not update sharing settings.', variant: 'destructive'});
@@ -360,119 +390,135 @@ export default function AIAccountantClientsPage() {
   }
   
   const handleDelete = async (clientId: string) => {
-    try {
-        await deleteDoc(doc(db, "aiAccountantClients", clientId));
-        fetchClients();
-        toast({
-            title: 'Client Deleted',
-            description: `The AI Accountant profile has been removed.`,
-            variant: 'destructive',
+    const clientRef = doc(db, "aiAccountantClients", clientId);
+    deleteDoc(clientRef)
+        .then(() => {
+            fetchClients();
+            toast({ title: 'Client Deleted', variant: 'destructive' });
+        })
+        .catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: clientRef.path,
+                operation: 'delete',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
-    } catch (error) {
-        console.error("Error deleting client:", error);
-        toast({ title: 'Error', description: 'Could not delete client profile.', variant: 'destructive' });
-    }
   };
 
   const handleArchive = async (clientId: string, archive: boolean) => {
-      try {
-        const clientRef = doc(db, 'aiAccountantClients', clientId);
-        await updateDoc(clientRef, { status: archive ? 'Archived' : 'Active' });
-        toast({ title: `Client ${archive ? 'Archived' : 'Restored'}`, description: `The client profile has been ${archive ? 'archived' : 'restored'}.` });
-        fetchClients();
-    } catch(e) {
-         console.error(`Error ${archive ? 'archiving' : 'restoring'} client:`, e);
-        toast({ title: 'Error', description: `Could not ${archive ? 'archive' : 'restore'} client profile.`, variant: 'destructive'});
-    }
+    const clientRef = doc(db, 'aiAccountantClients', clientId);
+    const updateData = { status: archive ? 'Archived' : 'Active' };
+    updateDoc(clientRef, updateData)
+        .then(() => {
+            toast({ title: `Client ${archive ? 'Archived' : 'Restored'}` });
+            fetchClients();
+        })
+        .catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: clientRef.path,
+                operation: 'update',
+                requestResourceData: updateData,
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+        });
   };
   
     const handleCreateAndInviteUser = async (values: z.infer<typeof inviteUserSchema>) => {
     if (!selectedClient || !currentUser) return;
 
-    // 0. Check if user already exists
     const q = query(collection(db, "users"), where("email", "==", values.email));
     const existingUserSnap = await getDocs(q);
     if (!existingUserSnap.empty) {
-        toast({ title: "User Already Exists", description: "A user with this email already has a profile. Please use the 'Share Access' feature instead.", variant: "destructive"});
+        toast({ title: "User Already Exists", variant: "destructive"});
         return;
     }
 
     try {
-        // 1. Create user in Auth
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const newFirebaseUser = userCredential.user;
         
-        // 2. Re-authenticate admin user to prevent session invalidation
         if (auth.currentUser) {
             await reauthenticate(auth.currentUser);
         }
 
-        // 3. Create user doc in 'users' collection
         const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
-        await setDoc(newUserDocRef, {
+        const userData = {
             id: newFirebaseUser.uid,
             uid: newFirebaseUser.uid,
             name: `${values.name} ${values.surname}`,
             email: values.email,
-            role: 'ai_accountant',
+            role: 'ai_accountant' as const,
             createdAt: serverTimestamp(),
-        });
+        };
+        await setDoc(newUserDocRef, userData)
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: newUserDocRef.path,
+                    operation: 'create',
+                    requestResourceData: userData,
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
 
-        // 4. Share client with new user
         const clientRef = doc(db, 'aiAccountantClients', selectedClient.id);
-        await updateDoc(clientRef, { sharedWith: arrayUnion(newFirebaseUser.uid) });
+        const updateData = { sharedWith: arrayUnion(newFirebaseUser.uid) };
+        await updateDoc(clientRef, updateData)
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: clientRef.path,
+                    operation: 'update',
+                    requestResourceData: updateData,
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
 
-        // 5. Send invitation email
-        await sendAiUserInvite({
-            name: values.name,
-            email: values.email,
-            password_do_not_expose: values.password,
-            clientName: selectedClient.name,
-        });
+        await sendAiUserInvite(values.email, values.name, values.password, selectedClient.name, selectedClient.id);
 
-        toast({ title: 'User Invited!', description: `${values.name} has been created and invited to ${selectedClient.name}.` });
+        toast({ title: 'User Invited!' });
         setIsInviteUserOpen(false);
         fetchClients();
 
     } catch (error: any) {
-        let description = 'Could not create or invite the user. Please try again.';
-        if (error.code === 'auth/email-already-in-use') {
-            description = "This email is already registered in Firebase Authentication, but a user profile wasn't found. This could indicate an orphaned account. Please contact support.";
-        }
         console.error("Error creating and inviting user:", error);
-        toast({ title: 'Invitation Failed', description, variant: 'destructive' });
+        toast({ title: 'Invitation Failed', variant: 'destructive' });
     }
   };
 
   const handleDuplicateClient = async (newCompanyName: string) => {
     if (!selectedClient || !currentUser) return;
 
-    toast({ title: "Duplication in Progress", description: "This may take a few moments..."});
+    toast({ title: "Duplication in Progress" });
 
     try {
         const batch = writeBatch(db);
 
-        // 1. Create new client document
         const { id, uid, ...originalClientData } = selectedClient;
         const newClientDocRef = doc(collection(db, 'aiAccountantClients'));
         const newClientData = {
             ...originalClientData,
             name: newCompanyName,
             companyName: newCompanyName,
-            email: `copy-${Date.now()}@myacc.co.za`, // Assign a temporary unique email
+            email: `copy-${Date.now()}@myacc.co.za`,
             id: newClientDocRef.id,
             uid: newClientDocRef.id,
             createdAt: Timestamp.now(),
             createdBy: currentUser.uid,
-            sharedWith: [], // Don't copy sharing settings
+            sharedWith: [],
         };
         batch.set(newClientDocRef, newClientData);
 
-        // 2. Deep copy all sub-collections
         const subCollections = ['transactions', 'customers', 'suppliers', 'invoices'];
         for (const subCollection of subCollections) {
-            const sourceCollectionRef = collection(db, 'aiAccountantClients', selectedClient.id, subCollection);
-            const sourceSnapshot = await getDocs(sourceCollectionRef);
+            const sourceRef = collection(db, 'aiAccountantClients', selectedClient.id, subCollection);
+            const sourceSnapshot = await getDocs(sourceRef)
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: sourceRef.path,
+                        operation: 'list',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw error;
+                });
             
             sourceSnapshot.forEach(sourceDoc => {
                 const newSubDocRef = doc(collection(db, 'aiAccountantClients', newClientDocRef.id, subCollection), sourceDoc.id);
@@ -480,15 +526,21 @@ export default function AIAccountantClientsPage() {
             });
         }
         
-        await batch.commit();
+        await batch.commit().catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: 'aiAccountantClients (batch duplicate)',
+                operation: 'create',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+        });
 
-        toast({ title: "Client Duplicated Successfully!", description: `A copy named "${newCompanyName}" has been created.` });
+        toast({ title: "Client Duplicated Successfully!" });
         setIsDuplicateOpen(false);
         fetchClients();
 
     } catch (error) {
         console.error("Error duplicating client:", error);
-        toast({ title: "Duplication Failed", description: "An error occurred during the duplication process.", variant: "destructive" });
+        toast({ title: "Duplication Failed", variant: "destructive" });
     }
   }
 
@@ -504,34 +556,59 @@ export default function AIAccountantClientsPage() {
     };
     
     try {
-        if (selectedClient?.id) { // Editing
+        if (selectedClient?.id) {
             const clientRef = doc(db, "aiAccountantClients", selectedClient.id);
-            await updateDoc(clientRef, clientDataForDb);
+            await updateDoc(clientRef, clientDataForDb)
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: clientRef.path,
+                        operation: 'update',
+                        requestResourceData: clientDataForDb,
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             toast({ title: 'Client Updated'});
-        } else { // Creating new
-            const globalRulesQuery = query(collection(db, 'allocationRules'));
-            const globalRulesSnapshot = await getDocs(globalRulesQuery);
+        } else {
+            const rulesRef = collection(db, 'allocationRules');
+            const globalRulesSnapshot = await getDocs(rulesRef)
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: rulesRef.path,
+                        operation: 'list',
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw error;
+                });
             const globalRules = globalRulesSnapshot.docs.map(d => d.data());
 
             const newClientData: Partial<User> = {
                 ...clientDataForDb,
-                email: `new-${Date.now()}@my-company.ai`, // Dummy email
-                role: 'client',
-                source: 'AI Accountant',
+                email: `new-${Date.now()}@my-company.ai`,
+                role: 'client' as const,
+                source: 'AI Accountant' as const,
                 hasNumeraProfile: true,
                 chartOfAccounts: initialChartOfAccounts,
-                allocationRules: globalRules,
+                allocationRules: globalRules as any,
                 status: 'Active',
             };
             const newDocRef = doc(collection(db, 'aiAccountantClients'));
-            await setDoc(newDocRef, {
+            const finalData = {
               ...newClientData,
               id: newDocRef.id,
               uid: newDocRef.id,
               createdAt: Timestamp.now(),
               createdBy: currentUser.uid,
               sharedWith: [],
-            });
+            };
+            await setDoc(newDocRef, finalData)
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: newDocRef.path,
+                        operation: 'create',
+                        requestResourceData: finalData,
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                });
             toast({ title: 'Client Created' });
         }
         fetchClients();
@@ -557,9 +634,7 @@ export default function AIAccountantClientsPage() {
             if (!isNaN(d.getTime())) {
                  return format(d, 'MMMM');
             }
-        } catch (e) {
-            // fall through
-        }
+        } catch (e) {}
         return 'Invalid Date';
     };
 
@@ -587,7 +662,7 @@ export default function AIAccountantClientsPage() {
             </TableHeader>
             <TableBody>
               {clients.map(client => {
-                const basePath = '/admin'; // Always use admin path for staff/admin roles
+                const basePath = '/admin';
                 return (
                     <TableRow key={client.id}>
                     <TableCell className="font-medium">
@@ -745,4 +820,3 @@ export default function AIAccountantClientsPage() {
     </div>
   );
 }
-

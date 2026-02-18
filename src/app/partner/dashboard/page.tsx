@@ -1,4 +1,3 @@
-
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -10,7 +9,7 @@ import Image from 'next/image';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Order, Service, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp, onSnapshot, arrayUnion } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,6 +24,8 @@ import { useRouter } from 'next/navigation';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const db = getFirestore(firebaseApp);
 
@@ -57,8 +58,14 @@ export default function PartnerDashboardPage() {
         const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, {
             archivedNotifications: arrayUnion(noteId)
+        }).catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'update',
+                requestResourceData: { archivedNotifications: arrayUnion(noteId) },
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
-        // Optimistically update local state
         updateUser({ ...user, archivedNotifications: [...(user.archivedNotifications || []), noteId] });
     };
     
@@ -76,61 +83,72 @@ export default function PartnerDashboardPage() {
       return nextStaff;
     };
 
-    const fetchOrdersAndStaff = async () => {
+    useEffect(() => {
       if (!user?.uid) {
         setIsLoading(false);
         return;
       };
       setIsLoading(true);
-      try {
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
-        const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
-        setAllStaff(fetchedStaff);
 
-        const ordersRef = collection(db, 'orders');
-        
-        const clientOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '==', null), orderBy('date', 'desc'));
-        const clientOrdersSnapshot = await getDocs(clientOrdersQuery);
-        let clientOrders = clientOrdersSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            ...data,
-            id: doc.id,
-            date: data.date.toDate(),
-          } as Order;
-        });
-        setOrders(clientOrders.filter(order => order.status !== 'Cancelled'));
+      const staffRef = collection(db, "users");
+      getDocs(query(staffRef, where('role', 'in', ['staff', 'admin']))).then(staffSnapshot => {
+          const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+          setAllStaff(fetchedStaff);
+      }).catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+              path: staffRef.path,
+              operation: 'list',
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+      });
 
-        const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
-        const outsourcedOrdersSnapshot = await getDocs(outsourcedOrdersQuery);
-        let fetchedOutsourcedOrders = outsourcedOrdersSnapshot.docs.map(doc => {
+      const ordersRef = collection(db, 'orders');
+      
+      const clientOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '==', null), orderBy('date', 'desc'));
+      const unsubClientOrders = onSnapshot(clientOrdersQuery, (snapshot) => {
+          let clientOrders = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
-                ...data,
-                id: doc.id,
-                date: data.date.toDate(),
+              ...data,
+              id: doc.id,
+              date: data.date.toDate(),
             } as Order;
-        });
-        setOutsourcedOrders(fetchedOutsourcedOrders);
+          });
+          setOrders(clientOrders.filter(order => order.status !== 'Cancelled'));
+          setIsLoading(false);
+      }, async (error) => {
+          const permissionError = new FirestorePermissionError({
+              path: ordersRef.path,
+              operation: 'list',
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+          setIsLoading(false);
+      });
 
-      } catch (error) {
-        console.error("Error fetching orders: ", error);
-        toast({
-            title: 'Error Fetching Orders',
-            description: 'Could not load your orders. Please try again later.',
-            variant: 'destructive',
-        })
-      } finally {
-        setIsLoading(false);
+      const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
+      const unsubOutsourcedOrders = onSnapshot(outsourcedOrdersQuery, (snapshot) => {
+          let fetchedOutsourcedOrders = snapshot.docs.map(doc => {
+              const data = doc.data();
+              return {
+                  ...data,
+                  id: doc.id,
+                  date: data.date.toDate(),
+              } as Order;
+          });
+          setOutsourcedOrders(fetchedOutsourcedOrders);
+      }, async (error) => {
+          const permissionError = new FirestorePermissionError({
+              path: ordersRef.path,
+              operation: 'list',
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+      });
+
+      return () => {
+          unsubClientOrders();
+          unsubOutsourcedOrders();
       }
-    };
-    
-  useEffect(() => {
-    if (user) {
-        fetchOrdersAndStaff();
-    }
-  }, [user, toast]);
+    }, [user?.uid]);
 
     const notifications = useMemo(() => {
         if (!user || outsourcedOrders.length === 0) return [];
@@ -153,103 +171,6 @@ export default function PartnerDashboardPage() {
     const getAuthor = (authorId: string): User | undefined => {
         return allStaff.find(u => u.id === authorId);
     }
-
-    const handleOutsource = async (orderToOutsource: Order) => {
-        if (!user) return;
-        
-        toast({
-            title: 'Outsourcing Order...',
-            description: `Submitting order ${orderToOutsource.id} to My Accountant.`
-        });
-    
-        try {
-            const newOrderId = `ORD-${Date.now().toString().slice(-6)}`;
-            const firstServiceId = orderToOutsource.items[0]?.id;
-            const serviceDetails = allServices.find(s => s.id === firstServiceId);
-            const department = serviceDetails?.department;
-            
-            const newOrderData: Partial<Order> = {
-                id: newOrderId,
-                customerName: user.companyName || user.name,
-                customerEmail: user.email,
-                endCustomerName: orderToOutsource.customerName,
-                endCustomerEmail: orderToOutsource.customerEmail,
-                date: Timestamp.now(),
-                items: orderToOutsource.items.map(item => ({
-                    id: item.id,
-                    title: item.title,
-                    price: item.price,
-                    quantity: item.quantity,
-                })),
-                total: orderToOutsource.total,
-                status: 'Pending Payment',
-                resellerId: user.uid,
-                originalOrderId: orderToOutsource.id,
-            };
-            
-            if (department) {
-              const assignedStaff = getNextStaffMember(department);
-              newOrderData.department = department;
-              newOrderData.assignedTo = assignedStaff?.id ? [assignedStaff.id] : null;
-            } else {
-                newOrderData.department = null;
-                newOrderData.assignedTo = null;
-            }
-            
-            await setDoc(doc(db, 'orders', newOrderId), newOrderData);
-    
-            const originalOrderRef = doc(db, 'orders', orderToOutsource.id);
-            await updateDoc(originalOrderRef, {
-                isOutsourced: true,
-                status: 'Outsourced',
-            });
-    
-            fetchOrdersAndStaff();
-            
-            router.push(`/order-confirmation/${newOrderId}`);
-    
-        } catch (error) {
-             console.error('Error outsourcing order: ', error);
-            toast({
-                title: 'Outsourcing Failed',
-                description: 'There was a problem submitting your order. Please try again.',
-                variant: 'destructive',
-            });
-        }
-      };
-
-    const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
-    try {
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
-        status: newStatus,
-      });
-
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
-          order.id === orderId ? { ...order, status: newStatus } : order
-        )
-      );
-
-      toast({
-        title: 'Status Updated',
-        description: `Order ${orderId} has been marked as ${newStatus}.`,
-      });
-
-      if (newStatus === 'Cancelled') {
-        setTimeout(() => {
-          setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
-        }, 500);
-      }
-    } catch (error) {
-      console.error('Error updating order status: ', error);
-      toast({
-        title: 'Update Failed',
-        description: 'There was a problem updating the order status.',
-        variant: 'destructive',
-      });
-    }
-  };
 
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
@@ -277,13 +198,7 @@ export default function PartnerDashboardPage() {
         }
     };
     
-    const handleOrderCreated = () => {
-        setIsCreateOrderOpen(false);
-        fetchOrdersAndStaff();
-    };
-
-    const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
-    const activeOutsourcedOrders = outsourcedOrders.filter(o => o.status !== 'Pending Payment');
+    const latestNews = blogPosts.slice(0, 3);
 
     return (
         <div className="space-y-8">
