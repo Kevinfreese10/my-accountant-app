@@ -208,7 +208,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             resetState();
         } catch (error) {
             console.error("Error importing transactions:", error);
-            toast({ title: "Import Failed", variant: "decimal"});
+            toast({ title: "Import Failed", variant: "destructive"});
         } finally {
             setIsUploading(false);
         }
@@ -616,13 +616,11 @@ const RuleForm = ({ chartOfAccounts, existingRules, defaultValues, onSave, onCan
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <ScrollArea className="h-64">
-                                        {existingRules.map(rule => (
-                                            <SelectItem key={rule.id} value={rule.id}>
-                                                {rule.description} ({rule.keywords.slice(0, 3).join(', ')}...)
-                                            </SelectItem>
-                                        ))}
-                                    </ScrollArea>
+                                    {existingRules.map((rule, idx) => (
+                                        <SelectItem key={rule.id || `rule-${idx}`} value={rule.id}>
+                                            {rule.description} ({rule.keywords.slice(0, 3).join(', ')}...)
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                             <FormMessage />
@@ -1196,7 +1194,15 @@ const NewTransactionsTab = React.forwardRef<
     const allExistingRules = useMemo(() => {
         const cRules = (client?.allocationRules || []).map(r => ({ ...r, scope: 'client' as const }));
         const gRules = globalRules.map(r => ({ ...r, scope: 'global' as const }));
-        return [...cRules, ...gRules];
+        const combined = [...cRules, ...gRules];
+        
+        // Deduplicate by ID to prevent React key errors
+        const seen = new Set();
+        return combined.filter(rule => {
+            if (!rule.id || seen.has(rule.id)) return false;
+            seen.add(rule.id);
+            return true;
+        });
     }, [client?.allocationRules, globalRules]);
     
     return (
@@ -1927,7 +1933,7 @@ const ReviewedTab = React.forwardRef<
             const batch = writeBatch(db);
             selectedCorrections.forEach(txId => {
                 const inconsistency = inconsistencies.find(inc => inc.id === txId);
-                if (inconsistency) {
+                if (item) {
                     const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.update(txRef, {
                         allocatedTo: { value: inconsistency.suggestedAccountId, type: 'account' },
@@ -1949,7 +1955,7 @@ const ReviewedTab = React.forwardRef<
             setIsConsistencyCheckOpen(false);
 
         } catch (error) {
-             toast({ title: 'Error', variant: 'decimal'});
+             toast({ title: 'Error', variant: "destructive" });
         } finally {
             setIsSaving(false);
         }
@@ -2052,11 +2058,9 @@ const ReviewedTab = React.forwardRef<
                                                  <Select value={tx.suggestedAccountId} onValueChange={(value) => handleInconsistencyChange(tx.id, 'accountId', value)}>
                                                     <SelectTrigger className="h-8 text-xs"><SelectValue/></SelectTrigger>
                                                     <SelectContent>
-                                                        <ScrollArea className="h-64">
-                                                            {uniqueChartOfAccounts.map(acc => (
-                                                                <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                                            ))}
-                                                        </ScrollArea>
+                                                        {uniqueChartOfAccounts.map(acc => (
+                                                            <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                                        ))}
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
@@ -2064,11 +2068,9 @@ const ReviewedTab = React.forwardRef<
                                                  <Select value={tx.suggestedVatType} onValueChange={(value) => handleInconsistencyChange(tx.id, 'vatType', value as VatType)}>
                                                     <SelectTrigger className="h-8 text-xs"><SelectValue/></SelectTrigger>
                                                     <SelectContent>
-                                                        <ScrollArea className="h-64">
-                                                            {allVatTypes.map(vt => (
-                                                                <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
-                                                            ))}
-                                                        </ScrollArea>
+                                                        {allVatTypes.map(vt => (
+                                                            <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                                        ))}
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
@@ -2182,12 +2184,10 @@ const ReviewedTab = React.forwardRef<
                                 <SelectValue placeholder="Filter by account..." />
                             </SelectTrigger>
                             <SelectContent>
-                                <ScrollArea className="h-64">
-                                    <SelectItem value="all">All Accounts</SelectItem>
-                                    {accountsWithTransactions.map(acc => (
-                                        <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                    ))}
-                                </ScrollArea>
+                                <SelectItem value="all">All Accounts</SelectItem>
+                                {accountsWithTransactions.map(acc => (
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                         <div className="relative w-full md:w-auto">
@@ -2287,11 +2287,9 @@ const ReviewedTab = React.forwardRef<
                                                 >
                                                     <SelectTrigger><SelectValue/></SelectTrigger>
                                                     <SelectContent>
-                                                        <ScrollArea className="h-64">
-                                                            {allVatTypes.map(vt => (
-                                                                <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
-                                                            ))}
-                                                        </ScrollArea>
+                                                        {allVatTypes.map(vt => (
+                                                            <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                                        ))}
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
@@ -2569,7 +2567,7 @@ function BankTransactionsPage() {
                     errorEmitter.emit('permission-error', permissionError);
                 });
             }
-            toast({ title: "Transactions Cleared", variant: 'decimal' });
+            toast({ title: "Transactions Cleared", variant: 'destructive' });
         } catch (e) {
             console.error(e);
         }
