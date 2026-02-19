@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for extracting transaction data from bank statements.
@@ -8,9 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
-import { genkit } from 'genkit';
 
 const ExtractStatementDataInputSchema = z.object({
   statementPdf: z.string().describe(
@@ -37,6 +36,9 @@ export async function extractStatementData(
   // If an API key is provided, we use a local genkit instance to perform the generation
   // using the provided key instead of the global system key.
   if (input.apiKey) {
+    const { genkit } = await import('genkit');
+    const { googleAI } = await import('@genkit-ai/google-genai');
+    
     const customAi = genkit({
       plugins: [googleAI({ apiKey: input.apiKey })],
     });

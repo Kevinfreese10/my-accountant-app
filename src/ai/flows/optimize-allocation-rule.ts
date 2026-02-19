@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for optimizing allocation rules by expanding and simplifying keywords.
@@ -6,7 +7,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 
 const OptimizeAllocationRuleInputSchema = z.object({
   description: z.string().describe('The current description of the allocation rule.'),

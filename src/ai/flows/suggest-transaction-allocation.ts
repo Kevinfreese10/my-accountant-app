@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for suggesting transaction allocations.
@@ -10,8 +11,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import { allVatTypes } from '@/lib/vat-types';
-import { googleAI } from '@genkit-ai/google-genai';
-import { genkit } from 'genkit';
 
 const SuggestTransactionAllocationInputSchema = z.object({
   description: z.string().describe('The bank transaction description (e.g., "PICK N PAY RETAILERS").'),
@@ -35,6 +34,9 @@ export async function suggestTransactionAllocation(
 ): Promise<SuggestTransactionAllocationOutput> {
   // If an API key is provided, we use a local genkit instance to perform the generation
   if (input.apiKey) {
+    const { genkit } = await import('genkit');
+    const { googleAI } = await import('@genkit-ai/google-genai');
+    
     const customAi = genkit({
       plugins: [googleAI({ apiKey: input.apiKey })],
     });

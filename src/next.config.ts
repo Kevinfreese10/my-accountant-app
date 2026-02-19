@@ -47,6 +47,19 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_URL: "https://www.myacc.co.za",
   },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        dgram: false,
+        fs: false,
+        net: false,
+        tls: false,
+        child_process: false,
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
