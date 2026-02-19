@@ -38,7 +38,8 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams } from 'next/navigation';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { suggestTransactionAllocation, SuggestTransactionAllocationOutput } from '@/ai/flows/suggest-transaction-allocation';
+import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
+import type { SuggestTransactionAllocationOutput } from '@/ai/flows/suggest-transaction-allocation';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -2263,11 +2264,11 @@ const ReviewedTab = React.forwardRef<
                                             <DropdownMenuSubContent>
                                                 <ScrollArea className="h-64">
                                                     {client.isVatRegistered ? allVatTypes.map(vat => (
-                                                        <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                        <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
                                                             {vat.label}
                                                         </DropdownMenuItem>
                                                     )) : (
-                                                        <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                        <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
                                                             No VAT
                                                         </DropdownMenuItem>
                                                     )}

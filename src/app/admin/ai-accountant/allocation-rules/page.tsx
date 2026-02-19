@@ -27,7 +27,7 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandG
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { optimizeAllocationRule } from "@/ai/dev";
+import { optimizeAllocationRule } from "@/ai/flows/optimize-allocation-rule";
 
 
 const db = getFirestore(firebaseApp);
