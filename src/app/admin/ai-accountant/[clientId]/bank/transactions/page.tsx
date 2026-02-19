@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -684,7 +685,6 @@ const RuleForm = ({ chartOfAccounts, existingRules, defaultValues, onSave, onCan
                         </FormItem>
                     )} />
                     <FormField
-                        control={form.control}
                         name="isPriority"
                         render={({ field }) => (
                             <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
@@ -896,8 +896,8 @@ const NewTransactionsTab = React.forwardRef<
         bankAccountId: string | null; 
         customers: ClientCustomer[]; 
         invoices: Invoice[]; 
-        fetchClientData: () => void;
-        fetchGlobalRules: () => void;
+        fetchClientData: () => Promise<void>;
+        fetchGlobalRules: () => Promise<void>;
         globalRules: AllocationRule[]; 
         onAccountCreated: () => void; 
         setActiveTab: (tab: string) => void;
@@ -1084,6 +1084,7 @@ const NewTransactionsTab = React.forwardRef<
             const allNewTransactions = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
 
             if (allNewTransactions.length === 0) {
+                toast({ title: 'Rules Applied', description: '0 transaction(s) have been allocated.' });
                 setIsRuleAllocating(false);
                 return;
             }
@@ -1119,8 +1120,11 @@ const NewTransactionsTab = React.forwardRef<
                 });
             }
             
+            toast({ 
+                title: allocatedCount > 0 ? 'Rules Applied' : 'No matches', 
+                description: `${allocatedCount} transaction(s) have been allocated.` 
+            });
             if (allocatedCount > 0) {
-                toast({ title: 'Rules Applied', description: `${allocatedCount} transaction(s) have been allocated.` });
                 refetch();
             }
         } catch (error) {
@@ -2301,7 +2305,7 @@ const ReviewedTab = React.forwardRef<
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                            <AlertDialogAction onClick={() => handleBulkDelete}>Yes, Delete</AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
