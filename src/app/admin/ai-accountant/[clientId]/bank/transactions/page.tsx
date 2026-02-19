@@ -25,7 +25,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
-import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from 'cmdk';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup, CommandSeparator } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, parse } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -1355,29 +1355,32 @@ const NewTransactionsTab = React.forwardRef<
                                     <CommandEmpty>No results found.</CommandEmpty>
                                     <ScrollArea className="h-72">
                                         <CommandGroup>
-                                            <CommandItem onSelect={() => {setIsCreateGeneralAccountOpen(true);}} className="text-primary cursor-pointer">
-                                                <PlusCircle className="mr-2 h-4 w-4"/>Create new account...
+                                            <CommandItem onSelect={() => {setIsCreateGeneralAccountOpen(true);}} className="text-primary hover:bg-primary/5 cursor-pointer font-medium">
+                                                <PlusCircle className="mr-2 h-4 w-4 text-primary"/>Create new account...
                                             </CommandItem>
                                         </CommandGroup>
-                                        <DropdownMenuSeparator />
+                                        <CommandSeparator />
                                         {activeSubTab === 'income' && customers.length > 0 && (
                                             <CommandGroup heading="Customers">
                                                 {customers.map(c => (
-                                                    <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                    <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')} className="cursor-pointer">
                                                         {c.name}
                                                     </CommandItem>
                                                 ))}
                                             </CommandGroup>
                                         )}
-                                        <CommandGroup heading="Accounts">
+                                        {activeSubTab === 'income' && <CommandSeparator />}
+                                        <CommandGroup heading="General Ledger Accounts">
                                             {client?.chartOfAccounts?.map(acc => (
                                                 <DropdownMenuSub key={acc.id}>
                                                     <DropdownMenuSubTrigger>
-                                                        <CommandItem onSelect={(e) => e.preventDefault()} className="w-full">
+                                                        <CommandItem onSelect={(e) => e.preventDefault()} className="w-full cursor-pointer">
                                                             <span>{acc.description}</span>
                                                         </CommandItem>
                                                     </DropdownMenuSubTrigger>
-                                                    <DropdownMenuSubContent>
+                                                    <DropdownMenuSubContent className="w-56">
+                                                        <DropdownMenuLabel>Select VAT Treatment</DropdownMenuLabel>
+                                                        <DropdownMenuSeparator />
                                                         <ScrollArea className="h-64">
                                                             {client?.isVatRegistered ? allVatTypes.map(vat => (
                                                                 <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
@@ -1502,18 +1505,27 @@ const NewTransactionsTab = React.forwardRef<
                                                         {allocations[tx.id] ? [...(client.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || [...(client.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.name : "Select..."}
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                                    <Command>
-                                                        <CommandInput placeholder="Search..." />
+                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                                    <Command className="border-0">
+                                                        <CommandInput placeholder="Search accounts..." />
                                                         <CommandList>
                                                             <CommandEmpty>No results found.</CommandEmpty>
                                                             <ScrollArea className="h-72">
-                                                                <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-                                                                <CommandGroup heading="Customers">
-                                                                    {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))}>{c.name}</CommandItem>)}
+                                                                <CommandGroup>
+                                                                    <CommandItem 
+                                                                        onSelect={() => setIsCreateGeneralAccountOpen(true)} 
+                                                                        className="text-primary hover:bg-primary/5 cursor-pointer font-medium py-3"
+                                                                    >
+                                                                        <PlusCircle className="mr-2 h-4 w-4 text-primary"/>Create new account...
+                                                                    </CommandItem>
                                                                 </CommandGroup>
-                                                                <CommandGroup heading="Accounts">
-                                                                    {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account', vatType: prev[tx.id]?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat') }}))}>{acc.description}</CommandItem>)}
+                                                                <CommandSeparator />
+                                                                <CommandGroup heading="Customers">
+                                                                    {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))} className="cursor-pointer py-2">{c.name}</CommandItem>)}
+                                                                </CommandGroup>
+                                                                <CommandSeparator />
+                                                                <CommandGroup heading="General Ledger Accounts">
+                                                                    {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account', vatType: prev[tx.id]?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat') }}))} className="cursor-pointer py-2">{acc.description}</CommandItem>)}
                                                                 </CommandGroup>
                                                             </ScrollArea>
                                                         </CommandList>
@@ -2340,18 +2352,27 @@ const ReviewedTab = React.forwardRef<
                                                             {changes[tx.id] ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === (changes[tx.id]?.allocatedTo?.value))?.description || [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === (changes[tx.id]?.allocatedTo?.value))?.name : getAllocationDescription(tx)}
                                                         </Button>
                                                     </PopoverTrigger>
-                                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                                        <Command>
+                                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                                        <Command className="border-0">
                                                             <CommandInput placeholder="Search..." />
                                                             <CommandList>
                                                                 <CommandEmpty>No results found.</CommandEmpty>
                                                                 <ScrollArea className="h-72">
-                                                                    <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-                                                                    <CommandGroup heading="Customers">
-                                                                        {customers.map(c => <CommandItem key={c.id} onSelect={() => handleAllocationChange(tx.id, `customer:${c.id}`)}>{c.name}</CommandItem>)}
+                                                                    <CommandGroup>
+                                                                        <CommandItem 
+                                                                            onSelect={() => setIsCreateGeneralAccountOpen(true)} 
+                                                                            className="text-primary hover:bg-primary/5 cursor-pointer font-medium py-3"
+                                                                        >
+                                                                            <PlusCircle className="mr-2 h-4 w-4 text-primary"/>Create new account...
+                                                                        </CommandItem>
                                                                     </CommandGroup>
-                                                                    <CommandGroup heading="Accounts">
-                                                                        {uniqueChartOfAccounts.map(acc => <CommandItem key={acc.id} onSelect={() => handleAllocationChange(tx.id, `account:${acc.id}`)}>{acc.description}</CommandItem>)}
+                                                                    <CommandSeparator />
+                                                                    <CommandGroup heading="Customers">
+                                                                        {customers.map(c => <CommandItem key={c.id} onSelect={() => handleAllocationChange(tx.id, `customer:${c.id}`)} className="cursor-pointer py-2">{c.name}</CommandItem>)}
+                                                                    </CommandGroup>
+                                                                    <CommandSeparator />
+                                                                    <CommandGroup heading="General Ledger Accounts">
+                                                                        {uniqueChartOfAccounts.map(acc => <CommandItem key={acc.id} onSelect={() => handleAllocationChange(tx.id, `account:${acc.id}`)} className="cursor-pointer py-2">{acc.description}</CommandItem>)}
                                                                     </CommandGroup>
                                                                 </ScrollArea>
                                                             </CommandList>
