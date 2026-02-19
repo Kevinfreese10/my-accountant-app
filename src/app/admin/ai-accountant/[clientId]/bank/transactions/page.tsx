@@ -653,16 +653,16 @@ const RuleForm = ({ chartOfAccounts, existingRules, defaultValues, onSave, onCan
                                     <CommandInput placeholder="Search account..." />
                                     <CommandList>
                                     <CommandEmpty>No account found.</CommandEmpty>
-                                    <CommandGroup>
-                                        <ScrollArea className="h-64">
+                                    <ScrollArea className="h-64">
+                                        <CommandGroup>
                                             {chartOfAccounts?.map((acc) => (
                                             <CommandItem value={acc.description} key={acc.id} onSelect={() => form.setValue("accountId", acc.id)}>
                                                 <CheckCheck className={cn("mr-2 h-4 w-4", acc.id === field.value ? "opacity-100" : "opacity-0")} />
                                                 {acc.description}
                                             </CommandItem>
                                             ))}
-                                        </ScrollArea>
-                                    </CommandGroup>
+                                        </CommandGroup>
+                                    </ScrollArea>
                                     </CommandList>
                                 </Command>
                                 </PopoverContent>
@@ -789,7 +789,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
             } else {
                 const clientRef = doc(db, 'aiAccountantClients', client.uid!);
                 const updateData = { allocationRules: arrayUnion(newRule) };
-                await updateDoc(clientRef, updateData);
+                await updateDoc(clientRef, { allocationRules: arrayUnion(newRule) });
                 toast({ title: 'Client Rule Created' });
             }
             onRuleCreated();
@@ -1351,50 +1351,50 @@ const NewTransactionsTab = React.forwardRef<
                             <DropdownMenuContent className="w-64 p-0">
                                <Command>
                                  <CommandInput placeholder="Search accounts..." />
-                                 <ScrollArea className="h-72">
                                  <CommandList>
                                     <CommandEmpty>No results found.</CommandEmpty>
-                                    <CommandGroup>
-                                        <CommandItem onSelect={() => {setIsCreateGeneralAccountOpen(true);}} className="text-primary cursor-pointer">
-                                            <PlusCircle className="mr-2 h-4 w-4"/>Create new account...
-                                        </CommandItem>
-                                    </CommandGroup>
-                                    <DropdownMenuSeparator />
-                                    {activeSubTab === 'income' && customers.length > 0 && (
-                                        <CommandGroup heading="Customers">
-                                            {customers.map(c => (
-                                                <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                    {c.name}
-                                                </CommandItem>
+                                    <ScrollArea className="h-72">
+                                        <CommandGroup>
+                                            <CommandItem onSelect={() => {setIsCreateGeneralAccountOpen(true);}} className="text-primary cursor-pointer">
+                                                <PlusCircle className="mr-2 h-4 w-4"/>Create new account...
+                                            </CommandItem>
+                                        </CommandGroup>
+                                        <DropdownMenuSeparator />
+                                        {activeSubTab === 'income' && customers.length > 0 && (
+                                            <CommandGroup heading="Customers">
+                                                {customers.map(c => (
+                                                    <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                        {c.name}
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        )}
+                                        <CommandGroup heading="Accounts">
+                                            {client?.chartOfAccounts?.map(acc => (
+                                                <DropdownMenuSub key={acc.id}>
+                                                    <DropdownMenuSubTrigger>
+                                                        <CommandItem onSelect={(e) => e.preventDefault()} className="w-full">
+                                                            <span>{acc.description}</span>
+                                                        </CommandItem>
+                                                    </DropdownMenuSubTrigger>
+                                                    <DropdownMenuSubContent>
+                                                        <ScrollArea className="h-64">
+                                                            {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                                    {vat.label}
+                                                                </DropdownMenuItem>
+                                                            )) : (
+                                                                <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                                    No VAT
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                        </ScrollArea>
+                                                    </DropdownMenuSubContent>
+                                                </DropdownMenuSub>
                                             ))}
                                         </CommandGroup>
-                                    )}
-                                    <CommandGroup heading="Accounts">
-                                        {client?.chartOfAccounts?.map(acc => (
-                                            <DropdownMenuSub key={acc.id}>
-                                                <DropdownMenuSubTrigger>
-                                                    <CommandItem onSelect={(e) => e.preventDefault()} className="w-full">
-                                                        <span>{acc.description}</span>
-                                                    </CommandItem>
-                                                </DropdownMenuSubTrigger>
-                                                <DropdownMenuSubContent>
-                                                    <ScrollArea className="h-64">
-                                                        {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                            <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                                {vat.label}
-                                                            </DropdownMenuItem>
-                                                        )) : (
-                                                            <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                                No VAT
-                                                            </DropdownMenuItem>
-                                                        )}
-                                                    </ScrollArea>
-                                                </DropdownMenuSubContent>
-                                            </DropdownMenuSub>
-                                        ))}
-                                    </CommandGroup>
+                                    </ScrollArea>
                                  </CommandList>
-                                 </ScrollArea>
                                </Command>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -1507,15 +1507,15 @@ const NewTransactionsTab = React.forwardRef<
                                                         <CommandInput placeholder="Search..." />
                                                         <CommandList>
                                                             <CommandEmpty>No results found.</CommandEmpty>
-                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-                                                            <CommandGroup heading="Customers">
-                                                                {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))}>{c.name}</CommandItem>)}
-                                                            </CommandGroup>
-                                                            <CommandGroup heading="Accounts">
-                                                                <ScrollArea className="h-64">
+                                                            <ScrollArea className="h-72">
+                                                                <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                                <CommandGroup heading="Customers">
+                                                                    {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))}>{c.name}</CommandItem>)}
+                                                                </CommandGroup>
+                                                                <CommandGroup heading="Accounts">
                                                                     {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account', vatType: prev[tx.id]?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat') }}))}>{acc.description}</CommandItem>)}
-                                                                </ScrollArea>
-                                                            </CommandGroup>
+                                                                </CommandGroup>
+                                                            </ScrollArea>
                                                         </CommandList>
                                                     </Command>
                                                 </PopoverContent>
@@ -2345,17 +2345,15 @@ const ReviewedTab = React.forwardRef<
                                                             <CommandInput placeholder="Search..." />
                                                             <CommandList>
                                                                 <CommandEmpty>No results found.</CommandEmpty>
-                                                                <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-                                                                <CommandGroup heading="Customers">
-                                                                    <ScrollArea className="h-64">
+                                                                <ScrollArea className="h-72">
+                                                                    <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                                    <CommandGroup heading="Customers">
                                                                         {customers.map(c => <CommandItem key={c.id} onSelect={() => handleAllocationChange(tx.id, `customer:${c.id}`)}>{c.name}</CommandItem>)}
-                                                                    </ScrollArea>
-                                                                </CommandGroup>
-                                                                <CommandGroup heading="Accounts">
-                                                                    <ScrollArea className="h-64">
+                                                                    </CommandGroup>
+                                                                    <CommandGroup heading="Accounts">
                                                                         {uniqueChartOfAccounts.map(acc => <CommandItem key={acc.id} onSelect={() => handleAllocationChange(tx.id, `account:${acc.id}`)}>{acc.description}</CommandItem>)}
-                                                                    </ScrollArea>
-                                                                </CommandGroup>
+                                                                    </CommandGroup>
+                                                                </ScrollArea>
                                                             </CommandList>
                                                         </Command>
                                                     </PopoverContent>
