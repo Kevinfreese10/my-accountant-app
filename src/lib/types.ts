@@ -367,6 +367,7 @@ export type ImportedTransaction = {
     extractedSupplier?: string;
     aiAllocationResult?: AIAllocationResult | null;
     auditFiles?: { name: string; url: string; }[];
+    allocationSource?: 'rule' | 'manual' | 'ai';
 };
 
 export type AllocatedTransaction = {
@@ -387,6 +388,7 @@ export type AllocatedTransaction = {
     allocatedAt: any; // Using `any` for Firestore Timestamp compatibility
     extractedSupplier?: string;
     auditFiles?: { name: string; url: string; }[];
+    allocationSource?: 'rule' | 'manual' | 'ai';
 };
 
 export type ExtractedInvoice = {

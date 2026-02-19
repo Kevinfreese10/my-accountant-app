@@ -179,6 +179,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
                     transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
                     transaction.allocatedAt = Timestamp.now();
+                    transaction.allocationSource = 'rule';
                 }
                 
                 allDbOperations.push((batch) => {
@@ -925,6 +926,7 @@ const NewTransactionsTab = React.forwardRef<
                             allocatedTo: { value: matchedRule.accountId, type: 'account' },
                             vatType: client.isVatRegistered ? matchedRule.vatType : 'no_vat',
                             allocatedAt: new Date(),
+                            allocationSource: 'rule',
                         });
                         allocatedCount++;
                     }
@@ -1010,6 +1012,7 @@ const NewTransactionsTab = React.forwardRef<
                         allocatedTo: allocation,
                         vatType: client.isVatRegistered ? vatType : 'no_vat',
                         allocatedAt: new Date(),
+                        allocationSource: 'manual',
                     });
                 });
                 batch.commit().catch(async (error) => {
@@ -1053,6 +1056,7 @@ const NewTransactionsTab = React.forwardRef<
                             allocatedTo: { value: allocation.value, type: allocation.type },
                             vatType: client.isVatRegistered ? allocation.vatType || (allocation.type === 'customer' ? 'no_vat' : 'standard_rated_purchases') : 'no_vat',
                             allocatedAt: new Date(),
+                            allocationSource: 'manual',
                         });
                         count++;
                     }
@@ -1578,7 +1582,8 @@ const ReviewedTab = React.forwardRef<
             ...prev,
             [txId]: {
                 ...prev[txId],
-                allocatedTo: { value: val, type: type as 'account' | 'customer' }
+                allocatedTo: { value: val, type: type as 'account' | 'customer' },
+                allocationSource: 'manual'
             }
         }));
     }
@@ -1632,7 +1637,10 @@ const ReviewedTab = React.forwardRef<
               if (changeData) {
                   const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                   const updateData: { [key: string]: any } = {};
-                  if (changeData.allocatedTo) updateData.allocatedTo = changeData.allocatedTo;
+                  if (changeData.allocatedTo) {
+                      updateData.allocatedTo = changeData.allocatedTo;
+                      updateData.allocationSource = 'manual';
+                  }
                   if (changeData.vatType) updateData.vatType = changeData.vatType;
                   if (Object.keys(updateData).length > 0) {
                       batch.update(txRef, updateData);
@@ -1797,11 +1805,12 @@ const ReviewedTab = React.forwardRef<
             const batch = writeBatch(db);
             selectedCorrections.forEach(txId => {
                 const inconsistency = inconsistencies.find(inc => inc.id === txId);
-                if (inconsistency) {
+                if (consistency) {
                     const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.update(txRef, {
                         allocatedTo: { value: inconsistency.suggestedAccountId, type: 'account' },
                         vatType: inconsistency.suggestedVatType,
+                        allocationSource: 'manual',
                     });
                 }
             });
@@ -1846,6 +1855,7 @@ const ReviewedTab = React.forwardRef<
             const data = {
                 allocatedTo: allocation,
                 vatType: client?.isVatRegistered ? vatType : 'no_vat',
+                allocationSource: 'manual',
             };
             updateDoc(txRef, data).catch(async (error) => {
                 const permissionError = new FirestorePermissionError({
@@ -2102,28 +2112,35 @@ const ReviewedTab = React.forwardRef<
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
                                         <TableCell className="w-[250px]">
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" className="w-full justify-start text-left font-normal h-8">
-                                                        {changes[tx.id] ? [...(client.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.description || [...(client.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.name : getAllocationDescription(tx)}
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                                    <Command>
-                                                        <CommandInput placeholder="Search..." />
-                                                        <CommandList>
-                                                            <CommandEmpty>No results found.</CommandEmpty>
-                                                            <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-                                                            <CommandGroup heading="Customers">
-                                                                {customers.map(c => <CommandItem key={c.id} onSelect={() => handleAllocationChange(tx.id, `customer:${c.id}`)}>{c.name}</CommandItem>)}
-                                                            </CommandGroup>
-                                                            <CommandGroup heading="Accounts">
-                                                                {uniqueChartOfAccounts.map(acc => <CommandItem key={acc.id} onSelect={() => handleAllocationChange(tx.id, `account:${acc.id}`)}>{acc.description}</CommandItem>)}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
+                                            <div className="flex flex-col gap-1">
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button variant="outline" className="w-full justify-start text-left font-normal h-8 text-xs">
+                                                            {changes[tx.id] ? [...(client.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.description || [...(client.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.name : getAllocationDescription(tx)}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                        <Command>
+                                                            <CommandInput placeholder="Search..." />
+                                                            <CommandList>
+                                                                <CommandEmpty>No results found.</CommandEmpty>
+                                                                <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                                <CommandGroup heading="Customers">
+                                                                    {customers.map(c => <CommandItem key={c.id} onSelect={() => handleAllocationChange(tx.id, `customer:${c.id}`)}>{c.name}</CommandItem>)}
+                                                                </CommandGroup>
+                                                                <CommandGroup heading="Accounts">
+                                                                    {uniqueChartOfAccounts.map(acc => <CommandItem key={acc.id} onSelect={() => handleAllocationChange(tx.id, `account:${acc.id}`)}>{acc.description}</CommandItem>)}
+                                                                </CommandGroup>
+                                                            </CommandList>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
+                                                <div className="flex items-center px-1">
+                                                    <Badge variant="outline" className="text-[9px] px-1 h-4 font-normal text-muted-foreground/70 border-muted-foreground/20 capitalize">
+                                                        {(changes[tx.id]?.allocationSource || tx.allocationSource) || 'manual'}
+                                                    </Badge>
+                                                </div>
+                                            </div>
                                         </TableCell>
                                         {client?.isVatRegistered && (
                                             <TableCell className="w-[200px]">
