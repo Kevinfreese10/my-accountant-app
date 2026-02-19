@@ -13,10 +13,10 @@ import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRight
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField, QueryConstraint } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField, QueryConstraint, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select';
@@ -37,6 +37,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams } from 'next/navigation';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -192,7 +193,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                 const batch = writeBatch(db);
                 const chunk = allDbOperations.slice(i, i + BATCH_SIZE);
                 chunk.forEach(op => op(batch));
-                batch.commit().catch(async (error) => {
+                batch.commit().catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'create',
@@ -207,7 +208,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             resetState();
         } catch (error) {
             console.error("Error importing transactions:", error);
-            toast({ title: "Import Failed", variant: "destructive"});
+            toast({ title: "Import Failed", variant: "decimal"});
         } finally {
             setIsUploading(false);
         }
@@ -321,7 +322,7 @@ function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, op
 
             const clientRef = doc(db, 'aiAccountantClients', client.uid);
             updateDoc(clientRef, { chartOfAccounts: updatedAccounts })
-                .catch(async (error) => {
+                .catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: clientRef.path,
                         operation: 'update',
@@ -400,7 +401,7 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
 
             const clientRef = doc(db, 'aiAccountantClients', client.uid);
             const updateData = { chartOfAccounts: arrayUnion(newAccount) };
-            updateDoc(clientRef, updateData).catch(async (error) => {
+            updateDoc(clientRef, updateData).catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
                     path: clientRef.path,
                     operation: 'update',
@@ -479,7 +480,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
             const clientRef = doc(db, 'aiAccountantClients', client.uid);
             const updateData = { chartOfAccounts: arrayUnion(newAccount) };
             setDoc(clientRef, updateData, { merge: true })
-                .catch(async (error) => {
+                .catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: clientRef.path,
                         operation: 'update',
@@ -528,101 +529,187 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
 // #region Rule Creation Dialog
 
 const ruleFormSchema = z.object({
-  description: z.string().min(3, "Rule description is required."),
+  mode: z.enum(['new', 'append']).default('new'),
+  existingRuleId: z.string().optional(),
+  description: z.string().optional(),
   keywords: z.string().min(2, "At least one keyword is required."),
-  accountId: z.string().min(1, "Account is required."),
-  vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
+  accountId: z.string().optional(),
+  vatType: z.string().optional(),
   scope: z.enum(['global', 'client']).default('client'),
   isPriority: z.boolean().default(false),
 });
 type RuleFormValues = z.infer<typeof ruleFormSchema>;
 
-const RuleForm = ({ chartOfAccounts, defaultValues, onSave, onCancel }: {
+const RuleForm = ({ chartOfAccounts, existingRules, defaultValues, onSave, onCancel }: {
     chartOfAccounts: ChartOfAccount[],
+    existingRules: AllocationRule[],
     defaultValues: Partial<RuleFormValues>,
     onSave: (values: RuleFormValues) => void,
     onCancel: () => void,
 }) => {
     const form = useForm<RuleFormValues>({
         resolver: zodResolver(ruleFormSchema),
-        defaultValues: { ...defaultValues, isPriority: defaultValues.isPriority || false },
+        defaultValues: { mode: 'new', ...defaultValues, isPriority: defaultValues.isPriority || false },
     });
+
+    const mode = form.watch('mode');
+
+    const handleFormSubmit = (data: RuleFormValues) => {
+        if (data.mode === 'new') {
+            if (!data.description || data.description.length < 3) {
+                form.setError('description', { message: 'Description is required for new rules.' });
+                return;
+            }
+            if (!data.accountId) {
+                form.setError('accountId', { message: 'Account is required for new rules.' });
+                return;
+            }
+            if (!data.vatType) {
+                form.setError('vatType', { message: 'VAT type is required for new rules.' });
+                return;
+            }
+        } else {
+            if (!data.existingRuleId) {
+                form.setError('existingRuleId', { message: 'Please select an existing rule.' });
+                return;
+            }
+        }
+        onSave(data);
+    };
+
     return (
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
-            <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input placeholder="e.g., Monthly bank charges" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., monthly account fee, service fee" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField
-                control={form.control}
-                name="accountId"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Allocate To Account</FormLabel>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                        <FormControl>
-                            <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
-                            {field.value ? chartOfAccounts?.find((acc) => acc.id === field.value)?.description : "Select account"}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                        </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                        <Command>
-                            <CommandInput placeholder="Search account..." />
-                            <CommandList>
-                            <CommandEmpty>No account found.</CommandEmpty>
-                            <CommandGroup>
-                                {chartOfAccounts?.map((acc) => (
-                                <CommandItem value={acc.description} key={acc.id} onSelect={() => form.setValue("accountId", acc.id)}>
-                                    <CheckCheck className={cn("mr-2 h-4 w-4", acc.id === field.value ? "opacity-100" : "opacity-0")} />
-                                    {acc.description}
-                                </CommandItem>
-                                ))}
-                            </CommandGroup>
-                            </CommandList>
-                        </Command>
-                        </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                    </FormItem>
-                )}
-            />
-            <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="scope" render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Rule Scope</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                        <SelectContent>
-                            <SelectItem value="client">Client Only</SelectItem>
-                            <SelectItem value="global">Global (All Clients)</SelectItem>
-                        </SelectContent>
-                    </Select>
+          <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+            <FormField control={form.control} name="mode" render={({ field }) => (
+                <FormItem className="space-y-3">
+                    <FormLabel>Creation Mode</FormLabel>
+                    <FormControl>
+                        <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex flex-row space-x-4"
+                        >
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="new" id="new" />
+                                <Label htmlFor="new">New Rule</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="append" id="append" />
+                                <Label htmlFor="append">Add to Existing Rule</Label>
+                            </div>
+                        </RadioGroup>
+                    </FormControl>
                 </FormItem>
             )} />
-             <FormField
-                control={form.control}
-                name="isPriority"
-                render={({ field }) => (
-                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
-                        <FormControl>
-                            <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                            />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                            <FormLabel>
-                                Priority Rule
-                            </FormLabel>
-                            <FormDescription>
-                                Priority rules will be processed first.
-                            </FormDescription>
-                        </div>
-                    </FormItem>
-                )}
-            />
+
+            {mode === 'append' ? (
+                <FormField
+                    control={form.control}
+                    name="existingRuleId"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Select Existing Rule</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Pick a rule..." />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <ScrollArea className="h-64">
+                                        {existingRules.map(rule => (
+                                            <SelectItem key={rule.id} value={rule.id}>
+                                                {rule.description} ({rule.keywords.slice(0, 3).join(', ')}...)
+                                            </SelectItem>
+                                        ))}
+                                    </ScrollArea>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            ) : (
+                <>
+                    <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input placeholder="e.g., Monthly bank charges" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField
+                        control={form.control}
+                        name="accountId"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Allocate To Account</FormLabel>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                <FormControl>
+                                    <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
+                                    {field.value ? chartOfAccounts?.find((acc) => acc.id === field.value)?.description : "Select account"}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search account..." />
+                                    <CommandList>
+                                    <CommandEmpty>No account found.</CommandEmpty>
+                                    <CommandGroup>
+                                        <ScrollArea className="h-64">
+                                            {chartOfAccounts?.map((acc) => (
+                                            <CommandItem value={acc.description} key={acc.id} onSelect={() => form.setValue("accountId", acc.id)}>
+                                                <CheckCheck className={cn("mr-2 h-4 w-4", acc.id === field.value ? "opacity-100" : "opacity-0")} />
+                                                {acc.description}
+                                            </CommandItem>
+                                            ))}
+                                        </ScrollArea>
+                                    </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                                </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="scope" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Rule Scope</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    <SelectItem value="client">Client Only</SelectItem>
+                                    <SelectItem value="global">Global (All Clients)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </FormItem>
+                    )} />
+                    <FormField
+                        control={form.control}
+                        name="isPriority"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                                <FormControl>
+                                    <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                    <FormLabel>
+                                        Priority Rule
+                                    </FormLabel>
+                                    <FormDescription>
+                                        Priority rules will be processed first.
+                                    </FormDescription>
+                                </div>
+                            </FormItem>
+                        )}
+                    />
+                </>
+            )}
+
+            <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords to Add (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., monthly account fee, service fee" {...field} /></FormControl><FormMessage /></FormItem> )} />
+
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
               <Button type="submit">Save Rule</Button>
@@ -632,24 +719,62 @@ const RuleForm = ({ chartOfAccounts, defaultValues, onSave, onCancel }: {
     )
 }
 
-function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues, transactionDescription }: {
+function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues, transactionDescription, existingRules }: {
     client: User | null;
     onRuleCreated: () => void;
     open: boolean;
     onOpenChange: (isOpen: boolean) => void;
     defaultValues: Partial<RuleFormValues>;
     transactionDescription: string | null;
+    existingRules: AllocationRule[];
 }) {
     const { toast } = useToast();
     
     const handleSave = async (values: RuleFormValues) => {
         if (!client) return;
 
-        const newRule: Partial<AllocationRule> = {
-            description: values.description,
-            keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
-            accountId: values.accountId,
-            vatType: values.vatType,
+        const keywordsArray = values.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean);
+
+        if (values.mode === 'append' && values.existingRuleId) {
+            const rule = existingRules.find(r => r.id === values.existingRuleId);
+            if (!rule) return;
+
+            try {
+                if (rule.scope === 'global') {
+                    const ruleRef = doc(db, 'allocationRules', rule.id);
+                    await updateDoc(ruleRef, {
+                        keywords: arrayUnion(...keywordsArray)
+                    });
+                    toast({ title: 'Keywords added to Global Rule' });
+                } else {
+                    const clientRef = doc(db, 'aiAccountantClients', client.uid!);
+                    const updatedRules = (client.allocationRules || []).map(r => {
+                        const isMatch = (r.id && r.id === rule.id) || (!r.id && r.description === rule.description);
+                        if (isMatch) {
+                            const combined = Array.from(new Set([...r.keywords, ...keywordsArray]));
+                            return { ...r, keywords: combined };
+                        }
+                        return r;
+                    });
+                    await updateDoc(clientRef, { allocationRules: updatedRules });
+                    toast({ title: 'Keywords added to Client Rule' });
+                }
+                onRuleCreated();
+                onOpenChange(false);
+            } catch (e) {
+                console.error(e);
+                toast({ title: 'Error', description: 'Could not update the rule.', variant: 'destructive'});
+            }
+            return;
+        }
+
+        // New Rule logic
+        const newRule: any = {
+            id: `rule_${Date.now()}`,
+            description: values.description || '',
+            keywords: keywordsArray,
+            accountId: values.accountId || '',
+            vatType: values.vatType || 'no_vat',
             type: 'hard',
             scope: values.scope,
             priority: values.isPriority ? 1 : 99,
@@ -657,29 +782,14 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
         
         try {
             if (values.scope === 'global') {
+                const { id, ...ruleWithoutId } = newRule;
                 const ruleRef = collection(db, 'allocationRules');
-                addDoc(ruleRef, newRule)
-                    .catch(async (error) => {
-                        const permissionError = new FirestorePermissionError({
-                            path: ruleRef.path,
-                            operation: 'create',
-                            requestResourceData: newRule,
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
-                    });
+                await addDoc(ruleRef, ruleWithoutId);
                 toast({ title: 'Global Rule Created' });
             } else {
                 const clientRef = doc(db, 'aiAccountantClients', client.uid!);
                 const updateData = { allocationRules: arrayUnion(newRule) };
-                updateDoc(clientRef, updateData)
-                    .catch(async (error) => {
-                        const permissionError = new FirestorePermissionError({
-                            path: clientRef.path,
-                            operation: 'update',
-                            requestResourceData: updateData,
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
-                    });
+                await updateDoc(clientRef, updateData);
                 toast({ title: 'Client Rule Created' });
             }
             onRuleCreated();
@@ -694,7 +804,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>Create New Allocation Rule</DialogTitle>
                     {transactionDescription && (
@@ -705,6 +815,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                 </DialogHeader>
                 <RuleForm 
                     chartOfAccounts={client.chartOfAccounts || []}
+                    existingRules={existingRules}
                     defaultValues={defaultValues}
                     onSave={handleSave}
                     onCancel={() => onOpenChange(false)}
@@ -737,7 +848,7 @@ const NewTransactionsTab = React.forwardRef<
     const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
-    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases' });
+    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<RuleFormValues>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases' });
     const [transactionDescriptionForRule, setTransactionDescriptionForRule] = useState<string | null>(null);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -819,13 +930,13 @@ const NewTransactionsTab = React.forwardRef<
 
         try {
             const snapshot = await getDocs(q)
-                .catch(async (error) => {
+                .catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: transRef.path,
                         operation: 'list',
                     });
                     errorEmitter.emit('permission-error', permissionError);
-                    throw error;
+                    throw serverError;
                 });
             const allDocs = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
             const filtered = allDocs.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -847,7 +958,7 @@ const NewTransactionsTab = React.forwardRef<
     }, [searchTerm, handleSearch]);
 
     const transactions = useMemo(() => {
-        let docs = searchResults !== null ? searchResults : paginatedDocuments;
+        let docs = searchResults !== null ? [...searchResults] : [...paginatedDocuments];
         
         if (sortField === 'description') {
             docs.sort((a, b) => {
@@ -894,13 +1005,13 @@ const NewTransactionsTab = React.forwardRef<
             }
 
             const snapshot = await getDocs(baseQuery)
-                .catch(async (error) => {
+                .catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: transRef.path,
                         operation: 'list',
                     });
                     errorEmitter.emit('permission-error', permissionError);
-                    throw error;
+                    throw serverError;
                 });
             const allNewTransactions = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
 
@@ -931,7 +1042,7 @@ const NewTransactionsTab = React.forwardRef<
                         allocatedCount++;
                     }
                 });
-                batch.commit().catch(async (error) => {
+                batch.commit().catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'update',
@@ -979,7 +1090,7 @@ const NewTransactionsTab = React.forwardRef<
                     const docRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.delete(docRef);
                 });
-                batch.commit().catch(async (error) => {
+                batch.commit().catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'delete',
@@ -999,7 +1110,7 @@ const NewTransactionsTab = React.forwardRef<
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         toast({ title: "Allocating..." });
     
-        const transactionsToAllocate = selectedTransactions;
+        const transactionsToAllocate = [...selectedTransactions];
     
         try {
             for (let i = 0; i < transactionsToAllocate.length; i += BATCH_SIZE) {
@@ -1015,7 +1126,7 @@ const NewTransactionsTab = React.forwardRef<
                         allocationSource: 'manual',
                     });
                 });
-                batch.commit().catch(async (error) => {
+                batch.commit().catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'update',
@@ -1062,7 +1173,7 @@ const NewTransactionsTab = React.forwardRef<
                     }
                 }
             }
-            batch.commit().catch(async (error) => {
+            batch.commit().catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
                     path: `aiAccountantClients/${client.uid}/transactions`,
                     operation: 'update',
@@ -1081,6 +1192,12 @@ const NewTransactionsTab = React.forwardRef<
             setIsSaving(false);
         }
     };
+
+    const allExistingRules = useMemo(() => {
+        const cRules = (client?.allocationRules || []).map(r => ({ ...r, scope: 'client' as const }));
+        const gRules = globalRules.map(r => ({ ...r, scope: 'global' as const }));
+        return [...cRules, ...gRules];
+    }, [client?.allocationRules, globalRules]);
     
     return (
         <Card>
@@ -1097,6 +1214,7 @@ const NewTransactionsTab = React.forwardRef<
                 }}
                 defaultValues={ruleDefaultValues}
                 transactionDescription={transactionDescriptionForRule}
+                existingRules={allExistingRules}
             />
              <CreateGeneralAccountDialog 
                 client={client}
@@ -1157,15 +1275,17 @@ const NewTransactionsTab = React.forwardRef<
                                                     </CommandItem>
                                                 </DropdownMenuSubTrigger>
                                                 <DropdownMenuSubContent>
-                                                    {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                        <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                            {vat.label}
-                                                        </DropdownMenuItem>
-                                                    )) : (
-                                                        <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                            No VAT
-                                                        </DropdownMenuItem>
-                                                    )}
+                                                    <ScrollArea className="h-64">
+                                                        {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                            <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                                {vat.label}
+                                                            </DropdownMenuItem>
+                                                        )) : (
+                                                            <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                                No VAT
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                    </ScrollArea>
                                                 </DropdownMenuSubContent>
                                             </DropdownMenuSub>
                                         ))}
@@ -1289,7 +1409,9 @@ const NewTransactionsTab = React.forwardRef<
                                                                 {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))}>{c.name}</CommandItem>)}
                                                             </CommandGroup>
                                                             <CommandGroup heading="Accounts">
-                                                                {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account', vatType: prev[tx.id]?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat') }}))}>{acc.description}</CommandItem>)}
+                                                                <ScrollArea className="h-64">
+                                                                    {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account', vatType: prev[tx.id]?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat') }}))}>{acc.description}</CommandItem>)}
+                                                                </ScrollArea>
                                                             </CommandGroup>
                                                         </CommandList>
                                                     </Command>
@@ -1503,13 +1625,13 @@ const ReviewedTab = React.forwardRef<
                 }
 
                 const snapshot = await getDocs(finalQuery)
-                    .catch(async (error) => {
+                    .catch(async (serverError) => {
                         const permissionError = new FirestorePermissionError({
                             path: transRef.path,
                             operation: 'list',
                         });
                         errorEmitter.emit('permission-error', permissionError);
-                        throw error;
+                        throw serverError;
                     });
                 let allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
 
@@ -1609,7 +1731,7 @@ const ReviewedTab = React.forwardRef<
                     const docRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.delete(docRef);
                 });
-                batch.commit().catch(async (error) => {
+                batch.commit().catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'delete',
@@ -1647,7 +1769,7 @@ const ReviewedTab = React.forwardRef<
                   }
               }
           });
-          batch.commit().catch(async (error) => {
+          batch.commit().catch(async (serverError) => {
               const permissionError = new FirestorePermissionError({
                   path: `aiAccountantClients/${client.uid}/transactions`,
                   operation: 'update',
@@ -1686,13 +1808,13 @@ const ReviewedTab = React.forwardRef<
         }
 
         const snapshot = await getDocs(q)
-            .catch(async (error) => {
+            .catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
                     path: transRef.path,
                     operation: 'list',
                 });
                 errorEmitter.emit('permission-error', permissionError);
-                throw error;
+                throw serverError;
             });
         const allReviewed = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
         
@@ -1805,7 +1927,7 @@ const ReviewedTab = React.forwardRef<
             const batch = writeBatch(db);
             selectedCorrections.forEach(txId => {
                 const inconsistency = inconsistencies.find(inc => inc.id === txId);
-                if (consistency) {
+                if (inconsistency) {
                     const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.update(txRef, {
                         allocatedTo: { value: inconsistency.suggestedAccountId, type: 'account' },
@@ -1814,7 +1936,7 @@ const ReviewedTab = React.forwardRef<
                     });
                 }
             });
-            batch.commit().catch(async (error) => {
+            batch.commit().catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
                     path: `aiAccountantClients/${client.uid}/transactions`,
                     operation: 'update',
@@ -1827,7 +1949,7 @@ const ReviewedTab = React.forwardRef<
             setIsConsistencyCheckOpen(false);
 
         } catch (error) {
-             toast({ title: 'Error', variant: 'destructive'});
+             toast({ title: 'Error', variant: 'decimal'});
         } finally {
             setIsSaving(false);
         }
@@ -1857,7 +1979,7 @@ const ReviewedTab = React.forwardRef<
                 vatType: client?.isVatRegistered ? vatType : 'no_vat',
                 allocationSource: 'manual',
             };
-            updateDoc(txRef, data).catch(async (error) => {
+            updateDoc(txRef, data).catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
                     path: txRef.path,
                     operation: 'update',
@@ -1930,9 +2052,11 @@ const ReviewedTab = React.forwardRef<
                                                  <Select value={tx.suggestedAccountId} onValueChange={(value) => handleInconsistencyChange(tx.id, 'accountId', value)}>
                                                     <SelectTrigger className="h-8 text-xs"><SelectValue/></SelectTrigger>
                                                     <SelectContent>
-                                                        {uniqueChartOfAccounts.map(acc => (
-                                                            <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                                        ))}
+                                                        <ScrollArea className="h-64">
+                                                            {uniqueChartOfAccounts.map(acc => (
+                                                                <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                                            ))}
+                                                        </ScrollArea>
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
@@ -1940,9 +2064,11 @@ const ReviewedTab = React.forwardRef<
                                                  <Select value={tx.suggestedVatType} onValueChange={(value) => handleInconsistencyChange(tx.id, 'vatType', value as VatType)}>
                                                     <SelectTrigger className="h-8 text-xs"><SelectValue/></SelectTrigger>
                                                     <SelectContent>
-                                                        {allVatTypes.map(vt => (
-                                                            <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
-                                                        ))}
+                                                        <ScrollArea className="h-64">
+                                                            {allVatTypes.map(vt => (
+                                                                <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                                            ))}
+                                                        </ScrollArea>
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
@@ -1998,22 +2124,26 @@ const ReviewedTab = React.forwardRef<
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent className="w-64">
-                                {client?.chartOfAccounts?.map(acc => (
-                                    <DropdownMenuSub key={acc.id}>
-                                        <DropdownMenuSubTrigger><span>{acc.description}</span></DropdownMenuSubTrigger>
-                                        <DropdownMenuSubContent>
-                                            {client.isVatRegistered ? allVatTypes.map(vat => (
-                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                    {vat.label}
-                                                </DropdownMenuItem>
-                                            )) : (
-                                                <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                    No VAT
-                                                </DropdownMenuItem>
-                                            )}
-                                        </DropdownMenuSubContent>
-                                    </DropdownMenuSub>
-                                ))}
+                                <ScrollArea className="h-64">
+                                    {client?.chartOfAccounts?.map(acc => (
+                                        <DropdownMenuSub key={acc.id}>
+                                            <DropdownMenuSubTrigger><span>{acc.description}</span></DropdownMenuSubTrigger>
+                                            <DropdownMenuSubContent>
+                                                <ScrollArea className="h-64">
+                                                    {client.isVatRegistered ? allVatTypes.map(vat => (
+                                                        <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                            {vat.label}
+                                                        </DropdownMenuItem>
+                                                    )) : (
+                                                        <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                            No VAT
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </ScrollArea>
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuSub>
+                                    ))}
+                                </ScrollArea>
                             </DropdownMenuContent>
                         </DropdownMenu>
                         <DropdownMenu>
@@ -2052,10 +2182,12 @@ const ReviewedTab = React.forwardRef<
                                 <SelectValue placeholder="Filter by account..." />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Accounts</SelectItem>
-                                {accountsWithTransactions.map(acc => (
-                                    <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
-                                ))}
+                                <ScrollArea className="h-64">
+                                    <SelectItem value="all">All Accounts</SelectItem>
+                                    {accountsWithTransactions.map(acc => (
+                                        <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                    ))}
+                                </ScrollArea>
                             </SelectContent>
                         </Select>
                         <div className="relative w-full md:w-auto">
@@ -2116,7 +2248,7 @@ const ReviewedTab = React.forwardRef<
                                                 <Popover>
                                                     <PopoverTrigger asChild>
                                                         <Button variant="outline" className="w-full justify-start text-left font-normal h-8 text-xs">
-                                                            {changes[tx.id] ? [...(client.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.description || [...(client.chartOfAccounts || []), ...customers].find(o => o.id === changes[tx.id]?.allocatedTo?.value)?.name : getAllocationDescription(tx)}
+                                                            {changes[tx.id] ? [...(client.chartOfAccounts || []), ...customers].find(o => o.id === (changes[tx.id]?.allocatedTo?.value))?.description || [...(client.chartOfAccounts || []), ...customers].find(o => o.id === (changes[tx.id]?.allocatedTo?.value))?.name : getAllocationDescription(tx)}
                                                         </Button>
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
@@ -2126,10 +2258,14 @@ const ReviewedTab = React.forwardRef<
                                                                 <CommandEmpty>No results found.</CommandEmpty>
                                                                 <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
                                                                 <CommandGroup heading="Customers">
-                                                                    {customers.map(c => <CommandItem key={c.id} onSelect={() => handleAllocationChange(tx.id, `customer:${c.id}`)}>{c.name}</CommandItem>)}
+                                                                    <ScrollArea className="h-64">
+                                                                        {customers.map(c => <CommandItem key={c.id} onSelect={() => handleAllocationChange(tx.id, `customer:${c.id}`)}>{c.name}</CommandItem>)}
+                                                                    </ScrollArea>
                                                                 </CommandGroup>
                                                                 <CommandGroup heading="Accounts">
-                                                                    {uniqueChartOfAccounts.map(acc => <CommandItem key={acc.id} onSelect={() => handleAllocationChange(tx.id, `account:${acc.id}`)}>{acc.description}</CommandItem>)}
+                                                                    <ScrollArea className="h-64">
+                                                                        {uniqueChartOfAccounts.map(acc => <CommandItem key={acc.id} onSelect={() => handleAllocationChange(tx.id, `account:${acc.id}`)}>{acc.description}</CommandItem>)}
+                                                                    </ScrollArea>
                                                                 </CommandGroup>
                                                             </CommandList>
                                                         </Command>
@@ -2137,7 +2273,7 @@ const ReviewedTab = React.forwardRef<
                                                 </Popover>
                                                 <div className="flex items-center px-1">
                                                     <Badge variant="outline" className="text-[9px] px-1 h-4 font-normal text-muted-foreground/70 border-muted-foreground/20 capitalize">
-                                                        {(changes[tx.id]?.allocationSource || tx.allocationSource) || 'manual'}
+                                                        {(changes[tx.id]?.allocationSource || tx.allocationSource) || 'manual'} allocation
                                                     </Badge>
                                                 </div>
                                             </div>
@@ -2151,9 +2287,11 @@ const ReviewedTab = React.forwardRef<
                                                 >
                                                     <SelectTrigger><SelectValue/></SelectTrigger>
                                                     <SelectContent>
-                                                        {allVatTypes.map(vt => (
-                                                            <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
-                                                        ))}
+                                                        <ScrollArea className="h-64">
+                                                            {allVatTypes.map(vt => (
+                                                                <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                                            ))}
+                                                        </ScrollArea>
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
@@ -2229,13 +2367,13 @@ function BankTransactionsPage() {
     
             try {
                 const snapshot = await getDocs(reviewQuery)
-                    .catch(async (error) => {
+                    .catch(async (serverError) => {
                         const permissionError = new FirestorePermissionError({
                             path: transRef.path,
                             operation: 'list',
                         });
                         errorEmitter.emit('permission-error', permissionError);
-                        throw error;
+                        throw serverError;
                     });
                 if (snapshot.empty) return;
     
@@ -2250,7 +2388,7 @@ function BankTransactionsPage() {
                     }
                 });
     
-                batch.commit().catch(async (error) => {
+                batch.commit().catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'update',
@@ -2274,13 +2412,13 @@ function BankTransactionsPage() {
         try {
             const clientRef = doc(db, 'aiAccountantClients', clientId);
             const clientSnap = await getDoc(clientRef)
-                .catch(async (error) => {
+                .catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: clientRef.path,
                         operation: 'get',
                     });
                     errorEmitter.emit('permission-error', permissionError);
-                    throw error;
+                    throw serverError;
                 });
             if (clientSnap.exists()) {
                 const clientData = clientSnap.data() as User;
@@ -2299,13 +2437,13 @@ function BankTransactionsPage() {
         try {
             const rulesRef = collection(db, 'allocationRules');
             const querySnapshot = await getDocs(rulesRef)
-                .catch(async (error) => {
+                .catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: rulesRef.path,
                         operation: 'list',
                     });
                     errorEmitter.emit('permission-error', permissionError);
-                    throw error;
+                    throw serverError;
                 });
             setGlobalRules(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllocationRule[]);
         } catch (error) {
@@ -2352,25 +2490,25 @@ function BankTransactionsPage() {
             try {
                 const custRef = collection(db, `aiAccountantClients/${clientId}/customers`);
                 const custSnapshot = await getDocs(custRef)
-                    .catch(async (error) => {
+                    .catch(async (serverError) => {
                         const permissionError = new FirestorePermissionError({
                             path: custRef.path,
                             operation: 'list',
                         });
                         errorEmitter.emit('permission-error', permissionError);
-                        throw error;
+                        throw serverError;
                     });
                 setCustomers(custSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClientCustomer)));
 
                 const invRef = collection(db, `aiAccountantClients/${clientId}/invoices`);
                 const invSnapshot = await getDocs(invRef)
-                    .catch(async (error) => {
+                    .catch(async (serverError) => {
                         const permissionError = new FirestorePermissionError({
                             path: invRef.path,
                             operation: 'list',
                         });
                         errorEmitter.emit('permission-error', permissionError);
-                        throw error;
+                        throw serverError;
                     });
                 setInvoices(invSnapshot.docs.map(docSnap => {
                     const data = docSnap.data();
@@ -2405,13 +2543,13 @@ function BankTransactionsPage() {
         const transRef = collection(db, 'aiAccountantClients', client.uid!, 'transactions');
         const q = query(transRef, where('bankAccountId', '==', accountId));
         const snapshot = await getDocs(q)
-            .catch(async (error) => {
+            .catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
                     path: transRef.path,
                     operation: 'list',
                 });
                 errorEmitter.emit('permission-error', permissionError);
-                throw error;
+                throw serverError;
             });
 
         if (snapshot.empty) return;
@@ -2423,7 +2561,7 @@ function BankTransactionsPage() {
                 chunk.forEach(docSnap => {
                     batch.delete(docSnap.ref);
                 });
-                batch.commit().catch(async (error) => {
+                batch.commit().catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
                         operation: 'delete',
@@ -2431,7 +2569,7 @@ function BankTransactionsPage() {
                     errorEmitter.emit('permission-error', permissionError);
                 });
             }
-            toast({ title: "Transactions Cleared", variant: 'destructive' });
+            toast({ title: "Transactions Cleared", variant: 'decimal' });
         } catch (e) {
             console.error(e);
         }
