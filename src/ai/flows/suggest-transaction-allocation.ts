@@ -1,4 +1,4 @@
-'use server';
+'use client';
 /**
  * @fileOverview An AI agent for suggesting transaction allocations.
  * 
@@ -25,6 +25,8 @@ const SuggestTransactionAllocationOutputSchema = z.object({
   accountId: z.string().describe("The ID of the suggested account from the chart of accounts (e.g., '3800/000'). This must exactly match an ID from the provided chart of accounts."),
   vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]).describe("The suggested VAT type for this transaction. If isVatRegistered is false, this must be 'no_vat'."),
   confidence: z.number().min(0).max(100).describe('A confidence score (0-100) of how certain you are about the allocation. A higher score means more confidence. Base confidence on how clear the description is (e.g., "PICK N PAY" is high, "DEBIT ORDER" is low).'),
+  summary: z.string().describe('A brief, one-sentence summary of the transaction nature from a CA perspective (e.g., "Looks like a recurring software subscription" or "Likely a local retail purchase").'),
+  suggestedKeyword: z.string().describe('A concise, uppercase "root" keyword derived from the description to be used for a future allocation rule (e.g., "VODACOM" or "SHELL").'),
 });
 export type SuggestTransactionAllocationOutput = z.infer<typeof SuggestTransactionAllocationOutputSchema>;
 
@@ -40,7 +42,7 @@ export async function suggestTransactionAllocation(
     const { output } = await customAi.generate({
       model: 'googleai/gemini-2.5-flash',
       output: { schema: SuggestTransactionAllocationOutputSchema },
-      prompt: `You are an expert South African accountant. Your task is to suggest the correct general ledger account and VAT type for a bank transaction based on its full description.
+      prompt: `You are an experienced South African Chartered Accountant. Your task is to perform research on a bank transaction description and suggest the correct general ledger account and VAT type.
 
 Analyze the transaction description and choose the most appropriate account from the provided chart of accounts. Also, determine the correct VAT treatment.
 
@@ -55,7 +57,14 @@ Analyze the transaction description and choose the most appropriate account from
 ${input.chartOfAccounts}
 \`\`\`
 
-Based on the description, provide the account ID and VAT type. Your confidence should reflect how specific the description is. For example, a transaction for "PICK N PAY" is clearly for 'General Expenses', so confidence should be high (e.g., 95). A generic "DEBIT ORDER" is ambiguous, so confidence should be very low (e.g., 10).`,
+Based on the description, provide:
+1. The most likely Account ID.
+2. The correct VAT type.
+3. A confidence score.
+4. A brief CA summary of the transaction nature.
+5. A high-impact "root" keyword for future matching.
+
+Use your vast knowledge of South African merchants (e.g., PNP, Checkers, Shell, Vodacom, Telkom, etc.) and global digital services (e.g., Google, Microsoft, AWS, Netflix) to provide accurate results.`,
     });
 
     return output!;
@@ -68,7 +77,7 @@ const prompt = ai.definePrompt({
   name: 'suggestTransactionAllocationPrompt',
   input: { schema: SuggestTransactionAllocationInputSchema },
   output: { schema: SuggestTransactionAllocationOutputSchema },
-  prompt: `You are an expert South African accountant. Your task is to suggest the correct general ledger account and VAT type for a bank transaction based on its full description.
+  prompt: `You are an experienced South African Chartered Accountant. Your task is to perform research on a bank transaction description and suggest the correct general ledger account and VAT type.
 
 Analyze the transaction description and choose the most appropriate account from the provided chart of accounts. Also, determine the correct VAT treatment.
 
@@ -83,7 +92,14 @@ Analyze the transaction description and choose the most appropriate account from
 {{{chartOfAccounts}}}
 \`\`\`
 
-Based on the description, provide the account ID and VAT type. Your confidence should reflect how specific the description is. For example, a transaction for "PICK N PAY" is clearly for 'General Expenses', so confidence should be high (e.g., 95). A generic "DEBIT ORDER" is ambiguous, so confidence should be very low (e.g., 10).
+Based on the description, provide:
+1. The most likely Account ID.
+2. The correct VAT type.
+3. A confidence score.
+4. A brief CA summary of the transaction nature.
+5. A high-impact "root" keyword for future matching.
+
+Use your vast knowledge of South African merchants (e.g., PNP, Checkers, Shell, Vodacom, Telkom, etc.) and global digital services (e.g., Google, Microsoft, AWS, Netflix) to provide accurate results.
   `,
 });
 

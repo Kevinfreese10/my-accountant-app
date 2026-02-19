@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -38,6 +38,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams } from 'next/navigation';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { suggestTransactionAllocation, SuggestTransactionAllocationOutput } from '@/ai/flows/suggest-transaction-allocation';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -825,6 +826,68 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
 // #endregion
 
+function AIAllocationReviewDialog({ 
+    open, 
+    onOpenChange, 
+    suggestion, 
+    transaction,
+    onAction
+}: { 
+    open: boolean; 
+    onOpenChange: (open: boolean) => void; 
+    suggestion: SuggestTransactionAllocationOutput | null;
+    transaction: ImportedTransaction | null;
+    onAction: (mode: 'new' | 'append') => void;
+}) {
+    if (!suggestion || !transaction) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <BrainCircuit className="h-5 w-5 text-primary" />
+                        AI Allocation Suggestion
+                    </DialogTitle>
+                    <DialogDescription>
+                        Research results for: <span className="font-semibold italic">"{transaction.description}"</span>
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
+                        <p className="text-sm font-semibold mb-1">CA Summary:</p>
+                        <p className="text-sm text-muted-foreground italic">"{suggestion.summary}"</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground">Confidence</p>
+                            <Badge variant={suggestion.confidence > 80 ? 'success' : suggestion.confidence > 50 ? 'warning' : 'destructive'}>
+                                {suggestion.confidence}%
+                            </Badge>
+                        </div>
+                        <div className="space-y-1 text-right">
+                            <p className="text-xs font-medium text-muted-foreground">VAT Type</p>
+                            <p className="text-sm font-semibold capitalize">{suggestion.vatType.replace(/_/g, ' ')}</p>
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">Suggested Root Keyword</p>
+                        <Badge variant="outline" className="text-sm font-mono">{suggestion.suggestedKeyword}</Badge>
+                    </div>
+                </div>
+                <DialogFooter className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" onClick={() => onAction('append')}>
+                        Add to Existing Rule
+                    </Button>
+                    <Button onClick={() => onAction('new')}>
+                        Create New Rule
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
     { 
@@ -854,6 +917,12 @@ const NewTransactionsTab = React.forwardRef<
     const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [triggerAllocation, setTriggerAllocation] = useState(false);
+
+    // AI Research State
+    const [isAiResearching, setIsAiResearching] = useState<string | null>(null);
+    const [aiSuggestion, setAiSuggestion] = useState<SuggestTransactionAllocationOutput | null>(null);
+    const [selectedTxForAi, setSelectedTxForAi] = useState<ImportedTransaction | null>(null);
+    const [isAiReviewOpen, setIsAiReviewOpen] = useState(false);
 
 
     type SortField = 'date' | 'description' | 'amount';
@@ -1191,6 +1260,48 @@ const NewTransactionsTab = React.forwardRef<
         }
     };
 
+    const handleAiResearch = async (tx: ImportedTransaction) => {
+        if (!client) return;
+        setIsAiResearching(tx.id);
+        setSelectedTxForAi(tx);
+        setAiSuggestion(null);
+
+        try {
+            const result = await suggestTransactionAllocation({
+                description: tx.description,
+                chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
+                isVatRegistered: !!client.isVatRegistered,
+            });
+
+            if (result) {
+                setAiSuggestion(result);
+                setIsAiReviewOpen(true);
+            }
+        } catch (error) {
+            console.error("AI Research error:", error);
+            toast({ title: "Research Failed", description: "The AI assistant could not analyze this transaction.", variant: "destructive" });
+        } finally {
+            setIsAiResearching(null);
+        }
+    };
+
+    const handleAiReviewAction = (mode: 'new' | 'append') => {
+        if (!aiSuggestion || !selectedTxForAi) return;
+
+        setTransactionDescriptionForRule(selectedTxForAi.description);
+        setRuleDefaultValues({
+            mode: mode,
+            description: `Rule for: ${aiSuggestion.suggestedKeyword}`,
+            keywords: aiSuggestion.suggestedKeyword,
+            accountId: aiSuggestion.accountId,
+            vatType: aiSuggestion.vatType,
+            scope: 'client',
+        });
+        
+        setIsAiReviewOpen(false);
+        setIsCreateRuleOpen(true);
+    };
+
     const allExistingRules = useMemo(() => {
         const cRules = (client?.allocationRules || []).map(r => ({ ...r, scope: 'client' as const }));
         const gRules = globalRules.map(r => ({ ...r, scope: 'global' as const }));
@@ -1228,6 +1339,14 @@ const NewTransactionsTab = React.forwardRef<
                 open={isCreateGeneralAccountOpen}
                 onOpenChange={setIsCreateGeneralAccountOpen}
              />
+
+            <AIAllocationReviewDialog 
+                open={isAiReviewOpen}
+                onOpenChange={setIsAiReviewOpen}
+                suggestion={aiSuggestion}
+                transaction={selectedTxForAi}
+                onAction={handleAiReviewAction}
+            />
 
             <CardHeader className="p-0">
                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
@@ -1442,26 +1561,37 @@ const NewTransactionsTab = React.forwardRef<
                                         )}
                                         <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                         <TableCell className="text-right">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent>
-                                                     <DropdownMenuItem onSelect={() => {
-                                                        const keyword = tx.merchantKey || tx.description.split(/\s+/)[0];
-                                                        setTransactionDescriptionForRule(tx.description);
-                                                        setIsCreateRuleOpen(true);
-                                                        setRuleDefaultValues({ 
-                                                            description: `Rule for: ${keyword}`, 
-                                                            keywords: keyword, 
-                                                            accountId: '', 
-                                                            vatType: 'standard_rated_purchases',
-                                                        });
-                                                     }}>
-                                                        Create Rule from Transaction
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="text-primary"
+                                                    onClick={() => handleAiResearch(tx)}
+                                                    disabled={isAiResearching === tx.id}
+                                                >
+                                                    {isAiResearching === tx.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                                </Button>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                        <DropdownMenuItem onSelect={() => {
+                                                            const keyword = tx.merchantKey || tx.description.split(/\s+/)[0];
+                                                            setTransactionDescriptionForRule(tx.description);
+                                                            setIsCreateRuleOpen(true);
+                                                            setRuleDefaultValues({ 
+                                                                description: `Rule for: ${keyword}`, 
+                                                                keywords: keyword, 
+                                                                accountId: '', 
+                                                                vatType: 'standard_rated_purchases',
+                                                            });
+                                                        }}>
+                                                            Create Rule from Transaction
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))
@@ -1933,7 +2063,7 @@ const ReviewedTab = React.forwardRef<
             const batch = writeBatch(db);
             selectedCorrections.forEach(txId => {
                 const inconsistency = inconsistencies.find(inc => inc.id === txId);
-                if (item) {
+                if (inconsistency) {
                     const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
                     batch.update(txRef, {
                         allocatedTo: { value: inconsistency.suggestedAccountId, type: 'account' },
@@ -2536,7 +2666,7 @@ function BankTransactionsPage() {
 
     const handleClearTransactions = async () => {
         if (!client || !accountId) return;
-        toast({ title: "Clearing transactions..." });
+        toast({ title: "Deleting transactions..." });
         
         const transRef = collection(db, 'aiAccountantClients', client.uid!, 'transactions');
         const q = query(transRef, where('bankAccountId', '==', accountId));
