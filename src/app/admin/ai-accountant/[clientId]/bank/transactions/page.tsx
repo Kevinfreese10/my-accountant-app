@@ -2201,7 +2201,7 @@ const ReviewedTab = React.forwardRef<
                                     <AlertDialogDescription>
                                         This tool will analyze your reviewed transactions to find allocations that are inconsistent with how you've categorized similar items in the past.
                                     </AlertDialogDescription>
-                                </AccordionHeader>
+                                </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction onClick={handleReviewConsistency}>Yes, Review Consistency</AlertDialogAction>
@@ -2221,12 +2221,12 @@ const ReviewedTab = React.forwardRef<
                                             <DropdownMenuSubTrigger><span>{acc.description}</span></DropdownMenuSubTrigger>
                                             <DropdownMenuSubContent>
                                                 <ScrollArea className="h-64">
-                                                    {client.isVatRegistered ? allVatTypes.map(vat => (
-                                                        <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                    {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                        <DropdownMenuItem key={vat.name} onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, vat.name)}>
                                                             {vat.label}
                                                         </DropdownMenuItem>
                                                     )) : (
-                                                        <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                        <DropdownMenuItem onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, 'no_vat')}>
                                                             No VAT
                                                         </DropdownMenuItem>
                                                     )}
@@ -2259,7 +2259,7 @@ const ReviewedTab = React.forwardRef<
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                            <AlertDialogAction onClick={() => handleBulkDelete()}>Yes, Delete</AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
@@ -2337,7 +2337,7 @@ const ReviewedTab = React.forwardRef<
                                                 <Popover>
                                                     <PopoverTrigger asChild>
                                                         <Button variant="outline" className="w-full justify-start text-left font-normal h-8 text-xs">
-                                                            {changes[tx.id] ? [...(client.chartOfAccounts || []), ...customers].find(o => o.id === (changes[tx.id]?.allocatedTo?.value))?.description || [...(client.chartOfAccounts || []), ...customers].find(o => o.id === (changes[tx.id]?.allocatedTo?.value))?.name : getAllocationDescription(tx)}
+                                                            {changes[tx.id] ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === (changes[tx.id]?.allocatedTo?.value))?.description || [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === (changes[tx.id]?.allocatedTo?.value))?.name : getAllocationDescription(tx)}
                                                         </Button>
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
@@ -2361,7 +2361,7 @@ const ReviewedTab = React.forwardRef<
                                                     </PopoverContent>
                                                 </Popover>
                                                 <div className="flex items-center px-1">
-                                                    <Badge variant="outline" className="text-[9px] px-1 h-4 font-normal text-muted-foreground/70 border-muted-foreground/20 capitalize">
+                                                    <Badge variant="outline" className="text-[9px] px-1 h-4 font-normal text-muted-foreground/70 border-muted-foreground/20 uppercase">
                                                         {(changes[tx.id]?.allocationSource || tx.allocationSource) || 'manual'} allocation
                                                     </Badge>
                                                 </div>
