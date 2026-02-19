@@ -9,8 +9,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon, Edit } from 'lucide-react';
-import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
+import { Loader2, Plus, Trash2, CalendarIcon, Edit, Eye, ChevronsUpDown, PlusCircle } from 'lucide-react';
+import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -52,7 +52,7 @@ const editJournalFormSchema = z.object({
   reference: z.string(),
   date: z.date(),
   lines: z.array(z.object({
-    id: z.string(), // Keep track of the original transaction ID
+    id: z.string(), 
     accountId: z.string().min(1),
     description: z.string().min(1),
     amount: z.number(),
@@ -310,7 +310,7 @@ export default function JournalsPage() {
 
     useEffect(() => {
         fetchRelatedData();
-    }, [clientId, toast, journalType]);
+    }, [clientId, journalType]);
     
     const updateLineAmounts = (index: number) => {
         const line = form.getValues(`lines.${index}`);
@@ -354,7 +354,7 @@ export default function JournalsPage() {
                 const reference = line.reference || `JNL-${journalTimestamp.toMillis()}`;
 
                 let amountMultiplier = line.effect === 'Increase' ? 1 : -1;
-                if (journalType === 'supplier') { // Suppliers are credit-based, so an increase is a credit
+                if (journalType === 'supplier') { 
                     amountMultiplier *= -1;
                 }
 
@@ -362,7 +362,6 @@ export default function JournalsPage() {
                 const exclusiveAmount = line.exclusiveAmount * amountMultiplier;
                 const vatAmount = line.vatAmount * amountMultiplier;
 
-                // 1. Entry for Customer/Supplier Control Account (Inclusive Amount)
                 const primaryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
                 batch.set(primaryRef, {
                     clientId: client.id,
@@ -373,12 +372,11 @@ export default function JournalsPage() {
                     isExpense: inclusiveAmount < 0,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: primaryAccountId, type: 'account' },
-                    vatType: 'no_vat', // Control account leg has no VAT itself
+                    vatType: 'no_vat', 
                     status: 'allocated',
                     allocatedAt: journalTimestamp,
                 });
 
-                // 2. Contra Entry for Affecting Account (Exclusive Amount)
                 const contraRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
                 batch.set(contraRef, {
                     clientId: client.id,
@@ -394,7 +392,6 @@ export default function JournalsPage() {
                     allocatedAt: journalTimestamp,
                 });
                 
-                // 3. VAT Entry if applicable
                 if (client.isVatRegistered && vatAmount !== 0 && vatControlAccount) {
                     const vatRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
                     batch.set(vatRef, {
@@ -406,7 +403,7 @@ export default function JournalsPage() {
                         isExpense: -vatAmount < 0,
                         bankAccountId: 'JOURNAL',
                         allocatedTo: { value: vatControlAccount, type: 'account' },
-                        vatType: 'no_vat', // VAT leg itself doesn't have VAT
+                        vatType: 'no_vat',
                         status: 'allocated',
                         allocatedAt: journalTimestamp,
                     });
@@ -580,7 +577,7 @@ export default function JournalsPage() {
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <FormItem><FormControl><Input className="h-8 w-[120px]" {...field} /></FormControl></FormItem> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <FormItem><FormControl><Input className="h-8" {...field} /></FormControl></FormItem> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap">
-                                                    <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value} disabled={!client?.isVatRegistered}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</Select></FormItem> )}/>
+                                                    <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value} disabled={!client?.isVatRegistered}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
                                                 </td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <FormItem><FormControl><Input type="number" className="h-8 min-w-[120px]" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /></FormControl></FormItem> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <FormItem><FormControl><Input type="number" className="h-8 bg-muted min-w-[120px]" readOnly {...field} /></FormControl></FormItem> )}/></td>
