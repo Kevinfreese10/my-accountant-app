@@ -16,7 +16,7 @@ import Papa from 'papaparse';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const formSchema = z.object({
-  statement: z.custom<FileList>().refine((files) => files && files.length > 0, 'A PDF file is required.'),
+  statement: z.custom<FileList>().refine((files) => files && files.length > 0, 'A file is required.'),
 });
 
 type Transaction = {
@@ -43,14 +43,14 @@ export default function PdfToCsvPage() {
 
     setIsExtracting(true);
     setExtractedTransactions([]);
-    toast({ title: 'Extraction Started...', description: 'The AI is processing your bank statement.' });
+    toast({ title: 'Extraction Started...', description: 'The AI is processing your statement.' });
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
       const dataUrl = reader.result as string;
       try {
-        const result = await extractStatementData({ statementPdf: dataUrl });
+        const result = await extractStatementData({ statementFile: dataUrl });
         if (!result || !result.transactions || result.transactions.length === 0) {
           toast({ title: 'Extraction Failed', description: 'The AI could not extract any transactions. Please try a different file.', variant: 'destructive' });
         } else {
@@ -59,7 +59,7 @@ export default function PdfToCsvPage() {
         }
       } catch (error) {
         console.error('Statement extraction error:', error);
-        toast({ title: 'Extraction Failed', description: 'Could not extract data from this PDF. Please ensure it is a valid bank statement.', variant: 'destructive' });
+        toast({ title: 'Extraction Failed', description: 'Could not extract data from this file. Please ensure it is a valid bank statement.', variant: 'destructive' });
       } finally {
         setIsExtracting(false);
       }
@@ -93,13 +93,13 @@ export default function PdfToCsvPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">PDF to CSV Converter</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Statement to CSV Converter</h1>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
         <Card>
           <CardHeader>
             <CardTitle>Upload Bank Statement</CardTitle>
-            <CardDescription>Upload a bank statement in PDF format to extract transactions into a CSV file using AI.</CardDescription>
+            <CardDescription>Upload a bank statement in PDF or Image format to extract transactions into a CSV file using AI OCR.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -109,11 +109,11 @@ export default function PdfToCsvPage() {
                   name="statement"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>PDF Statement File</FormLabel>
+                      <FormLabel>Statement File (PDF or Image)</FormLabel>
                       <FormControl>
                         <Input
                           type="file"
-                          accept="application/pdf"
+                          accept="application/pdf,image/*"
                           onChange={(e) => field.onChange(e.target.files)}
                         />
                       </FormControl>
@@ -173,7 +173,7 @@ export default function PdfToCsvPage() {
               <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground border-2 border-dashed rounded-lg p-4">
                 <FileText className="h-10 w-10 mb-4" />
                 <p className="font-semibold">No transactions extracted yet.</p>
-                <p className="text-sm mt-2">Upload a PDF bank statement to get started.</p>
+                <p className="text-sm mt-2">Upload a bank statement to get started.</p>
               </div>
             )}
           </CardContent>

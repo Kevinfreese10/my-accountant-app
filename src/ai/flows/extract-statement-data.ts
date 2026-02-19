@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview An AI agent for extracting transaction data from bank statements.
+ * @fileOverview An AI agent for extracting transaction data from bank statements (PDF or OCR).
  *
  * - extractStatementData - A function that takes a bank statement and returns structured transaction data.
  * - ExtractStatementDataInput - The input type for the extractStatementData function.
@@ -9,11 +9,11 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
+import { z } from 'genkit';
 
 const ExtractStatementDataInputSchema = z.object({
-  statementPdf: z.string().describe(
-    "A PDF document of a bank statement, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:application/pdf;base64,<encoded_data>'."
+  statementFile: z.string().describe(
+    "A document of a bank statement (PDF or Image), as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
   ),
   apiKey: z.string().optional().describe("An optional Google AI API key to use for this specific extraction."),
 });
@@ -33,6 +33,9 @@ export type ExtractStatementDataOutput = z.infer<typeof ExtractStatementDataOutp
 export async function extractStatementData(
   input: ExtractStatementDataInput
 ): Promise<ExtractStatementDataOutput> {
+  // Extract MIME type from data URI
+  const mimeType = input.statementFile.split(';')[0].split(':')[1] || 'application/pdf';
+
   // If an API key is provided, we use a local genkit instance to perform the generation
   // using the provided key instead of the global system key.
   if (input.apiKey) {
@@ -49,11 +52,13 @@ export async function extractStatementData(
       prompt: [
         { text: `You are an expert OCR and data extraction agent specializing in South African bank statements.
 
-Your task is to analyze the provided bank statement PDF and extract the following information for every single transaction:
+Your task is to analyze the provided bank statement (PDF or Image) and extract the following information for every single transaction with perfect accuracy:
 1.  **Date**: The date the transaction occurred, formatted as YYYY-MM-DD.
 2.  **Description**: The full, untruncated description of the transaction as it appears on the statement.
-3.  **Amount**: The transaction amount. It is CRITICAL to use negative numbers for any debits, payments, or withdrawals, and positive numbers for any credits, deposits, or receipts.` },
-        { media: { url: input.statementPdf, contentType: 'application/pdf' } }
+3.  **Amount**: The transaction amount. It is CRITICAL to use negative numbers for any debits, payments, or withdrawals, and positive numbers for any credits, deposits, or receipts.
+
+If the document is a scanned image, use advanced OCR to ensure every character is read correctly.` },
+        { media: { url: input.statementFile, contentType: mimeType } }
       ],
     });
 
@@ -69,13 +74,15 @@ const prompt = ai.definePrompt({
   output: { schema: ExtractStatementDataOutputSchema },
   prompt: `You are an expert OCR and data extraction agent specializing in South African bank statements.
 
-Your task is to analyze the provided bank statement PDF and extract the following information for every single transaction:
+Your task is to analyze the provided bank statement (PDF or Image) and extract the following information for every single transaction with perfect accuracy:
 1.  **Date**: The date the transaction occurred, formatted as YYYY-MM-DD.
 2.  **Description**: The full, untruncated description of the transaction as it appears on the statement.
 3.  **Amount**: The transaction amount. It is CRITICAL to use negative numbers for any debits, payments, or withdrawals, and positive numbers for any credits, deposits, or receipts.
 
+If the document is a scanned image, use advanced OCR to ensure every character is read correctly.
+
 Analyze the following bank statement:
-{{media url=statementPdf}}
+{{media url=statementFile}}
   `,
 });
 
