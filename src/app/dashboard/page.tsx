@@ -86,7 +86,7 @@ export default function DashboardPage() {
             const permissionError = new FirestorePermissionError({
                 path: 'services',
                 operation: 'list',
-            } satisfies SecurityRuleContext);
+            });
             errorEmitter.emit('permission-error', permissionError);
             setIsLoading(false);
         });
@@ -99,7 +99,7 @@ export default function DashboardPage() {
             const permissionError = new FirestorePermissionError({
                 path: 'categories',
                 operation: 'list',
-            } satisfies SecurityRuleContext);
+            });
             errorEmitter.emit('permission-error', permissionError);
         });
 
@@ -110,7 +110,7 @@ export default function DashboardPage() {
             const permissionError = new FirestorePermissionError({
                 path: 'users',
                 operation: 'list',
-            } satisfies SecurityRuleContext);
+            });
             errorEmitter.emit('permission-error', permissionError);
         });
 
@@ -131,7 +131,7 @@ export default function DashboardPage() {
                 const permissionError = new FirestorePermissionError({
                     path: 'orders',
                     operation: 'list',
-                } satisfies SecurityRuleContext);
+                });
                 errorEmitter.emit('permission-error', permissionError);
                 setIsLoading(false);
             });
@@ -200,7 +200,7 @@ export default function DashboardPage() {
                         path: `orders/${orderId}`,
                         operation: 'create',
                         requestResourceData: orderData,
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 });
             
@@ -232,7 +232,7 @@ export default function DashboardPage() {
 
      const filteredCategorizedServices = useMemo(() => {
         if (!searchTerm) {
-            return categorizedServices.filter(c => c.name !== 'Monthly Packages');
+            return categorizedServices;
         }
         return categorizedServices
             .map(category => ({
@@ -241,7 +241,7 @@ export default function DashboardPage() {
                     service.title.toLowerCase().includes(searchTerm.toLowerCase())
                 ),
             }))
-            .filter(category => category.data.length > 0 && category.name !== 'Monthly Packages');
+            .filter(category => category.data.length > 0);
     }, [categorizedServices, searchTerm]);
 
 
@@ -314,7 +314,7 @@ export default function DashboardPage() {
                         <CardHeader>
                              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div>
-                                    <CardTitle>Services</CardTitle>
+                                    <CardTitle>Our Services</CardTitle>
                                     <CardDescription>Browse and purchase individual services.</CardDescription>
                                 </div>
                                 <div className="relative w-full sm:max-w-xs">
