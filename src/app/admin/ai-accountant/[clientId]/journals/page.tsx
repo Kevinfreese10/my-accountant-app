@@ -145,25 +145,29 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                                                     control={form.control}
                                                     name={`lines.${index}.accountId`}
                                                     render={({ field }) => (
-                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                            <FormControl><SelectTrigger className="h-8"><SelectValue /></SelectTrigger></FormControl>
-                                                            <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent>
-                                                        </Select>
+                                                        <FormItem>
+                                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                                <FormControl><SelectTrigger className="h-8"><SelectValue /></SelectTrigger></FormControl>
+                                                                <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent>
+                                                            </Select>
+                                                        </FormItem>
                                                     )}
                                                 />
                                             </TableCell>
                                             <TableCell>
-                                                <FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => <Input className="h-8" {...field} />} />
+                                                <FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => <FormItem><FormControl><Input className="h-8" {...field} /></FormControl></FormItem>} />
                                             </TableCell>
                                              <TableCell className="w-[200px]">
                                                 <FormField
                                                     control={form.control}
                                                     name={`lines.${index}.vatType`}
                                                     render={({ field }) => (
-                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                            <FormControl><SelectTrigger className="h-8"><SelectValue /></SelectTrigger></FormControl>
-                                                            <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
-                                                        </Select>
+                                                        <FormItem>
+                                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                                <FormControl><SelectTrigger className="h-8"><SelectValue /></SelectTrigger></FormControl>
+                                                                <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
+                                                            </Select>
+                                                        </FormItem>
                                                     )}
                                                 />
                                             </TableCell>
@@ -172,12 +176,16 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                                                     control={form.control}
                                                     name={`lines.${index}.amount`}
                                                     render={({ field }) => (
-                                                        <Input
-                                                            type="number" step="0.01" className="h-8 text-right"
-                                                            value={field.value > 0 ? field.value : ''}
-                                                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                                                            disabled={field.value < 0}
-                                                        />
+                                                        <FormItem>
+                                                            <FormControl>
+                                                                <Input
+                                                                    type="number" step="0.01" className="h-8 text-right"
+                                                                    value={field.value > 0 ? field.value : ''}
+                                                                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                                                                    disabled={field.value < 0}
+                                                                />
+                                                            </FormControl>
+                                                        </FormItem>
                                                     )}
                                                 />
                                             </TableCell>
@@ -186,12 +194,16 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                                                     control={form.control}
                                                     name={`lines.${index}.amount`}
                                                     render={({ field }) => (
-                                                        <Input
-                                                            type="number" step="0.01" className="h-8 text-right"
-                                                            value={field.value < 0 ? -field.value : ''}
-                                                            onChange={(e) => field.onChange(-(parseFloat(e.target.value) || 0))}
-                                                            disabled={field.value > 0}
-                                                        />
+                                                        <FormItem>
+                                                            <FormControl>
+                                                                <Input
+                                                                    type="number" step="0.01" className="h-8 text-right"
+                                                                    value={field.value < 0 ? -field.value : ''}
+                                                                    onChange={(e) => field.onChange(-(parseFloat(e.target.value) || 0))}
+                                                                    disabled={field.value > 0}
+                                                                />
+                                                            </FormControl>
+                                                        </FormItem>
                                                     )}
                                                 />
                                             </TableCell>
@@ -565,16 +577,16 @@ export default function JournalsPage() {
                                                 <td className="px-2 py-1 whitespace-nowrap">
                                                     <FormField control={form.control} name={`lines.${index}.actorId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{(journalType === 'customer' ? customers : suppliers).map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></FormItem> )}/>
                                                 </td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <Input className="h-8 w-[120px]" {...field} /> )}/></td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <FormItem><FormControl><Input className="h-8 w-[120px]" {...field} /></FormControl></FormItem> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <FormItem><FormControl><Input className="h-8" {...field} /></FormControl></FormItem> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap">
                                                     <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value} disabled={!client?.isVatRegistered}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</Select></FormItem> )}/>
                                                 </td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 min-w-[120px]" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /> )}/></td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted min-w-[120px]" readOnly {...field} /> )}/></td>
-                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.vatAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted min-w-[100px]" readOnly {...field} /> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <FormItem><FormControl><Input type="number" className="h-8 min-w-[120px]" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /></FormControl></FormItem> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <FormItem><FormControl><Input type="number" className="h-8 bg-muted min-w-[120px]" readOnly {...field} /></FormControl></FormItem> )}/></td>
+                                                <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.vatAmount`} render={({ field }) => ( <FormItem><FormControl><Input type="number" className="h-8 bg-muted min-w-[100px]" readOnly {...field} /></FormControl></FormItem> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap">
-                                                    <FormField control={form.control} name={`lines.${index}.affectingAccountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.filter(a => a.section === 'Income Statement').map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
+                                                    <FormField control={form.control} name={`lines.${index}.affectingAccountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.filter(a => a.section === 'Income Statement').map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
                                                 </td>
                                                 <td className="px-2 py-1 whitespace-nowrap">
                                                     <Button type="button" size="icon" variant="ghost" onClick={() => remove(index)} disabled={fields.length <= 1}><Trash2 className="h-4 w-4 text-red-600" /></Button>
