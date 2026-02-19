@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -10,14 +9,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon, PlusCircle, MoreHorizontal, Eye, Copy, FileText, Mail, Download, CheckCircle, ChevronsUpDown } from 'lucide-react';
+import { Loader2, Plus, Trash2, CalendarIcon, PlusCircle, MoreHorizontal, Eye, Copy, FileText, Mail, Download, CheckCircle, ChevronsUpDown, CheckCheck } from 'lucide-react';
 import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs, updateDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { User, Invoice, ClientCustomer, ChartOfAccount } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -216,6 +215,7 @@ export default function InvoicesPage() {
                 reference: `INV-${invoiceId}`,
                 description: `Invoice to ${customers.find(c => c.id === data.customerId)?.name}`,
                 amount: total,
+                isExpense: total < 0,
                 bankAccountId: 'JOURNAL',
                 allocatedTo: { value: customerControlAccount, type: 'account' },
                 vatType: 'no_vat',
@@ -234,6 +234,7 @@ export default function InvoicesPage() {
                     reference: `INV-${invoiceId}`,
                     description: line.description,
                     amount: -lineTotal,
+                    isExpense: -lineTotal < 0,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: line.accountId, type: 'account' },
                     vatType: line.vatType as any,
@@ -252,6 +253,7 @@ export default function InvoicesPage() {
                     reference: `INV-${invoiceId}`,
                     description: `VAT on Invoice`,
                     amount: -vat,
+                    isExpense: -vat < 0,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: vatControlAccount, type: 'account' },
                     vatType: 'no_vat',
@@ -382,7 +384,7 @@ export default function InvoicesPage() {
                                             </div>
                                         ))}
                                     </div>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', quantity: 1, rate: 0, vatType: 'standard_rated_sales' })} className="mt-2"><PlusCircle className="mr-2 h-4 w-4"/>Add Line</Button>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', quantity: 1, rate: 0, vatType: client?.isVatRegistered ? 'standard_rated_sales' : 'no_vat' })} className="mt-2"><PlusCircle className="mr-2 h-4 w-4"/>Add Line</Button>
                                 </div>
                                 <InvoiceTotals control={form.control} isVatRegistered={client?.isVatRegistered} />
                                 <div className="flex justify-end pt-4">

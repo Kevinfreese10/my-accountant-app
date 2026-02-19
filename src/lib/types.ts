@@ -357,6 +357,7 @@ export type ImportedTransaction = {
     confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
     overrideRequired?: boolean;
     amount: number;
+    isExpense: boolean;
     bankAccountId: string;
     status: 'new' | 'allocated' | 'review' | 'reviewed' | 'ai_processing' | 'ai_review';
     allocatedTo?: { // Optional for imported, required for allocated
@@ -377,6 +378,7 @@ export type AllocatedTransaction = {
     reference: string;
     description: string;
     amount: number;
+    isExpense: boolean;
     bankAccountId: string;
     allocatedTo: {
         value: string;

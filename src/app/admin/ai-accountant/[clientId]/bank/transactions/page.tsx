@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -169,6 +168,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     reference: reference,
                     description: row.Description,
                     amount: row.Amount,
+                    isExpense: row.Amount < 0,
                     bankAccountId: bankAccountId,
                     status: 'new'
                 };
@@ -419,7 +419,7 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
             onOpenChange(false);
         } catch (error) {
             console.error("Error creating bank account:", error);
-            toast({ title: 'Error', variant: 'destructive' });
+            toast({ title: 'Error', description: 'Could not create bank account.', variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -619,8 +619,8 @@ const RuleForm = ({ chartOfAccounts, existingRules, defaultValues, onSave, onCan
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    {existingRules.map((rule, idx) => (
-                                        <SelectItem key={rule.id || `rule-${idx}`} value={rule.id}>
+                                    {existingRules.map(rule => (
+                                        <SelectItem key={rule.id} value={rule.id}>
                                             {rule.description} ({rule.keywords.slice(0, 3).join(', ')}...)
                                         </SelectItem>
                                     ))}
@@ -763,7 +763,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                 onOpenChange(false);
             } catch (e) {
                 console.error(e);
-                toast({ title: 'Error', description: 'Could not update the rule.', variant: 'destructive'});
+                toast({ title: 'Error', description: 'Could not update rule.', variant: 'destructive'});
             }
             return;
         }
@@ -796,7 +796,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
             onOpenChange(false);
         } catch(e) {
             console.error(e);
-            toast({ title: 'Error', description: 'Could not create the rule.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not create rule.', variant: 'destructive'});
         }
     };
     
@@ -928,8 +928,8 @@ const NewTransactionsTab = React.forwardRef<
 
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
-    const [sortField, setSortField] = useState<SortField>('date');
-    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+    const [sortField, setSortField] = useState<SortField>('description');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -946,20 +946,9 @@ const NewTransactionsTab = React.forwardRef<
         let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'new'),
+            where('isExpense', '==', activeSubTab === 'expenses'),
+            orderBy(sortField, sortDirection)
         ];
-    
-        if (activeSubTab === 'expenses') {
-            constraints.push(where('amount', '<', 0));
-        } else {
-             constraints.push(where('amount', '>=', 0));
-        }
-        
-        if (sortField !== 'amount') {
-             constraints.push(orderBy('amount', activeSubTab === 'expenses' ? 'asc' : 'desc'));
-             constraints.push(orderBy(sortField, sortDirection));
-        } else {
-             constraints.push(orderBy('amount', sortDirection));
-        }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
     }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
@@ -987,12 +976,8 @@ const NewTransactionsTab = React.forwardRef<
         let searchConstraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'new'),
+            where('isExpense', '==', activeSubTab === 'expenses'),
         ];
-        if (activeSubTab === 'expenses') {
-            searchConstraints.push(where('amount', '<', 0));
-        } else {
-            searchConstraints.push(where('amount', '>=', 0));
-        }
         const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
         const q = query(transRef, ...searchConstraints);
 
@@ -1027,15 +1012,8 @@ const NewTransactionsTab = React.forwardRef<
 
     const transactions = useMemo(() => {
         let docs = searchResults !== null ? [...searchResults] : [...paginatedDocuments];
-        
-        if (sortField === 'description') {
-            docs.sort((a, b) => {
-                const comparison = a.description.localeCompare(b.description);
-                return sortDirection === 'asc' ? comparison : -comparison;
-            });
-        }
         return docs;
-    }, [searchResults, paginatedDocuments, sortField, sortDirection]);
+    }, [searchResults, paginatedDocuments]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -1064,13 +1042,9 @@ const NewTransactionsTab = React.forwardRef<
             let baseQuery = query(
                 transRef,
                 where('bankAccountId', '==', bankAccountId),
-                where('status', '==', 'new')
+                where('status', '==', 'new'),
+                where('isExpense', '==', activeSubTab === 'expenses')
             );
-            if (activeSubTab === 'expenses') {
-                baseQuery = query(baseQuery, where('amount', '<', 0));
-            } else {
-                baseQuery = query(baseQuery, where('amount', '>=', 0));
-            }
 
             const snapshot = await getDocs(baseQuery)
                 .catch(async (serverError) => {
@@ -1312,7 +1286,6 @@ const NewTransactionsTab = React.forwardRef<
         const gRules = globalRules.map(r => ({ ...r, scope: 'global' as const }));
         const combined = [...cRules, ...gRules];
         
-        // Deduplicate by ID to prevent React key errors
         const seen = new Set();
         return combined.filter(rule => {
             if (!rule.id || seen.has(rule.id)) return false;
@@ -1667,8 +1640,8 @@ const ReviewedTab = React.forwardRef<
 
     type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
     type SortDirection = 'asc' | 'desc';
-    const [sortField, setSortField] = useState<SortField>('date');
-    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+    const [sortField, setSortField] = useState<SortField>('description');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
     
     const uniqueChartOfAccounts = useMemo(() => {
         if (!client?.chartOfAccounts) return [];
@@ -1695,26 +1668,15 @@ const ReviewedTab = React.forwardRef<
         let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', 'in', ['reviewed', 'allocated']),
+            where('isExpense', '==', activeSubTab === 'expenses'),
+            orderBy(sortField, sortDirection)
         ];
-
-        if (activeSubTab === 'expenses') {
-            constraints.push(where('amount', '<', 0));
-        } else {
-             constraints.push(where('amount', '>=', 0));
-        }
 
         if (dateRange?.from) {
             constraints.push(where('date', '>=', dateRange.from.toISOString()));
         }
         if (dateRange?.to) {
             constraints.push(where('date', '<=', dateRange.to.toISOString()));
-        }
-
-        const sortableFields: SortField[] = ['date', 'description', 'amount'];
-        if (sortableFields.includes(sortField)) {
-            constraints.push(orderBy(sortField, sortDirection));
-        } else {
-             constraints.push(orderBy('date', 'desc'));
         }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
@@ -1750,12 +1712,8 @@ const ReviewedTab = React.forwardRef<
                 let baseConstraints: QueryConstraint[] = [
                     where('bankAccountId', '==', bankAccountId),
                     where('status', 'in', ['reviewed', 'allocated']),
+                    where('isExpense', '==', activeSubTab === 'expenses'),
                 ];
-                if (activeSubTab === 'expenses') {
-                    baseConstraints.push(where('amount', '<', 0));
-                } else {
-                    baseConstraints.push(where('amount', '>=', 0));
-                }
                 
                 const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
                 let finalQuery;
@@ -1940,13 +1898,9 @@ const ReviewedTab = React.forwardRef<
         let q = query(
             transRef,
             where('bankAccountId', '==', bankAccountId),
-            where('status', 'in', ['reviewed', 'allocated'])
+            where('status', 'in', ['reviewed', 'allocated']),
+            where('isExpense', '==', activeSubTab === 'expenses')
         );
-        if (activeSubTab === 'expenses') {
-            q = query(q, where('amount', '<', 0));
-        } else {
-            q = query(q, where('amount', '>=', 0));
-        }
 
         const snapshot = await getDocs(q)
             .catch(async (serverError) => {
@@ -2247,7 +2201,7 @@ const ReviewedTab = React.forwardRef<
                                     <AlertDialogDescription>
                                         This tool will analyze your reviewed transactions to find allocations that are inconsistent with how you've categorized similar items in the past.
                                     </AlertDialogDescription>
-                                </AlertDialogHeader>
+                                </AccordionHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction onClick={handleReviewConsistency}>Yes, Review Consistency</AlertDialogAction>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -359,6 +358,7 @@ export default function JournalsPage() {
                     reference: reference,
                     description: `Journal for ${primaryActorName}: ${line.description}`,
                     amount: inclusiveAmount,
+                    isExpense: inclusiveAmount < 0,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: primaryAccountId, type: 'account' },
                     vatType: 'no_vat', // Control account leg has no VAT itself
@@ -374,6 +374,7 @@ export default function JournalsPage() {
                     reference: reference,
                     description: `Contra - ${journalType === 'customer' ? 'Customer' : 'Supplier'} Journal - ${primaryActorName}`,
                     amount: -exclusiveAmount,
+                    isExpense: -exclusiveAmount < 0,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: line.affectingAccountId, type: 'account' },
                     vatType: line.vatType as VatType,
@@ -390,6 +391,7 @@ export default function JournalsPage() {
                         reference: reference,
                         description: `VAT on Journal - ${primaryActorName}`,
                         amount: -vatAmount,
+                        isExpense: -vatAmount < 0,
                         bankAccountId: 'JOURNAL',
                         allocatedTo: { value: vatControlAccount, type: 'account' },
                         vatType: 'no_vat', // VAT leg itself doesn't have VAT
@@ -452,6 +454,7 @@ export default function JournalsPage() {
                         'allocatedTo.value': line.accountId,
                         description: line.description,
                         amount: line.amount,
+                        isExpense: line.amount < 0,
                         vatType: line.vatType
                     });
                 }
@@ -565,7 +568,7 @@ export default function JournalsPage() {
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <Input className="h-8 w-[120px]" {...field} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap">
-                                                    <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value} disabled={!client?.isVatRegistered}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
+                                                    <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value} disabled={!client?.isVatRegistered}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</Select></FormItem> )}/>
                                                 </td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 min-w-[120px]" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /> )}/></td>
                                                 <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted min-w-[120px]" readOnly {...field} /> )}/></td>

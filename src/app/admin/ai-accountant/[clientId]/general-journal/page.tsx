@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -253,6 +252,7 @@ export default function GeneralJournalsPage() {
                         reference: data.reference,
                         description: line.description || 'General Journal Entry',
                         amount: amount,
+                        isExpense: amount < 0,
                         bankAccountId: 'JOURNAL',
                         allocatedTo: { value: line.accountId, type: 'account' },
                         vatType: 'no_vat',
