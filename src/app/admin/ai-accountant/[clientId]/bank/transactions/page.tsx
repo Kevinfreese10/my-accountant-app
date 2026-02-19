@@ -25,7 +25,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
-import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup, CommandSeparator } from '@/cmdk';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup, CommandSeparator } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, parse } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
