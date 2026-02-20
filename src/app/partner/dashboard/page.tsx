@@ -76,7 +76,6 @@ function TopUpDialog({ partner }: { partner: User }) {
             
             await setDoc(doc(db, 'orders', orderId), topupOrder);
 
-            // PayFast Redirect
             const payfastUrl = 'https://www.payfast.co.za/eng/process';
             const form = document.createElement('form');
             form.method = 'POST';
@@ -117,8 +116,8 @@ function TopUpDialog({ partner }: { partner: User }) {
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button size="sm" variant="outline">
-                    <PlusCircle className="mr-2 h-4 w-4" />
+                <Button size="xs" variant="outline" className="h-7 px-2 text-[10px]">
+                    <PlusCircle className="mr-1 h-3 w-3" />
                     Top Up
                 </Button>
             </DialogTrigger>
@@ -187,12 +186,11 @@ export default function PartnerDashboardPage() {
       setIsLoading(true);
 
       const staffRef = collection(db, "users");
-      getDocs(query(staffRef, where('role', 'in', ['staff', 'admin']))).then(staffSnapshot => {
-          const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
-          setAllStaff(fetchedStaff);
-      }).catch(async (error) => {
+      const staffUnsubscribe = onSnapshot(query(staffRef, where('role', 'in', ['staff', 'admin'])), (snapshot) => {
+          setAllStaff(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User)));
+      }, async (error) => {
           const permissionError = new FirestorePermissionError({
-              path: staffRef.path,
+              path: 'users',
               operation: 'list',
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
@@ -214,7 +212,7 @@ export default function PartnerDashboardPage() {
           setIsLoading(false);
       }, async (error) => {
           const permissionError = new FirestorePermissionError({
-              path: ordersRef.path,
+              path: 'orders',
               operation: 'list',
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
@@ -234,13 +232,14 @@ export default function PartnerDashboardPage() {
           setOutsourcedOrders(fetchedOutsourcedOrders);
       }, async (error) => {
           const permissionError = new FirestorePermissionError({
-              path: ordersRef.path,
+              path: 'orders',
               operation: 'list',
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
       });
 
       return () => {
+          staffUnsubscribe();
           unsubClientOrders();
           unsubOutsourcedOrders();
       }
@@ -285,17 +284,17 @@ export default function PartnerDashboardPage() {
                     <p className="text-lg text-muted-foreground">{user?.companyName}</p>
                 </div>
                 {user && (
-                    <Card className="bg-primary/5 border-primary/20 min-w-[240px]">
-                        <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
-                            <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-                                <Wallet2 className="h-3 w-3" />
-                                Practice Wallet
-                            </CardTitle>
+                    <Card className="bg-primary/5 border-primary/20 min-w-[260px] overflow-hidden">
+                        <CardHeader className="py-2.5 px-4 flex flex-row items-center justify-between space-y-0 border-b border-primary/10">
+                            <div className="flex items-center gap-2">
+                                <Wallet2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Practice Wallet</span>
+                            </div>
                             <TopUpDialog partner={user} />
                         </CardHeader>
-                        <CardContent className="py-0 px-4 pb-3">
-                            <p className="text-2xl font-bold text-primary">{formatPrice(user.creditBalance || 0)}</p>
-                            <p className="text-[10px] text-muted-foreground mt-1">Available Credits</p>
+                        <CardContent className="pt-4 px-4 pb-4">
+                            <p className="text-3xl font-bold text-primary tabular-nums">{formatPrice(user.creditBalance || 0)}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Available Credits</p>
                         </CardContent>
                     </Card>
                 )}
