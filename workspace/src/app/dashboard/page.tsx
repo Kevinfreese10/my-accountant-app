@@ -1,21 +1,13 @@
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Order, Service, User, OrderNote } from '@/lib/types';
+import { Order, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp, where, or } from 'firebase/firestore';
+import { getFirestore, collection, orderBy, query, onSnapshot, doc, updateDoc, arrayUnion, where, or } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search, MessageSquare, Inbox, Archive } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Loader2, ArrowRight, Inbox, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import ServicePreview from '@/components/admin/ServicePreview';
-import { useToast } from '@/hooks/use-toast';
-import { getNextOrderId } from '@/lib/sequence';
-import { Input } from '@/components/ui/input';
-import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,18 +15,6 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const db = getFirestore(firebaseApp);
-
-type Category = { 
-    id: string; 
-    name: string; 
-    description: string; 
-    order: number; 
-};
-
-const formatPrice = (price: number) => {
-    return `R ${price.toLocaleString('en-ZA')}`;
-};
-
 
 const userColors = [
   'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
@@ -49,16 +29,9 @@ const getUserColor = (userId: string) => {
 
 export default function DashboardPage() {
     const { user, updateUser } = useAuth();
-    const [services, setServices] = useState<Service[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [viewingService, setViewingService] = useState<Service | null>(null);
-    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-    const { toast } = useToast();
-    const router = useRouter();
-    const [searchTerm, setSearchTerm] = useState('');
     const [archivedNotifications, setArchivedNotifications] = useState<string[]>([]);
 
     useEffect(() => {
@@ -77,41 +50,15 @@ export default function DashboardPage() {
     useEffect(() => {
         setIsLoading(true);
 
-        const servicesRef = collection(db, 'services');
-        const servicesUnsubscribe = onSnapshot(query(servicesRef, orderBy('title')), (snapshot) => {
-            const fetchedServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
-            setServices(fetchedServices);
-            setIsLoading(false);
-        }, async (error) => {
-            const permissionError = new FirestorePermissionError({
-                path: 'services',
-                operation: 'list',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            setIsLoading(false);
-        });
-        
-        const categoriesRef = collection(db, 'categories');
-        const categoriesUnsubscribe = onSnapshot(query(categoriesRef, orderBy('order')), (snapshot) => {
-            const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
-            setCategories(fetchedCategories);
-        }, async (error) => {
-            const permissionError = new FirestorePermissionError({
-                path: 'categories',
-                operation: 'list',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
-
         const staffRef = collection(db, "users");
-        // Expand query to include partners and AI accountants who might leave notes
+        // Expand query to include all roles who might leave notes for white-label support
         const staffUnsubscribe = onSnapshot(query(staffRef, where('role', 'in', ['staff', 'admin', 'partner', 'partner_staff', 'ai_accountant'])), (snapshot) => {
             setAllStaff(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User)));
         }, async (error) => {
             const permissionError = new FirestorePermissionError({
                 path: 'users',
                 operation: 'list',
-            });
+            } satisfies SecurityRuleContext);
             errorEmitter.emit('permission-error', permissionError);
         });
 
@@ -156,7 +103,7 @@ export default function DashboardPage() {
                 const permissionError = new FirestorePermissionError({
                     path: 'orders',
                     operation: 'list',
-                });
+                } satisfies SecurityRuleContext);
                 errorEmitter.emit('permission-error', permissionError);
                 setIsLoading(false);
             });
@@ -165,8 +112,6 @@ export default function DashboardPage() {
         }
 
         return () => {
-            servicesUnsubscribe();
-            categoriesUnsubscribe();
             staffUnsubscribe();
             ordersUnsubscribe();
         }
@@ -193,115 +138,52 @@ export default function DashboardPage() {
         return allStaff.find(u => u.id === authorId);
     }
 
-    const handleBuyNow = async (service: Service) => {
-        if (!user) {
-            toast({ title: 'Not Logged In', variant: 'destructive'});
-            return;
-        }
-
-        setIsProcessingPayment(true);
-        toast({ title: "Processing Order..." });
-
-        try {
-            const orderId = await getNextOrderId();
-            const orderData: Order = {
-                id: orderId,
-                userId: user.uid,
-                customerName: user.name,
-                customerEmail: user.email,
-                items: [{ id: service.id, title: service.title, price: service.price, quantity: 1 }],
-                total: service.price,
-                discountCode: null,
-                discountAmount: null,
-                status: 'Pending Payment',
-                date: Timestamp.now(),
-                source: 'Client',
-                department: service.department || null,
-            };
-
-            await setDoc(doc(db, 'orders', orderId), orderData);
-            router.push(`/order-confirmation/${orderId}`);
-
-        } catch (error) {
-            console.error("Error creating order:", error);
-            setIsProcessingPayment(false);
-        }
-    };
-
-    const categorizedServices = useMemo(() => {
-        return categories
-        .map(category => ({
-            ...category,
-            data: services.filter(s => s.category === category.name)
-        }))
-        .filter(c => c.data.length > 0);
-    }, [categories, services]);
-    
-     const formatPriceFmt = (price: number) => {
-        return new Intl.NumberFormat('en-ZA', {
-          style: 'currency',
-          currency: 'ZAR',
-          minimumFractionDigits: price % 1 === 0 ? 0 : 2,
-          maximumFractionDigits: 2,
-        }).format(price);
-    };
-
-     const filteredCategorizedServices = useMemo(() => {
-        if (!searchTerm) {
-            return categorizedServices;
-        }
-        return categorizedServices
-            .map(category => ({
-                ...category,
-                data: category.data.filter(service =>
-                    service.title.toLowerCase().includes(searchTerm.toLowerCase())
-                ),
-            }))
-            .filter(category => category.data.length > 0);
-    }, [categorizedServices, searchTerm]);
-
-
     return (
-        <>
-            <Dialog onOpenChange={(isOpen) => !isOpen && setViewingService(null)}>
-            <div className="space-y-8">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
-                    <p className="text-muted-foreground">Here's a summary of your recent activity and available services.</p>
-                </div>
-                
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Notifications</CardTitle>
-                        <CardDescription>Recent notes on your orders from our team.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin"/></div> :
-                        notifications.length > 0 ? (
-                        <ScrollArea className="h-72">
-                            <div className="space-y-4">
+        <div className="space-y-8">
+            <div>
+                <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
+                <p className="text-muted-foreground">Here's a summary of your recent activity and notifications.</p>
+            </div>
+            
+            <Card>
+                <CardHeader>
+                    <CardTitle>Notifications</CardTitle>
+                    <CardDescription>Recent updates and messages from our team.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <div className="flex justify-center p-8">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary"/>
+                        </div>
+                    ) : notifications.length > 0 ? (
+                        <ScrollArea className="h-96">
+                            <div className="space-y-6">
                             {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
                                 const author = getAuthor(note.authorId);
                                 const date = note.date;
                                 const noteId = note.orderId + date.toISOString();
                                 return (
-                                    <div key={index} className="flex items-start gap-3">
-                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
+                                    <div key={index} className="flex items-start gap-4">
+                                        <div className={cn("mt-1 h-10 w-10 rounded-full flex items-center justify-center font-bold text-base shadow-sm", getUserColor(note.authorId))}>
                                             {author?.name.charAt(0) || 'U'}
                                         </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm">
-                                                <span className="font-semibold">{author?.name || 'Unknown User'}</span>
-                                                <span className="text-muted-foreground"> left a note on order </span>
-                                                <Link href={`/dashboard/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
-                                            </p>
-                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
+                                        <div className="flex-1 space-y-1">
                                             <div className="flex items-center justify-between">
-                                                <p className="text-xs text-muted-foreground mt-1">
+                                                <p className="text-sm">
+                                                    <span className="font-semibold">{author?.name || 'Support Team'}</span>
+                                                    <span className="text-muted-foreground ml-1">left a note on order </span>
+                                                    <Link href={`/dashboard/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                                </p>
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
                                                     {formatDistanceToNow(date, { addSuffix: true })}
                                                 </p>
-                                                <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
-                                                    <Archive className="mr-2 h-4 w-4"/> Archive
+                                            </div>
+                                            <div className="bg-muted/50 p-3 rounded-lg border border-muted">
+                                                <p className="text-sm text-foreground/90 leading-relaxed italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
+                                            </div>
+                                            <div className="flex justify-end pt-1">
+                                                <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={() => archiveNotification(noteId)}>
+                                                    <Archive className="mr-1.5 h-3.5 w-3.5"/> Archive Notification
                                                 </Button>
                                             </div>
                                         </div>
@@ -310,105 +192,29 @@ export default function DashboardPage() {
                             })}
                             </div>
                         </ScrollArea>
-                        ) : (
-                        <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
-                            <Inbox className="h-12 w-12 mb-4"/>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground border-2 border-dashed rounded-lg">
+                            <Inbox className="h-12 w-12 mb-4 opacity-20"/>
                             <p className="font-semibold">All caught up!</p>
                             <p className="text-sm">You have no new notifications.</p>
                         </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <div className="space-y-12">
-                    {isLoading ? (
-                        <div className="flex justify-center items-center h-40">
-                            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                        </div>
-                    ) : (
-                    <Card>
-                        <CardHeader>
-                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                <div>
-                                    <CardTitle>Our Services</CardTitle>
-                                    <CardDescription>Browse and purchase individual services.</CardDescription>
-                                </div>
-                                <div className="relative w-full sm:max-w-xs">
-                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                     <Input
-                                        placeholder="Search for a service..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-10"
-                                    />
-                                </div>
-                             </div>
-                        </CardHeader>
-                        <CardContent className="space-y-8">
-                             {filteredCategorizedServices.map(category => (
-                                <section key={category.name}>
-                                    <h3 className="text-xl font-semibold mb-4">{category.name}</h3>
-                                    <div className="border rounded-md">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Service</TableHead>
-                                                    <TableHead className="text-left w-48">Turnaround Time</TableHead>
-                                                    <TableHead className="text-right w-32">Price</TableHead>
-                                                    <TableHead className="text-right w-32">Actions</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {category.data.map(service => (
-                                                    <TableRow key={service.id}>
-                                                        <TableCell className="font-medium">{service.title}</TableCell>
-                                                        <TableCell>
-                                                            <div className="flex items-center justify-start text-sm text-muted-foreground">
-                                                                <Clock className="mr-1.5 h-4 w-4" />
-                                                                <span>{service.turnaroundTime}</span>
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-semibold">{formatPriceFmt(service.price)}</TableCell>
-                                                        <TableCell className="text-right">
-                                                            <DialogTrigger asChild>
-                                                                <Button variant="outline" size="sm" onClick={() => setViewingService(service)}>Learn More</Button>
-                                                            </DialogTrigger>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </section>
-                            ))}
-                            {filteredCategorizedServices.length === 0 && (
-                                <p className="text-center text-muted-foreground py-8">No services match your search.</p>
-                            )}
-                        </CardContent>
-                    </Card>
                     )}
-                </div>
-            </div>
-            <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>{viewingService?.title}</DialogTitle>
-                    <DialogDescription>
-                        {viewingService?.description}
-                    </DialogDescription>
-                </DialogHeader>
-                {viewingService && (
-                    <>
-                        <ServicePreview service={viewingService} />
-                        <DialogFooter>
-                            <Button onClick={() => handleBuyNow(viewingService)} disabled={isProcessingPayment}>
-                                {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Buy Now ({formatPriceFmt(viewingService.price)})
-                            </Button>
-                        </DialogFooter>
-                    </>
-                )}
-            </DialogContent>
-            </Dialog>
-        </>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Recent Orders</CardTitle>
+                    <CardDescription>Track the status of your active requests.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button asChild variant="outline" className="w-full">
+                        <Link href="/dashboard/orders">
+                            View All My Orders <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        </div>
     );
 }
