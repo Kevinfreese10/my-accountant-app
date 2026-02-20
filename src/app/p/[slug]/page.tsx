@@ -167,14 +167,17 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                                     <p className="text-sm opacity-80 leading-relaxed line-clamp-3">
                                         {service.description}
                                     </p>
-                                    <ul className="space-y-2">
-                                        {service.whatsIncluded.slice(0, 3).map((item, i) => (
-                                            <li key={i} className="flex items-start text-xs opacity-90">
-                                                <CheckCircle2 className="h-4 w-4 mr-3 mt-0.5 partner-text flex-shrink-0" />
-                                                <span className="leading-tight">{item}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <div className="space-y-3">
+                                        <p className="text-sm font-semibold">What&apos;s Included:</p>
+                                        <ul className="space-y-2">
+                                            {service.whatsIncluded.slice(0, 3).map((item, i) => (
+                                                <li key={i} className="flex items-start text-xs opacity-90">
+                                                    <CheckCircle2 className="h-4 w-4 mr-3 mt-0.5 partner-text flex-shrink-0" />
+                                                    <span className="leading-tight">{item}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
                                 </CardContent>
                                 <CardFooter className="pt-0">
                                     <Button variant="outline" className="w-full partner-border partner-text font-semibold h-11" asChild>
