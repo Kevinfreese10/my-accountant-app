@@ -115,7 +115,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
       <section id="about" className="container mx-auto px-4 scroll-m-24">
         <div className="max-w-4xl mx-auto text-center space-y-6">
           <h2 className="text-3xl font-bold">About Our Practice</h2>
-          <Separator className="w-24 mx-auto partner-border border-b-2" />
+          <Separator className="w-24 mx-auto partner-border border-b-2 opacity-50" />
           <p className="text-lg opacity-80 leading-relaxed whitespace-pre-wrap">
             {lp?.aboutUs}
           </p>

@@ -48,7 +48,7 @@ const formSchema = z.object({
     heroTitle: z.string().min(5, "Hero title is too short"),
     heroSubtitle: z.string().min(10, "Hero subtitle is too short"),
     aboutUs: z.string().min(20, "About Us text is too short"),
-    themePreset: z.enum(['custom', 'my_accountant', 'futuristic']).default('custom'),
+    themePreset: z.enum(['custom', 'my_accountant', 'futuristic', 'tech_blue']).default('custom'),
     primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color (e.g., #214392)"),
     secondaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     backgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
@@ -69,12 +69,20 @@ const THEMES = {
         cardBorderColor: '#e5e7eb',
     },
     futuristic: {
-        primaryColor: '#0ea5e9',
-        secondaryColor: '#1e293b',
+        primaryColor: '#a855f7',
+        secondaryColor: '#1e1b4b',
         backgroundColor: '#020617',
-        textColor: '#f8fafc',
+        textColor: '#ffffff',
         cardBackgroundColor: '#0f172a',
         cardBorderColor: '#1e293b',
+    },
+    tech_blue: {
+        primaryColor: '#0ea5e9',
+        secondaryColor: '#f0f9ff',
+        backgroundColor: '#f8fafc',
+        textColor: '#0f172a',
+        cardBackgroundColor: '#ffffff',
+        cardBorderColor: '#e2e8f0',
     }
 };
 
@@ -321,7 +329,8 @@ export default function PartnerProfile() {
                                                 <SelectContent>
                                                     <SelectItem value="custom">Custom</SelectItem>
                                                     <SelectItem value="my_accountant">My Accountant (Master)</SelectItem>
-                                                    <SelectItem value="futuristic">Futuristic Professional</SelectItem>
+                                                    <SelectItem value="futuristic">Modern Midnight (Dark)</SelectItem>
+                                                    <SelectItem value="tech_blue">Tech Professional (Light)</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </FormItem>
