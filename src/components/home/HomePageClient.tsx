@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -50,7 +51,7 @@ export default function HomePageClient() {
         .then((snapshot) => {
           const fetchedServices = snapshot.docs.map(doc => {
             const data = doc.data();
-            const serviceData = { id: doc.id, ...data } as any;
+            const serviceData = { ...data, id: doc.id } as any;
             if (data.createdAt && data.createdAt instanceof Timestamp) {
                 serviceData.createdAt = data.createdAt.toDate().toISOString();
             }
@@ -70,7 +71,7 @@ export default function HomePageClient() {
       const categoriesQuery = query(categoriesRef, orderBy('order'));
       getDocs(categoriesQuery)
         .then((snapshot) => {
-          const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+          const fetchedCategories = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Category));
           setCategories(fetchedCategories);
         })
         .catch(async (error) => {
@@ -196,7 +197,7 @@ export default function HomePageClient() {
                 </div>
             ) : categorizedServices.length > 0 ? (
                 categorizedServices.map(category => (
-                <section key={category.name} id={category.name.toLowerCase().replace(/ /g, '-')}>
+                <section key={category.id} id={category.name.toLowerCase().replace(/ /g, '-')}>
                     <div className="text-center mb-8">
                         <h2 className="text-3xl font-bold">{category.name}</h2>
                         <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">

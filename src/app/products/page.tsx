@@ -1,5 +1,4 @@
 
-
 'use client';
 import Link from 'next/link';
 import {
@@ -42,13 +41,13 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const servicesUnsubscribe = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snapshot) => {
-        const fetchedServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+        const fetchedServices = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
         setServices(fetchedServices);
         setIsLoading(false);
     });
 
     const categoriesUnsubscribe = onSnapshot(query(collection(db, 'categories'), orderBy('order')), (snapshot) => {
-        const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+        const fetchedCategories = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Category));
         setCategories(fetchedCategories);
     });
 
@@ -84,7 +83,7 @@ export default function ProductsPage() {
             </div>
         ) : (
             categorizedServices.map(category => (
-            <section key={category.name}>
+            <section key={category.id}>
                 <h2 className="text-2xl font-bold mb-6">{category.name}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {category.data.map(service => (

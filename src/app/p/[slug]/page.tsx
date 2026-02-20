@@ -1,3 +1,4 @@
+
 import { getFirestore, collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service } from '@/lib/types';
@@ -47,7 +48,7 @@ async function getServices(): Promise<Service[]> {
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => {
     const data = doc.data();
-    const serviceData = { id: doc.id, ...data } as any;
+    const serviceData = { ...data, id: doc.id } as any;
     if (data.createdAt instanceof Timestamp) {
         serviceData.createdAt = data.createdAt.toDate().toISOString();
     }
@@ -58,7 +59,7 @@ async function getServices(): Promise<Service[]> {
 async function getCategories(): Promise<Category[]> {
     const q = query(collection(db, "categories"), orderBy("order"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+    return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Category));
 }
 
 const formatPrice = (price: number) => {

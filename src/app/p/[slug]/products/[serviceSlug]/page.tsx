@@ -1,3 +1,4 @@
+
 import { getFirestore, collection, query, where, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service, Order } from '@/lib/types';
@@ -42,7 +43,7 @@ async function getService(slug: string): Promise<Service | null> {
     const doc = snapshot.docs[0];
     const data = doc.data();
     
-    const serviceData = { id: doc.id, ...data } as any;
+    const serviceData = { ...data, id: doc.id } as any;
     if (data.createdAt instanceof Timestamp) {
         serviceData.createdAt = data.createdAt.toDate().toISOString();
     }
