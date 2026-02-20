@@ -192,19 +192,6 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
             ))}
         </div>
       </section>
-
-      {/* Trust & Closing */}
-      <section className="py-20" style={{ backgroundColor: lp?.secondaryColor || 'rgba(0,0,0,0.03)' }}>
-        <div className="container mx-auto px-4 text-center max-w-2xl space-y-8">
-          <h2 className="text-3xl font-bold">Ready to Start?</h2>
-          <p className="text-lg opacity-80">
-            Partner with a practice that understands your growth. Our experts are ready to handle your compliance so you can focus on your business.
-          </p>
-          <Button size="lg" className="partner-btn px-12" asChild>
-            <Link href={`mailto:${partner.email}`}>Get in Touch</Link>
-          </Button>
-        </div>
-      </section>
     </div>
   );
 }
