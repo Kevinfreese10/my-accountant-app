@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -56,6 +55,7 @@ export default function PartnerOrdersPage() {
   const { user } = useAuth();
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const [outsourceOptionsOpen, setOutsourceOptionsOpen] = useState(false);
+  const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
   const [selectedOrderForOutsource, setSelectedOrderForOutsource] = useState<Order | null>(null);
   const [docContactPreference, setDocContactPreference] = useState<'reseller' | 'client'>('reseller');
   
