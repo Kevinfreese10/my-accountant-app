@@ -206,6 +206,7 @@ export type PartnerLandingPageConfig = {
   heroTitle: string;
   heroSubtitle: string;
   aboutUs: string;
+  themePreset?: 'custom' | 'my_accountant' | 'futuristic';
   primaryColor: string;
   secondaryColor?: string;
   backgroundColor?: string;
@@ -271,6 +272,7 @@ export type User = {
   requiresManagementAccounts?: boolean;
   managementAccountsFrequency?: 'Monthly' | 'Quarterly' | 'Bi-Annually' | 'Annually';
   isVatRegistered?: boolean;
+  vatNumber?: string;
   vatNumber?: string;
   vatCategory?: 'A' | 'B' | 'C';
   preparesPayroll?: boolean;

@@ -12,13 +12,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink } from 'lucide-react';
-import { useState } from 'react';
+import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 const db = getFirestore(firebaseApp);
 
@@ -47,6 +48,7 @@ const formSchema = z.object({
     heroTitle: z.string().min(5, "Hero title is too short"),
     heroSubtitle: z.string().min(10, "Hero subtitle is too short"),
     aboutUs: z.string().min(20, "About Us text is too short"),
+    themePreset: z.enum(['custom', 'my_accountant', 'futuristic']).default('custom'),
     primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color (e.g., #214392)"),
     secondaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     backgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
@@ -56,6 +58,25 @@ const formSchema = z.object({
     logoUrl: z.string().url().optional().or(z.literal('')),
   })
 });
+
+const THEMES = {
+    my_accountant: {
+        primaryColor: '#214392',
+        secondaryColor: '#f3f4f6',
+        backgroundColor: '#ffffff',
+        textColor: '#111827',
+        cardBackgroundColor: '#ffffff',
+        cardBorderColor: '#e5e7eb',
+    },
+    futuristic: {
+        primaryColor: '#0ea5e9',
+        secondaryColor: '#1e293b',
+        backgroundColor: '#020617',
+        textColor: '#f8fafc',
+        cardBackgroundColor: '#0f172a',
+        cardBorderColor: '#1e293b',
+    }
+};
 
 export default function PartnerProfile() {
   const { user, updateUser } = useAuth();
@@ -89,6 +110,7 @@ export default function PartnerProfile() {
         heroTitle: user?.landingPage?.heroTitle || `Professional Accounting Services for your Business`,
         heroSubtitle: user?.landingPage?.heroSubtitle || `Expert tax, accounting, and compliance solutions tailored to your needs.`,
         aboutUs: user?.landingPage?.aboutUs || `We are a dedicated team of accounting professionals committed to helping small businesses grow through accurate financial management and strategic advice.`,
+        themePreset: user?.landingPage?.themePreset || 'custom',
         primaryColor: user?.landingPage?.primaryColor || '#214392',
         secondaryColor: user?.landingPage?.secondaryColor || '#f3f4f6',
         backgroundColor: user?.landingPage?.backgroundColor || '#ffffff',
@@ -99,6 +121,29 @@ export default function PartnerProfile() {
       }
     },
   });
+
+  const { setValue, watch } = form;
+  const themePreset = watch('landingPage.themePreset');
+
+  // Logic to update color fields when theme preset changes
+  useEffect(() => {
+    if (themePreset && themePreset !== 'custom') {
+        const theme = THEMES[themePreset as keyof typeof THEMES];
+        if (theme) {
+            Object.entries(theme).forEach(([key, value]) => {
+                setValue(`landingPage.${key as any}`, value, { shouldDirty: true });
+            });
+        }
+    }
+  }, [themePreset, setValue]);
+
+  // If any color field is changed manually while on a preset, switch to 'custom'
+  const handleColorChange = (field: any, value: string) => {
+      field.onChange(value);
+      if (themePreset !== 'custom') {
+          setValue('landingPage.themePreset', 'custom');
+      }
+  };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) return;
@@ -135,8 +180,8 @@ export default function PartnerProfile() {
     }
   }
 
-  const landingPageEnabled = form.watch('landingPage.enabled');
-  const landingPageSlug = form.watch('landingPage.slug');
+  const landingPageEnabled = watch('landingPage.enabled');
+  const landingPageSlug = watch('landingPage.slug');
 
   return (
     <Form {...form}>
@@ -265,6 +310,24 @@ export default function PartnerProfile() {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="landingPage.themePreset"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">Theme Preset</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="custom">Custom</SelectItem>
+                                                    <SelectItem value="my_accountant">My Accountant (Master)</SelectItem>
+                                                    <SelectItem value="futuristic">Futuristic Professional</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </FormItem>
+                                    )}
+                                />
+                                <Separator className="my-2" />
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
@@ -273,7 +336,13 @@ export default function PartnerProfile() {
                                             <FormItem>
                                                 <FormLabel className="text-xs">Primary</FormLabel>
                                                 <div className="flex gap-2">
-                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <FormControl>
+                                                        <Input 
+                                                            {...field} 
+                                                            className="h-8 text-xs" 
+                                                            onChange={(e) => handleColorChange(field, e.target.value)}
+                                                        />
+                                                    </FormControl>
                                                     <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
                                                 </div>
                                             </FormItem>
@@ -286,7 +355,13 @@ export default function PartnerProfile() {
                                             <FormItem>
                                                 <FormLabel className="text-xs">Secondary</FormLabel>
                                                 <div className="flex gap-2">
-                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <FormControl>
+                                                        <Input 
+                                                            {...field} 
+                                                            className="h-8 text-xs" 
+                                                            onChange={(e) => handleColorChange(field, e.target.value)}
+                                                        />
+                                                    </FormControl>
                                                     <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
                                                 </div>
                                             </FormItem>
@@ -299,7 +374,13 @@ export default function PartnerProfile() {
                                             <FormItem>
                                                 <FormLabel className="text-xs">Page BG</FormLabel>
                                                 <div className="flex gap-2">
-                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <FormControl>
+                                                        <Input 
+                                                            {...field} 
+                                                            className="h-8 text-xs" 
+                                                            onChange={(e) => handleColorChange(field, e.target.value)}
+                                                        />
+                                                    </FormControl>
                                                     <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
                                                 </div>
                                             </FormItem>
@@ -312,7 +393,13 @@ export default function PartnerProfile() {
                                             <FormItem>
                                                 <FormLabel className="text-xs">Text Color</FormLabel>
                                                 <div className="flex gap-2">
-                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <FormControl>
+                                                        <Input 
+                                                            {...field} 
+                                                            className="h-8 text-xs" 
+                                                            onChange={(e) => handleColorChange(field, e.target.value)}
+                                                        />
+                                                    </FormControl>
                                                     <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
                                                 </div>
                                             </FormItem>
@@ -325,7 +412,13 @@ export default function PartnerProfile() {
                                             <FormItem>
                                                 <FormLabel className="text-xs">Card BG</FormLabel>
                                                 <div className="flex gap-2">
-                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <FormControl>
+                                                        <Input 
+                                                            {...field} 
+                                                            className="h-8 text-xs" 
+                                                            onChange={(e) => handleColorChange(field, e.target.value)}
+                                                        />
+                                                    </FormControl>
                                                     <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
                                                 </div>
                                             </FormItem>
@@ -338,7 +431,13 @@ export default function PartnerProfile() {
                                             <FormItem>
                                                 <FormLabel className="text-xs">Card Border</FormLabel>
                                                 <div className="flex gap-2">
-                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <FormControl>
+                                                        <Input 
+                                                            {...field} 
+                                                            className="h-8 text-xs" 
+                                                            onChange={(e) => handleColorChange(field, e.target.value)}
+                                                        />
+                                                    </FormControl>
                                                     <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
                                                 </div>
                                             </FormItem>
