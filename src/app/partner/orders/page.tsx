@@ -138,8 +138,8 @@ export default function PartnerOrdersPage() {
                 id: newOrderId,
                 customerName: user.companyName || user.name,
                 customerEmail: user.email,
-                endCustomerName: selectedOrderForOutsource.customerName,
-                endCustomerEmail: selectedOrderForOutsource.customerEmail,
+                endCustomerName: selectedOrderForOutsource.endCustomerName || selectedOrderForOutsource.customerName,
+                endCustomerEmail: selectedOrderForOutsource.endCustomerEmail || selectedOrderForOutsource.customerEmail,
                 documentContact: docContactPreference,
                 date: Timestamp.now(),
                 items: selectedOrderForOutsource.items.map(item => ({
@@ -154,7 +154,6 @@ export default function PartnerOrdersPage() {
                 originalOrderId: selectedOrderForOutsource.id,
                 discountCode: null,
                 discountAmount: null,
-                // Ensure the client's userId is preserved so they can see the order
                 userId: selectedOrderForOutsource.userId || null,
             };
             
@@ -201,12 +200,11 @@ export default function PartnerOrdersPage() {
         status: newStatus,
       });
 
-      // Task creation for self-fulfillment (if marking as Processing and not outsourced)
       if (newStatus === 'Processing' && !orderToUpdate.isOutsourced) {
           const taskData = {
               title: `Process Order: ${orderToUpdate.id}`,
-              description: `Practice fulfillment for ${orderToUpdate.customerName}. Services: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
-              assignedTo: [user.uid], // Assign to partner initially
+              description: `Practice fulfillment for ${orderToUpdate.endCustomerName || orderToUpdate.customerName}. Services: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
+              assignedTo: [user.uid],
               createdBy: user.uid,
               dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
               priority: 'Medium' as const,
@@ -254,7 +252,6 @@ export default function PartnerOrdersPage() {
     
     const handleOrderCreated = () => {
         setIsCreateOrderOpen(false);
-        // The real-time onSnapshot listener handles data updates
     };
 
     return (
@@ -285,7 +282,7 @@ export default function PartnerOrdersPage() {
                                 <RadioGroupItem value="client" id="contact-client" className="mt-1" />
                                 <Label htmlFor="contact-client" className="cursor-pointer">
                                     <p className="font-semibold">Contact My Client Directly</p>
-                                    <p className="text-xs text-muted-foreground">We will contact {selectedOrderForOutsource?.customerName} from your email address (white-label).</p>
+                                    <p className="text-xs text-muted-foreground">We will contact {selectedOrderForOutsource?.endCustomerName || selectedOrderForOutsource?.customerName} from your email address (white-label).</p>
                                 </Label>
                             </div>
                         </RadioGroup>
@@ -350,8 +347,8 @@ export default function PartnerOrdersPage() {
                             <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
                             <TableCell>
                                 <div>
-                                    <p className="font-medium">{order.customerName}</p>
-                                    <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
+                                    <p className="font-medium">{order.endCustomerName || order.customerName}</p>
+                                    <p className="text-xs text-muted-foreground">{order.endCustomerEmail || order.customerEmail}</p>
                                 </div>
                             </TableCell>
                             <TableCell>

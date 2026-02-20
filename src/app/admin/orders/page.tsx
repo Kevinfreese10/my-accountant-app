@@ -172,6 +172,7 @@ export default function AdminOrdersPage() {
       authorId: user.id,
       date: Timestamp.now(),
       type: 'email',
+      attachments: null,
     };
 
     try {
@@ -325,19 +326,10 @@ export default function AdminOrdersPage() {
   };
 
   const getCustomerName = (order: Order) => {
-    if (order.source === 'Reseller') {
-      if (order.documentContact === 'client' && order.endCustomerName) {
-        return order.endCustomerName;
-      }
-      return order.customerName; // This would be the reseller's name
-    }
-    return order.customerName;
+    return order.endCustomerName || order.customerName;
   }
 
   const getSourceText = (order: Order) => {
-    if (order.source === 'Reseller' && order.documentContact === 'client' && order.endCustomerName) {
-      return `Reseller (Client: ${order.endCustomerName})`;
-    }
     return order.source || 'Client';
   }
 
