@@ -4,22 +4,95 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, Users, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { User } from '@/lib/types';
-import { getFirestore, collection, getDocs, doc, deleteDoc, query, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, deleteDoc, query, where, updateDoc, increment } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const db = getFirestore(firebaseApp);
+
+function ManualCreditDialog({ partner, onUpdate, open, onOpenChange }: { partner: User | null, onUpdate: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
+    const [amount, setAmount] = useState<string>('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const { toast } = useToast();
+
+    if (!partner) return null;
+
+    const handleUpdateBalance = async (type: 'add' | 'deduct') => {
+        const numericAmount = parseFloat(amount);
+        if (isNaN(numericAmount) || numericAmount <= 0) {
+            toast({ title: 'Invalid Amount', description: 'Please enter a positive numeric value.', variant: 'destructive' });
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const finalAmount = type === 'add' ? numericAmount : -numericAmount;
+            const userRef = doc(db, 'users', partner.uid);
+            await updateDoc(userRef, {
+                creditBalance: increment(finalAmount)
+            });
+
+            toast({ title: 'Balance Updated', description: `Successfully ${type === 'add' ? 'added' : 'deducted'} ${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(numericAmount)}.` });
+            onUpdate();
+            onOpenChange(false);
+            setAmount('');
+        } catch (error) {
+            console.error("Error updating credits:", error);
+            toast({ title: 'Update Failed', variant: 'destructive' });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Manage Credits: {partner.companyName || partner.name}</DialogTitle>
+                    <DialogDescription>
+                        Manually adjust the practice's credit balance. Current balance: <strong>{new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(partner.creditBalance || 0)}</strong>
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="adj-amount">Adjustment Amount (ZAR)</Label>
+                        <Input 
+                            id="adj-amount" 
+                            type="number" 
+                            placeholder="e.g. 500" 
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                        />
+                    </div>
+                </div>
+                <DialogFooter className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" onClick={() => handleUpdateBalance('deduct')} disabled={isProcessing}>
+                        <Minus className="mr-2 h-4 w-4" /> Deduct
+                    </Button>
+                    <Button onClick={() => handleUpdateBalance('add')} disabled={isProcessing}>
+                        <Plus className="mr-2 h-4 w-4" /> Add Credits
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function AdminPartnersPage() {
   const [partners, setPartners] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedPartnerForCredits, setSelectedPartnerForCredits] = useState<User | null>(null);
+  const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const fetchPartners = async () => {
@@ -56,6 +129,15 @@ export default function AdminPartnersPage() {
     }
   };
 
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -66,10 +148,18 @@ export default function AdminPartnersPage() {
             </Link>
         </Button>
       </div>
+
+      <ManualCreditDialog 
+        partner={selectedPartnerForCredits}
+        open={isCreditDialogOpen}
+        onOpenChange={setIsCreditDialogOpen}
+        onUpdate={fetchPartners}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>All Partners</CardTitle>
-          <CardDescription>View and manage all approved partner accounts.</CardDescription>
+          <CardDescription>View and manage all approved partner accounts and their wallet balances.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -83,8 +173,8 @@ export default function AdminPartnersPage() {
                 <TableHead>Company Name</TableHead>
                 <TableHead>Contact Person</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right">Wallet Balance</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -94,11 +184,13 @@ export default function AdminPartnersPage() {
                   <TableCell className="font-medium">{partner.companyName}</TableCell>
                   <TableCell>{partner.contactPerson}</TableCell>
                   <TableCell>{partner.email}</TableCell>
-                  <TableCell>{partner.contactNumber}</TableCell>
                   <TableCell>
                       <Badge variant={partner.status === 'Active' ? 'success' : 'secondary'}>
                           {partner.status}
                       </Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-mono font-bold text-primary">
+                      {formatPrice(partner.creditBalance || 0)}
                   </TableCell>
                   <TableCell className="text-right">
                     <AlertDialog>
@@ -111,7 +203,9 @@ export default function AdminPartnersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem disabled>Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setSelectedPartnerForCredits(partner); setIsCreditDialogOpen(true); }}>
+                                <Wallet2 className="mr-2 h-4 w-4" /> Manage Credits
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                              <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-destructive">
