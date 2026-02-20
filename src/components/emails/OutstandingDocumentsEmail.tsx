@@ -1,4 +1,3 @@
-
 import {
   Body,
   Container,
@@ -17,6 +16,7 @@ interface OutstandingDocumentsEmailProps {
   clientName: string;
   orderId: string;
   orderUrl: string;
+  resellerName?: string;
 }
 
 const main = {
@@ -73,7 +73,7 @@ const heading = {
   color: '#333'
 }
 
-export const OutstandingDocumentsEmail = ({ clientName, orderId, orderUrl }: OutstandingDocumentsEmailProps) => {
+export const OutstandingDocumentsEmail = ({ clientName, orderId, orderUrl, resellerName }: OutstandingDocumentsEmailProps) => {
     const previewText = `Action Required: Outstanding Documents for Order #${orderId}`;
 
     return (
@@ -103,11 +103,11 @@ export const OutstandingDocumentsEmail = ({ clientName, orderId, orderUrl }: Out
                 <Text style={paragraph}>
                     Regards,
                     <br />
-                    The My Accountant Team
+                    {resellerName || 'The My Accountant Team'}
                 </Text>
                 
                 <Text style={footer}>
-                     My Accountant | <a href="mailto:info@myacc.co.za">info@myacc.co.za</a> | 369 Oak Avenue, Ferndale, Randburg
+                     {resellerName || 'My Accountant'}
                 </Text>
             </Section>
             </Container>

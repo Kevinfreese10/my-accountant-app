@@ -96,7 +96,6 @@ export default function PartnerOrderDetailsPage() {
         const staffSnapshot = await getDocs(staffQuery);
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User));
         
-        // Add current user to staff list if not present
         if (!fetchedStaff.some(s => s.id === currentUser.id)) {
             fetchedStaff.push(currentUser);
         }
@@ -194,7 +193,6 @@ export default function PartnerOrderDetailsPage() {
         notes: arrayUnion(newNote),
       });
 
-      // Notification logic
       const emailTo = order.endCustomerEmail || order.customerEmail;
       const recipientName = order.endCustomerName || order.customerName;
 
@@ -251,9 +249,9 @@ export default function PartnerOrderDetailsPage() {
       } else if (type === 'docs') {
           text += `This is a reminder to please upload the required documents for your order #${orderId} so that we can begin processing it.\n\n`;
       } else if (type === 'review') {
-          text += `We hope you were happy with our service for order #${orderId}. If you have a moment, we would greatly appreciate it if you could leave us a review on Google at the link below:\n\n<a href="https://g.page/r/CVIOzn2bYoiaEAE/review" target="_blank" style="color: blue;">https://g.page/r/CVIOzn2bYoiaEAE/review</a>\n\n`;
+          text += `We hope you were happy with our service for order #${orderId}. If you have a moment, we would greatly appreciate it if you could leave us a review.\n\n`;
       }
-      text += 'Kind regards,\nThe My Accountant Team';
+      text += `Kind regards,\n${currentUser?.companyName || 'The My Accountant Team'}`;
       noteForm.setValue('noteText', text);
   };
 
@@ -647,7 +645,7 @@ export default function PartnerOrderDetailsPage() {
                                 />
                                 <div className="flex gap-2">
                                     <Button type="submit" size="sm" disabled={isLoading}>
-                                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
                                         Post Note
                                     </Button>
                                     <Button type="button" variant="outline" size="sm" onClick={handleProofread} disabled={isProofreading}>

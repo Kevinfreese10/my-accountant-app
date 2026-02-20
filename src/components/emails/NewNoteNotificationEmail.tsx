@@ -1,4 +1,3 @@
-
 import {
   Body,
   Container,
@@ -20,6 +19,7 @@ interface NewNoteNotificationEmailProps {
   notePreview: string;
   actionUrl: string;
   isToClient: boolean;
+  resellerName?: string;
 }
 
 const main = {
@@ -76,7 +76,7 @@ const heading = {
   color: '#333'
 }
 
-export const NewNoteNotificationEmail = ({ recipientName, senderName, orderId, notePreview, actionUrl, isToClient }: NewNoteNotificationEmailProps) => {
+export const NewNoteNotificationEmail = ({ recipientName, senderName, orderId, notePreview, actionUrl, isToClient, resellerName }: NewNoteNotificationEmailProps) => {
     const previewText = `New note on Order #${orderId}`;
     const headingText = isToClient ? "New Note on Your Order" : "Client Left a New Note";
 
@@ -108,7 +108,7 @@ export const NewNoteNotificationEmail = ({ recipientName, senderName, orderId, n
                 <Hr style={hr} />
                 
                 <Text style={footer}>
-                     My Accountant | <a href="mailto:info@myacc.co.za">info@myacc.co.za</a> | 369 Oak Avenue, Ferndale, Randburg
+                     {resellerName || 'My Accountant'}
                 </Text>
             </Section>
             </Container>

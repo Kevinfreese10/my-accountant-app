@@ -1,4 +1,3 @@
-
 import {
   Body,
   Container,
@@ -22,6 +21,7 @@ interface DocumentReviewEmailProps {
   orderId: string;
   documentUploads: DocumentUpload[];
   orderUrl: string;
+  resellerName?: string;
 }
 
 const main = {
@@ -94,7 +94,7 @@ const statusRow = {
     padding: '8px 0',
 }
 
-export const DocumentReviewEmail = ({ clientName, orderId, documentUploads, orderUrl }: DocumentReviewEmailProps) => {
+export const DocumentReviewEmail = ({ clientName, orderId, documentUploads, orderUrl, resellerName }: DocumentReviewEmailProps) => {
     const previewText = `Feedback on Documents for Order #${orderId}`;
     
     const hasRejections = documentUploads.some(doc => doc.status === 'rejected');
@@ -151,7 +151,7 @@ export const DocumentReviewEmail = ({ clientName, orderId, documentUploads, orde
                 <Text style={paragraph}>
                     Regards,
                     <br />
-                    The My Accountant Team
+                    {resellerName || 'The My Accountant Team'}
                 </Text>
             </Section>
             </Container>

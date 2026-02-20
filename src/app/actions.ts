@@ -37,12 +37,21 @@ export async function notifyStaffOfDocumentUpload({ orderId, clientName, assigne
 }
 
 export async function sendDocumentReviewFeedback({ orderId, clientName, clientEmail, documentUploads, resellerId }: { orderId: string, clientName: string, clientEmail: string, documentUploads: DocumentUpload[], resellerId?: string }) {
+    let resellerName = 'The My Accountant Team';
+    if (resellerId) {
+        const resellerSnap = await getDoc(doc(db, 'users', resellerId));
+        if (resellerSnap.exists()) {
+            resellerName = resellerSnap.data().companyName || resellerSnap.data().name;
+        }
+    }
+
     const emailHtml = render(
         DocumentReviewEmail({
             clientName,
             orderId,
             documentUploads,
             orderUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${orderId}`,
+            resellerName
         })
     );
 
@@ -73,6 +82,14 @@ export async function notifyOfNewNote({
     isToClient: boolean,
     resellerId?: string 
 }) {
+    let resellerName = 'My Accountant';
+    if (resellerId && isToClient) {
+        const resellerSnap = await getDoc(doc(db, 'users', resellerId));
+        if (resellerSnap.exists()) {
+            resellerName = resellerSnap.data().companyName || resellerSnap.data().name;
+        }
+    }
+
     const emailHtml = render(
         NewNoteNotificationEmail({
             recipientName,
@@ -80,7 +97,8 @@ export async function notifyOfNewNote({
             orderId,
             notePreview,
             actionUrl,
-            isToClient
+            isToClient,
+            resellerName: isToClient ? resellerName : undefined
         })
     );
 
@@ -93,11 +111,20 @@ export async function notifyOfNewNote({
 }
 
 export async function sendOutstandingDocumentsReminder({ orderId, clientName, clientEmail, resellerId }: { orderId: string, clientName: string, clientEmail: string, resellerId?: string }) {
+    let resellerName = 'The My Accountant Team';
+    if (resellerId) {
+        const resellerSnap = await getDoc(doc(db, 'users', resellerId));
+        if (resellerSnap.exists()) {
+            resellerName = resellerSnap.data().companyName || resellerSnap.data().name;
+        }
+    }
+
     const emailHtml = render(
         OutstandingDocumentsEmail({
             clientName,
             orderId,
             orderUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${orderId}`,
+            resellerName
         })
     );
 
