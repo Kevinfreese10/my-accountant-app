@@ -18,9 +18,23 @@ type EmailPayload = {
     resellerId?: string;
     attachments?: { filename: string; path: string }[];
     replyTo?: string;
+    smtpOverride?: { host: string; port: string; user: string; pass: string };
+    fromNameOverride?: string;
 }
 
-export async function sendEmail({ to, cc, bcc, subject, html, from, resellerId, attachments, replyTo }: EmailPayload) {
+export async function sendEmail({ 
+    to, 
+    cc, 
+    bcc, 
+    subject, 
+    html, 
+    from, 
+    resellerId, 
+    attachments, 
+    replyTo,
+    smtpOverride,
+    fromNameOverride
+}: EmailPayload) {
   
   // Default SMTP Configuration
   let transportConfig = {
@@ -36,18 +50,40 @@ export async function sendEmail({ to, cc, bcc, subject, html, from, resellerId, 
     }
   };
 
-  let fromName = "My Accountant";
+  let fromName = fromNameOverride || "My Accountant";
   let fromEmail = process.env.SMTP_USER || 'info@myacc.co.za';
   let finalBcc = Array.isArray(bcc) ? [...bcc] : (bcc ? [bcc] : []);
 
-  // Check for Reseller (Partner) SMTP override
-  if (resellerId) {
+  // Use override if provided (useful for testing settings before saving)
+  if (smtpOverride && smtpOverride.host && smtpOverride.user && smtpOverride.pass) {
+      transportConfig = {
+          host: smtpOverride.host,
+          port: Number(smtpOverride.port || 465),
+          secure: smtpOverride.port === '465',
+          auth: {
+              user: smtpOverride.user,
+              pass: smtpOverride.pass,
+          },
+          tls: {
+              rejectUnauthorized: false
+          }
+      };
+      fromEmail = smtpOverride.user;
+  }
+
+  // Check for Reseller (Partner) details if no override is present
+  if (resellerId && !smtpOverride) {
     try {
       const partnerRef = doc(db, 'users', resellerId);
       const partnerSnap = await getDoc(partnerRef);
       
       if (partnerSnap.exists()) {
         const partner = partnerSnap.data() as User;
+        
+        // Set white-label name
+        if (!fromNameOverride) {
+            fromName = partner.companyName || partner.name;
+        }
         
         // If partner has configured SMTP, use it
         if (partner.smtpDetails?.host && partner.smtpDetails?.user && partner.smtpDetails?.pass) {
@@ -63,7 +99,6 @@ export async function sendEmail({ to, cc, bcc, subject, html, from, resellerId, 
               rejectUnauthorized: false
             }
           };
-          fromName = partner.companyName || partner.name;
           fromEmail = partner.smtpDetails.user;
           
           // Also BCC the partner on all their outgoing emails
@@ -74,12 +109,11 @@ export async function sendEmail({ to, cc, bcc, subject, html, from, resellerId, 
       }
     } catch (error) {
       console.error('Error fetching partner SMTP details:', error);
-      // Fallback to default config is already set
     }
   }
   
   if (!transportConfig.host || !transportConfig.port || !transportConfig.auth.user || !transportConfig.auth.pass) {
-      console.error('SMTP configuration is missing from environment variables.');
+      console.error('SMTP configuration is missing.');
       throw new Error('Email server is not configured.');
   }
 

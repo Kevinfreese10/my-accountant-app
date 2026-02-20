@@ -243,7 +243,13 @@ export default function PartnerProfile() {
               to: values.email,
               subject: `SMTP Test from ${values.companyName}`,
               html: `<p>This is a test email to confirm your practice's SMTP settings are working correctly.</p><p>Sent from: <strong>${values.companyName}</strong></p>`,
-              resellerId: user?.uid // Pass UID to force the system to use the local form values logic if needed, but here we depend on the save happening first or just passing override logic.
+              smtpOverride: {
+                  host: values.smtpDetails.host,
+                  port: values.smtpDetails.port || '465',
+                  user: values.smtpDetails.user,
+                  pass: values.smtpDetails.pass,
+              },
+              fromNameOverride: values.companyName
           });
           toast({ title: 'Test Successful!', description: `A test email has been sent to ${values.email}. Please check your inbox.` });
       } catch (e: any) {
