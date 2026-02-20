@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, MessageSquare, Users, Sparkles, Paperclip, CheckCircle, AlertTriangle, XCircle, Download, Star, Percent, Clock, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, MessageSquare, Users, Sparkles, Paperclip, CheckCircle, AlertTriangle, XCircle, Download, Star, Percent, Clock, ClipboardCheck, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
