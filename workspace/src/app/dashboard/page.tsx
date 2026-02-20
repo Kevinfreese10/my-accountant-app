@@ -1,12 +1,11 @@
-
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Order, Service, User } from '@/lib/types';
+import { Order, Service, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp, where, or } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search, MessageSquare, Inbox, Archive } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -17,7 +16,11 @@ import { useToast } from '@/hooks/use-toast';
 import { getNextOrderId } from '@/lib/sequence';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
-
+import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const db = getFirestore(firebaseApp);
 
@@ -29,92 +32,173 @@ type Category = {
 };
 
 const formatPrice = (price: number) => {
-    // Use simple formatting to avoid hydration mismatch between server/client
-    return `R ${price.toLocaleString('en-US')}`;
+    return `R ${price.toLocaleString('en-ZA')}`;
 };
 
 
+const userColors = [
+  'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
+  'bg-yellow-200 text-yellow-800', 'bg-purple-200 text-purple-800', 'bg-pink-200 text-pink-800',
+];
+
+const getUserColor = (userId: string) => {
+  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return userColors[hash % userColors.length];
+};
+
 export default function DashboardPage() {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const [services, setServices] = useState<Service[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
+    const [orders, setOrders] = useState<Order[]>([]);
+    const [allStaff, setAllStaff] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [viewingService, setViewingService] = useState<Service | null>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const { toast } = useToast();
     const router = useRouter();
     const [searchTerm, setSearchTerm] = useState('');
-
-    const monthlyPackages = [
-        {
-            title: 'Monthly Accounting (Non-VAT)',
-            price: 'R950',
-            priceDetail: '/month',
-            features: [
-                'Annual financial statements',
-                'Provisional tax returns (2 per year)',
-                'Annual income tax return',
-                'CIPC annual return',
-                'B-BBEE certificate or affidavit',
-                'Beneficial ownership declaration',
-                'Tax clearance certificate',
-            ]
-        },
-        {
-            title: 'Monthly Accounting (VAT Registered)',
-            price: 'R2450',
-            priceDetail: '/month',
-            features: [
-                'Annual financial statements',
-                'Provisional tax returns (2 per year)',
-                'Annual income tax return',
-                'CIPC annual return',
-                'B-BBEE certificate or affidavit',
-                'Beneficial ownership declaration',
-                'Tax clearance certificate',
-                'Bi-monthly VAT201 submissions',
-            ]
-        },
-        {
-            title: 'Monthly Payroll',
-            price: 'R550',
-            priceDetail: '/month + R110 / employee',
-            features: [
-                'Monthly payslips',
-                'EMP201 submissions (PAYE, UIF, SDL)',
-                'UIF Declaration',
-                'Included EMP501 recons x 2',
-                'IRP5s',
-            ]
-        },
-    ];
+    const [archivedNotifications, setArchivedNotifications] = useState<string[]>([]);
 
     useEffect(() => {
-        const servicesUnsubscribe = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snapshot) => {
-            const fetchedServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
-            setServices(fetchedServices);
-            setIsLoading(false);
-        });
-        
-        const categoriesUnsubscribe = onSnapshot(query(collection(db, 'categories'), orderBy('order')), (snapshot) => {
-            const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
-            setCategories(fetchedCategories);
-        });
-
-        return () => {
-        servicesUnsubscribe();
-        categoriesUnsubscribe();
+        const storedArchived = localStorage.getItem('archivedNotifications-client');
+        if (storedArchived) {
+            setArchivedNotifications(JSON.parse(storedArchived));
         }
     }, []);
 
+    const archiveNotification = (noteId: string) => {
+        const newArchived = [...archivedNotifications, noteId];
+        setArchivedNotifications(newArchived);
+        localStorage.setItem('archivedNotifications-client', JSON.stringify(newArchived));
+    };
+    
+    useEffect(() => {
+        setIsLoading(true);
+
+        const servicesRef = collection(db, 'services');
+        const servicesUnsubscribe = onSnapshot(query(servicesRef, orderBy('title')), (snapshot) => {
+            const fetchedServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+            setServices(fetchedServices);
+            setIsLoading(false);
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: 'services',
+                operation: 'list',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            setIsLoading(false);
+        });
+        
+        const categoriesRef = collection(db, 'categories');
+        const categoriesUnsubscribe = onSnapshot(query(categoriesRef, orderBy('order')), (snapshot) => {
+            const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+            setCategories(fetchedCategories);
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: 'categories',
+                operation: 'list',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
+
+        const staffRef = collection(db, "users");
+        const staffUnsubscribe = onSnapshot(query(staffRef, where('role', 'in', ['staff', 'admin'])), (snapshot) => {
+            setAllStaff(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User)));
+        }, async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: 'users',
+                operation: 'list',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
+
+        let ordersUnsubscribe = () => {};
+        if (user) {
+            const ordersRef = collection(db, 'orders');
+            const q = query(
+                ordersRef, 
+                or(
+                    where('userId', '==', user.uid),
+                    where('customerEmail', '==', user.email),
+                    where('endCustomerEmail', '==', user.email)
+                ),
+                orderBy('date', 'desc')
+            );
+
+            ordersUnsubscribe = onSnapshot(q, (snapshot) => {
+                const fetchedOrders = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return { 
+                        ...data, 
+                        id: doc.id,
+                        notes: (data.notes || []).map((note: any) => {
+                            let noteDate;
+                            if (note.date?.toDate) {
+                                noteDate = note.date.toDate();
+                            } else if (typeof note.date === 'string') {
+                                noteDate = new Date(note.date);
+                            } else if (note.date instanceof Date) {
+                                noteDate = note.date;
+                            } else {
+                                noteDate = new Date();
+                            }
+                            return { ...note, date: noteDate };
+                        }),
+                    } as Order;
+                });
+                const uniqueOrders = Array.from(new Map(fetchedOrders.map(o => [o.id, o])).values());
+                setOrders(uniqueOrders);
+                setIsLoading(false);
+            }, async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'orders',
+                    operation: 'list',
+                });
+                errorEmitter.emit('permission-error', permissionError);
+                setIsLoading(false);
+            });
+        } else {
+            setIsLoading(false);
+        }
+
+        return () => {
+            servicesUnsubscribe();
+            categoriesUnsubscribe();
+            staffUnsubscribe();
+            ordersUnsubscribe();
+        }
+    }, [user]);
+
+    const notifications = useMemo(() => {
+        if (!user || orders.length === 0) return [];
+        let allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
+        orders.forEach(order => {
+          const notes = (order.notes || [])
+            .filter(note => note.authorId !== user.id && note.type === 'note')
+            .map(note => ({
+              ...note,
+              orderId: order.id,
+              orderTitle: order.items[0]?.title || 'Untitled Order',
+              customerName: order.customerName,
+            }));
+          allNotes.push(...notes);
+        });
+        return allNotes.sort((a, b) => b.date.getTime() - a.date.getTime());
+      }, [orders, user]);
+
+    const getAuthor = (authorId: string): User | undefined => {
+        return allStaff.find(u => u.id === authorId);
+    }
+
     const handleBuyNow = async (service: Service) => {
         if (!user) {
-            toast({ title: 'Not Logged In', description: 'Please log in to make a purchase.', variant: 'destructive'});
+            toast({ title: 'Not Logged In', variant: 'destructive'});
             return;
         }
 
         setIsProcessingPayment(true);
-        toast({ title: "Processing Order...", description: "Please wait while we prepare your order."});
+        toast({ title: "Processing Order..." });
 
         try {
             const orderId = await getNextOrderId();
@@ -134,12 +218,10 @@ export default function DashboardPage() {
             };
 
             await setDoc(doc(db, 'orders', orderId), orderData);
-            
             router.push(`/order-confirmation/${orderId}`);
 
         } catch (error) {
             console.error("Error creating order:", error);
-            toast({ title: 'Error', description: 'Could not create your order.', variant: 'destructive'});
             setIsProcessingPayment(false);
         }
     };
@@ -185,45 +267,56 @@ export default function DashboardPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
                     <p className="text-muted-foreground">Here's a summary of your recent activity and available services.</p>
                 </div>
-
-                <section id="packages">
-                    <div className="space-y-8">
-                        <div>
-                            <h2 className="text-2xl font-bold tracking-tight">Monthly Service Packages</h2>
-                            <p className="text-muted-foreground">Automate your finances with our comprehensive monthly packages.</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
-                            {monthlyPackages.map((pkg) => (
-                                <Card key={pkg.title} className="flex flex-col">
-                                    <CardHeader>
-                                        <CardTitle>{pkg.title}</CardTitle>
-                                        <div className="flex items-baseline pt-2">
-                                            <span className="text-3xl font-bold">{pkg.price}</span>
-                                            {pkg.priceDetail && <span className="ml-1.5 text-sm text-muted-foreground">{pkg.priceDetail}</span>}
+                
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Notifications</CardTitle>
+                        <CardDescription>Recent notes on your orders from our team.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin"/></div> :
+                        notifications.length > 0 ? (
+                        <ScrollArea className="h-72">
+                            <div className="space-y-4">
+                            {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
+                                const author = getAuthor(note.authorId);
+                                const date = note.date;
+                                const noteId = note.orderId + date.toISOString();
+                                return (
+                                    <div key={index} className="flex items-start gap-3">
+                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
+                                            {author?.name.charAt(0) || 'U'}
                                         </div>
-                                    </CardHeader>
-                                    <CardContent className="flex-grow">
-                                        <ul className="space-y-3">
-                                            {pkg.features.map((feature, index) => (
-                                                <li key={index} className="flex items-center gap-2 text-sm">
-                                                    <CheckCircle className="h-4 w-4 text-green-500" />
-                                                    <span>{feature}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </CardContent>
-                                    <CardFooter>
-                                        <Button className="w-full" asChild>
-                                            <Link href="/contact">Contact Us</Link>
-                                        </Button>
-                                    </CardFooter>
-                                </Card>
-                            ))}
+                                        <div className="flex-1">
+                                            <p className="text-sm">
+                                                <span className="font-semibold">{author?.name || 'Unknown User'}</span>
+                                                <span className="text-muted-foreground"> left a note on order </span>
+                                                <Link href={`/dashboard/orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                            </p>
+                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    {formatDistanceToNow(date, { addSuffix: true })}
+                                                </p>
+                                                <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
+                                                    <Archive className="mr-2 h-4 w-4"/> Archive
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                            </div>
+                        </ScrollArea>
+                        ) : (
+                        <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
+                            <Inbox className="h-12 w-12 mb-4"/>
+                            <p className="font-semibold">All caught up!</p>
+                            <p className="text-sm">You have no new notifications.</p>
                         </div>
-                    </div>
-                </section>
-
-                <Separator />
+                        )}
+                    </CardContent>
+                </Card>
 
                 <div className="space-y-12">
                     {isLoading ? (
@@ -235,7 +328,7 @@ export default function DashboardPage() {
                         <CardHeader>
                              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div>
-                                    <CardTitle>Once-off Services</CardTitle>
+                                    <CardTitle>Our Services</CardTitle>
                                     <CardDescription>Browse and purchase individual services.</CardDescription>
                                 </div>
                                 <div className="relative w-full sm:max-w-xs">

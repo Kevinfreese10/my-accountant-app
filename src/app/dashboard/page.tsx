@@ -1,4 +1,3 @@
-
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -19,7 +18,6 @@ import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -34,7 +32,7 @@ type Category = {
 };
 
 const formatPrice = (price: number) => {
-    return `R ${price.toLocaleString('en-US')}`;
+    return `R ${price.toLocaleString('en-ZA')}`;
 };
 
 
@@ -118,7 +116,6 @@ export default function DashboardPage() {
         let ordersUnsubscribe = () => {};
         if (user) {
             const ordersRef = collection(db, 'orders');
-            // Expanded query to match by userId OR email fields
             const q = query(
                 ordersRef, 
                 or(
@@ -135,10 +132,21 @@ export default function DashboardPage() {
                     return { 
                         ...data, 
                         id: doc.id,
-                        notes: (data.notes || []).map((note: any) => ({ ...note, date: note.date?.toDate() })),
+                        notes: (data.notes || []).map((note: any) => {
+                            let noteDate;
+                            if (note.date?.toDate) {
+                                noteDate = note.date.toDate();
+                            } else if (typeof note.date === 'string') {
+                                noteDate = new Date(note.date);
+                            } else if (note.date instanceof Date) {
+                                noteDate = note.date;
+                            } else {
+                                noteDate = new Date();
+                            }
+                            return { ...note, date: noteDate };
+                        }),
                     } as Order;
                 });
-                // Deduplicate
                 const uniqueOrders = Array.from(new Map(fetchedOrders.map(o => [o.id, o])).values());
                 setOrders(uniqueOrders);
                 setIsLoading(false);
@@ -167,7 +175,7 @@ export default function DashboardPage() {
         let allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
         orders.forEach(order => {
           const notes = (order.notes || [])
-            .filter(note => note.authorId !== user.id && note.type === 'note') // Only show notes from others
+            .filter(note => note.authorId !== user.id && note.type === 'note')
             .map(note => ({
               ...note,
               orderId: order.id,
@@ -209,16 +217,7 @@ export default function DashboardPage() {
                 department: service.department || null,
             };
 
-            await setDoc(doc(db, 'orders', orderId), orderData)
-                .catch(async (error) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: `orders/${orderId}`,
-                        operation: 'create',
-                        requestResourceData: orderData,
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                });
-            
+            await setDoc(doc(db, 'orders', orderId), orderData);
             router.push(`/order-confirmation/${orderId}`);
 
         } catch (error) {
@@ -281,7 +280,7 @@ export default function DashboardPage() {
                             <div className="space-y-4">
                             {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
                                 const author = getAuthor(note.authorId);
-                                const date = note.date instanceof Date ? note.date : note.date.toDate();
+                                const date = note.date;
                                 const noteId = note.orderId + date.toISOString();
                                 return (
                                     <div key={index} className="flex items-start gap-3">
