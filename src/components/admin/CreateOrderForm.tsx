@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -164,6 +163,18 @@ export default function CreateOrderForm() {
     });
 
     try {
+        // Look for existing client UID by email
+        let clientUserId = null;
+        const collectionsToSearch = ['users', 'aiAccountantClients'];
+        for (const coll of collectionsToSearch) {
+            const userQ = query(collection(db, coll), where("email", "==", values.customerEmail));
+            const userSnap = await getDocs(userQ);
+            if (!userSnap.empty) {
+                clientUserId = userSnap.docs[0].id;
+                break;
+            }
+        }
+
         const orderId = await getNextOrderId();
         const firstService = allServices.find(s => s.id === values.items[0]?.serviceId);
         const department = firstService?.department;
@@ -182,7 +193,7 @@ export default function CreateOrderForm() {
 
       const orderData: Order = {
         id: orderId,
-        userId: null, // No user account is created
+        userId: clientUserId, // Link to client profile!
         customerName: customerFullName,
         customerEmail: values.customerEmail,
         customerPhone: values.customerPhone,

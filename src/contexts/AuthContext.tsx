@@ -153,15 +153,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         updateUser(newUser);
         setIsAuthenticated(true);
         
-        // Link existing orders
-        const ordersQuery = query(collection(db, "orders"), where("customerEmail", "==", values.email), where("userId", "==", null));
-        const ordersSnapshot = await getDocs(ordersQuery);
-        if (!ordersSnapshot.empty) {
-            const batch = writeBatch(db);
-            ordersSnapshot.forEach(orderDoc => {
-                const orderRef = doc(db, "orders", orderDoc.id);
-                batch.update(orderRef, { userId: firebaseUser.uid });
-            });
+        // Link existing orders (checking both customerEmail and endCustomerEmail)
+        const ordersRef = collection(db, "orders");
+        const batch = writeBatch(db);
+        let linkCount = 0;
+
+        // Query 1: Regular orders
+        const q1 = query(ordersRef, where("customerEmail", "==", values.email), where("userId", "==", null));
+        const snap1 = await getDocs(q1);
+        snap1.forEach(orderDoc => {
+            batch.update(orderDoc.ref, { userId: firebaseUser.uid });
+            linkCount++;
+        });
+
+        // Query 2: Partner-created orders
+        const q2 = query(ordersRef, where("endCustomerEmail", "==", values.email), where("userId", "==", null));
+        const snap2 = await getDocs(q2);
+        snap2.forEach(orderDoc => {
+            batch.update(orderDoc.ref, { userId: firebaseUser.uid });
+            linkCount++;
+        });
+
+        if (linkCount > 0) {
             await batch.commit();
         }
 

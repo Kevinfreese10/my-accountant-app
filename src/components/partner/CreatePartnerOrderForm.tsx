@@ -151,6 +151,18 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     });
 
     try {
+      // Look for existing client UID by email
+      let clientUserId = null;
+      const collectionsToSearch = ['users', 'aiAccountantClients'];
+      for (const coll of collectionsToSearch) {
+          const userQ = query(collection(db, coll), where("email", "==", values.customerEmail));
+          const userSnap = await getDocs(userQ);
+          if (!userSnap.empty) {
+              clientUserId = userSnap.docs[0].id;
+              break;
+          }
+      }
+
       const orderId = await getNextOrderId();
       const resellerTotalCost = values.items.reduce((acc, item) => acc + (item.resellerPrice * item.quantity), 0);
       const clientTotal = values.items.reduce((acc, item) => acc + (item.clientPrice * item.quantity), 0);
@@ -158,6 +170,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
       const orderData: Order = {
         id: orderId,
         resellerId: partner.uid,
+        userId: clientUserId, // Link to client profile!
         customerName: partner.companyName || `${partner.name} ${partner.surname}`,
         customerEmail: partner.email,
         customerPhone: partner.contactNumber,
