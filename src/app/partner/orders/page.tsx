@@ -1,9 +1,8 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,7 +17,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MoreHorizontal, Loader2, PlusCircle, MessageSquare } from 'lucide-react';
+import { MoreHorizontal, Loader2, PlusCircle, MessageSquare, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -39,16 +38,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { sendEmail } from '@/lib/email';
-import { render } from '@react-email/components';
-import PaymentConfirmationEmail from '@/components/emails/PaymentConfirmationEmail';
-import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
-import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import CreatePartnerOrderForm from '@/components/partner/CreatePartnerOrderForm';
 import { useRouter } from 'next/navigation';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 
 const db = getFirestore(firebaseApp);
@@ -60,7 +55,12 @@ export default function PartnerOrdersPage() {
   const { user } = useAuth();
   const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
   const [allStaff, setAllStaff] = useState<User[]>([]);
+  const [outsourceOptionsOpen, setOutsourceOptionsOpen] = useState(false);
+  const [selectedOrderForOutsource, setSelectedOrderForOutsource] = useState<Order | null>(null);
+  const [docContactPreference, setDocContactPreference] = useState<'reseller' | 'client'>('reseller');
+  
   const staffCounters = useRef<{ [key: string]: number }>({});
+  const router = useRouter();
     
   const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
 
@@ -86,96 +86,73 @@ export default function PartnerOrdersPage() {
   };
 
 
-  const fetchOrdersAndStaff = async () => {
-      if (!user?.uid) {
+  useEffect(() => {
+    if (!user?.uid) {
         setIsLoading(false);
         return;
-      };
-      setIsLoading(true);
-      try {
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
-        const staffSnapshot = await getDocs(staffQuery);
+    }
+    
+    setIsLoading(true);
+
+    const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+    getDocs(staffQuery).then(staffSnapshot => {
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setAllStaff(fetchedStaff);
+    });
 
-        const ordersRef = collection(db, 'orders');
-        
-        const clientOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '==', null), orderBy('date', 'desc'));
-        const clientOrdersSnapshot = await getDocs(clientOrdersQuery);
-        let clientOrders = clientOrdersSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            ...data,
-            id: doc.id,
-            date: data.date.toDate().toISOString(),
-          } as Order;
-        });
-        
-        // Fetch original order details if necessary
-        const ordersWithClientDetails = await Promise.all(clientOrders.map(async (order) => {
-            if (order.resellerId && !order.endCustomerEmail) { // Assuming if email is missing, so is name
-                const originalOrderRef = doc(db, 'orders', order.id); // The created order is the "original" in this context
-                const originalOrderSnap = await getDoc(originalOrderRef);
-                if (originalOrderSnap.exists()) {
-                    const originalOrderData = originalOrderSnap.data();
-                    order.endCustomerName = originalOrderData.customerName;
-                    order.endCustomerEmail = originalOrderData.customerEmail;
-                }
-            }
-            return order;
-        }));
-        
-        setOrders(ordersWithClientDetails.filter(order => order.status !== 'Cancelled'));
-
-      } catch (error) {
-        console.error("Error fetching orders: ", error);
-        toast({
-            title: 'Error Fetching Orders',
-            description: 'Could not load your orders. Please try again later.',
-            variant: 'destructive',
-        })
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    const ordersRef = collection(db, 'orders');
+    const q = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '==', null), orderBy('date', 'desc'));
     
-  useEffect(() => {
-    if (user) {
-        fetchOrdersAndStaff();
-    }
-  }, [user, toast]);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const fetchedOrders = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                id: doc.id,
+                date: data.date?.toDate ? data.date.toDate().toISOString() : new Date().toISOString(),
+            } as Order;
+        });
+        setOrders(fetchedOrders.filter(order => order.status !== 'Cancelled'));
+        setIsLoading(false);
+    });
 
-    const handleOutsource = async (orderToOutsource: Order) => {
-        if (!user) return;
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+    const handleOutsource = async () => {
+        if (!user || !selectedOrderForOutsource) return;
         
         toast({
             title: 'Outsourcing Order...',
-            description: `Submitting order ${orderToOutsource.id} to My Accountant.`
+            description: `Submitting order ${selectedOrderForOutsource.id} to My Accountant.`
         });
     
         try {
             const newOrderId = `ORD-${Date.now().toString().slice(-6)}`;
-            const firstServiceId = orderToOutsource.items[0]?.id;
+            const firstServiceId = selectedOrderForOutsource.items[0]?.id;
             const serviceDetails = allServices.find(s => s.id === firstServiceId);
             const department = serviceDetails?.department;
             
-            const newOrderData: Partial<Order> = {
+            const newOrderData: Order = {
                 id: newOrderId,
                 customerName: user.companyName || user.name,
                 customerEmail: user.email,
-                endCustomerName: orderToOutsource.customerName,
-                endCustomerEmail: orderToOutsource.customerEmail,
+                endCustomerName: selectedOrderForOutsource.customerName,
+                endCustomerEmail: selectedOrderForOutsource.customerEmail,
+                documentContact: docContactPreference,
                 date: Timestamp.now(),
-                items: orderToOutsource.items.map(item => ({
+                items: selectedOrderForOutsource.items.map(item => ({
                     id: item.id,
                     title: item.title,
                     price: item.price,
                     quantity: item.quantity,
                 })),
-                total: orderToOutsource.total,
+                total: selectedOrderForOutsource.total,
                 status: 'Pending Payment',
                 resellerId: user.uid,
-                originalOrderId: orderToOutsource.id,
+                originalOrderId: selectedOrderForOutsource.id,
+                discountCode: null,
+                discountAmount: null,
             };
             
             if (department) {
@@ -189,13 +166,15 @@ export default function PartnerOrdersPage() {
             
             await setDoc(doc(db, 'orders', newOrderId), newOrderData);
     
-            const originalOrderRef = doc(db, 'orders', orderToOutsource.id);
+            const originalOrderRef = doc(db, 'orders', selectedOrderForOutsource.id);
             await updateDoc(originalOrderRef, {
                 isOutsourced: true,
                 status: 'Outsourced',
+                documentContact: docContactPreference,
             });
     
-            fetchOrdersAndStaff();
+            setOutsourceOptionsOpen(false);
+            setSelectedOrderForOutsource(null);
             
             router.push(`/order-confirmation/${newOrderId}`);
     
@@ -210,28 +189,39 @@ export default function PartnerOrdersPage() {
       };
 
     const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
+    const orderToUpdate = orders.find(o => o.id === orderId);
+    if (!orderToUpdate || !user) return;
+
     try {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
         status: newStatus,
       });
 
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
-          order.id === orderId ? { ...order, status: newStatus } : order
-        )
-      );
+      // Task creation for self-fulfillment (if marking as Processing and not outsourced)
+      if (newStatus === 'Processing' && !orderToUpdate.isOutsourced) {
+          const taskData = {
+              title: `Process Order: ${orderToUpdate.id}`,
+              description: `Practice fulfillment for ${orderToUpdate.customerName}. Services: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
+              assignedTo: [user.uid], // Assign to partner initially
+              createdBy: user.uid,
+              dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+              priority: 'Medium' as const,
+              status: 'To-Do' as const,
+              orderId: orderToUpdate.id,
+              partnerId: user.uid,
+              comments: [],
+              createdAt: serverTimestamp(),
+          };
+          await addDoc(collection(db, 'tasks'), taskData);
+          toast({ title: 'Task Created', description: 'A task has been added to your dashboard for fulfillment.' });
+      }
 
       toast({
         title: 'Status Updated',
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
 
-      if (newStatus === 'Cancelled') {
-        setTimeout(() => {
-          setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
-        }, 500);
-      }
     } catch (error) {
       console.error('Error updating order status: ', error);
       toast({
@@ -266,6 +256,44 @@ export default function PartnerOrdersPage() {
 
     return (
         <div className="space-y-8">
+             <Dialog open={outsourceOptionsOpen} onOpenChange={setOutsourceOptionsOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Outsource Order #{selectedOrderForOutsource?.id}</DialogTitle>
+                        <DialogDescription>
+                            Confirm your document contact preference before submitting to My Accountant.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <Label>Who should My Accountant contact for required documents?</Label>
+                        <RadioGroup 
+                            value={docContactPreference} 
+                            onValueChange={(v) => setDocContactPreference(v as 'reseller' | 'client')}
+                            className="space-y-3"
+                        >
+                            <div className="flex items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                                <RadioGroupItem value="reseller" id="contact-reseller" className="mt-1" />
+                                <Label htmlFor="contact-reseller" className="cursor-pointer">
+                                    <p className="font-semibold">Contact Me (The Partner)</p>
+                                    <p className="text-xs text-muted-foreground">All communications and document requests will be sent to your email.</p>
+                                </Label>
+                            </div>
+                            <div className="flex items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                                <RadioGroupItem value="client" id="contact-client" className="mt-1" />
+                                <Label htmlFor="contact-client" className="cursor-pointer">
+                                    <p className="font-semibold">Contact My Client Directly</p>
+                                    <p className="text-xs text-muted-foreground">We will contact {selectedOrderForOutsource?.customerName} from your email address (white-label).</p>
+                                </Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setOutsourceOptionsOpen(false)}>Cancel</Button>
+                        <Button onClick={handleOutsource}>Submit Outsourcing Request</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
              <Card>
                 <CardHeader>
                 <div className="flex items-center justify-between">
@@ -308,7 +336,7 @@ export default function PartnerOrdersPage() {
                         <TableHead>Customer</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Fulfillment</TableHead>
-                        <TableHead>Selling Price</TableHead>
+                        <TableHead className="text-right">Price</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -319,8 +347,8 @@ export default function PartnerOrdersPage() {
                             <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
                             <TableCell>
                                 <div>
-                                    <p className="font-medium">{order.endCustomerName || order.customerName}</p>
-                                    <p className="text-xs text-muted-foreground">{order.endCustomerEmail || order.customerEmail}</p>
+                                    <p className="font-medium">{order.customerName}</p>
+                                    <p className="text-xs text-muted-foreground">{order.customerEmail}</p>
                                 </div>
                             </TableCell>
                             <TableCell>
@@ -335,9 +363,8 @@ export default function PartnerOrdersPage() {
                                     <Badge variant="secondary">Internal</Badge>
                                 )}
                             </TableCell>
-                            <TableCell className="font-semibold">{formatPrice(order.clientTotal || 0)}</TableCell>
+                            <TableCell className="text-right font-semibold">{formatPrice(order.clientTotal || order.total)}</TableCell>
                             <TableCell className="text-right">
-                            <AlertDialog>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0">
@@ -365,28 +392,17 @@ export default function PartnerOrdersPage() {
                                         ))}
                                     </DropdownMenuSubContent>
                                 </DropdownMenuSub>
-                                <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem disabled={order.isOutsourced}>
+                                <DropdownMenuItem 
+                                    disabled={order.isOutsourced || order.status === 'Pending Payment'}
+                                    onSelect={() => {
+                                        setSelectedOrderForOutsource(order);
+                                        setOutsourceOptionsOpen(true);
+                                    }}
+                                >
                                     Outsource to My Accountant
-                                    </DropdownMenuItem>
-                                </AlertDialogTrigger>
+                                </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                    This will create a new internal order for My Accountant to fulfill. The cost to you will be {formatPrice(order.total)}. You will be shown payment details after confirming. Are you sure you want to proceed?
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleOutsource(order)}>
-                                    Yes, Outsource this Order
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
                             </TableCell>
                         </TableRow>
                         ))}

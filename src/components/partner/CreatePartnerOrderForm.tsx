@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -10,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck, Search } from 'lucide-react';
+import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck, Search, AlertCircle } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, OrderNote, User } from '@/lib/types';
@@ -23,6 +22,8 @@ import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { getNextOrderId } from '@/lib/sequence';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
+import Link from 'next/link';
 
 
 const db = getFirestore(firebaseApp);
@@ -42,7 +43,6 @@ const formSchema = z.object({
   customerEmail: z.string().email('A valid client email is required.'),
   customerPhone: z.string().min(10, 'A valid client phone number is required.'),
   items: z.array(lineItemSchema).min(1, 'At least one line item is required.'),
-  documentContact: z.enum(['reseller', 'client']).default('reseller'),
 });
 
 type CreateOrderFormValues = z.infer<typeof formSchema>;
@@ -55,6 +55,8 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
   const [total, setTotal] = useState(0);
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [isServicesLoading, setIsServicesLoading] = useState(true);
+
+  const hasBankingDetails = !!(partner?.bankingDetails?.bankName && partner?.bankingDetails?.accountNumber);
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -87,7 +89,6 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
       customerEmail: '',
       customerPhone: '',
       items: [{ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 }],
-      documentContact: 'reseller',
     },
     mode: 'onChange',
   });
@@ -96,8 +97,6 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     control: form.control,
     name: 'items',
   });
-
-  const watchedItems = form.watch('items');
 
   const calculateTotal = (items: any[]) => {
     return (items || []).reduce((acc, item) => {
@@ -134,46 +133,17 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     }).format(price);
   };
 
-    const submitToPayFast = (order: Order) => {
-        const payfastUrl = 'https://www.payfast.co.za/eng/process';
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = payfastUrl;
-
-        const data: { [key: string]: string } = {
-            merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
-            merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
-            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/orders`,
-            notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
-            name_first: order.customerName.split(' ')[0],
-            name_last: order.customerName.split(' ').slice(1).join(' '),
-            email_address: order.customerEmail,
-            cell_number: order.customerPhone || '',
-            m_payment_id: order.id,
-            amount: order.total.toFixed(2),
-            item_name: `Order #${order.id}`,
-            item_description: order.items.map(i => i.title).join(', '),
-        };
-
-        for (const key in data) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = data[key];
-            form.appendChild(input);
-        }
-        
-        document.body.appendChild(form);
-        form.submit();
-    }
-
-
   async function onSubmit(values: CreateOrderFormValues) {
     if (!partner) {
         toast({ title: 'Error', description: 'You must be logged in to create an order.', variant: 'destructive'});
         return;
     }
+
+    if (!hasBankingDetails) {
+        toast({ title: 'Banking Details Missing', description: 'Please complete your practice banking details in your profile before creating orders.', variant: 'destructive'});
+        return;
+    }
+
     setIsLoading(true);
     toast({
       title: 'Creating Order...',
@@ -193,7 +163,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
         customerPhone: partner.contactNumber,
         endCustomerName: `${values.customerFirstName} ${values.customerLastName}`,
         endCustomerEmail: values.customerEmail,
-        documentContact: values.documentContact,
+        documentContact: 'reseller', // Default to partner
         date: Timestamp.now(),
         items: values.items.map(item => ({ 
             id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
@@ -206,38 +176,33 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
         clientTotal: clientTotal,
         status: 'Pending Payment',
         originalOrderId: null,
-        isOutsourced: true,
+        isOutsourced: false,
         discountAmount: null,
         discountCode: null,
+        source: 'Partner',
       };
 
       await setDoc(doc(db, 'orders', orderId), orderData);
 
       try {
-        const confirmationEmailSubject = `Your Order Confirmation: #${orderId}`;
+        const confirmationEmailSubject = `Order Confirmation: #${orderId}`;
         const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={partner} />);
         await sendEmail({
-          to: partner.email,
-          bcc: 'kev@thinkestry.co.za',
+          to: values.customerEmail,
           subject: confirmationEmailSubject,
           html: emailHtml,
           resellerId: partner.uid,
         });
       } catch (emailError) {
-        console.error("Failed to send partner email:", emailError);
-        toast({
-          title: 'Order Created, But Email Failed',
-          description: 'The order was saved, but the confirmation email could not be sent.',
-          variant: 'destructive',
-        });
+        console.error("Failed to send client email:", emailError);
       }
       
       toast({
         title: 'Order Created Successfully',
-        description: `Redirecting to payment...`,
+        description: `Your client has been notified.`,
       });
       
-      submitToPayFast(orderData);
+      onOrderCreated();
 
     } catch (error) {
         console.error("Error creating order: ", error);
@@ -249,6 +214,23 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     } finally {
         setIsLoading(false);
     }
+  }
+
+  if (!hasBankingDetails) {
+      return (
+          <div className="py-8">
+              <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Action Required</AlertTitle>
+                  <AlertDescription className="space-y-4">
+                      <p>You must configure your <strong>Practice Banking Details</strong> in your profile before you can create client orders. This ensures your clients know where to pay.</p>
+                      <Button asChild variant="outline" className="mt-4">
+                          <Link href="/partner/profile">Update Banking Details</Link>
+                      </Button>
+                  </AlertDescription>
+              </Alert>
+          </div>
+      )
   }
 
   return (
@@ -300,32 +282,6 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
                 </FormItem>
             )}
             />
-            <FormField
-                control={form.control}
-                name="documentContact"
-                render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                        <FormLabel>Who should we contact for documents?</FormLabel>
-                         <FormControl>
-                            <RadioGroup
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            className="flex items-center space-x-4 pt-2"
-                            >
-                            <FormItem className="flex items-center space-x-2 space-y-0">
-                                <FormControl><RadioGroupItem value="reseller" /></FormControl>
-                                <FormLabel className="font-normal">Contact me (the partner)</FormLabel>
-                            </FormItem>
-                            <FormItem className="flex items-center space-x-2 space-y-0">
-                                <FormControl><RadioGroupItem value="client" /></FormControl>
-                                <FormLabel className="font-normal">Contact my client directly</FormLabel>
-                            </FormItem>
-                            </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )}
-            />
         </div>
         
         <Separator />
@@ -336,6 +292,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
                 {fields.map((field, index) => {
                     const serviceId = form.watch(`items.${index}.serviceId`);
                     const selectedService = serviceId ? allServices.find(s => s.id === serviceId) : null;
+                    const lineItem = form.watch(`items.${index}`);
                     
                     return (
                     <div key={field.id} className="p-3 border rounded-md space-y-3">
@@ -434,14 +391,14 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
         
         <div className="flex justify-end items-start gap-8">
             <div className="text-right">
-                <p className="text-sm text-muted-foreground">Total Outsourcing Cost</p>
+                <p className="text-sm text-muted-foreground">Practice Total (Inclusive of your markup)</p>
                 <p className="text-2xl font-bold">{formatPrice(total)}</p>
             </div>
         </div>
 
         <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid || total === 0}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? 'Creating Order...' : 'Create Order & Proceed to Payment'}
+            {isLoading ? 'Creating Order...' : 'Create Order & Notify Client'}
         </Button>
       </form>
     </Form>
