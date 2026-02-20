@@ -1,3 +1,4 @@
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -8,11 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, Sparkles } from 'lucide-react';
+import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -20,6 +20,7 @@ import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
@@ -49,7 +50,7 @@ const formSchema = z.object({
     heroSubtitle: z.string().min(10, "Hero subtitle is too short"),
     aboutUs: z.string().min(20, "About Us text is too short"),
     themePreset: z.enum(['custom', 'my_accountant', 'futuristic', 'tech_blue']).default('custom'),
-    primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color (e.g., #214392)"),
+    primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color"),
     secondaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     backgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     textColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
@@ -69,7 +70,7 @@ const THEMES = {
         cardBorderColor: '#e5e7eb',
     },
     futuristic: {
-        primaryColor: '#a855f7',
+        primaryColor: '#8b5cf6',
         secondaryColor: '#1e1b4b',
         backgroundColor: '#020617',
         textColor: '#ffffff',
@@ -85,6 +86,26 @@ const THEMES = {
         cardBorderColor: '#e2e8f0',
     }
 };
+
+const QUICK_COLORS = [
+    '#214392', // My Accountant Blue
+    '#0ea5e9', // Sky Blue
+    '#4f46e5', // Indigo
+    '#8b5cf6', // Violet
+    '#d946ef', // Fuchsia
+    '#e11d48', // Rose
+    '#f43f5e', // Rose Red
+    '#f97316', // Orange
+    '#d97706', // Amber
+    '#059669', // Emerald
+    '#10b981', // Green
+    '#1e293b', // Slate
+    '#0f172a', // Deep Navy
+    '#ffffff', // White
+    '#f3f4f6', // Light Gray
+    '#e5e7eb', // Border Gray
+    '#000000', // Black
+];
 
 export default function PartnerProfile() {
   const { user, updateUser } = useAuth();
@@ -133,7 +154,6 @@ export default function PartnerProfile() {
   const { setValue, watch } = form;
   const themePreset = watch('landingPage.themePreset');
 
-  // Logic to update color fields when theme preset changes
   useEffect(() => {
     if (themePreset && themePreset !== 'custom') {
         const theme = THEMES[themePreset as keyof typeof THEMES];
@@ -145,7 +165,6 @@ export default function PartnerProfile() {
     }
   }, [themePreset, setValue]);
 
-  // If any color field is changed manually while on a preset, switch to 'custom'
   const handleColorChange = (field: any, value: string) => {
       field.onChange(value);
       if (themePreset !== 'custom') {
@@ -190,6 +209,56 @@ export default function PartnerProfile() {
 
   const landingPageEnabled = watch('landingPage.enabled');
   const landingPageSlug = watch('landingPage.slug');
+
+  const ColorField = ({ name, label, description }: { name: any, label: string, description?: string }) => (
+    <FormField
+        control={form.control}
+        name={name}
+        render={({ field }) => (
+            <FormItem className="space-y-3">
+                <div>
+                    <FormLabel className="text-xs font-bold uppercase text-muted-foreground">{label}</FormLabel>
+                    {description && <p className="text-[10px] text-muted-foreground">{description}</p>}
+                </div>
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                        <FormControl>
+                            <div className="flex items-center gap-2 border rounded-md px-2 py-1 flex-grow bg-background">
+                                <input 
+                                    type="color" 
+                                    value={field.value || '#ffffff'} 
+                                    onChange={(e) => handleColorChange(field, e.target.value)}
+                                    className="w-6 h-6 rounded-sm cursor-pointer border-0 bg-transparent p-0"
+                                />
+                                <Input 
+                                    {...field} 
+                                    className="border-0 h-7 text-xs font-mono uppercase focus-visible:ring-0 focus-visible:ring-offset-0 px-1" 
+                                    onChange={(e) => handleColorChange(field, e.target.value)}
+                                />
+                            </div>
+                        </FormControl>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {QUICK_COLORS.map((color) => (
+                            <button
+                                key={color}
+                                type="button"
+                                onClick={() => handleColorChange(field, color)}
+                                className={cn(
+                                    "w-5 h-5 rounded-full border border-muted-foreground/20 transition-all hover:scale-125",
+                                    field.value === color && "ring-2 ring-primary ring-offset-1 scale-110"
+                                )}
+                                style={{ backgroundColor: color }}
+                                title={color}
+                            />
+                        ))}
+                    </div>
+                </div>
+                <FormMessage />
+            </FormItem>
+        )}
+    />
+  );
 
   return (
     <Form {...form}>
@@ -308,6 +377,18 @@ export default function PartnerProfile() {
                                         </FormItem>
                                     )}
                                 />
+                                <FormField
+                                    control={form.control}
+                                    name="landingPage.logoUrl"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">Logo URL</FormLabel>
+                                            <FormControl><Input {...field} placeholder="https://..." /></FormControl>
+                                            <FormDescription className="text-[10px]">Your company logo (PNG/SVG recommended).</FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                             </CardContent>
                         </Card>
 
@@ -317,7 +398,7 @@ export default function PartnerProfile() {
                                     <Palette className="h-4 w-4" /> Branding & Theme
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-4">
+                            <CardContent className="space-y-6">
                                 <FormField
                                     control={form.control}
                                     name="landingPage.themePreset"
@@ -327,144 +408,24 @@ export default function PartnerProfile() {
                                             <Select onValueChange={field.onChange} value={field.value}>
                                                 <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="custom">Custom</SelectItem>
+                                                    <SelectItem value="custom">Custom (Fine-tuned)</SelectItem>
                                                     <SelectItem value="my_accountant">My Accountant (Master)</SelectItem>
-                                                    <SelectItem value="futuristic">Modern Midnight (Dark)</SelectItem>
                                                     <SelectItem value="tech_blue">Tech Professional (Light)</SelectItem>
+                                                    <SelectItem value="futuristic">Modern Midnight (Dark)</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </FormItem>
                                     )}
                                 />
                                 <Separator className="my-2" />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="landingPage.primaryColor"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Primary</FormLabel>
-                                                <div className="flex gap-2">
-                                                    <FormControl>
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-8 text-xs" 
-                                                            onChange={(e) => handleColorChange(field, e.target.value)}
-                                                        />
-                                                    </FormControl>
-                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="landingPage.secondaryColor"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Secondary</FormLabel>
-                                                <div className="flex gap-2">
-                                                    <FormControl>
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-8 text-xs" 
-                                                            onChange={(e) => handleColorChange(field, e.target.value)}
-                                                        />
-                                                    </FormControl>
-                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="landingPage.backgroundColor"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Page BG</FormLabel>
-                                                <div className="flex gap-2">
-                                                    <FormControl>
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-8 text-xs" 
-                                                            onChange={(e) => handleColorChange(field, e.target.value)}
-                                                        />
-                                                    </FormControl>
-                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="landingPage.textColor"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Text Color</FormLabel>
-                                                <div className="flex gap-2">
-                                                    <FormControl>
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-8 text-xs" 
-                                                            onChange={(e) => handleColorChange(field, e.target.value)}
-                                                        />
-                                                    </FormControl>
-                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="landingPage.cardBackgroundColor"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Card BG</FormLabel>
-                                                <div className="flex gap-2">
-                                                    <FormControl>
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-8 text-xs" 
-                                                            onChange={(e) => handleColorChange(field, e.target.value)}
-                                                        />
-                                                    </FormControl>
-                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="landingPage.cardBorderColor"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Card Border</FormLabel>
-                                                <div className="flex gap-2">
-                                                    <FormControl>
-                                                        <Input 
-                                                            {...field} 
-                                                            className="h-8 text-xs" 
-                                                            onChange={(e) => handleColorChange(field, e.target.value)}
-                                                        />
-                                                    </FormControl>
-                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
+                                <div className="space-y-6">
+                                    <ColorField name="landingPage.primaryColor" label="Primary Color" description="Buttons, icons, and highlights." />
+                                    <ColorField name="landingPage.secondaryColor" label="Secondary Color" description="Badges and secondary accents." />
+                                    <ColorField name="landingPage.backgroundColor" label="Page Background" description="Overall backdrop of your site." />
+                                    <ColorField name="landingPage.textColor" label="Text Color" description="Primary font color." />
+                                    <ColorField name="landingPage.cardBackgroundColor" label="Card Background" description="Service listing card surface." />
+                                    <ColorField name="landingPage.cardBorderColor" label="Card Border" description="Outline around service cards." />
                                 </div>
-                                <FormField
-                                    control={form.control}
-                                    name="landingPage.logoUrl"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs">Custom Logo URL</FormLabel>
-                                            <FormControl><Input {...field} placeholder="https://..." /></FormControl>
-                                            <FormDescription className="text-[10px]">Link to your company logo (PNG/SVG recommended).</FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
                             </CardContent>
                         </Card>
                     </div>
