@@ -20,6 +20,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
+import { format, startOfMonth, addMonths } from 'date-fns';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -85,6 +88,8 @@ export default function PartnerStaffPage() {
   };
 
   const proRataAmount = calculateProRata();
+  const nextBillingDate = startOfMonth(addMonths(new Date(), 1));
+  const remainingCredits = (currentUser?.creditBalance || 0) - proRataAmount;
   const canAffordStaff = (currentUser?.creditBalance || 0) >= proRataAmount;
 
   const handleFormSubmit = async (values: z.infer<typeof staffSchema>) => {
@@ -171,6 +176,8 @@ export default function PartnerStaffPage() {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(price);
   };
 
@@ -192,7 +199,7 @@ export default function PartnerStaffPage() {
                 <DialogHeader>
                     <DialogTitle>{selectedStaff ? 'Edit Staff' : 'Add Staff member'}</DialogTitle>
                     <DialogDescription>
-                        {selectedStaff ? 'Update this staff member\'s name.' : `Add a new member to your practice. A pro-rated fee of ${formatPrice(proRataAmount)} will be deducted from your wallet for the remainder of this month.`}
+                        {selectedStaff ? 'Update this staff member\'s name.' : `Add a new member to your practice. Subscription fees are deducted automatically from your practice wallet.`}
                     </DialogDescription>
                 </DialogHeader>
                 
@@ -213,18 +220,35 @@ export default function PartnerStaffPage() {
                     <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
                         <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" {...field} disabled={!!selectedStaff} /></FormControl><FormMessage /></FormItem> )} />
+                        
                         {!selectedStaff && (
                             <>
                             <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                            <div className="p-3 bg-muted rounded-md border flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground font-medium">Billing Total:</span>
-                                <span className="font-bold text-primary">{formatPrice(proRataAmount)}</span>
+                            
+                            <div className="p-4 bg-primary/5 rounded-lg border border-primary/10 space-y-2 text-sm mt-4">
+                                <h4 className="font-bold text-primary text-xs uppercase tracking-wider mb-3">Billing Summary</h4>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground">Pro-rata billing (Today):</span>
+                                    <span className="font-semibold text-destructive">{formatPrice(proRataAmount)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground">Next billing ({format(nextBillingDate, 'dd MMM yyyy')}):</span>
+                                    <span className="font-semibold">{formatPrice(STAFF_MONTHLY_FEE)}</span>
+                                </div>
+                                <Separator className="my-2" />
+                                <div className="flex justify-between items-center pt-1">
+                                    <span className="font-bold">Projected Wallet Balance:</span>
+                                    <span className={cn("font-bold", remainingCredits < 0 ? "text-destructive" : "text-primary")}>
+                                        {formatPrice(remainingCredits)}
+                                    </span>
+                                </div>
                             </div>
                             </>
                         )}
+
                         <Button type="submit" className="w-full" disabled={isLoading || (!selectedStaff && !canAffordStaff)}>
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {selectedStaff ? 'Update Staff' : 'Pay & Create Staff Member'}
+                            {selectedStaff ? 'Update Staff' : 'Confirm & Create Member'}
                         </Button>
                     </form>
                 </Form>
@@ -235,7 +259,7 @@ export default function PartnerStaffPage() {
       <Card>
         <CardHeader>
           <CardTitle>Practice Team</CardTitle>
-          <CardDescription>Members with access to your client dashboard. The first R50/member is billed at the start of each month.</CardDescription>
+          <CardDescription>Members with access to your practice portal. Monthly R50/member fees are billed at the start of each month.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading && staff.length === 0 ? (
