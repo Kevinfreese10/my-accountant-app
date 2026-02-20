@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -36,11 +35,11 @@ export async function sendEmail({
     fromNameOverride
 }: EmailPayload) {
   
-  // Default SMTP Configuration
-  let transportConfig = {
+  // Default SMTP Configuration (My Accountant)
+  let transportConfig: any = {
     host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: true, // Use SSL
+    port: Number(process.env.SMTP_PORT || 465),
+    secure: process.env.SMTP_PORT === '465',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -53,6 +52,7 @@ export async function sendEmail({
   let fromName = fromNameOverride || "My Accountant";
   let fromEmail = process.env.SMTP_USER || 'info@myacc.co.za';
   let finalBcc = Array.isArray(bcc) ? [...bcc] : (bcc ? [bcc] : []);
+  let finalReplyTo = replyTo;
 
   // Use override if provided (useful for testing settings before saving)
   if (smtpOverride && smtpOverride.host && smtpOverride.user && smtpOverride.pass) {
@@ -74,8 +74,15 @@ export async function sendEmail({
   // Check for Reseller (Partner) details if no override is present
   if (resellerId && !smtpOverride) {
     try {
-      const partnerRef = doc(db, 'users', resellerId);
-      const partnerSnap = await getDoc(partnerRef);
+      // Check 'users' collection first
+      let partnerRef = doc(db, 'users', resellerId);
+      let partnerSnap = await getDoc(partnerRef);
+      
+      // Fallback to 'aiAccountantClients' if not found in 'users'
+      if (!partnerSnap.exists()) {
+          partnerRef = doc(db, 'aiAccountantClients', resellerId);
+          partnerSnap = await getDoc(partnerRef);
+      }
       
       if (partnerSnap.exists()) {
         const partner = partnerSnap.data() as User;
@@ -83,6 +90,11 @@ export async function sendEmail({
         // Set white-label name
         if (!fromNameOverride) {
             fromName = partner.companyName || partner.name;
+        }
+
+        // Always set Reply-To to partner email for white-labeling
+        if (!finalReplyTo) {
+            finalReplyTo = partner.email;
         }
         
         // If partner has configured SMTP, use it
@@ -130,7 +142,7 @@ export async function sendEmail({
           subject: subject,
           html: html,
           attachments: attachments,
-          replyTo: replyTo,
+          replyTo: finalReplyTo,
       });
       console.log('Email sent successfully:', info.messageId);
       return info;
