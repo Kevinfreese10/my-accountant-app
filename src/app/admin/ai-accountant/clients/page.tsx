@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -8,14 +9,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { User, Task } from '@/lib/types';
+import { User, Task, AllocationRule } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc, arrayUnion, arrayRemove, getDoc, collectionGroup, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import ClientForm from '@/components/admin/ClientForm';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
-import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
@@ -569,18 +569,6 @@ export default function AIAccountantClientsPage() {
                 });
             toast({ title: 'Client Updated'});
         } else {
-            const rulesRef = collection(db, 'allocationRules');
-            const globalRulesSnapshot = await getDocs(rulesRef)
-                .catch(async (error) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: rulesRef.path,
-                        operation: 'list',
-                    } satisfies SecurityRuleContext);
-                    errorEmitter.emit('permission-error', permissionError);
-                    throw error;
-                });
-            const globalRules = globalRulesSnapshot.docs.map(d => d.data());
-
             const newClientData: Partial<User> = {
                 ...clientDataForDb,
                 email: `new-${Date.now()}@my-company.ai`,
@@ -588,7 +576,8 @@ export default function AIAccountantClientsPage() {
                 source: 'AI Accountant' as const,
                 hasNumeraProfile: true,
                 chartOfAccounts: initialChartOfAccounts,
-                allocationRules: globalRules as any,
+                // Use allocation rules passed from the form (edited or default)
+                allocationRules: data.allocationRules || [],
                 status: 'Active',
             };
             const newDocRef = doc(collection(db, 'aiAccountantClients'));
@@ -762,7 +751,7 @@ export default function AIAccountantClientsPage() {
                     Create Client
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="sm:max-w-3xl">
                     <DialogHeader>
                         <DialogTitle>{selectedClient ? 'Edit Client' : 'Create New Client'}</DialogTitle>
                         <DialogDescription>
