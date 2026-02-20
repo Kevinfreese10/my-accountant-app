@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -70,10 +69,8 @@ function ClientForm({ client, onSubmit, onCancel, taskTemplates }: { client: Par
         if (client.yearEnd instanceof Date) {
             yearEndAsDate = client.yearEnd;
         } else if (typeof client.yearEnd === 'string') {
-            // This is now legacy, but we keep it for old data.
             const monthIndex = months.indexOf(client.yearEnd);
             if (monthIndex !== -1) {
-                // Default to current year, the exact year doesn't matter as much as month/day
                 yearEndAsDate = new Date(new Date().getFullYear(), monthIndex, 28);
             }
         } else if ((client.yearEnd as any)?.toDate) {
@@ -220,7 +217,8 @@ export default function AdminClientsPage() {
   const fetchClientsAndStaff = async () => {
     setIsLoading(true);
     try {
-        const clientsQuery = query(collection(db, "clients"), orderBy("name"));
+        const clientsRef = collection(db, "adminClients");
+        const clientsQuery = query(clientsRef, orderBy("name"));
         const clientsSnapshot = await getDocs(clientsQuery);
         const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
         setClients(fetchedClients);
@@ -256,10 +254,10 @@ export default function AdminClientsPage() {
     try {
         const batch = writeBatch(db);
 
-        const clientRef = doc(db, "clients", clientId);
+        const clientRef = doc(db, "adminClients", clientId);
         batch.delete(clientRef);
         
-        const tasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId));
+        const tasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId), where('clientSource', '==', 'admin'));
         const tasksSnapshot = await getDocs(tasksQuery);
         tasksSnapshot.docs.forEach(taskDoc => {
             batch.delete(taskDoc.ref);
@@ -299,25 +297,26 @@ export default function AdminClientsPage() {
       submitsBeneficialOwnership: data.submitsBeneficialOwnership,
       requiresManagementAccounts: data.requiresManagementAccounts,
       managementAccountsFrequency: data.requiresManagementAccounts ? data.managementAccountsFrequency : undefined,
+      clientSource: 'admin',
     };
     
     try {
         let clientId: string;
         if (originalClient?.id) { 
             clientId = originalClient.id;
-            const clientRef = doc(db, "clients", clientId);
+            const clientRef = doc(db, "adminClients", clientId);
             await updateDoc(clientRef, clientDataForDb);
             toast({ title: 'Client Updated' });
         } else { // Creating new client
-            clientId = doc(collection(db, "clients")).id;
-            const newDocRef = doc(db, "clients", clientId);
-            await setDoc(newDocRef, { ...clientDataForDb, role: 'client', source: 'Client Management', createdAt: serverTimestamp() });
+            clientId = doc(collection(db, "adminClients")).id;
+            const newDocRef = doc(db, "adminClients", clientId);
+            await setDoc(newDocRef, { ...clientDataForDb, id: clientId, uid: clientId, role: 'client', source: 'Client Management', createdAt: serverTimestamp() });
             toast({ title: 'Client Created' });
         }
         
         // Task Sync Logic
         const batch = writeBatch(db);
-        const existingTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId), where('createdBy', '==', 'system'));
+        const existingTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId), where('createdBy', '==', 'system'), where('clientSource', '==', 'admin'));
         const existingTasksSnapshot = await getDocs(existingTasksQuery);
         const existingTasks = existingTasksSnapshot.docs.map(d => ({id: d.id, ...d.data()}));
         
@@ -325,7 +324,7 @@ export default function AdminClientsPage() {
             const isApplicableNow = !!clientDataForDb[template.triggerField as keyof typeof clientDataForDb];
             const wasApplicable = originalClient ? !!originalClient[template.triggerField as keyof typeof originalClient] : false;
             
-            const existingTask = existingTasks.find(t => t.triggerField === template.triggerField);
+            const existingTask = existingTasks.find(t => (t as any).triggerField === template.triggerField);
 
             if (isApplicableNow && !existingTask) {
                 // Create new task
@@ -333,6 +332,7 @@ export default function AdminClientsPage() {
                 batch.set(newTaskRef, {
                     ...template,
                     clientId: clientId,
+                    clientSource: 'admin',
                     title: template.title.replace('{clientName}', clientDataForDb.name!),
                     status: 'To-Do',
                     createdBy: 'system',
@@ -373,9 +373,7 @@ export default function AdminClientsPage() {
         if (!isNaN(d.getTime())) {
              return format(d, 'MMMM');
         }
-    } catch (e) {
-        // fall through
-    }
+    } catch (e) {}
     return 'Invalid Date';
   };
 

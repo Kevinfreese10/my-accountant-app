@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -177,7 +176,7 @@ export default function AIAccountantClientsPage() {
         };
         
         await setDoc(doc(db, 'orders', orderId), renewalOrderData);
-        // Redirect to EFT page since PayFast is removed
+        // Redirect to order confirmation page
         router.push(`/order-confirmation/${orderId}`);
         
     } catch(e) {
@@ -250,6 +249,7 @@ export default function AIAccountantClientsPage() {
             const updateData: Partial<User> = {
                 ...clientFormData,
                 yearEnd: data.yearEnd || null,
+                clientSource: 'ai_accountant',
             };
              if (!data.isVatRegistered) {
                 updateData.vatNumber = null;
@@ -265,6 +265,7 @@ export default function AIAccountantClientsPage() {
                 yearEnd: data.yearEnd || null,
                 role: 'client',
                 source: 'AI Accountant',
+                clientSource: 'ai_accountant',
                 hasNumeraProfile: true,
                 chartOfAccounts: initialChartOfAccounts,
                 allocationRules: initialAllocationRules,

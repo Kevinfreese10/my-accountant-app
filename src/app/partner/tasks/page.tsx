@@ -34,8 +34,8 @@ export default function PartnerTasksPage() {
     if (!partnerId) return;
     setIsLoading(true);
     try {
-        // Fetch practice clients
-        const clientsSnap = await getDocs(query(collection(db, "clients"), where("partnerId", "==", partnerId)));
+        // Fetch practice clients from partnerClients collection
+        const clientsSnap = await getDocs(query(collection(db, "partnerClients"), where("partnerId", "==", partnerId)));
         setPracticeClients(clientsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as User)));
 
         // Fetch practice staff (and includes partner themselves)
@@ -85,6 +85,7 @@ export default function PartnerTasksPage() {
         dueDate: Timestamp.fromDate(new Date(data.dueDate)),
         partnerId: partnerId,
         priority: 'Medium' as const,
+        clientSource: 'partner',
     };
 
     try {

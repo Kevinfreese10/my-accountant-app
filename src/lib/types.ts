@@ -227,7 +227,8 @@ export type User = {
   email: string;
   role: 'client' | 'admin' | 'staff' | 'partner' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor' | 'partner_staff';
   createdAt?: any;
-  source?: 'AI Accountant' | 'Client Management';
+  source?: 'AI Accountant' | 'Client Management' | 'Partner Management';
+  clientSource?: 'admin' | 'partner' | 'ai_accountant';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   entityType?: 'Company' | 'Trust' | 'Individual';
   status?: 'Active' | 'Inactive' | 'Archived';
@@ -351,6 +352,7 @@ export type Task = {
   recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly' | 'Bi-Monthly' | 'Annually';
   orderId?: string;
   clientId?: string;
+  clientSource?: 'admin' | 'partner' | 'ai_accountant' | 'system';
   partnerId?: string; // Tracks which partner practice this task belongs to
   comments?: TaskComment[];
   tags?: string[];

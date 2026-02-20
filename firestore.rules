@@ -7,8 +7,14 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
+    match /adminClients/{clientId} {
+      allow read, write: if request.auth != null; 
+    }
+    match /partnerClients/{clientId} {
+      allow read, write: if request.auth != null; 
+    }
     match /clients/{clientId} {
-      allow read, write: if request.auth != null; // Allow authenticated users to manage clients
+      allow read, write: if request.auth != null; // Legacy collection
     }
     match /services/{serviceId} {
       allow read: if true;

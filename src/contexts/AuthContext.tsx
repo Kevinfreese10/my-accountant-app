@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!firebaseUser.email) return 'invalid_credentials';
         
         try {
-            const collectionsToTry = ['users', 'aiAccountantClients'];
+            const collectionsToTry = ['users', 'aiAccountantClients', 'adminClients', 'partnerClients'];
             let foundUser: User | null = null;
             
             for (const collectionName of collectionsToTry) {
@@ -89,11 +89,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
 
             if (foundUser) {
-                // Check for lapsed AI Accountant subscription
                 if (foundUser.source === 'AI Accountant' && foundUser.subscription) {
                     const endDate = foundUser.subscription.subscriptionEndDate?.toDate();
                     if (endDate && isPast(endDate) && foundUser.subscription.subscriptionStatus !== 'active') {
-                        setUser(foundUser); // Set user temporarily to allow renewal
+                        setUser(foundUser); 
                         return 'subscription_lapsed';
                     }
                 }
@@ -153,12 +152,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         updateUser(newUser);
         setIsAuthenticated(true);
         
-        // Link existing orders (checking both customerEmail and endCustomerEmail)
         const ordersRef = collection(db, "orders");
         const batch = writeBatch(db);
         let linkCount = 0;
 
-        // Query 1: Regular orders
         const q1 = query(ordersRef, where("customerEmail", "==", values.email), where("userId", "==", null));
         const snap1 = await getDocs(q1);
         snap1.forEach(orderDoc => {
@@ -166,7 +163,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             linkCount++;
         });
 
-        // Query 2: Partner-created orders
         const q2 = query(ordersRef, where("endCustomerEmail", "==", values.email), where("userId", "==", null));
         const snap2 = await getDocs(q2);
         snap2.forEach(orderDoc => {

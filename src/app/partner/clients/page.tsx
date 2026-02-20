@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -32,7 +32,7 @@ export default function PartnerClientsPage() {
     if (!partnerId) return;
     setIsLoading(true);
     try {
-        const clientsRef = collection(db, "clients");
+        const clientsRef = collection(db, "partnerClients");
         const q = query(clientsRef, where("partnerId", "==", partnerId), orderBy("name"));
         const snapshot = await getDocs(q);
         const fetchedClients = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
@@ -61,7 +61,7 @@ export default function PartnerClientsPage() {
   
   const handleDelete = async (clientId: string) => {
     try {
-        await deleteDoc(doc(db, "clients", clientId));
+        await deleteDoc(doc(db, "partnerClients", clientId));
         fetchClients();
         toast({ title: 'Client Deleted', variant: 'destructive' });
     } catch (error) {
@@ -77,18 +77,19 @@ export default function PartnerClientsPage() {
         name: data.name,
         status: data.status,
         entityType: data.entityType || 'Company',
-        yearEnd: data.yearEnd ? Timestamp.fromDate(new Date(data.yearEnd)) : null,
+        yearEnd: data.yearEnd ? data.yearEnd : null,
         partnerId: partnerId,
         role: 'client' as const,
         source: 'Partner Management',
+        clientSource: 'partner',
     };
     
     try {
         if (selectedClient?.id) {
-            await setDoc(doc(db, "clients", selectedClient.id), clientData, { merge: true });
+            await setDoc(doc(db, "partnerClients", selectedClient.id), clientData, { merge: true });
             toast({ title: 'Client Updated'});
         } else {
-            await addDoc(collection(db, "clients"), { 
+            await addDoc(collection(db, "partnerClients"), { 
                 ...clientData, 
                 createdAt: serverTimestamp(),
                 createdBy: currentUser?.uid 

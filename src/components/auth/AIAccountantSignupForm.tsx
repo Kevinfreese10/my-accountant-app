@@ -1,4 +1,3 @@
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -14,7 +13,6 @@ import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect } from 'react';
 import { Loader2, ArrowLeft, CheckCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Label } from '../ui/label';
@@ -99,7 +97,6 @@ export default function AIAccountantSignupForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     
-    // No once-off fees, proceed with direct signup
     try {
         const { password, ...clientData } = values;
 
@@ -120,6 +117,7 @@ export default function AIAccountantSignupForm() {
             uid: authUid,
             role: 'client',
             source: 'AI Accountant' as const,
+            clientSource: 'ai_accountant',
             hasNumeraProfile: true,
             chartOfAccounts: initialChartOfAccounts,
             allocationRules: globalRules,
@@ -144,7 +142,6 @@ export default function AIAccountantSignupForm() {
             });
         } catch (emailError) {
             console.error("Failed to send welcome email:", emailError);
-            // Don't block the user flow if email fails, just log it.
         }
         
         await login(values.email, values.password);
@@ -240,7 +237,7 @@ export default function AIAccountantSignupForm() {
                             </div>
                             <div className="flex gap-2">
                                 <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-full"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-                                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>{isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4"/>}{totalOnceOffFees > 0 ? `Pay Once-Off Fees & Create Profile` : 'Create My Profile'}</Button>
+                                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>{isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4"/>}{'Create My Profile'}</Button>
                             </div>
                         </div>
                     )}
