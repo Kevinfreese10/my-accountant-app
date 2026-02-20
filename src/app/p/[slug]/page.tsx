@@ -46,7 +46,12 @@ async function getServices(): Promise<Service[]> {
   const q = query(collection(db, "services"), orderBy("title"));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => {
-    return { ...doc.data(), id: doc.id } as Service;
+    const data = doc.data();
+    const serviceData = { ...data, id: doc.id } as any;
+    if (data.createdAt && data.createdAt instanceof Timestamp) {
+        serviceData.createdAt = data.createdAt.toDate().toISOString();
+    }
+    return serviceData as Service;
   });
 }
 

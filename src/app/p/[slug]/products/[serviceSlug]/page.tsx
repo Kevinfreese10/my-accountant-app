@@ -43,7 +43,17 @@ async function getService(slug: string): Promise<Service | null> {
     const doc = snapshot.docs[0];
     const data = doc.data();
     
-    return { ...data, id: doc.id } as Service;
+    // Convert Firestore Timestamp to a serializable format (ISO string)
+    const serviceData = {
+        id: doc.id,
+        ...data,
+    } as any;
+
+    if (data.createdAt && data.createdAt instanceof Timestamp) {
+        serviceData.createdAt = data.createdAt.toDate().toISOString();
+    }
+    
+    return serviceData as Service;
 }
 
 const formatPrice = (price: number) => {
