@@ -145,15 +145,15 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {category.data.map((service) => (
                             <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 partner-card border">
-                                <CardHeader className="space-y-4 pb-4">
+                                <CardHeader className="space-y-2 pb-4">
                                     <CardTitle className="text-2xl font-bold leading-tight group-hover:partner-text transition-colors">
                                         {service.title}
                                     </CardTitle>
-                                    <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
                                         {service.isPriceTbc ? (
-                                            <span className="text-xl font-bold opacity-50">Price on Request</span>
+                                            <span className="text-xl font-bold opacity-50 block">Price on Request</span>
                                         ) : (
-                                            <span className="text-2xl font-bold partner-text">
+                                            <span className="text-2xl font-bold partner-text block">
                                                 {formatPrice(service.price)}
                                             </span>
                                         )}
