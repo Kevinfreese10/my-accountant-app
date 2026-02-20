@@ -11,6 +11,13 @@ import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
+type Category = { 
+    id: string; 
+    name: string; 
+    description: string; 
+    order: number; 
+};
+
 async function getPartnerBySlug(slug: string): Promise<User | null> {
   const q = query(
     collection(db, "users"), 
@@ -48,6 +55,12 @@ async function getServices(): Promise<Service[]> {
   });
 }
 
+async function getCategories(): Promise<Category[]> {
+    const q = query(collection(db, "categories"), orderBy("order"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+}
+
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
@@ -61,8 +74,19 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
   const partner = await getPartnerBySlug(params.slug);
   if (!partner) return null;
 
-  const services = await getServices();
+  const [services, categories] = await Promise.all([
+    getServices(),
+    getCategories()
+  ]);
+
   const primaryColor = partner.landingPage?.primaryColor || '#214392';
+
+  const categorizedServices = categories
+    .map(category => ({
+        ...category,
+        data: services.filter(s => s.category === category.name)
+    }))
+    .filter(c => c.data.length > 0);
 
   return (
     <div className="space-y-24 pb-24">
@@ -104,52 +128,68 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
       </section>
 
       {/* Services Grid */}
-      <section id="products" className="container mx-auto px-4 scroll-m-24 space-y-12">
+      <section id="products" className="container mx-auto px-4 scroll-m-24 space-y-16">
         <div className="text-center space-y-4">
-          <h2 className="text-3xl font-bold">Accounting & Tax Solutions</h2>
+          <h2 className="text-3xl font-bold text-foreground">Accounting & Tax Solutions</h2>
           <p className="text-muted-foreground">Comprehensive professional services for individuals and SMEs.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {services.map((service) => (
-            <Card key={service.id} className="flex flex-col group hover:shadow-lg transition-all duration-300">
-              <CardHeader>
-                <div className="space-y-1">
-                  <Badge variant="secondary" className="mb-2">{service.category}</Badge>
-                  <CardTitle className="group-hover:partner-text transition-colors">{service.title}</CardTitle>
+        <div className="space-y-20">
+            {categorizedServices.map((category) => (
+                <div key={category.id} className="space-y-8">
+                    <div className="flex items-center gap-4">
+                        <h3 className="text-2xl font-bold text-foreground">{category.name}</h3>
+                        <Separator className="flex-grow" />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {category.data.map((service) => (
+                            <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 border-none bg-muted/30">
+                                <CardHeader className="space-y-4 pb-4">
+                                    <Badge variant="secondary" className="w-fit font-medium text-[10px] uppercase tracking-wider bg-white/80">
+                                        {service.category}
+                                    </Badge>
+                                    <CardTitle className="text-2xl font-bold leading-tight group-hover:partner-text transition-colors">
+                                        {service.title}
+                                    </CardTitle>
+                                    <div className="flex items-center justify-between">
+                                        {service.isPriceTbc ? (
+                                            <span className="text-xl font-bold text-muted-foreground">Price on Request</span>
+                                        ) : (
+                                            <span className="text-2xl font-bold" style={{ color: primaryColor }}>
+                                                {formatPrice(service.price)}
+                                            </span>
+                                        )}
+                                        <div className="flex items-center text-xs text-muted-foreground font-medium">
+                                            <Clock className="h-4 w-4 mr-1.5 opacity-70" />
+                                            {service.turnaroundTime}
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="flex-grow space-y-6">
+                                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                                        {service.description}
+                                    </p>
+                                    <ul className="space-y-2">
+                                        {service.whatsIncluded.slice(0, 3).map((item, i) => (
+                                            <li key={i} className="flex items-start text-xs text-foreground/80">
+                                                <CheckCircle2 className="h-4 w-4 mr-3 mt-0.5 partner-text flex-shrink-0" />
+                                                <span className="leading-tight">{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </CardContent>
+                                <CardFooter className="pt-0">
+                                    <Button variant="outline" className="w-full bg-white hover:bg-white partner-border partner-text font-semibold h-11" asChild>
+                                        <Link href={`/p/${params.slug}/products/${service.slug}`}>
+                                            View Details <ArrowRight className="ml-2 h-4 w-4" />
+                                        </Link>
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                        ))}
+                    </div>
                 </div>
-                <div className="pt-4 flex items-center justify-between">
-                  {service.isPriceTbc ? (
-                    <span className="text-lg font-bold text-muted-foreground">Price on Request</span>
-                  ) : (
-                    <span className="text-2xl font-bold" style={{ color: primaryColor }}>{formatPrice(service.price)}</span>
-                  )}
-                  <div className="flex items-center text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3 mr-1" />
-                    {service.turnaroundTime}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <p className="text-sm text-muted-foreground line-clamp-3">{service.description}</p>
-                <ul className="mt-4 space-y-2">
-                  {service.whatsIncluded.slice(0, 3).map((item, i) => (
-                    <li key={i} className="flex items-start text-xs text-muted-foreground">
-                      <CheckCircle2 className="h-3 w-3 mr-2 mt-0.5 partner-text" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-              <CardFooter>
-                <Button variant="outline" className="w-full group-hover:partner-btn transition-all" asChild>
-                  <Link href={`/p/${params.slug}/products/${service.slug}`}>
-                    View Details <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+            ))}
         </div>
       </section>
 
