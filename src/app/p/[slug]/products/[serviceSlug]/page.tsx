@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import ServiceCheckoutForm from '@/components/checkout/ServiceCheckoutForm';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
 const db = getFirestore(firebaseApp);
 
