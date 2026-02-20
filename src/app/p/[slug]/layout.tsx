@@ -59,25 +59,46 @@ export default async function PartnerLandingLayout({
     notFound();
   }
 
+  const lp = partner.landingPage;
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <style dangerouslySetInnerHTML={{ __html: `
         :root {
-          --partner-primary: ${partner.landingPage?.primaryColor || '#214392'};
+          --partner-primary: ${lp?.primaryColor || '#214392'};
+          --partner-secondary: ${lp?.secondaryColor || '#f3f4f6'};
+          --partner-bg: ${lp?.backgroundColor || '#ffffff'};
+          --partner-text: ${lp?.textColor || '#111827'};
+          --partner-card-bg: ${lp?.cardBackgroundColor || '#ffffff'};
+          --partner-card-border: ${lp?.cardBorderColor || '#e5e7eb'};
         }
         .partner-btn {
           background-color: var(--partner-primary) !important;
           color: white !important;
         }
+        .partner-btn-secondary {
+          background-color: var(--partner-secondary) !important;
+          color: var(--partner-text) !important;
+        }
         .partner-text {
           color: var(--partner-primary) !important;
+        }
+        .partner-text-main {
+          color: var(--partner-text) !important;
         }
         .partner-border {
           border-color: var(--partner-primary) !important;
         }
+        .partner-card {
+          background-color: var(--partner-card-bg) !important;
+          border-color: var(--partner-card-border) !important;
+        }
+        .partner-page-bg {
+          background-color: var(--partner-bg) !important;
+        }
       `}} />
       <PartnerHeader partner={partner} />
-      <main className="flex-grow">
+      <main className="flex-grow partner-page-bg partner-text-main">
         {children}
       </main>
       <PartnerFooter partner={partner} />

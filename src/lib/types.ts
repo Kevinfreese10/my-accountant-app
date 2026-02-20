@@ -207,6 +207,11 @@ export type PartnerLandingPageConfig = {
   heroSubtitle: string;
   aboutUs: string;
   primaryColor: string;
+  secondaryColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  cardBackgroundColor?: string;
+  cardBorderColor?: string;
   logoUrl?: string;
 };
 

@@ -1,4 +1,3 @@
-
 import { getFirestore, collection, query, where, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service, Order } from '@/lib/types';
@@ -44,11 +43,7 @@ async function getService(slug: string): Promise<Service | null> {
     const doc = snapshot.docs[0];
     const data = doc.data();
     
-    const serviceData = { ...data, id: doc.id } as any;
-    if (data.createdAt instanceof Timestamp) {
-        serviceData.createdAt = data.createdAt.toDate().toISOString();
-    }
-    return serviceData as Service;
+    return { ...data, id: doc.id } as Service;
 }
 
 const formatPrice = (price: number) => {
@@ -70,7 +65,7 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
     notFound();
   }
 
-  const primaryColor = partner.landingPage?.primaryColor || '#214392';
+  const lp = partner.landingPage;
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -83,25 +78,25 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 space-y-8">
           <div className="space-y-4">
-            <Badge variant="secondary">{service.category}</Badge>
+            <Badge variant="secondary" className="partner-btn-secondary">{service.category}</Badge>
             <h1 className="text-3xl md:text-5xl font-bold tracking-tight">{service.title}</h1>
             <div className="flex items-center gap-6">
                {service.isPriceTbc ? (
-                <p className="text-2xl font-bold text-muted-foreground">Price on Request</p>
+                <p className="text-2xl font-bold opacity-50">Price on Request</p>
               ) : (
-                <p className="text-3xl font-bold" style={{ color: primaryColor }}>{formatPrice(service.price)}</p>
+                <p className="text-3xl font-bold partner-text">{formatPrice(service.price)}</p>
               )}
-              <div className="flex items-center text-muted-foreground">
+              <div className="flex items-center opacity-70">
                 <Clock className="h-5 w-5 mr-2" />
                 <span className="font-medium">{service.turnaroundTime}</span>
               </div>
             </div>
           </div>
 
-          <div className="prose prose-blue max-w-none">
+          <div className="prose prose-blue max-w-none partner-text-main">
             <h2 className="text-xl font-semibold">Service Description</h2>
-            <Separator className="my-4" />
-            <p className="text-muted-foreground leading-relaxed text-lg">
+            <Separator className="my-4 opacity-20" />
+            <p className="opacity-80 leading-relaxed text-lg">
               {service.longDescription}
             </p>
           </div>
@@ -109,11 +104,11 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
           {service.whatsIncluded.length > 0 && (
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">What's Included</h2>
-              <Separator />
+              <Separator className="opacity-20" />
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {service.whatsIncluded.map((item, i) => (
-                  <li key={i} className="flex items-start bg-muted/30 p-3 rounded-lg">
-                    <BadgeCheck className="h-5 w-5 mr-3 mt-0.5 partner-text" />
+                  <li key={i} className="flex items-start p-3 rounded-lg partner-card border">
+                    <BadgeCheck className="h-5 w-5 mr-3 mt-0.5 partner-text flex-shrink-0" />
                     <span className="text-sm">{item}</span>
                   </li>
                 ))}
@@ -123,13 +118,13 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
 
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">Prerequisites</h2>
-            <Separator />
-            <div className="bg-orange-50 border border-orange-100 p-6 rounded-xl">
+            <Separator className="opacity-20" />
+            <div className="border p-6 rounded-xl partner-card" style={{ borderLeftWidth: '4px', borderLeftColor: lp?.primaryColor }}>
               <ul className="space-y-3">
                 {service.clientRequirements.map((req, i) => (
                   <li key={i} className="flex items-start">
-                    <ClipboardCheck className="h-5 w-5 text-orange-600 mr-3 mt-0.5 flex-shrink-0" />
-                    <span className="text-sm text-orange-900">{req}</span>
+                    <ClipboardCheck className="h-5 w-5 partner-text mr-3 mt-0.5 flex-shrink-0" />
+                    <span className="text-sm opacity-90">{req}</span>
                   </li>
                 ))}
               </ul>
@@ -139,16 +134,16 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
 
         <aside className="lg:col-span-1">
           <div className="sticky top-24">
-            <Card className="border-2 partner-border overflow-hidden shadow-xl">
-              <CardHeader className="bg-muted/30">
+            <Card className="partner-card border-2 overflow-hidden shadow-xl">
+              <CardHeader style={{ backgroundColor: lp?.secondaryColor || 'rgba(0,0,0,0.03)' }}>
                 <CardTitle className="text-lg">Place Order</CardTitle>
                 <CardDescription>Secure payment via My Accountant network</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
                 <ServiceCheckoutForm service={service} partnerId={partner.id} />
               </CardContent>
-              <CardFooter className="bg-muted/10 text-center border-t py-4">
-                <p className="text-[10px] text-muted-foreground px-4 uppercase tracking-widest font-bold">
+              <CardFooter className="text-center border-t py-4" style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
+                <p className="text-[10px] opacity-50 px-4 uppercase tracking-widest font-bold">
                   Fulfilled by {partner.companyName || partner.name}
                 </p>
               </CardFooter>

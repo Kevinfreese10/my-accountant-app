@@ -48,6 +48,11 @@ const formSchema = z.object({
     heroSubtitle: z.string().min(10, "Hero subtitle is too short"),
     aboutUs: z.string().min(20, "About Us text is too short"),
     primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color (e.g., #214392)"),
+    secondaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
+    backgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
+    textColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
+    cardBackgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
+    cardBorderColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     logoUrl: z.string().url().optional().or(z.literal('')),
   })
 });
@@ -85,6 +90,11 @@ export default function PartnerProfile() {
         heroSubtitle: user?.landingPage?.heroSubtitle || `Expert tax, accounting, and compliance solutions tailored to your needs.`,
         aboutUs: user?.landingPage?.aboutUs || `We are a dedicated team of accounting professionals committed to helping small businesses grow through accurate financial management and strategic advice.`,
         primaryColor: user?.landingPage?.primaryColor || '#214392',
+        secondaryColor: user?.landingPage?.secondaryColor || '#f3f4f6',
+        backgroundColor: user?.landingPage?.backgroundColor || '#ffffff',
+        textColor: user?.landingPage?.textColor || '#111827',
+        cardBackgroundColor: user?.landingPage?.cardBackgroundColor || '#ffffff',
+        cardBorderColor: user?.landingPage?.cardBorderColor || '#e5e7eb',
         logoUrl: user?.landingPage?.logoUrl || '',
       }
     },
@@ -255,26 +265,86 @@ export default function PartnerProfile() {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <FormField
-                                    control={form.control}
-                                    name="landingPage.primaryColor"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs">Primary Brand Color (Hex)</FormLabel>
-                                            <div className="flex gap-2">
-                                                <FormControl>
-                                                    <Input {...field} placeholder="#214392" />
-                                                </FormControl>
-                                                <div 
-                                                    className="w-10 h-10 rounded border" 
-                                                    style={{ backgroundColor: field.value }}
-                                                />
-                                            </div>
-                                            <FormDescription className="text-[10px]">Used for buttons and accents.</FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.primaryColor"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Primary</FormLabel>
+                                                <div className="flex gap-2">
+                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
+                                                </div>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.secondaryColor"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Secondary</FormLabel>
+                                                <div className="flex gap-2">
+                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
+                                                </div>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.backgroundColor"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Page BG</FormLabel>
+                                                <div className="flex gap-2">
+                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
+                                                </div>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.textColor"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Text Color</FormLabel>
+                                                <div className="flex gap-2">
+                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
+                                                </div>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.cardBackgroundColor"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Card BG</FormLabel>
+                                                <div className="flex gap-2">
+                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
+                                                </div>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.cardBorderColor"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Card Border</FormLabel>
+                                                <div className="flex gap-2">
+                                                    <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                    <div className="w-8 h-8 rounded border flex-shrink-0" style={{ backgroundColor: field.value }} />
+                                                </div>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
                                 <FormField
                                     control={form.control}
                                     name="landingPage.logoUrl"
