@@ -149,7 +149,7 @@ export type Order = {
   notes?: OrderNote[];
   documentUploads?: DocumentUpload[];
   itnHistory?: ItnLog[];
-  source?: 'Client' | 'Staff' | 'Partner' | 'AI Accountant Signup';
+  source?: 'Client' | 'Staff' | 'Partner' | 'AI Accountant Signup' | 'Partner Landing Page';
   renewalForClientId?: string;
   documentContact?: 'partner' | 'client';
 };
@@ -198,6 +198,16 @@ export type SavedReport = {
     from: string;
     to: string;
   } | null;
+};
+
+export type PartnerLandingPageConfig = {
+  enabled: boolean;
+  slug: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  aboutUs: string;
+  primaryColor: string;
+  logoUrl?: string;
 };
 
 export type User = {
@@ -278,6 +288,7 @@ export type User = {
   archivedNotifications?: string[];
   emailSignature?: string;
   savedReports?: SavedReport[];
+  landingPage?: PartnerLandingPageConfig;
 };
 
 export type ClientCustomer = {

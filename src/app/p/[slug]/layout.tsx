@@ -1,0 +1,69 @@
+import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { User } from '@/lib/types';
+import { notFound } from 'next/navigation';
+import PartnerHeader from '@/components/partner/PartnerHeader';
+import PartnerFooter from '@/components/partner/PartnerFooter';
+import { Metadata } from 'next';
+
+const db = getFirestore(firebaseApp);
+
+async function getPartnerBySlug(slug: string): Promise<User | null> {
+  const q = query(
+    collection(db, "users"), 
+    where("landingPage.enabled", "==", true),
+    where("landingPage.slug", "==", slug)
+  );
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+  return { ...snapshot.docs[0].data(), id: snapshot.docs[0].id, uid: snapshot.docs[0].id } as User;
+}
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const partner = await getPartnerBySlug(params.slug);
+  if (!partner) return { title: 'Practice Not Found' };
+
+  return {
+    title: `${partner.companyName || partner.name} | Professional Accounting & Tax`,
+    description: partner.landingPage?.heroSubtitle,
+  };
+}
+
+export default async function PartnerLandingLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: { slug: string };
+}) {
+  const partner = await getPartnerBySlug(params.slug);
+
+  if (!partner) {
+    notFound();
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-white">
+      <style dangerouslySetInnerHTML={{ __html: `
+        :root {
+          --partner-primary: ${partner.landingPage?.primaryColor || '#214392'};
+        }
+        .partner-btn {
+          background-color: var(--partner-primary) !important;
+          color: white !important;
+        }
+        .partner-text {
+          color: var(--partner-primary) !important;
+        }
+        .partner-border {
+          border-color: var(--partner-primary) !important;
+        }
+      `}} />
+      <PartnerHeader partner={partner} />
+      <main className="flex-grow">
+        {children}
+      </main>
+      <PartnerFooter partner={partner} />
+    </div>
+  );
+}

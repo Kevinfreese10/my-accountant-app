@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -7,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Service, Order, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Loader2, LogIn, UserPlus } from 'lucide-react';
+import { Loader2, LogIn, UserPlus, Contact } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getNextOrderId } from '@/lib/sequence';
@@ -17,11 +16,10 @@ import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { sendEmail } from '@/lib/email';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { Contact } from 'lucide-react';
 
 const db = getFirestore(firebaseApp);
 
-export default function ServiceCheckoutForm({ service }: { service: Service }) {
+export default function ServiceCheckoutForm({ service, partnerId }: { service: Service, partnerId?: string }) {
   const router = useRouter();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -38,7 +36,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
             description: 'You must be logged in to purchase a service.',
             variant: 'destructive'
         });
-        router.push(`/login?redirect=/products/${service.slug}`);
+        const redirectPath = partnerId ? `/p/${partnerId}/products/${service.slug}` : `/products/${service.slug}`;
+        router.push(`/login?redirect=${redirectPath}`);
         return;
     }
 
@@ -86,7 +85,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: service.department || null,
-        source: 'Client',
+        source: partnerId ? 'Partner Landing Page' : 'Client',
+        resellerId: partnerId || undefined,
       };
 
       await setDoc(doc(db, 'orders', orderId), orderData);
@@ -115,7 +115,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   }
 
   return (
-    <div className="sticky top-24 space-y-4">
+    <div className="space-y-4">
         <div className="space-y-4">
             <div className="flex items-start space-x-2">
                 <Checkbox id="prerequisites" checked={hasPrerequisites} onCheckedChange={(checked) => setHasPrerequisites(checked as boolean)} />
@@ -145,7 +145,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
              <Button 
                 onClick={handleCheckout}
                 disabled={isLoading || !canPurchase}
-                className="w-full"
+                className="w-full partner-btn"
                 size="lg"
             >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -153,10 +153,10 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
             </Button>
         ) : (
             <div className="space-y-4">
-                 <Button asChild className="w-full" size="lg">
-                    <Link href={`/signup?redirect=/products/${service.slug}`}>
+                 <Button asChild className="w-full partner-btn" size="lg">
+                    <Link href={`/signup?redirect=${partnerId ? `/p/${partnerId}/products/${service.slug}` : `/products/${service.slug}`}`}>
                         <UserPlus className="mr-2 h-4 w-4" />
-                        Create an Account to Purchase
+                        Create Account
                     </Link>
                 </Button>
                 <div className="relative">
@@ -168,9 +168,9 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                     </div>
                 </div>
                 <Button variant="secondary" className="w-full" asChild>
-                    <Link href={`/login?redirect=/products/${service.slug}`}>
+                    <Link href={`/login?redirect=${partnerId ? `/p/${partnerId}/products/${service.slug}` : `/products/${service.slug}`}`}>
                         <LogIn className="mr-2 h-4 w-4" />
-                        Login to your account
+                        Login to Purchase
                     </Link>
                 </Button>
             </div>

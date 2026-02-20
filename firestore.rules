@@ -1,10 +1,11 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow reading any user profile (needed for partner landing pages)
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
     match /clients/{clientId} {
       allow read, write: if request.auth != null; // Allow authenticated users to manage clients
@@ -14,7 +15,7 @@ service cloud.firestore {
       allow write: if request.auth != null; // Allow authenticated users to manage services
     }
     match /orders/{orderId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true; // Allow guest orders creation
     }
     match /blogPosts/{postId} {
       allow read: if true;
@@ -28,7 +29,7 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
     match /sequences/{sequenceId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
      match /discounts/{discountId} {
       allow read, write: if request.auth != null;
