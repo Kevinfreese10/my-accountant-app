@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -153,6 +154,8 @@ export default function PartnerOrdersPage() {
                 originalOrderId: selectedOrderForOutsource.id,
                 discountCode: null,
                 discountAmount: null,
+                // Ensure the client's userId is preserved so they can see the order
+                userId: selectedOrderForOutsource.userId || null,
             };
             
             if (department) {

@@ -1,9 +1,10 @@
+
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Order, Service, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp, where, or } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search, MessageSquare, Inbox, Archive } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -117,15 +118,29 @@ export default function DashboardPage() {
         let ordersUnsubscribe = () => {};
         if (user) {
             const ordersRef = collection(db, 'orders');
-            ordersUnsubscribe = onSnapshot(query(ordersRef, where('userId', '==', user.uid), orderBy('date', 'desc')), (snapshot) => {
-                setOrders(snapshot.docs.map(doc => {
+            // Expanded query to match by userId OR email fields
+            const q = query(
+                ordersRef, 
+                or(
+                    where('userId', '==', user.uid),
+                    where('customerEmail', '==', user.email),
+                    where('endCustomerEmail', '==', user.email)
+                ),
+                orderBy('date', 'desc')
+            );
+
+            ordersUnsubscribe = onSnapshot(q, (snapshot) => {
+                const fetchedOrders = snapshot.docs.map(doc => {
                     const data = doc.data();
                     return { 
                         ...data, 
                         id: doc.id,
                         notes: (data.notes || []).map((note: any) => ({ ...note, date: note.date?.toDate() })),
                     } as Order;
-                }));
+                });
+                // Deduplicate
+                const uniqueOrders = Array.from(new Map(fetchedOrders.map(o => [o.id, o])).values());
+                setOrders(uniqueOrders);
                 setIsLoading(false);
             }, async (error) => {
                 const permissionError = new FirestorePermissionError({

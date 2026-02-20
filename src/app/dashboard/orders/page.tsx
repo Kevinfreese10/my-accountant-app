@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Order } from '@/lib/types';
 import { useState, useEffect } from 'react';
-import { getFirestore, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, orderBy, or } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,7 +25,17 @@ export default function DashboardPage() {
             if (!user?.uid) return;
             setIsLoading(true);
             try {
-                const q = query(collection(db, 'orders'), where('userId', '==', user.uid), orderBy('date', 'desc'));
+                // Expanded query to look for userId OR email match in customer/end-customer fields
+                const q = query(
+                    collection(db, 'orders'), 
+                    or(
+                        where('userId', '==', user.uid),
+                        where('customerEmail', '==', user.email),
+                        where('endCustomerEmail', '==', user.email)
+                    ),
+                    orderBy('date', 'desc')
+                );
+                
                 const querySnapshot = await getDocs(q);
                 const fetchedOrders = querySnapshot.docs.map(doc => {
                     const data = doc.data();
@@ -35,7 +45,9 @@ export default function DashboardPage() {
                         date: data.date.toDate().toISOString(),
                     } as Order;
                 });
-                setOrders(fetchedOrders.filter(order => order.status !== 'Cancelled'));
+                // Deduplicate in case an order matches multiple conditions
+                const uniqueOrders = Array.from(new Map(fetchedOrders.map(o => [o.id, o])).values());
+                setOrders(uniqueOrders.filter(order => order.status !== 'Cancelled'));
             } catch (error) {
                 console.error("Error fetching orders:", error);
             } finally {
