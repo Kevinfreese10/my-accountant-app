@@ -1,4 +1,4 @@
-import { getFirestore, collection, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Clock, CheckCircle2, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
@@ -17,13 +19,33 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
   );
   const snapshot = await getDocs(q);
   if (snapshot.empty) return null;
-  return { ...snapshot.docs[0].data(), id: snapshot.docs[0].id, uid: snapshot.docs[0].id } as User;
+  const doc = snapshot.docs[0];
+  const data = doc.data();
+
+  const serializedPartner = {
+    ...data,
+    id: doc.id,
+    uid: doc.id,
+  } as any;
+
+  if (data.createdAt instanceof Timestamp) {
+    serializedPartner.createdAt = data.createdAt.toDate().toISOString();
+  }
+
+  return serializedPartner as User;
 }
 
 async function getServices(): Promise<Service[]> {
   const q = query(collection(db, "services"), orderBy("title"));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    const serviceData = { id: doc.id, ...data } as any;
+    if (data.createdAt instanceof Timestamp) {
+        serviceData.createdAt = data.createdAt.toDate().toISOString();
+    }
+    return serviceData as Service;
+  });
 }
 
 const formatPrice = (price: number) => {

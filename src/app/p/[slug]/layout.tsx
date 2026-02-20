@@ -1,4 +1,4 @@
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { notFound } from 'next/navigation';
@@ -16,7 +16,24 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
   );
   const snapshot = await getDocs(q);
   if (snapshot.empty) return null;
-  return { ...snapshot.docs[0].data(), id: snapshot.docs[0].id, uid: snapshot.docs[0].id } as User;
+  const doc = snapshot.docs[0];
+  const data = doc.data();
+
+  const serializedPartner = {
+    ...data,
+    id: doc.id,
+    uid: doc.id,
+  } as any;
+
+  // Serialize any potential timestamps to strings for Client Component transport
+  if (data.createdAt instanceof Timestamp) {
+    serializedPartner.createdAt = data.createdAt.toDate().toISOString();
+  }
+  if (data.yearEnd instanceof Timestamp) {
+    serializedPartner.yearEnd = data.yearEnd.toDate().toISOString();
+  }
+
+  return serializedPartner as User;
 }
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {

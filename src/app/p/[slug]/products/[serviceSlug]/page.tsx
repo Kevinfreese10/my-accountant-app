@@ -19,14 +19,34 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
   );
   const snapshot = await getDocs(q);
   if (snapshot.empty) return null;
-  return { ...snapshot.docs[0].data(), id: snapshot.docs[0].id, uid: snapshot.docs[0].id } as User;
+  const doc = snapshot.docs[0];
+  const data = doc.data();
+
+  const serializedPartner = {
+    ...data,
+    id: doc.id,
+    uid: doc.id,
+  } as any;
+
+  if (data.createdAt instanceof Timestamp) {
+    serializedPartner.createdAt = data.createdAt.toDate().toISOString();
+  }
+
+  return serializedPartner as User;
 }
 
 async function getService(slug: string): Promise<Service | null> {
     const q = query(collection(db, 'services'), where('slug', '==', slug));
     const snapshot = await getDocs(q);
     if (snapshot.empty) return null;
-    return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Service;
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+    
+    const serviceData = { id: doc.id, ...data } as any;
+    if (data.createdAt instanceof Timestamp) {
+        serviceData.createdAt = data.createdAt.toDate().toISOString();
+    }
+    return serviceData as Service;
 }
 
 const formatPrice = (price: number) => {
