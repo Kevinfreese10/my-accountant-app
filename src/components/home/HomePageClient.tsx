@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Rocket, ShieldCheck, Wallet, Clock, Search, Loader2 } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Clock, Search, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { Service } from '@/lib/types';
@@ -21,6 +21,7 @@ import { getFirestore, collection, getDocs, orderBy, query, Timestamp } from 'fi
 import { firebaseApp } from '@/lib/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { Separator } from '../ui/separator';
 
 const db = getFirestore(firebaseApp);
 
@@ -32,7 +33,12 @@ type Category = {
 };
 
 const formatPrice = (price: number) => {
-    return `R ${price.toLocaleString('en-US')}`;
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
 };
 
 export default function HomePageClient() {
@@ -206,31 +212,48 @@ export default function HomePageClient() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {category.data.map(service => (
-                        <Card
-                        key={service.id}
-                        className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-                        >
-                        <CardHeader>
-                            <CardTitle>{service.title}</CardTitle>
-                            {service.isPriceTbc ? (
-                                <p className="text-xl font-bold text-muted-foreground pt-2">Price on request</p>
-                            ) : (
-                                <p className="text-2xl font-bold text-primary pt-2">{formatPrice(service.price)}</p>
-                            )}
-                            <div className="flex items-center text-muted-foreground pt-1">
-                                <Clock className="h-4 w-4 mr-1.5" />
-                                <span className="text-xs font-medium">{service.turnaroundTime}</span>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="flex-grow">
-                            <CardDescription>{service.description}</CardDescription>
-                             <p className="text-xs text-muted-foreground mt-2">Brand: {service.brand || 'My Accountant'}</p>
-                        </CardContent>
-                        <CardFooter>
-                            <Button asChild className="w-full">
-                            <Link href={`/products/${service.slug}`}>Learn More</Link>
-                            </Button>
-                        </CardFooter>
+                        <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 border">
+                            <CardHeader className="space-y-2 pb-4">
+                                <CardTitle className="text-2xl font-bold leading-tight group-hover:text-primary transition-colors">
+                                    {service.title}
+                                </CardTitle>
+                                <div className="space-y-1">
+                                    {service.isPriceTbc ? (
+                                        <span className="text-xl font-bold opacity-50 block">Price on Request</span>
+                                    ) : (
+                                        <span className="text-2xl font-bold text-primary block">
+                                            {formatPrice(service.price)}
+                                        </span>
+                                    )}
+                                    <div className="flex items-center text-xs opacity-70 font-medium">
+                                        <Clock className="h-4 w-4 mr-1.5 opacity-70" />
+                                        {service.turnaroundTime}
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="flex-grow space-y-6">
+                                <p className="text-sm opacity-80 leading-relaxed line-clamp-3">
+                                    {service.description}
+                                </p>
+                                <div className="space-y-3">
+                                    <p className="text-sm font-semibold">What&apos;s Included:</p>
+                                    <ul className="space-y-2">
+                                        {(service.whatsIncluded || []).slice(0, 3).map((item, i) => (
+                                            <li key={i} className="flex items-start text-xs opacity-90">
+                                                <CheckCircle2 className="h-4 w-4 mr-3 mt-0.5 text-primary flex-shrink-0" />
+                                                <span className="leading-tight">{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </CardContent>
+                            <CardFooter className="pt-0">
+                                <Button variant="outline" className="w-full border-primary text-primary font-semibold h-11" asChild>
+                                    <Link href={`/products/${service.slug}`}>
+                                        View Details <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Link>
+                                </Button>
+                            </CardFooter>
                         </Card>
                     ))}
                     </div>
