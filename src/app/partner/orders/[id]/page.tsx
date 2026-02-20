@@ -22,9 +22,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
-import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
-import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
-import PaymentFollowUpEmail from '@/components/emails/PaymentFollowUpEmail';
 import { Input } from '@/components/ui/input';
 import { proofreadNote } from '@/ai/flows/proofread-note';
 import { customAlphabet } from 'nanoid';
@@ -251,7 +248,7 @@ export default function PartnerOrderDetailsPage() {
       } else if (type === 'review') {
           text += `We hope you were happy with our service for order #${orderId}. If you have a moment, we would greatly appreciate it if you could leave us a review.\n\n`;
       }
-      text += `Kind regards,\n${currentUser?.companyName || 'The My Accountant Team'}`;
+      text += `Kind regards,\nThe ${currentUser?.companyName || 'My Accountant'} Team`;
       noteForm.setValue('noteText', text);
   };
 
@@ -261,7 +258,7 @@ export default function PartnerOrderDetailsPage() {
     
     if (order.discountCode) {
       toast({ title: 'Discount Already Generated', description: `This order already has a discount code: ${order.discountCode}`, variant: 'destructive' });
-      const text = `Hi ${contactName?.split(' ')[0]},\n\nAs a token of our appreciation for your business, here is your 10% discount code for your next order: ${order.discountCode}\n\nKind regards,\n${currentUser?.companyName || 'The My Accountant Team'}`;
+      const text = `Hi ${contactName?.split(' ')[0]},\n\nAs a token of our appreciation for your business, here is your 10% discount code for your next order: ${order.discountCode}\n\nKind regards,\nThe ${currentUser?.companyName || 'My Accountant'} Team`;
       noteForm.setValue('noteText', text);
       return;
     }
@@ -285,7 +282,7 @@ export default function PartnerOrderDetailsPage() {
       
       setOrder(prev => prev ? { ...prev, discountCode: newDiscountCode } : null);
       
-      const text = `Hi ${contactName?.split(' ')[0]},\n\nAs a token of our appreciation for your business, here is your 10% discount code for your next order: ${newDiscountCode}\n\nKind regards,\n${currentUser?.companyName || 'The My Accountant Team'}`;
+      const text = `Hi ${contactName?.split(' ')[0]},\n\nAs a token of our appreciation for your business, here is your 10% discount code for your next order: ${newDiscountCode}\n\nKind regards,\nThe ${currentUser?.companyName || 'My Accountant'} Team`;
       noteForm.setValue('noteText', text);
       toast({ title: 'Discount Generated!', description: `Code ${newDiscountCode} has been created and saved.` });
     } catch (e) {
@@ -649,7 +646,7 @@ export default function PartnerOrderDetailsPage() {
                                         Post Note
                                     </Button>
                                     <Button type="button" variant="outline" size="sm" onClick={handleProofread} disabled={isProofreading}>
-                                        {isProofreading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                                        {isProofreading ? <Loader2 className="mr-2 h-4 w-4 animate-spin mr-2" /> : <Sparkles className="mr-2" />}
                                         Proofread
                                     </Button>
                                 </div>
