@@ -77,7 +77,7 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
         userId: userId,
         customerName: customerName,
         customerEmail: customerEmail,
-        customerPhone: customerPhone || undefined,
+        customerPhone: customerPhone || null,
         items: [{ id: service.id, title: service.title, price: service.price, quantity: 1 }],
         total: service.price,
         discountCode: null,
@@ -87,7 +87,7 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
         date: Timestamp.now(),
         department: service.department || null,
         source: partnerId ? 'Partner Landing Page' : 'Client',
-        resellerId: partnerId || undefined,
+        resellerId: partnerId || null,
       };
 
       await setDoc(doc(db, 'orders', orderId), orderData);
