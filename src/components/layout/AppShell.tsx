@@ -4,22 +4,29 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { usePathname } from 'next/navigation';
 import Footer from '@/components/layout/Footer';
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
 const Header = dynamic(() => import('@/components/layout/Header'), { ssr: false });
-const NewVisitorPopup = dynamic(() => import('@/components/shared/NewVisitorPopup'), { ssr: false });
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
 
-  const isDashboardPage =
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDashboardPage = pathname ? (
     pathname.startsWith('/admin') ||
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/partner') ||
-    pathname.startsWith('/p/');
+    pathname.startsWith('/p/')
+  ) : false;
 
-  const shouldShowHeaderFooter = !isDashboardPage;
+  // Use a 'mounted' check to prevent hydration mismatch for components 
+  // that depend on browser-only state like window.location or dynamic imports with ssr: false
+  const shouldShowHeaderFooter = mounted && !isDashboardPage;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -28,7 +35,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
       {shouldShowHeaderFooter && (
         <>
           <Footer />
-          {/* <NewVisitorPopup /> */}
         </>
       )}
     </div>
