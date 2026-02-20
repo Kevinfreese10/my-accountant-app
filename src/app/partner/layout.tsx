@@ -1,21 +1,78 @@
 'use client';
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { ProtectedRoute, useAuth } from '@/contexts/AuthContext';
 import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import DashboardNav from '@/components/dashboard/DashboardNav';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
+import { getFirestore, doc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, Wallet2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+
+const db = getFirestore(firebaseApp);
 
 export default function PartnerLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
+  const [isBillingChecking, setIsBillingCheck] = useState(true);
   
   useEffect(() => {
     if (isAuthenticated && user?.role !== 'partner' && user?.role !== 'partner_staff') {
       router.push('/login');
     }
   }, [isAuthenticated, user, router]);
+
+  useEffect(() => {
+    const performBillingCheck = async () => {
+        if (!user || user.role !== 'partner' || !user.subscription?.monthlyTotal) {
+            setIsBillingCheck(false);
+            return;
+        }
+
+        const now = new Date();
+        const lastBillingDate = user.subscription.lastBillingDate?.toDate ? user.subscription.lastBillingDate.toDate() : new Date(0);
+        
+        // Billing check: Is it a new month since the last deduction?
+        const isNewMonth = now.getMonth() !== lastBillingDate.getMonth() || now.getFullYear() !== lastBillingDate.getFullYear();
+        const isFirstOfMonth = now.getDate() >= 1; // Basic trigger for simplicity
+
+        if (isNewMonth && isFirstOfMonth) {
+            const totalDue = user.subscription.monthlyTotal;
+            const partnerRef = doc(db, 'users', user.uid);
+
+            if ((user.creditBalance || 0) >= totalDue) {
+                try {
+                    await updateDoc(partnerRef, {
+                        creditBalance: increment(-totalDue),
+                        'subscription.lastBillingDate': serverTimestamp(),
+                        'subscription.subscriptionStatus': 'active'
+                    });
+                    console.log('Automated monthly billing successful.');
+                } catch (e) {
+                    console.error('Automated billing failed:', e);
+                }
+            } else {
+                try {
+                    await updateDoc(partnerRef, {
+                        'subscription.subscriptionStatus': 'lapsed'
+                    });
+                    console.warn('Subscription lapsed due to insufficient credits.');
+                } catch (e) {
+                    console.error('Failed to update lapsed status:', e);
+                }
+            }
+        }
+        setIsBillingCheck(false);
+    };
+
+    if (isAuthenticated && user) {
+        performBillingCheck();
+    }
+  }, [isAuthenticated, user]);
 
   if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'partner' && user?.role !== 'partner_staff')) {
      return (
@@ -28,6 +85,8 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
       </div>
      );
   }
+
+  const isLapsed = user?.subscription?.subscriptionStatus === 'lapsed';
 
   return (
     <ProtectedRoute>
@@ -42,10 +101,28 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
               <div className="p-4 sm:p-6 lg:p-8">
                   <div className="flex items-center gap-4 mb-6">
                       <SidebarTrigger className="md:hidden" />
-                      <div>
+                      <div className="flex flex-col gap-1">
                           <h2 className="text-sm font-semibold text-primary">{user?.companyName || 'Partner Practice'}</h2>
+                          {isLapsed && <Badge variant="destructive" className="w-fit text-[10px] h-4">Subscription Lapsed</Badge>}
                       </div>
                   </div>
+
+                  {isLapsed && (
+                      <Alert variant="destructive" className="mb-8 border-2 shadow-lg animate-in fade-in zoom-in-95">
+                          <AlertCircle className="h-5 w-5" />
+                          <AlertTitle className="font-bold">Subscription Action Required</AlertTitle>
+                          <AlertDescription className="space-y-4">
+                              <p>Your practice wallet has insufficient credits to cover your monthly subscription of <strong>R{user?.subscription?.monthlyTotal}</strong>. Services have been temporarily restricted.</p>
+                              <Button asChild variant="outline" className="border-destructive text-destructive hover:bg-destructive hover:text-white font-bold">
+                                  <Link href="/partner/dashboard">
+                                      <Wallet2 className="mr-2 h-4 w-4"/>
+                                      Top Up Practice Wallet
+                                  </Link>
+                              </Button>
+                          </AlertDescription>
+                      </Alert>
+                  )}
+
                   {children}
               </div>
           </SidebarInset>

@@ -185,6 +185,7 @@ export type SubscriptionData = {
     catchUpFee: number;
     subscriptionEndDate?: any; // Firestore Timestamp
     subscriptionStatus?: 'active' | 'lapsed';
+    lastBillingDate?: any; // Firestore Timestamp for recurring deductions
 };
 
 export type SavedReport = {
@@ -231,7 +232,7 @@ export type User = {
   clientSource?: 'admin' | 'partner' | 'ai_accountant';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   entityType?: 'Company' | 'Trust' | 'Individual';
-  status?: 'Active' | 'Inactive' | 'Archived';
+  status?: 'Active' | 'Inactive' | 'Archived' | 'Pending Setup Payment';
   partnerId?: string; // Links staff or clients to a partner
   // Partner specific fields or contact person for AI Accountant
   companyName?: string;
@@ -300,6 +301,7 @@ export type User = {
   emailSignature?: string;
   savedReports?: SavedReport[];
   landingPage?: PartnerLandingPageConfig;
+  archivedNotificationsClient?: string[];
 };
 
 export type ClientCustomer = {
