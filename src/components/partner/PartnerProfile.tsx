@@ -30,17 +30,17 @@ const formSchema = z.object({
   contactNumber: z.string().min(10, 'A valid contact number is required.'),
   geminiApiKey: z.string().optional(),
   address: z.object({
-      street: z.string().min(3, 'Street address is required.'),
-      city: z.string().min(2, 'City is required.'),
-      province: z.string().min(2, 'Province is required.'),
-      zip: z.string().min(4, 'Postal code is required.'),
-  }),
+      street: z.string().optional(),
+      city: z.string().optional(),
+      province: z.string().optional(),
+      zip: z.string().optional(),
+  }).optional(),
   bankingDetails: z.object({
-      bankName: z.string().min(3, 'Bank name is required.'),
-      accountHolder: z.string().min(2, 'Account holder name is required.'),
-      accountNumber: z.string().min(5, 'A valid account number is required.'),
-      branchCode: z.string().min(6, 'A valid branch code is required.'),
-  }),
+      bankName: z.string().optional(),
+      accountHolder: z.string().optional(),
+      accountNumber: z.string().optional(),
+      branchCode: z.string().optional(),
+  }).optional(),
   landingPage: z.object({
     enabled: z.boolean().default(false),
     slug: z.string().min(3, "Slug must be at least 3 characters").regex(/^[a-z0-9-]+$/, "Slug can only contain lowercase letters, numbers, and hyphens"),
@@ -339,7 +339,7 @@ export default function PartnerProfile() {
         </div>
 
         <div className="space-y-4">
-            <h3 className="text-lg font-medium">Physical Address</h3>
+            <h3 className="text-lg font-medium">Physical Address (Optional)</h3>
             <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -351,7 +351,7 @@ export default function PartnerProfile() {
         <Separator />
 
         <div className="space-y-4">
-            <h3 className="text-lg font-medium">Banking Details</h3>
+            <h3 className="text-lg font-medium">Banking Details (Optional)</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
