@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,7 +54,6 @@ export default function PartnerOrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
-  const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const [outsourceOptionsOpen, setOutsourceOptionsOpen] = useState(false);
   const [selectedOrderForOutsource, setSelectedOrderForOutsource] = useState<Order | null>(null);
@@ -251,7 +251,7 @@ export default function PartnerOrdersPage() {
     
     const handleOrderCreated = () => {
         setIsCreateOrderOpen(false);
-        fetchOrdersAndStaff();
+        // The real-time onSnapshot listener handles data updates
     };
 
     return (
