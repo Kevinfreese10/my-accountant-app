@@ -9,10 +9,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck, Search, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Trash, RefreshCw, Clock, AlertCircle } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, OrderNote, User } from '@/lib/types';
+import { Order, Service, OrderNote } from '@/lib/types';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
@@ -21,21 +21,21 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { getNextOrderId } from '@/lib/sequence';
-import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 import Link from 'next/link';
-
 
 const db = getFirestore(firebaseApp);
 
 const lineItemSchema = z.object({
-  serviceId: z.string().min(1, 'Please select a service.'),
+  isCustom: z.boolean().default(false),
+  serviceId: z.string().optional(),
   description: z.string().min(1, 'Description is required.'),
   quantity: z.preprocess(val => Number(val), z.number().min(1, 'Quantity must be at least 1.')),
-  resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
-  clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
+  price: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
+  discountType: z.enum(['fixed', 'percentage']).default('fixed'),
+  discountValue: z.preprocess(val => Number(val) || 0, z.number().min(0, 'Discount cannot be negative.').optional()),
+  resellerPrice: z.preprocess(val => Number(val), z.number().min(0).optional()),
 });
-
 
 const formSchema = z.object({
   customerFirstName: z.string().min(2, "Client's first name is required."),
@@ -46,6 +46,15 @@ const formSchema = z.object({
 });
 
 type CreateOrderFormValues = z.infer<typeof formSchema>;
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
 
 export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCreated: () => void }) {
   const router = useRouter();
@@ -70,7 +79,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
             console.error("Error fetching services:", error);
             toast({
                 title: 'Error',
-                description: 'Could not load the list of services. Please try again.',
+                description: 'Could not load the list of services.',
                 variant: 'destructive',
             });
         } finally {
@@ -80,7 +89,6 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     fetchServices();
   }, [toast]);
 
-
   const form = useForm<CreateOrderFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -88,7 +96,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
       customerLastName: '',
       customerEmail: '',
       customerPhone: '',
-      items: [{ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 }],
+      items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0, resellerPrice: 0 }],
     },
     mode: 'onChange',
   });
@@ -101,8 +109,18 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
   const calculateTotal = (items: any[]) => {
     return (items || []).reduce((acc, item) => {
         const quantity = item?.quantity || 0;
-        const resellerPrice = item?.resellerPrice || 0;
-        return acc + (resellerPrice * quantity);
+        const price = item?.price || 0;
+        const discountValue = item?.discountValue || 0;
+        const lineItemTotal = price * quantity;
+
+        let discountAmount = 0;
+        if (item.discountType === 'percentage') {
+            discountAmount = lineItemTotal * (discountValue / 100);
+        } else {
+            discountAmount = discountValue * quantity;
+        }
+
+        return acc + (lineItemTotal - discountAmount);
     }, 0);
   }
 
@@ -113,117 +131,110 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     return () => subscription.unsubscribe();
   }, [form]);
 
-
   const handleServiceChange = (serviceId: string, index: number) => {
     const selectedService = allServices.find(s => s.id === serviceId);
     if (selectedService) {
         form.setValue(`items.${index}.description`, selectedService.title);
+        form.setValue(`items.${index}.price`, selectedService.price);
         form.setValue(`items.${index}.resellerPrice`, selectedService.resellerPrice || selectedService.price);
-        form.setValue(`items.${index}.clientPrice`, selectedService.price);
         form.trigger(`items.${index}`);
     }
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
-      maximumFractionDigits: 2,
-    }).format(price);
+  const getLineItemTotal = (item: any) => {
+    const quantity = item.quantity || 0;
+    const price = item.price || 0;
+    const discountValue = item.discountValue || 0;
+    const lineItemTotal = price * quantity;
+
+    let discountAmount = 0;
+    if (item.discountType === 'percentage') {
+        discountAmount = lineItemTotal * (discountValue / 100);
+    } else {
+        discountAmount = discountValue * quantity;
+    }
+    return (lineItemTotal - discountAmount);
   };
 
   async function onSubmit(values: CreateOrderFormValues) {
-    if (!partner) {
-        toast({ title: 'Error', description: 'You must be logged in to create an order.', variant: 'destructive'});
-        return;
-    }
+    if (!partner) return;
 
     if (!hasBankingDetails) {
-        toast({ title: 'Banking Details Missing', description: 'Please complete your practice banking details in your profile before creating orders.', variant: 'destructive'});
+        toast({ title: 'Banking Details Missing', description: 'Please complete your practice banking details in your profile.', variant: 'destructive'});
         return;
     }
 
     setIsLoading(true);
-    toast({
-      title: 'Creating Order...',
-      description: 'Please wait while we generate the new order.',
-    });
+    toast({ title: 'Creating Order...', description: 'Please wait.' });
 
     try {
-      // Look for existing client UID by email
-      let clientUserId = null;
-      const collectionsToSearch = ['users', 'aiAccountantClients'];
-      for (const coll of collectionsToSearch) {
-          const userQ = query(collection(db, coll), where("email", "==", values.customerEmail));
-          const userSnap = await getDocs(userQ);
-          if (!userSnap.empty) {
-              clientUserId = userSnap.docs[0].id;
-              break;
-          }
-      }
+        let clientUserId = null;
+        const collectionsToSearch = ['users', 'aiAccountantClients'];
+        for (const coll of collectionsToSearch) {
+            const userQ = query(collection(db, coll), where("email", "==", values.customerEmail));
+            const userSnap = await getDocs(userQ);
+            if (!userSnap.empty) {
+                clientUserId = userSnap.docs[0].id;
+                break;
+            }
+        }
 
-      const orderId = await getNextOrderId();
-      const resellerTotalCost = values.items.reduce((acc, item) => acc + (item.resellerPrice * item.quantity), 0);
-      const clientTotal = values.items.reduce((acc, item) => acc + (item.clientPrice * item.quantity), 0);
-      
-      const orderData: Order = {
-        id: orderId,
-        resellerId: partner.uid,
-        userId: clientUserId, // Link to client profile!
-        customerName: partner.companyName || `${partner.name} ${partner.surname}`,
-        customerEmail: partner.email,
-        customerPhone: partner.contactNumber,
-        endCustomerName: `${values.customerFirstName} ${values.customerLastName}`,
-        endCustomerEmail: values.customerEmail,
-        documentContact: 'reseller', // Default to partner
-        date: Timestamp.now(),
-        items: values.items.map(item => ({ 
-            id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
-            title: item.description, 
-            price: item.resellerPrice,
-            clientPrice: item.clientPrice,
-            quantity: item.quantity
-        })),
-        total: resellerTotalCost,
-        clientTotal: clientTotal,
-        status: 'Pending Payment',
-        originalOrderId: null,
-        isOutsourced: false,
-        discountAmount: null,
-        discountCode: null,
-        source: 'Partner',
-      };
+        const orderId = await getNextOrderId();
+        const customerFullName = `${values.customerFirstName} ${values.customerLastName}`;
+        
+        // Calculate reseller total cost (what partner pays us)
+        const resellerTotal = values.items.reduce((acc, item) => {
+            const resellerBase = item.isCustom ? (item.price * 0.9) : (item.resellerPrice || item.price);
+            return acc + (resellerBase * item.quantity);
+        }, 0);
 
-      await setDoc(doc(db, 'orders', orderId), orderData);
+        const orderData: Order = {
+            id: orderId,
+            resellerId: partner.uid,
+            userId: clientUserId,
+            customerName: partner.companyName || partner.name,
+            customerEmail: partner.email,
+            customerPhone: partner.contactNumber,
+            endCustomerName: customerFullName,
+            endCustomerEmail: values.customerEmail,
+            documentContact: 'reseller',
+            date: Timestamp.now(),
+            items: values.items.map(item => ({ 
+                id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
+                title: item.description, 
+                price: item.isCustom ? (item.price * 0.9) : (item.resellerPrice || item.price), // Partner cost
+                clientPrice: item.price, // Partner selling price
+                quantity: item.quantity,
+                discountType: item.discountType,
+                discountValue: item.discountValue,
+            })),
+            total: resellerTotal, // What partner pays My Accountant
+            clientTotal: total, // What client pays partner
+            status: 'Pending Payment',
+            originalOrderId: null,
+            isOutsourced: false,
+            discountAmount: null,
+            discountCode: null,
+            source: 'Partner',
+        };
 
-      try {
+        await setDoc(doc(db, 'orders', orderId), orderData);
+
         const confirmationEmailSubject = `Order Confirmation: #${orderId}`;
         const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={partner} />);
         await sendEmail({
-          to: values.customerEmail,
-          subject: confirmationEmailSubject,
-          html: emailHtml,
-          resellerId: partner.uid,
+            to: values.customerEmail,
+            subject: confirmationEmailSubject,
+            html: emailHtml,
+            resellerId: partner.uid,
         });
-      } catch (emailError) {
-        console.error("Failed to send client email:", emailError);
-      }
-      
-      toast({
-        title: 'Order Created Successfully',
-        description: `Your client has been notified.`,
-      });
-      
-      onOrderCreated();
+
+        toast({ title: 'Order Created Successfully', description: `Your client has been notified.` });
+        onOrderCreated();
 
     } catch (error) {
         console.error("Error creating order: ", error);
-        toast({
-            title: 'Order Creation Failed',
-            description: 'There was a problem saving the order. Please try again.',
-            variant: 'destructive',
-        });
+        toast({ title: 'Order Creation Failed', variant: 'destructive' });
     } finally {
         setIsLoading(false);
     }
@@ -236,10 +247,8 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Action Required</AlertTitle>
                   <AlertDescription className="space-y-4">
-                      <p>You must configure your <strong>Practice Banking Details</strong> in your profile before you can create client orders. This ensures your clients know where to pay.</p>
-                      <Button asChild variant="outline" className="mt-4">
-                          <Link href="/partner/profile">Update Banking Details</Link>
-                      </Button>
+                      <p>You must configure your <strong>Practice Banking Details</strong> in your profile before you can create client orders.</p>
+                      <Button asChild variant="outline" className="mt-4"><Link href="/partner/profile">Update Banking Details</Link></Button>
                   </AlertDescription>
               </Alert>
           </div>
@@ -249,52 +258,11 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
-        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-            control={form.control}
-            name="customerFirstName"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Your Client's First Name</FormLabel>
-                <FormControl><Input placeholder="John" {...field} /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-             <FormField
-            control={form.control}
-            name="customerLastName"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Your Client's Last Name</FormLabel>
-                <FormControl><Input placeholder="Doe" {...field} /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-            <FormField
-            control={form.control}
-            name="customerEmail"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Your Client's Email</FormLabel>
-                <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-            <FormField
-            control={form.control}
-            name="customerPhone"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Your Client's Phone</FormLabel>
-                <FormControl><Input placeholder="0821234567" {...field} /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
+            <FormField control={form.control} name="customerFirstName" render={({ field }) => ( <FormItem><FormLabel>Client's First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="customerLastName" render={({ field }) => ( <FormItem><FormLabel>Client's Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="customerEmail" render={({ field }) => ( <FormItem><FormLabel>Client's Email</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="customerPhone" render={({ field }) => ( <FormItem><FormLabel>Client's Phone</FormLabel><FormControl><Input placeholder="0821234567" {...field} /></FormControl><FormMessage /></FormItem> )} />
         </div>
         
         <Separator />
@@ -303,14 +271,28 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
             <h3 className="text-lg font-medium mb-2">Order Items</h3>
             <div className="space-y-4">
                 {fields.map((field, index) => {
+                    const isCustom = form.watch(`items.${index}.isCustom`);
+                    const lineItem = form.watch(`items.${index}`);
                     const serviceId = form.watch(`items.${index}.serviceId`);
                     const selectedService = serviceId ? allServices.find(s => s.id === serviceId) : null;
-                    const lineItem = form.watch(`items.${index}`);
                     
                     return (
-                    <div key={field.id} className="p-3 border rounded-md space-y-3">
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="md:col-span-2 space-y-2">
+                    <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-x-3 gap-y-2 p-3 border rounded-md relative items-start">
+                         <div className="md:col-span-4 space-y-2">
+                             {isCustom ? (
+                                 <FormField
+                                    control={form.control}
+                                    name={`items.${index}.description`}
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Custom Description</FormLabel>
+                                            <FormControl><Input {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                             ) : (
+                                <>
                                 <FormField
                                     control={form.control}
                                     name={`items.${index}.serviceId`}
@@ -318,85 +300,67 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
                                         <FormItem>
                                             <FormLabel>Service</FormLabel>
                                             <Select onValueChange={(value) => { field.onChange(value); handleServiceChange(value, index);}} defaultValue={field.value} disabled={isServicesLoading}>
-                                                <FormControl><SelectTrigger><SelectValue placeholder={isServicesLoading ? "Loading services..." : "Select a service"} /></SelectTrigger></FormControl>
+                                                <FormControl><SelectTrigger><SelectValue placeholder={isServicesLoading ? 'Loading services...' : 'Select a service'} /></SelectTrigger></FormControl>
                                                 <SelectContent>
-                                                    {allServices.map(service => (
-                                                        <SelectItem key={service.id} value={service.id}>{service.title}</SelectItem>
-                                                    ))}
+                                                    {allServices.map(service => <SelectItem key={service.id} value={service.id}>{service.title}</SelectItem>)}
                                                 </SelectContent>
                                             </Select>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
-                                {selectedService && (
-                                    <div className="text-xs space-y-2 pt-2">
-                                        <div className="flex items-center gap-2 text-muted-foreground">
-                                            <Clock className="h-4 w-4" />
-                                            <span>{selectedService.turnaroundTime}</span>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                         </div>
-                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 items-end">
-                            <FormField
-                                control={form.control}
-                                name={`items.${index}.quantity`}
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Qty</FormLabel>
-                                        <FormControl><Input type="number" {...field} /></FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                                />
+                                </>
+                             )}
                              <FormField
                                 control={form.control}
-                                name={`items.${index}.clientPrice`}
+                                name={`items.${index}.isCustom`}
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center space-x-2 pt-2">
+                                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                        <FormLabel className="text-xs !mt-0">Enter custom item</FormLabel>
+                                    </FormItem>
+                                )}
+                            />
+                         </div>
+                        <div className="md:col-span-1">
+                             <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => ( <FormItem><FormLabel>Qty</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                         </div>
+                        <div className="md:col-span-2">
+                             <FormField control={form.control} name={`items.${index}.price`} render={({ field }) => ( <FormItem><FormLabel>Selling Price (R)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                         </div>
+                         <div className="md:col-span-2">
+                             <FormField
+                                control={form.control}
+                                name={`items.${index}.discountType`}
                                 render={({ field }) => (
                                     <FormItem>
-                                    <FormLabel>Selling Price (R)</FormLabel>
-                                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
-                                    <FormMessage />
+                                        <FormLabel>Discount</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="fixed">Fixed (R)</SelectItem>
+                                                <SelectItem value="percentage">Percent (%)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </FormItem>
                                 )}
                                 />
-                             <div className="md:col-span-1 flex items-end">
-                                <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="icon"
-                                    onClick={() => remove(index)}
-                                    className="w-full"
-                                    disabled={fields.length === 1}
-                                >
-                                    <Trash className="h-4 w-4" />
-                                </Button>
-                             </div>
+                         </div>
+                         <div className="md:col-span-1">
+                             <FormField control={form.control} name={`items.${index}.discountValue`} render={({ field }) => ( <FormItem><FormLabel>Value</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                         </div>
+                         <div className="md:col-span-1 flex flex-col items-end justify-center h-full pt-8">
+                            <p className="text-right w-full font-semibold text-sm">{formatPrice(getLineItemTotal(lineItem))}</p>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="h-8 w-8 text-destructive" disabled={fields.length === 1}><Trash className="h-4 w-4" /></Button>
                          </div>
                     </div>
                 )})}
             </div>
             <div className="flex gap-2">
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-4"
-                    onClick={() => append({ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 })}
-                >
+                <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append({ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0, resellerPrice: 0 })}>
                     <Plus className="mr-2 h-4 w-4" /> Add Line Item
                 </Button>
-                <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="mt-4"
-                    onClick={() => form.trigger()}
-                >
-                    <RefreshCw className="mr-2 h-4 w-4" /> Update Totals & Validate
-                </Button>
+                <Button type="button" variant="secondary" size="sm" className="mt-4" onClick={() => form.trigger()}><RefreshCw className="mr-2 h-4 w-4" /> Update Totals</Button>
             </div>
         </div>
 
@@ -411,7 +375,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
 
         <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid || total === 0}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? 'Creating Order...' : 'Create Order & Notify Client'}
+            {isLoading ? 'Creating Order...' : 'Create Order & Send for Payment'}
         </Button>
       </form>
     </Form>
