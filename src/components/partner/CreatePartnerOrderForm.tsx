@@ -10,12 +10,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash, RefreshCw, Clock, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Trash, RefreshCw, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, OrderNote } from '@/lib/types';
+import { Order, Service, OrderNote, User } from '@/lib/types';
 import { Separator } from '../ui/separator';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendEmail } from '@/lib/email';
@@ -65,8 +65,25 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
   const [total, setTotal] = useState(0);
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [isServicesLoading, setIsServicesLoading] = useState(true);
+  
+  const [linkedUser, setLinkedUser] = useState<{name: string, id: string} | null>(null);
+  const [isCheckingUser, setIsCheckingUser] = useState(false);
 
   const hasBankingDetails = !!(partner?.bankingDetails?.bankName && partner?.bankingDetails?.accountNumber);
+
+  const form = useForm<CreateOrderFormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      customerFirstName: '',
+      customerLastName: '',
+      customerEmail: '',
+      customerPhone: '',
+      items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0, resellerPrice: 0 }],
+    },
+    mode: 'onChange',
+  });
+
+  const watchedEmail = form.watch('customerEmail');
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -90,17 +107,41 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     fetchServices();
   }, [toast]);
 
-  const form = useForm<CreateOrderFormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      customerFirstName: '',
-      customerLastName: '',
-      customerEmail: '',
-      customerPhone: '',
-      items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0, resellerPrice: 0 }],
-    },
-    mode: 'onChange',
-  });
+  useEffect(() => {
+    const lookupUser = async () => {
+        if (!watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
+            setLinkedUser(null);
+            return;
+        }
+        
+        setIsCheckingUser(true);
+        try {
+            const collectionsToSearch = ['users', 'aiAccountantClients'];
+            let found = false;
+            for (const coll of collectionsToSearch) {
+                const userQ = query(collection(db, coll), where("email", "==", watchedEmail.toLowerCase().trim()));
+                const userSnap = await getDocs(userQ);
+                if (!userSnap.empty) {
+                    const userData = userSnap.docs[0].data();
+                    setLinkedUser({ 
+                        name: userData.companyName || userData.name, 
+                        id: userSnap.docs[0].id 
+                    });
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) setLinkedUser(null);
+        } catch (e) {
+            console.error("User lookup failed:", e);
+        } finally {
+            setIsCheckingUser(false);
+        }
+    };
+
+    const timer = setTimeout(lookupUser, 600);
+    return () => clearTimeout(timer);
+  }, [watchedEmail]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -169,20 +210,23 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     toast({ title: 'Creating Order...', description: 'Please wait.' });
 
     try {
-        let clientUserId = null;
-        const collectionsToSearch = ['users', 'aiAccountantClients'];
-        for (const coll of collectionsToSearch) {
-            const userQ = query(collection(db, coll), where("email", "==", values.customerEmail));
-            const userSnap = await getDocs(userQ);
-            if (!userSnap.empty) {
-                clientUserId = userSnap.docs[0].id;
-                break;
-            }
-        }
-
         const orderId = await getNextOrderId();
         const customerFullName = `${values.customerFirstName} ${values.customerLastName}`;
         
+        // Final double-check for linking
+        let finalUserId = linkedUser?.id || null;
+        if (!finalUserId) {
+            const collectionsToSearch = ['users', 'aiAccountantClients'];
+            for (const coll of collectionsToSearch) {
+                const userQ = query(collection(db, coll), where("email", "==", values.customerEmail.toLowerCase().trim()));
+                const userSnap = await getDocs(userQ);
+                if (!userSnap.empty) {
+                    finalUserId = userSnap.docs[0].id;
+                    break;
+                }
+            }
+        }
+
         // Calculate reseller total cost (what partner pays My Accountant)
         const resellerTotal = values.items.reduce((acc, item) => {
             const resellerBase = item.isCustom ? (item.price * 0.9) : (item.resellerPrice || item.price);
@@ -192,7 +236,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
         const orderData: Order = {
             id: orderId,
             resellerId: partner.uid,
-            userId: clientUserId,
+            userId: finalUserId,
             customerName: partner.companyName || partner.name,
             customerEmail: partner.email,
             customerPhone: partner.contactNumber,
@@ -224,7 +268,6 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
         const confirmationEmailSubject = `Order Confirmation: #${orderId}`;
         const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={partner} />);
         
-        // Use sendEmail with resellerId to trigger white-label SMTP
         await sendEmail({
             to: values.customerEmail,
             subject: confirmationEmailSubject,
@@ -264,7 +307,26 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField control={form.control} name="customerFirstName" render={({ field }) => ( <FormItem><FormLabel>Client's First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="customerLastName" render={({ field }) => ( <FormItem><FormLabel>Client's Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="customerEmail" render={({ field }) => ( <FormItem><FormLabel>Client's Email</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <div className="space-y-2">
+                <FormField control={form.control} name="customerEmail" render={({ field }) => ( 
+                    <FormItem>
+                        <FormLabel>Client's Email</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                                <Input placeholder="name@example.com" {...field} />
+                                {isCheckingUser && <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />}
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem> 
+                )} />
+                {linkedUser && (
+                    <div className="flex items-center gap-2 text-xs text-green-600 font-medium bg-green-50 p-2 rounded-md border border-green-100 animate-in fade-in slide-in-from-top-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Linked to existing profile: {linkedUser.name}
+                    </div>
+                )}
+            </div>
             <FormField control={form.control} name="customerPhone" render={({ field }) => ( <FormItem><FormLabel>Client's Phone</FormLabel><FormControl><Input placeholder="0821234567" {...field} /></FormControl><FormMessage /></FormItem> )} />
         </div>
         

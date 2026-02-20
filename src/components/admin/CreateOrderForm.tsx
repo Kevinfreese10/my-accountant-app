@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -9,12 +10,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck, Search } from 'lucide-react';
+import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck, Search, CheckCircle2 } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, OrderNote, User } from '@/lib/types';
 import { Separator } from '../ui/separator';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
@@ -63,6 +64,23 @@ export default function CreateOrderForm() {
   const { user: currentUser } = useAuth();
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [isServicesLoading, setIsServicesLoading] = useState(true);
+  
+  const [linkedUser, setLinkedUser] = useState<{name: string, id: string} | null>(null);
+  const [isCheckingUser, setIsCheckingUser] = useState(false);
+
+  const form = useForm<CreateOrderFormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      customerFirstName: '',
+      customerLastName: '',
+      customerEmail: '',
+      customerPhone: '',
+      items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 }],
+    },
+    mode: 'onChange',
+  });
+
+  const watchedEmail = form.watch('customerEmail');
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -81,18 +99,41 @@ export default function CreateOrderForm() {
     fetchServices();
   }, [toast]);
 
+  useEffect(() => {
+    const lookupUser = async () => {
+        if (!watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
+            setLinkedUser(null);
+            return;
+        }
+        
+        setIsCheckingUser(true);
+        try {
+            const collectionsToSearch = ['users', 'aiAccountantClients'];
+            let found = false;
+            for (const coll of collectionsToSearch) {
+                const userQ = query(collection(db, coll), where("email", "==", watchedEmail.toLowerCase().trim()));
+                const userSnap = await getDocs(userQ);
+                if (!userSnap.empty) {
+                    const userData = userSnap.docs[0].data();
+                    setLinkedUser({ 
+                        name: userData.companyName || userData.name, 
+                        id: userSnap.docs[0].id 
+                    });
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) setLinkedUser(null);
+        } catch (e) {
+            console.error("User lookup failed:", e);
+        } finally {
+            setIsCheckingUser(false);
+        }
+    };
 
-  const form = useForm<CreateOrderFormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      customerFirstName: '',
-      customerLastName: '',
-      customerEmail: '',
-      customerPhone: '',
-      items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 }],
-    },
-    mode: 'onChange',
-  });
+    const timer = setTimeout(lookupUser, 600);
+    return () => clearTimeout(timer);
+  }, [watchedEmail]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -163,15 +204,16 @@ export default function CreateOrderForm() {
     });
 
     try {
-        // Look for existing client UID by email
-        let clientUserId = null;
-        const collectionsToSearch = ['users', 'aiAccountantClients'];
-        for (const coll of collectionsToSearch) {
-            const userQ = query(collection(db, coll), where("email", "==", values.customerEmail));
-            const userSnap = await getDocs(userQ);
-            if (!userSnap.empty) {
-                clientUserId = userSnap.docs[0].id;
-                break;
+        let finalUserId = linkedUser?.id || null;
+        if (!finalUserId) {
+            const collectionsToSearch = ['users', 'aiAccountantClients'];
+            for (const coll of collectionsToSearch) {
+                const userQ = query(collection(db, coll), where("email", "==", values.customerEmail.toLowerCase().trim()));
+                const userSnap = await getDocs(userQ);
+                if (!userSnap.empty) {
+                    finalUserId = userSnap.docs[0].id;
+                    break;
+                }
             }
         }
 
@@ -193,7 +235,7 @@ export default function CreateOrderForm() {
 
       const orderData: Order = {
         id: orderId,
-        userId: clientUserId, // Link to client profile!
+        userId: finalUserId,
         customerName: customerFullName,
         customerEmail: values.customerEmail,
         customerPhone: values.customerPhone,
@@ -270,17 +312,30 @@ export default function CreateOrderForm() {
                 </FormItem>
             )}
             />
-            <FormField
-            control={form.control}
-            name="customerEmail"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Customer Email</FormLabel>
-                <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
+            <div className="space-y-2">
+                <FormField
+                control={form.control}
+                name="customerEmail"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Customer Email</FormLabel>
+                    <FormControl>
+                        <div className="relative">
+                            <Input placeholder="name@example.com" {...field} />
+                            {isCheckingUser && <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />}
+                        </div>
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                {linkedUser && (
+                    <div className="flex items-center gap-2 text-xs text-green-600 font-medium bg-green-50 p-2 rounded-md border border-green-100 animate-in fade-in slide-in-from-top-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Linked to existing profile: {linkedUser.name}
+                    </div>
+                )}
+            </div>
             <FormField
             control={form.control}
             name="customerPhone"
