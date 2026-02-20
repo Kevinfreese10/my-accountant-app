@@ -35,6 +35,7 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
     uid: doc.id,
   } as any;
 
+  // Serialize any potential timestamps to strings for Client Component transport
   if (data.createdAt instanceof Timestamp) {
     serializedPartner.createdAt = data.createdAt.toDate().toISOString();
   }
@@ -145,9 +146,6 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                         {category.data.map((service) => (
                             <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 partner-card border">
                                 <CardHeader className="space-y-4 pb-4">
-                                    <Badge variant="secondary" className="w-fit font-medium text-[10px] uppercase tracking-wider partner-btn-secondary">
-                                        {service.category}
-                                    </Badge>
                                     <CardTitle className="text-2xl font-bold leading-tight group-hover:partner-text transition-colors">
                                         {service.title}
                                     </CardTitle>
