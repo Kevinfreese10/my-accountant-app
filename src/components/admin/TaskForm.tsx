@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -82,7 +81,7 @@ export default function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, al
         return allStaff.find(u => u.id === authorId);
     }
     
-    const staffAndAdmins = allStaff.filter(s => s.role === 'staff' || s.role === 'admin');
+    const assignableStaff = allStaff.filter(s => s.role !== 'client');
 
     return (
         <Form {...form}>
@@ -124,8 +123,8 @@ export default function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, al
                                         <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.id) || [])}>Administration Dept</CommandItem>
                                         <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.id) || [])}>CAP Dept</CommandItem>
                                     </CommandGroup>
-                                    <CommandGroup heading="Individual Staff">
-                                        {staffAndAdmins.map((staff) => (
+                                    <CommandGroup heading="Assignable Members">
+                                        {assignableStaff.map((staff) => (
                                         <CommandItem
                                             key={staff.id}
                                             value={staff.name}
@@ -229,8 +228,8 @@ export default function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, al
                                     <CommandInput placeholder="Search..." />
                                     <CommandList>
                                     <CommandEmpty>No results found.</CommandEmpty>
-                                    <CommandGroup heading="Individual Staff">
-                                        {staffAndAdmins.map((staff) => (
+                                    <CommandGroup heading="Individual Members">
+                                        {assignableStaff.map((staff) => (
                                         <CommandItem
                                             key={staff.id}
                                             value={staff.name}

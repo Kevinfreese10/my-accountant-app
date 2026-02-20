@@ -113,7 +113,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
         return allStaff.find(u => u.id === authorId);
     }
     
-    const staffAndAdmins = allStaff.filter(s => s.role === 'staff' || s.role === 'admin');
+    const assignableStaff = allStaff.filter(s => s.role !== 'client');
 
     return (
         <Form {...form}>
@@ -155,8 +155,8 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                         <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.id) || [])}>Administration Dept</CommandItem>
                                         <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.id) || [])}>CAP Dept</CommandItem>
                                     </CommandGroup>
-                                    <CommandGroup heading="Individual Staff">
-                                        {staffAndAdmins.map((staff) => (
+                                    <CommandGroup heading="Assignable Members">
+                                        {assignableStaff.map((staff) => (
                                         <CommandItem
                                             key={staff.id}
                                             value={staff.name}
@@ -274,8 +274,8 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandInput placeholder="Search..." />
                                     <CommandList>
                                     <CommandEmpty>No results found.</CommandEmpty>
-                                    <CommandGroup heading="Individual Staff">
-                                        {staffAndAdmins.map((staff) => (
+                                    <CommandGroup heading="Team Members">
+                                        {assignableStaff.map((staff) => (
                                         <CommandItem
                                             key={staff.id}
                                             value={staff.name}
@@ -755,7 +755,7 @@ export default function AdminDashboardPage() {
     const staffByDept = useMemo(() => {
         const result: Record<string, User[]> = {};
         departments.forEach(dept => {
-            result[dept] = allStaffAndClients.filter(u => u.department === dept && (u.role === 'staff' || u.role === 'admin'));
+            result[dept] = allStaffAndClients.filter(u => u.department === dept && u.role !== 'client');
         });
         return result;
     }, [allStaffAndClients]);
@@ -1127,7 +1127,7 @@ export default function AdminDashboardPage() {
                                     onSubmit={handleFormSubmit}
                                     onCancel={() => handleFormOpenChange(false)}
                                     onCommentSubmit={handleCommentSubmit}
-                                    allStaff={allStaffAndClients.filter(u => u.role === 'admin' || u.role === 'staff')}
+                                    allStaff={allStaffAndClients.filter(u => u.role !== 'client')}
                                     staffByDept={staffByDept}
                                 />
                             </DialogContent>

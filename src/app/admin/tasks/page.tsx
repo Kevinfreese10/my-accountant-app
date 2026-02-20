@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -87,6 +86,8 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
         return allStaff.find(u => u.id === authorId);
     }
     
+    const assignableStaff = allStaff.filter(s => s.role !== 'client');
+
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -128,8 +129,8 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                         <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.id) || [])}>Administration Dept</CommandItem>
                                         <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.id) || [])}>CAP Dept</CommandItem>
                                     </CommandGroup>
-                                    <CommandGroup heading="Individual Staff">
-                                        {allStaff.map((staff) => (
+                                    <CommandGroup heading="Team Members">
+                                        {assignableStaff.map((staff) => (
                                         <CommandItem
                                             key={staff.id}
                                             value={staff.name}
@@ -234,8 +235,8 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandInput placeholder="Search..." />
                                     <CommandList>
                                     <CommandEmpty>No results found.</CommandEmpty>
-                                    <CommandGroup heading="Individual Staff">
-                                        {allStaff.map((staff) => (
+                                    <CommandGroup heading="Team Members">
+                                        {assignableStaff.map((staff) => (
                                         <CommandItem
                                             key={staff.id}
                                             value={staff.name}
@@ -354,7 +355,7 @@ export default function AdminTasksPage() {
         const fetchedTasks = tasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
         setTasks(fetchedTasks);
 
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin', 'ai_accountant', 'cap_staff', 'cap_supervisor', 'partner', 'partner_staff']));
         const staffSnapshot = await getDocs(staffQuery);
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
         setAllStaff(fetchedStaff);
@@ -772,12 +773,3 @@ export default function AdminTasksPage() {
     </div>
   );
 }
-    
-
-    
-
-
-    
-
-
-
