@@ -24,7 +24,7 @@ export default function AdminPartnersPage() {
   const fetchPartners = async () => {
     setIsLoading(true);
     try {
-        const q = query(collection(db, "users"), where('role', '==', 'reseller'));
+        const q = query(collection(db, "users"), where('role', '==', 'partner'));
         const querySnapshot = await getDocs(q);
         const fetchedPartners = querySnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setPartners(fetchedPartners);
@@ -128,6 +128,14 @@ export default function AdminPartnersPage() {
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
+                                <Accordion type="single" collapsible>
+                                    <AccordionItem value="delete-warning">
+                                        <AccordionTrigger className="text-destructive">Advanced Warning</AccordionTrigger>
+                                        <AccordionContent>
+                                            Deleting this user profile does not remove their account from Firebase Authentication. You must manually remove them from the Firebase Console if you wish to prevent future logins.
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={() => handleDelete(partner.uid)}>
                                     Continue

@@ -100,7 +100,7 @@ export default function AdminOrderDetailsPage() {
       if (!id) return;
       setIsLoading(true);
       try {
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin', 'reseller']));
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin', 'partner']));
         const staffSnapshot = await getDocs(staffQuery);
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setAllStaff(fetchedStaff);
@@ -717,7 +717,7 @@ export default function AdminOrderDetailsPage() {
                                             Post Note
                                         </Button>
                                         <Button type="button" variant="outline" size="sm" onClick={handleProofread} disabled={isProofreading}>
-                                            {isProofreading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                                            {isProofreading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="mr-2" />}
                                             Proofread
                                         </Button>
                                     </div>
