@@ -1,4 +1,3 @@
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -12,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink } from 'lucide-react';
+import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -57,6 +56,9 @@ const formSchema = z.object({
     cardBackgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     cardBorderColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     logoUrl: z.string().url().optional().or(z.literal('')),
+    refundPolicy: z.string().optional(),
+    popiaPolicy: z.string().optional(),
+    termsAndConditions: z.string().optional(),
   })
 });
 
@@ -147,6 +149,9 @@ export default function PartnerProfile() {
         cardBackgroundColor: user?.landingPage?.cardBackgroundColor || '#ffffff',
         cardBorderColor: user?.landingPage?.cardBorderColor || '#e5e7eb',
         logoUrl: user?.landingPage?.logoUrl || '',
+        refundPolicy: user?.landingPage?.refundPolicy || '',
+        popiaPolicy: user?.landingPage?.popiaPolicy || '',
+        termsAndConditions: user?.landingPage?.termsAndConditions || '',
       }
     },
   });
@@ -385,6 +390,43 @@ export default function PartnerProfile() {
                                             <FormLabel className="text-xs">Logo URL</FormLabel>
                                             <FormControl><Input {...field} placeholder="https://..." /></FormControl>
                                             <FormDescription className="text-[10px]">Your company logo (PNG/SVG recommended).</FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <Separator className="my-2" />
+                                <h4 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                                    <ShieldCheck className="h-3 w-3" /> Legal Documents
+                                </h4>
+                                <FormField
+                                    control={form.control}
+                                    name="landingPage.refundPolicy"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">Refund Policy</FormLabel>
+                                            <FormControl><Textarea {...field} rows={3} placeholder="Enter your practice's refund policy..." /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="landingPage.popiaPolicy"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">POPIA Policy</FormLabel>
+                                            <FormControl><Textarea {...field} rows={3} placeholder="Enter your POPIA/Privacy policy..." /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="landingPage.termsAndConditions"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">Terms & Conditions</FormLabel>
+                                            <FormControl><Textarea {...field} rows={3} placeholder="Enter your terms and conditions..." /></FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}

@@ -43,9 +43,15 @@ export default function PartnerFooter({ partner }: { partner: User }) {
           <div className="space-y-4">
             <h3 className="font-semibold text-sm uppercase tracking-wider">Legal</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/popia" className="hover:underline">POPIA Policy</Link></li>
-              <li><Link href="/refund-policy" className="hover:underline">Refund Policy</Link></li>
-              <li><Link href="/terms" className="hover:underline">Terms & Conditions</Link></li>
+              {partner.landingPage?.popiaPolicy && (
+                <li><Link href={`/p/${partner.landingPage.slug}/popia`} className="hover:underline">POPIA Policy</Link></li>
+              )}
+              {partner.landingPage?.refundPolicy && (
+                <li><Link href={`/p/${partner.landingPage.slug}/refund-policy`} className="hover:underline">Refund Policy</Link></li>
+              )}
+              {partner.landingPage?.termsAndConditions && (
+                <li><Link href={`/p/${partner.landingPage.slug}/terms`} className="hover:underline">Terms & Conditions</Link></li>
+              )}
             </ul>
           </div>
         </div>

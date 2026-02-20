@@ -214,6 +214,9 @@ export type PartnerLandingPageConfig = {
   cardBackgroundColor?: string;
   cardBorderColor?: string;
   logoUrl?: string;
+  refundPolicy?: string;
+  popiaPolicy?: string;
+  termsAndConditions?: string;
 };
 
 export type User = {
@@ -272,7 +275,6 @@ export type User = {
   requiresManagementAccounts?: boolean;
   managementAccountsFrequency?: 'Monthly' | 'Quarterly' | 'Bi-Annually' | 'Annually';
   isVatRegistered?: boolean;
-  vatNumber?: string;
   vatNumber?: string;
   vatCategory?: 'A' | 'B' | 'C';
   preparesPayroll?: boolean;
