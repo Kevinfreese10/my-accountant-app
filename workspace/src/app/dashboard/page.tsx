@@ -42,6 +42,7 @@ const userColors = [
 ];
 
 const getUserColor = (userId: string) => {
+  if (!userId) return 'bg-gray-200 text-gray-800';
   const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return userColors[hash % userColors.length];
 };
@@ -103,7 +104,8 @@ export default function DashboardPage() {
         });
 
         const staffRef = collection(db, "users");
-        const staffUnsubscribe = onSnapshot(query(staffRef, where('role', 'in', ['staff', 'admin'])), (snapshot) => {
+        // Expand query to include partners and AI accountants who might leave notes
+        const staffUnsubscribe = onSnapshot(query(staffRef, where('role', 'in', ['staff', 'admin', 'partner', 'partner_staff', 'ai_accountant'])), (snapshot) => {
             setAllStaff(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User)));
         }, async (error) => {
             const permissionError = new FirestorePermissionError({
