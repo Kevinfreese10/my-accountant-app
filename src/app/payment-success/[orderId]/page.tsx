@@ -1,3 +1,4 @@
+
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, notFound, useRouter } from 'next/navigation';
@@ -67,6 +68,7 @@ export default function PaymentSuccessPage() {
                                 subject: `Action Required for Your Order #${orderId}`,
                                 html: emailHtml,
                                 attachments: attachments,
+                                resellerId: orderData.resellerId || undefined,
                             });
                              const emailNote: OrderNote = {
                                 text: 'Sent "Request Documents" email to client after payment.',

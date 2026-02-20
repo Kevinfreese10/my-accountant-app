@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -97,6 +98,7 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
           bcc: 'kev@thinkestry.co.za',
           subject: `Order Confirmation #${orderId}`,
           html: emailHtml,
+          resellerId: partnerId || undefined,
       });
 
       router.push(`/order-confirmation/${orderId}`);

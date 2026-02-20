@@ -1,3 +1,4 @@
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -9,9 +10,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck } from 'lucide-react';
+import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck, Mail } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -20,6 +21,7 @@ import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '@/lib/utils';
+import { sendEmail } from '@/lib/email';
 
 const db = getFirestore(firebaseApp);
 
@@ -30,6 +32,12 @@ const formSchema = z.object({
   email: z.string().email('Please enter a valid email.'),
   contactNumber: z.string().min(10, 'A valid contact number is required.'),
   geminiApiKey: z.string().optional(),
+  smtpDetails: z.object({
+      host: z.string().optional(),
+      port: z.string().optional(),
+      user: z.string().optional(),
+      pass: z.string().optional(),
+  }).optional(),
   address: z.object({
       street: z.string().optional(),
       city: z.string().optional(),
@@ -113,6 +121,7 @@ export default function PartnerProfile() {
   const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -123,6 +132,12 @@ export default function PartnerProfile() {
       email: user?.email || '',
       contactNumber: user?.contactNumber || '',
       geminiApiKey: user?.geminiApiKey || '',
+      smtpDetails: {
+          host: user?.smtpDetails?.host || '',
+          port: user?.smtpDetails?.port || '465',
+          user: user?.smtpDetails?.user || '',
+          pass: user?.smtpDetails?.pass || '',
+      },
       address: { 
           street: user?.address?.street || '', 
           city: user?.address?.city || '', 
@@ -187,6 +202,7 @@ export default function PartnerProfile() {
             companyName: values.companyName,
             contactNumber: values.contactNumber,
             geminiApiKey: values.geminiApiKey || '',
+            smtpDetails: values.smtpDetails,
             address: values.address,
             bankingDetails: values.bankingDetails,
             name: `${values.name} ${values.surname}`,
@@ -198,7 +214,7 @@ export default function PartnerProfile() {
         
         toast({
             title: 'Profile Updated!',
-            description: `Your company details and landing page settings have been saved.`,
+            description: `Your details have been saved.`,
         });
     } catch (error) {
         console.error("Error updating partner profile:", error);
@@ -210,6 +226,32 @@ export default function PartnerProfile() {
     } finally {
         setIsSaving(false);
     }
+  }
+
+  const handleTestSmtp = async () => {
+      const values = form.getValues();
+      if (!values.smtpDetails?.host || !values.smtpDetails?.user || !values.smtpDetails?.pass) {
+          toast({ title: 'Configuration Incomplete', description: 'Please fill in all SMTP fields before testing.', variant: 'destructive' });
+          return;
+      }
+
+      setIsTestingSmtp(true);
+      toast({ title: 'Sending Test Email...', description: 'Please wait while we verify your SMTP settings.' });
+
+      try {
+          await sendEmail({
+              to: values.email,
+              subject: `SMTP Test from ${values.companyName}`,
+              html: `<p>This is a test email to confirm your practice's SMTP settings are working correctly.</p><p>Sent from: <strong>${values.companyName}</strong></p>`,
+              resellerId: user?.uid // Pass UID to force the system to use the local form values logic if needed, but here we depend on the save happening first or just passing override logic.
+          });
+          toast({ title: 'Test Successful!', description: `A test email has been sent to ${values.email}. Please check your inbox.` });
+      } catch (e: any) {
+          console.error(e);
+          toast({ title: 'SMTP Test Failed', description: e.message || 'Could not connect to your SMTP server.', variant: 'destructive' });
+      } finally {
+          setIsTestingSmtp(false);
+      }
   }
 
   const landingPageEnabled = watch('landingPage.enabled');
@@ -278,6 +320,36 @@ export default function PartnerProfile() {
                 <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} readOnly disabled /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="contactNumber" render={({ field }) => ( <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-4">
+            <h3 className="text-lg font-medium flex items-center gap-2">
+                <Mail className="h-5 w-5 text-primary" />
+                Email SMTP Settings
+            </h3>
+            <Card className="bg-muted/30">
+                <CardHeader>
+                    <CardTitle className="text-sm">Outgoing Mail Server</CardTitle>
+                    <CardDescription className="text-xs">
+                        Configure your SMTP server to send emails directly from your practice address.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="smtpDetails.host" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Host</FormLabel><FormControl><Input placeholder="e.g. smtp.gmail.com" {...field} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="smtpDetails.port" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Port</FormLabel><FormControl><Input placeholder="e.g. 465" {...field} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="smtpDetails.user" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Username (Email)</FormLabel><FormControl><Input placeholder="your@email.com" {...field} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="smtpDetails.pass" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl></FormItem>)} />
+                </CardContent>
+                <CardFooter className="bg-muted/50 justify-between py-3">
+                    <p className="text-[10px] text-muted-foreground italic">Required for white-label notifications.</p>
+                    <Button type="button" variant="outline" size="sm" onClick={handleTestSmtp} disabled={isTestingSmtp}>
+                        {isTestingSmtp && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                        Send Test Email
+                    </Button>
+                </CardFooter>
+            </Card>
         </div>
 
         <Separator />
