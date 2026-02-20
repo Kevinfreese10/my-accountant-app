@@ -13,6 +13,7 @@ import { getFirestore, collection, getDocs, doc, deleteDoc, query, where } from 
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const db = getFirestore(firebaseApp);
 
@@ -127,19 +128,21 @@ export default function AdminPartnersPage() {
                                 <span className="font-semibold"> {partner.companyName}</span>. This only removes them from Firestore.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <Accordion type="single" collapsible>
-                                    <AccordionItem value="delete-warning">
-                                        <AccordionTrigger className="text-destructive">Advanced Warning</AccordionTrigger>
-                                        <AccordionContent>
+                            <AlertDialogFooter className="flex-col gap-4 sm:flex-row">
+                                <Accordion type="single" collapsible className="w-full">
+                                    <AccordionItem value="delete-warning" className="border-0">
+                                        <AccordionTrigger className="text-destructive py-0 hover:no-underline font-semibold text-xs">Advanced Warning</AccordionTrigger>
+                                        <AccordionContent className="pt-2 text-xs">
                                             Deleting this user profile does not remove their account from Firebase Authentication. You must manually remove them from the Firebase Console if you wish to prevent future logins.
                                         </AccordionContent>
                                     </AccordionItem>
                                 </Accordion>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(partner.uid)}>
-                                    Continue
-                                </AlertDialogAction>
+                                <div className="flex gap-2">
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDelete(partner.uid)}>
+                                        Continue
+                                    </AlertDialogAction>
+                                </div>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
