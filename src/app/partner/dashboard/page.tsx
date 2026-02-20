@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive, Wallet2, TrendingUp } from 'lucide-react';
 import Image from 'next/image';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Order, Service, User, OrderNote } from '@/lib/types';
@@ -16,16 +16,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
-import CreatePartnerOrderForm from '@/components/partner/CreatePartnerOrderForm';
 import { useRouter } from 'next/navigation';
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { getNextOrderId } from '@/lib/sequence';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const db = getFirestore(firebaseApp);
 
@@ -39,6 +39,118 @@ const getUserColor = (userId: string) => {
   return userColors[hash % userColors.length];
 };
 
+function TopUpDialog({ partner }: { partner: User }) {
+    const [amount, setAmount] = useState<string>('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const { toast } = useToast();
+
+    const handleTopUp = async () => {
+        const numericAmount = parseFloat(amount);
+        if (isNaN(numericAmount) || numericAmount < 100) {
+            toast({ title: 'Invalid Amount', description: 'Minimum top-up amount is R100.', variant: 'destructive' });
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const orderId = await getNextOrderId();
+            const topupOrder: Order = {
+                id: orderId,
+                userId: partner.uid,
+                customerName: partner.companyName || partner.name,
+                customerEmail: partner.email,
+                items: [{
+                    id: 'partner_credit_topup',
+                    title: 'Practice Credit Top-up',
+                    price: numericAmount,
+                    quantity: 1,
+                }],
+                total: numericAmount,
+                discountCode: null,
+                discountAmount: null,
+                status: 'Pending Payment',
+                date: Timestamp.now(),
+                source: 'Partner',
+                resellerId: partner.uid,
+            };
+            
+            await setDoc(doc(db, 'orders', orderId), topupOrder);
+
+            // PayFast Redirect
+            const payfastUrl = 'https://www.payfast.co.za/eng/process';
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = payfastUrl;
+
+            const data: { [key: string]: string } = {
+                merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
+                merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
+                return_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`,
+                cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`,
+                notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+                name_first: partner.name.split(' ')[0],
+                name_last: partner.name.split(' ').slice(1).join(' '),
+                email_address: partner.email,
+                m_payment_id: orderId,
+                amount: numericAmount.toFixed(2),
+                item_name: `Practice Credit Top-up`,
+            };
+
+            for (const key in data) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = data[key];
+                form.appendChild(input);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+
+        } catch (e) {
+            console.error(e);
+            toast({ title: 'Error', description: 'Could not create top-up order.', variant: 'destructive' });
+            setIsProcessing(false);
+        }
+    };
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Top Up
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Top Up Practice Credits</DialogTitle>
+                    <DialogDescription>Enter the amount you would like to add to your wallet.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="amount">Amount (ZAR)</Label>
+                        <Input 
+                            id="amount" 
+                            type="number" 
+                            placeholder="e.g. 1000" 
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                        />
+                        <p className="text-[10px] text-muted-foreground">Minimum R100. Price is inclusive of 15% VAT.</p>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button onClick={handleTopUp} disabled={isProcessing} className="w-full">
+                        {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Proceed to Payment
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function PartnerDashboardPage() {
     const { user, updateUser } = useAuth();
     const router = useRouter();
@@ -47,9 +159,7 @@ export default function PartnerDashboardPage() {
     const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
-    const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
     const [allStaff, setAllStaff] = useState<User[]>([]);
-    const staffCounters = useRef<{ [key: string]: number }>({});
     
     const archivedNotifications = user?.archivedNotifications || [];
 
@@ -69,20 +179,6 @@ export default function PartnerDashboardPage() {
         updateUser({ ...user, archivedNotifications: [...(user.archivedNotifications || []), noteId] });
     };
     
-    const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
-
-    const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
-      const staffInDept = allStaff.filter(u => u.role === 'staff' && u.department === department);
-      if (staffInDept.length === 0) return undefined;
-
-      const currentIndex = staffCounters.current[department] || 0;
-      const nextStaff = staffInDept[currentIndex];
-      
-      staffCounters.current[department] = (currentIndex + 1) % staffInDept.length;
-      
-      return nextStaff;
-    };
-
     useEffect(() => {
       if (!user?.uid) {
         setIsLoading(false);
@@ -155,7 +251,7 @@ export default function PartnerDashboardPage() {
         let allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
         outsourcedOrders.forEach(order => {
           const notes = (order.notes || [])
-            .filter(note => note.authorId !== user.id && note.type === 'note') // Only show notes from others
+            .filter(note => note.authorId !== user.id && note.type === 'note')
             .map(note => ({
               ...note,
               date: note.date instanceof Date ? note.date : note.date.toDate(),
@@ -181,67 +277,67 @@ export default function PartnerDashboardPage() {
         }).format(price);
     };
 
-    const getStatusVariant = (status: Order['status']) => {
-        switch (status) {
-        case 'Completed':
-            return 'success';
-        case 'Processing':
-            return 'info';
-        case 'Outsourced':
-            return 'info';
-        case 'Pending Payment':
-            return 'warning';
-        case 'Cancelled':
-            return 'destructive';
-        default:
-            return 'secondary';
-        }
-    };
-    
-    const latestNews = blogPosts.slice(0, 3);
-
     return (
         <div className="space-y-8">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.contactPerson}!</h1>
-                <p className="text-lg text-muted-foreground">{user?.companyName}</p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.contactPerson}!</h1>
+                    <p className="text-lg text-muted-foreground">{user?.companyName}</p>
+                </div>
+                {user && (
+                    <Card className="bg-primary/5 border-primary/20 min-w-[240px]">
+                        <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
+                            <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                                <Wallet2 className="h-3 w-3" />
+                                Practice Wallet
+                            </CardTitle>
+                            <TopUpDialog partner={user} />
+                        </CardHeader>
+                        <CardContent className="py-0 px-4 pb-3">
+                            <p className="text-2xl font-bold text-primary">{formatPrice(user.creditBalance || 0)}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">Available Credits</p>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <Card className="lg:col-span-2">
                     <CardHeader>
-                        <CardTitle>Notifications</CardTitle>
-                        <CardDescription>Recent notes from My Accountant on your outsourced orders.</CardDescription>
+                        <CardTitle>Recent Notifications</CardTitle>
+                        <CardDescription>Updates from My Accountant on your outsourced orders.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {isLoading ? <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin"/></div> :
+                        {isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div> :
                         notifications.length > 0 ? (
-                        <ScrollArea className="h-72">
+                        <ScrollArea className="h-72 pr-4">
                             <div className="space-y-4">
                             {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
                                 const author = getAuthor(note.authorId);
                                 const date = note.date instanceof Date ? note.date : note.date.toDate();
                                 const noteId = note.orderId + date.toISOString();
                                 return (
-                                    <div key={index} className="flex items-start gap-3">
-                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", getUserColor(note.authorId))}>
+                                    <div key={index} className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg border border-transparent hover:border-border transition-colors">
+                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", author ? getUserColor(author.id) : 'bg-gray-200')}>
                                             {author?.name.charAt(0) || 'U'}
                                         </div>
                                         <div className="flex-1">
-                                            <p className="text-sm">
-                                                <span className="font-semibold">{author?.name || 'Unknown User'}</span>
-                                                <span className="text-muted-foreground"> left a note on order </span>
-                                                <Link href={`/partner/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
-                                            </p>
-                                            <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
-                                                "{note.text}"
-                                            </blockquote>
-                                                <div className="flex items-center justify-between">
-                                                <p className="text-xs text-muted-foreground mt-1">
+                                            <div className="flex justify-between items-start">
+                                                <p className="text-sm">
+                                                    <span className="font-semibold">{author?.name || 'My Accountant Support'}</span>
+                                                    <span className="text-muted-foreground"> left a note on order </span>
+                                                    <Link href={`/partner/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                                </p>
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
                                                     {formatDistanceToNow(date, { addSuffix: true })}
                                                 </p>
-                                                <Button size="sm" variant="ghost" onClick={() => archiveNotification(noteId)}>
-                                                    <Archive className="mr-2 h-4 w-4"/> Archive
+                                            </div>
+                                            <p className="mt-2 text-sm text-foreground/80 italic leading-relaxed">
+                                                "{note.text}"
+                                            </p>
+                                            <div className="flex justify-end mt-2">
+                                                <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => archiveNotification(noteId)}>
+                                                    <Archive className="mr-2 h-3 w-3"/> Archive
                                                 </Button>
                                             </div>
                                         </div>
@@ -251,10 +347,10 @@ export default function PartnerDashboardPage() {
                             </div>
                         </ScrollArea>
                         ) : (
-                        <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
-                            <Inbox className="h-12 w-12 mb-4"/>
-                            <p className="font-semibold">All caught up!</p>
-                            <p className="text-sm">You have no new notifications.</p>
+                        <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground border-2 border-dashed rounded-lg">
+                            <Inbox className="h-12 w-12 mb-4 opacity-20"/>
+                            <p className="font-semibold text-sm">All caught up!</p>
+                            <p className="text-xs">No new notes on your outsourced orders.</p>
                         </div>
                         )}
                     </CardContent>
@@ -262,20 +358,30 @@ export default function PartnerDashboardPage() {
                 <div className="space-y-8">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Quick Actions</CardTitle>
+                            <CardTitle className="text-lg">Quick Actions</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            <Button className="w-full justify-start" asChild><Link href="/partner/services"><Briefcase className="mr-2"/>View Services & Pricing</Link></Button>
-                            <Button className="w-full justify-start" asChild><Link href="/partner/ai-accountant/clients"><BrainCircuit className="mr-2"/>AI Accountant</Link></Button>
-                            <Button className="w-full justify-start" asChild><Link href="/partner/profile"><Users className="mr-2"/>Manage Profile</Link></Button>
+                            <Button className="w-full justify-start font-semibold" asChild><Link href="/partner/services"><Briefcase className="mr-3 h-4 w-4"/>Services & Pricing</Link></Button>
+                            <Button className="w-full justify-start font-semibold" asChild><Link href="/partner/ai-accountant/clients"><BrainCircuit className="mr-3 h-4 w-4"/>AI Accountant</Link></Button>
+                            <Button className="w-full justify-start font-semibold" asChild><Link href="/partner/profile"><Users className="mr-3 h-4 w-4"/>Manage Profile</Link></Button>
                         </CardContent>
                     </Card>
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Your Earnings</CardTitle>
+                     <Card className="bg-muted/20">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm flex items-center gap-2">
+                                <TrendingUp className="h-4 w-4 text-green-600" />
+                                Statistics
+                            </CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <p className="text-sm text-muted-foreground">Coming soon...</p>
+                        <CardContent className="space-y-2">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-muted-foreground">Active Orders</span>
+                                <span className="font-bold">{orders.length}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-muted-foreground">Outsourced Orders</span>
+                                <span className="font-bold">{outsourcedOrders.length}</span>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

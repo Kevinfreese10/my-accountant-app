@@ -1,9 +1,8 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, doc, updateDoc, getDoc, collection, query, where, getDocs, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, getDoc, collection, query, where, getDocs, arrayUnion, Timestamp, increment } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import crypto from 'crypto';
-import { ItnLog, Order } from '@/lib/types';
+import { ItnLog, Order, User } from '@/lib/types';
 import ipaddr from 'ipaddr.js';
 
 const db = getFirestore(firebaseApp);
@@ -135,7 +134,7 @@ export async function POST(req: NextRequest) {
             return new NextResponse('Signature mismatch', { status: 400 });
         }
         
-        // 4. Amount Validation (optional but recommended)
+        // 4. Amount Validation
         const orderTotal = parseFloat(currentOrderData.total.toFixed(2));
         const receivedAmount = parseFloat(data.amount_gross);
         if (Math.abs(orderTotal - receivedAmount) > 0.01) {
@@ -154,9 +153,29 @@ export async function POST(req: NextRequest) {
         if (data.payment_status === 'COMPLETE') {
           await updateDoc(orderRef, { status: 'Processing' });
           console.log(`Order ${orderId} updated to Processing.`);
+          
+          // PARTNER CREDIT LOGIC
+          // Check if this is a partner setup or topup
+          const isSetup = currentOrderData.items.some(i => i.id === 'partner_setup_fee');
+          const isTopup = currentOrderData.items.some(i => i.id === 'partner_credit_topup');
+          
+          if (isSetup || isTopup) {
+              const partnerId = currentOrderData.resellerId;
+              if (partnerId) {
+                  const partnerRef = doc(db, 'users', partnerId);
+                  const amountToCredit = isSetup ? 5000 : currentOrderData.total;
+                  
+                  await updateDoc(partnerRef, {
+                      creditBalance: increment(amountToCredit),
+                      status: 'Active', // Ensure partner is active after setup
+                  });
+                  console.log(`Partner ${partnerId} credited with R${amountToCredit}`);
+              }
+          }
+
           log = {
               status: 'Success',
-              message: `Order status updated to Processing.`,
+              message: `Order status updated to Processing. ${isSetup || isTopup ? 'Credits added to partner.' : ''}`,
               payload: data,
           };
         } else {

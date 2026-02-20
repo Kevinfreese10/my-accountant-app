@@ -238,6 +238,7 @@ export type User = {
   contactPerson?: string;
   contactEmail?: string;
   contactNumber?: string;
+  creditBalance?: number;
   geminiApiKey?: string; // BYOK for Gemini
   address?: {
       street?: string;

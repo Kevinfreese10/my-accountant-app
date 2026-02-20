@@ -1,4 +1,3 @@
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -19,10 +18,12 @@ import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Service } from '@/lib/types';
+import { Service, Order } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import PartnerWelcomeEmail from '../emails/PartnerWelcomeEmail';
+import { getNextOrderId } from '@/lib/sequence';
+import { Timestamp } from 'firebase/firestore';
 
 
 const auth = getAuth(firebaseApp);
@@ -134,6 +135,39 @@ export default function PartnerSignupForm() {
     return await getDownloadURL(fileRef);
   };
 
+  const handlePayFastRedirect = (order: Order) => {
+    const payfastUrl = 'https://www.payfast.co.za/eng/process';
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = payfastUrl;
+
+    const data: { [key: string]: string } = {
+        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
+        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/become-a-partner`,
+        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+        name_first: order.customerName.split(' ')[0],
+        name_last: order.customerName.split(' ').slice(1).join(' '),
+        email_address: order.customerEmail,
+        m_payment_id: order.id,
+        amount: order.total.toFixed(2),
+        item_name: `Partner Setup Fee & R5000 Credits`,
+        item_description: `Initial setup fee for the My Accountant Partner Program. R5000 will be added to your practice credits upon successful payment.`,
+    };
+
+    for (const key in data) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = data[key];
+        form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
@@ -162,11 +196,36 @@ export default function PartnerSignupForm() {
             id: authUid,
             uid: authUid,
             role: 'partner',
-            status: 'Active',
+            status: 'Pending Setup Payment', // Mark as pending until R5000 is paid
+            creditBalance: 0,
             createdAt: serverTimestamp(),
             cvUrl: cvUrl,
             certificateUrl: certificateUrl,
         });
+
+        // Create the setup order
+        const orderId = await getNextOrderId();
+        const setupOrder: Order = {
+            id: orderId,
+            userId: authUid,
+            customerName: values.companyName,
+            customerEmail: values.email,
+            customerPhone: values.contactNumber,
+            items: [{
+                id: 'partner_setup_fee',
+                title: 'Partner Setup Fee & Initial Credits',
+                price: 5000,
+                quantity: 1,
+            }],
+            total: 5000,
+            discountCode: null,
+            discountAmount: null,
+            status: 'Pending Payment',
+            date: Timestamp.now(),
+            source: 'Partner',
+            resellerId: authUid,
+        };
+        await setDoc(doc(db, 'orders', orderId), setupOrder);
 
         const emailHtml = render(<PartnerWelcomeEmail partnerName={values.name} dashboardUrl={`${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`} />);
         await sendEmail({
@@ -175,27 +234,24 @@ export default function PartnerSignupForm() {
             html: emailHtml,
         });
         
-        await login(values.email, values.password);
-
         toast({
-            title: 'Application Received!',
-            description: `Thank you, ${values.name}. Your partner account has been created. Redirecting to your dashboard...`,
+            title: 'Account Created!',
+            description: `Redirecting to payment for setup fee and credits...`,
         });
         
-        router.push('/partner/dashboard');
+        handlePayFastRedirect(setupOrder);
 
     } catch (error: any) {
         console.error("Partner signup error:", error);
         let description = 'There was a problem creating your account. Please try again.';
         if (error.code === 'auth/email-already-in-use') {
-            description = 'An account with this email address already exists. Please log in instead.';
+            description = 'An account with this email already exists. Please log in instead.';
         }
         toast({
             title: 'Signup Failed',
             description,
             variant: 'destructive',
         });
-    } finally {
         setIsLoading(false);
     }
   }
@@ -205,13 +261,13 @@ export default function PartnerSignupForm() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         
         <div className="space-y-4">
-             <h3 className="text-lg font-medium">Company Details</h3>
+             <h3 className="text-lg font-medium">Step 1: Practice Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Contact Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="surname" render={({ field }) => ( <FormItem><FormLabel>Contact Surname</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                 <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                 <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Create Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="contactNumber" render={({ field }) => ( <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
         </div>
@@ -219,7 +275,7 @@ export default function PartnerSignupForm() {
          <Separator />
 
         <div className="space-y-4">
-             <h3 className="text-lg font-medium">Work With Us</h3>
+             <h3 className="text-lg font-medium">Step 2: Work & Capabilities</h3>
              <FormField
                 control={form.control}
                 name="wantsOutsourcedWork"
@@ -336,6 +392,23 @@ export default function PartnerSignupForm() {
 
         <Separator />
 
+        <div className="bg-primary/5 p-6 rounded-lg border border-primary/20 space-y-4">
+            <h3 className="text-lg font-bold flex items-center gap-2">
+                <Wallet2 className="h-5 w-5 text-primary" />
+                Step 3: Setup & Credits
+            </h3>
+            <p className="text-sm">
+                To activate your partner account, a <strong>R5000 (Incl. VAT)</strong> setup fee is required.
+            </p>
+            <div className="bg-white p-4 rounded border flex justify-between items-center">
+                <span className="font-semibold">Setup Fee Total:</span>
+                <span className="text-xl font-bold text-primary">R5,000.00</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+                * This R5000 will be loaded as credits into your practice wallet and can be used to pay for any services or subscriptions.
+            </p>
+        </div>
+
         <FormField
             control={form.control}
             name="agreeTerms"
@@ -346,7 +419,7 @@ export default function PartnerSignupForm() {
                 </FormControl>
                 <div className="space-y-1 leading-none">
                     <FormLabel>
-                        I agree to the <Link href="/terms" className="underline" target="_blank">terms and conditions</Link> of the partner program.
+                        I agree to the <Link href="/terms" className="underline" target="_blank">terms and conditions</Link> and understand that the R5000 setup fee is mandatory for account activation.
                     </FormLabel>
                     <FormMessage />
                 </div>
@@ -356,9 +429,11 @@ export default function PartnerSignupForm() {
         
         <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Submit Application
+            {isLoading ? 'Processing...' : 'Pay R5000 & Start My Practice'}
         </Button>
       </form>
     </Form>
   );
 }
+
+import { Wallet2 } from 'lucide-react';
