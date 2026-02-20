@@ -1,9 +1,8 @@
-
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch, onSnapshot, setDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,7 +17,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MoreHorizontal, Loader2, PlusCircle, MessageSquare, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { MoreHorizontal, Loader2, PlusCircle, MessageSquare, ArrowRight, CheckCircle2, Wallet2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -45,6 +44,8 @@ import CreatePartnerOrderForm from '@/components/partner/CreatePartnerOrderForm'
 import { useRouter } from 'next/navigation';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 
 const db = getFirestore(firebaseApp);
@@ -59,6 +60,7 @@ export default function PartnerOrdersPage() {
   const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
   const [selectedOrderForOutsource, setSelectedOrderForOutsource] = useState<Order | null>(null);
   const [docContactPreference, setDocContactPreference] = useState<'reseller' | 'client'>('reseller');
+  const [isProcessingOutsource, setIsProcessingOutsource] = useState(false);
   
   const staffCounters = useRef<{ [key: string]: number }>({});
   const router = useRouter();
@@ -123,12 +125,17 @@ export default function PartnerOrdersPage() {
     const handleOutsource = async () => {
         if (!user || !selectedOrderForOutsource) return;
         
+        setIsProcessingOutsource(true);
         toast({
-            title: 'Outsourcing Order...',
+            title: 'Processing Outsourcing Request...',
             description: `Submitting order ${selectedOrderForOutsource.id} to My Accountant.`
         });
     
         try {
+            const cost = selectedOrderForOutsource.total;
+            const currentBalance = user.creditBalance || 0;
+            const canAfford = currentBalance >= cost;
+
             const newOrderId = `ORD-${Date.now().toString().slice(-6)}`;
             const firstServiceId = selectedOrderForOutsource.items[0]?.id;
             const serviceDetails = allServices.find(s => s.id === firstServiceId);
@@ -149,7 +156,7 @@ export default function PartnerOrdersPage() {
                     quantity: item.quantity,
                 })),
                 total: selectedOrderForOutsource.total,
-                status: 'Pending Payment',
+                status: canAfford ? 'Processing' : 'Pending Payment',
                 resellerId: user.uid,
                 originalOrderId: selectedOrderForOutsource.id,
                 discountCode: null,
@@ -166,6 +173,15 @@ export default function PartnerOrdersPage() {
                 newOrderData.assignedTo = null;
             }
             
+            // Deduct credits if possible
+            if (canAfford) {
+                const partnerRef = doc(db, 'users', user.uid);
+                await updateDoc(partnerRef, {
+                    creditBalance: increment(-cost)
+                });
+                toast({ title: 'Payment Successful', description: `${formatPrice(cost)} deducted from practice wallet.` });
+            }
+
             await setDoc(doc(db, 'orders', newOrderId), newOrderData);
     
             const originalOrderRef = doc(db, 'orders', selectedOrderForOutsource.id);
@@ -178,7 +194,11 @@ export default function PartnerOrdersPage() {
             setOutsourceOptionsOpen(false);
             setSelectedOrderForOutsource(null);
             
-            router.push(`/order-confirmation/${newOrderId}`);
+            if (canAfford) {
+                router.push(`/payment-success/${newOrderId}`);
+            } else {
+                router.push(`/order-confirmation/${newOrderId}`);
+            }
     
         } catch (error) {
              console.error('Error outsourcing order: ', error);
@@ -187,6 +207,8 @@ export default function PartnerOrdersPage() {
                 description: 'There was a problem submitting your order. Please try again.',
                 variant: 'destructive',
             });
+        } finally {
+            setIsProcessingOutsource(false);
         }
       };
 
@@ -254,42 +276,77 @@ export default function PartnerOrdersPage() {
         setIsCreateOrderOpen(false);
     };
 
+    const costToOutsource = selectedOrderForOutsource?.total || 0;
+    const currentWalletBalance = user?.creditBalance || 0;
+    const remainingWalletBalance = currentWalletBalance - costToOutsource;
+    const hasSufficientCredits = currentWalletBalance >= costToOutsource;
+
     return (
         <div className="space-y-8">
              <Dialog open={outsourceOptionsOpen} onOpenChange={setOutsourceOptionsOpen}>
-                <DialogContent>
+                <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Outsource Order #{selectedOrderForOutsource?.id}</DialogTitle>
                         <DialogDescription>
                             Confirm your document contact preference before submitting to My Accountant.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <Label>Who should My Accountant contact for required documents?</Label>
-                        <RadioGroup 
-                            value={docContactPreference} 
-                            onValueChange={(v) => setDocContactPreference(v as 'reseller' | 'client')}
-                            className="space-y-3"
-                        >
-                            <div className="flex items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
-                                <RadioGroupItem value="reseller" id="contact-reseller" className="mt-1" />
-                                <Label htmlFor="contact-reseller" className="cursor-pointer">
-                                    <p className="font-semibold">Contact Me (The Partner)</p>
-                                    <p className="text-xs text-muted-foreground">All communications and document requests will be sent to your email.</p>
-                                </Label>
+                    <div className="py-4 space-y-6">
+                        <div className="space-y-3">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Document Contact Preference</Label>
+                            <RadioGroup 
+                                value={docContactPreference} 
+                                onValueChange={(v) => setDocContactPreference(v as 'reseller' | 'client')}
+                                className="space-y-2"
+                            >
+                                <div className="flex items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                                    <RadioGroupItem value="reseller" id="contact-reseller" className="mt-1" />
+                                    <Label htmlFor="contact-reseller" className="cursor-pointer">
+                                        <p className="font-semibold text-sm">Contact Me (The Partner)</p>
+                                        <p className="text-[10px] text-muted-foreground">Communication and document requests will be sent to your email.</p>
+                                    </Label>
+                                </div>
+                                <div className="flex items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                                    <RadioGroupItem value="client" id="contact-client" className="mt-1" />
+                                    <Label htmlFor="contact-client" className="cursor-pointer">
+                                        <p className="font-semibold text-sm">Contact My Client Directly</p>
+                                        <p className="text-[10px] text-muted-foreground">We will contact your client directly via white-label email.</p>
+                                    </Label>
+                                </div>
+                            </RadioGroup>
+                        </div>
+
+                        <div className="p-4 bg-primary/5 rounded-lg border border-primary/10 space-y-2 text-sm">
+                            <h4 className="font-bold text-primary text-xs uppercase tracking-wider mb-2">Billing Summary</h4>
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground text-xs">Cost to Outsource:</span>
+                                <span className="font-semibold text-destructive">{formatPrice(costToOutsource)}</span>
                             </div>
-                            <div className="flex items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
-                                <RadioGroupItem value="client" id="contact-client" className="mt-1" />
-                                <Label htmlFor="contact-client" className="cursor-pointer">
-                                    <p className="font-semibold">Contact My Client Directly</p>
-                                    <p className="text-xs text-muted-foreground">We will contact {selectedOrderForOutsource?.endCustomerName || selectedOrderForOutsource?.customerName} from your email address (white-label).</p>
-                                </Label>
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground text-xs">Current Practice Wallet:</span>
+                                <span className="font-semibold">{formatPrice(currentWalletBalance)}</span>
                             </div>
-                        </RadioGroup>
+                            <Separator className="my-2" />
+                            <div className="flex justify-between items-center pt-1">
+                                <span className="font-bold text-xs">Projected Wallet Balance:</span>
+                                <span className={cn("font-bold", remainingWalletBalance < 0 ? "text-destructive" : "text-primary")}>
+                                    {formatPrice(remainingWalletBalance)}
+                                </span>
+                            </div>
+                            {!hasSufficientCredits && (
+                                <div className="flex items-start gap-2 text-destructive mt-2 bg-destructive/5 p-2 rounded border border-destructive/10">
+                                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                    <p className="text-[10px] leading-tight">Insufficient credits. You will be redirected to PayFast to complete this payment.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setOutsourceOptionsOpen(false)}>Cancel</Button>
-                        <Button onClick={handleOutsource}>Submit Outsourcing Request</Button>
+                        <Button onClick={handleOutsource} disabled={isProcessingOutsource}>
+                            {isProcessingOutsource && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {hasSufficientCredits ? 'Outsource & Pay with Credits' : 'Outsource & Pay via PayFast'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
