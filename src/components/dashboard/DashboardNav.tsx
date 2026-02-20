@@ -18,20 +18,11 @@ import {
   BookMarked,
   BrainCircuit,
   Images,
-  FileSpreadsheet,
-  Book,
   ListOrdered,
   Percent,
-  Inbox,
-  FileX2,
-  Banknote,
-  MessageCircleQuestion,
   Wrench,
   PanelLeft,
   ChevronDown,
-  BadgeDollarSign,
-  Mail,
-  HandCoins,
 } from 'lucide-react';
 
 import {
@@ -45,8 +36,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
-  SidebarSeparator,
-  SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -61,7 +50,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const { logout } = useAuth();
   const { state, toggleSidebar } = useSidebar();
   const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/staff'));
-  const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant') || pathname.startsWith('/partner/ai-accountant'));
 
   const handleLogout = () => {
     logout();
@@ -70,11 +58,9 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const basePath = user.role === 'client' || user.role === 'ai_accountant'
     ? '/dashboard'
-    : user.role === 'partner'
+    : user.role === 'partner' || user.role === 'partner_staff'
     ? '/partner'
     : '/admin';
-    
-  const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3] || user.id;
 
   const navItems = [
      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
@@ -98,7 +84,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const settingsNavItems = [
-    { href: '/admin/profile', label: 'My Profile', icon: User, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor']},
+    { href: '/admin/profile', label: 'My Profile', icon: User, roles: ['admin', 'staff']},
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
     { href: '/admin/task-templates', label: 'Task Templates', icon: ClipboardCheck, roles: ['admin'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
@@ -114,12 +100,15 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const partnerNavItems = [
-    { href: '/partner/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['partner'] },
-    { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['partner'] },
-    { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['partner'] },
-    { href: '/partner/outsourced-orders', label: 'Outsourced Orders', icon: FileText, roles: ['partner'] },
-    { href: '/partner/tools', label: 'Tools', icon: Wrench, roles: ['partner'] },
-    { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['partner'] },
+    { href: '/partner/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['partner', 'partner_staff'] },
+    { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['partner', 'partner_staff'] },
+    { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['partner', 'partner_staff'] },
+    { href: '/partner/outsourced-orders', label: 'Outsourced Orders', icon: FileText, roles: ['partner', 'partner_staff'] },
+    { href: '/partner/clients', label: 'Manage Clients', icon: BookUser, roles: ['partner', 'partner_staff'] },
+    { href: '/partner/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['partner', 'partner_staff'] },
+    { href: '/partner/staff', label: 'Manage Staff', icon: Users, roles: ['partner'] },
+    { href: '/partner/tools', label: 'Tools', icon: Wrench, roles: ['partner', 'partner_staff'] },
+    { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['partner', 'partner_staff'] },
   ];
 
   const hasAIAccountantAccess = user.hasNumeraProfile || user.source === 'AI Accountant' || (user.sharedWith && user.sharedWith.length > 0);
@@ -152,7 +141,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
       <SidebarMenu className="flex-1">
         
         {(user.role === 'client') && visibleNavItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
+            <SidebarMenuItem key={item.label}>
             <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                 <Link href={item.href}>
                 <item.icon />
@@ -174,7 +163,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         )}
 
         {user.role === 'ai_accountant' && visibleAiAccountantNavItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
+            <SidebarMenuItem key={item.label}>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                 <Link href={item.href}>
                     <item.icon />
@@ -185,7 +174,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         ))}
         
         {(user.role === 'admin' || user.role === 'staff') && visibleAdminNavItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
+            <SidebarMenuItem key={item.label}>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                 <Link href={item.href}>
                     <item.icon />
@@ -195,9 +184,9 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuItem>
         ))}
 
-        {user.role === 'partner' && visiblePartnerNavItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-            <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+        {(user.role === 'partner' || user.role === 'partner_staff') && visiblePartnerNavItems.map((item) => (
+            <SidebarMenuItem key={item.label}>
+            <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
                 <Link href={item.href}>
                 <item.icon />
                 <span>{item.label}</span>
@@ -207,36 +196,32 @@ export default function DashboardNav({ user }: { user: UserType }) {
         ))}
 
         
-        {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor') && (
-            <>
-            {(user.role === 'admin' || user.role === 'staff') && (
-              <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-                  <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                      <SidebarMenuButton isActive={pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/profile')} tooltip="Settings">
-                      <Settings />
-                      <span>Settings</span>
-                      <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
-                      </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  </SidebarMenuItem>
-                  <CollapsibleContent asChild>
-                  <SidebarMenu className="pl-4">
-                      {visibleSettingsNavItems.map(item => (
-                      <SidebarMenuItem key={item.href}>
-                          <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
-                          <Link href={item.href}>
-                              <item.icon />
-                              <span>{item.label}</span>
-                          </Link>
-                          </SidebarMenuButton>
-                      </SidebarMenuItem>
-                      ))}
-                  </SidebarMenu>
-                  </CollapsibleContent>
-              </Collapsible>
-            )}
-            </>
+        {(user.role === 'admin' || user.role === 'staff') && (
+            <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                <SidebarMenuItem>
+                <CollapsibleTrigger asChild>
+                    <SidebarMenuButton isActive={pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/profile')} tooltip="Settings">
+                    <Settings />
+                    <span>Settings</span>
+                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
+                    </SidebarMenuButton>
+                </CollapsibleTrigger>
+                </SidebarMenuItem>
+                <CollapsibleContent asChild>
+                <SidebarMenu className="pl-4">
+                    {visibleSettingsNavItems.map(item => (
+                    <SidebarMenuItem key={item.label}>
+                        <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label} className="h-8">
+                        <Link href={item.href}>
+                            <item.icon />
+                            <span>{item.label}</span>
+                        </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    ))}
+                </SidebarMenu>
+                </CollapsibleContent>
+            </Collapsible>
         )}
       </SidebarMenu>
 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { ReactNode, useEffect } from 'react';
@@ -13,12 +12,12 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   
   useEffect(() => {
-    if (isAuthenticated && user?.role !== 'partner') {
+    if (isAuthenticated && user?.role !== 'partner' && user?.role !== 'partner_staff') {
       router.push('/login');
     }
   }, [isAuthenticated, user, router]);
 
-  if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'partner')) {
+  if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'partner' && user?.role !== 'partner_staff')) {
      return (
         <div className="flex min-h-screen">
             <Skeleton className="hidden md:block w-16 lg:w-64" />
@@ -33,7 +32,7 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
   return (
     <ProtectedRoute>
       <SidebarProvider>
-        <div className="flex min-h-screen bg-background">
+        <div className="flex min-h-screen bg-background text-foreground">
           {user && (
             <Sidebar collapsible="icon" className="border-r">
               <DashboardNav user={user} />
@@ -41,7 +40,12 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
           )}
           <SidebarInset>
               <div className="p-4 sm:p-6 lg:p-8">
-                  <SidebarTrigger className="md:hidden mb-4" />
+                  <div className="flex items-center gap-4 mb-6">
+                      <SidebarTrigger className="md:hidden" />
+                      <div>
+                          <h2 className="text-sm font-semibold text-primary">{user?.companyName || 'Partner Practice'}</h2>
+                      </div>
+                  </div>
                   {children}
               </div>
           </SidebarInset>

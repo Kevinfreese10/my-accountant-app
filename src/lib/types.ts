@@ -206,12 +206,13 @@ export type User = {
   name: string;
   surname?: string;
   email: string;
-  role: 'client' | 'admin' | 'staff' | 'partner' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor';
+  role: 'client' | 'admin' | 'staff' | 'partner' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor' | 'partner_staff';
   createdAt?: any;
   source?: 'AI Accountant' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   entityType?: 'Company' | 'Trust' | 'Individual';
   status?: 'Active' | 'Inactive' | 'Archived';
+  partnerId?: string; // Links staff or clients to a partner
   // Partner specific fields or contact person for AI Accountant
   companyName?: string;
   contactPerson?: string;
@@ -330,6 +331,7 @@ export type Task = {
   recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly' | 'Bi-Monthly' | 'Annually';
   orderId?: string;
   clientId?: string;
+  partnerId?: string; // Tracks which partner practice this task belongs to
   comments?: TaskComment[];
   tags?: string[];
   triggerField?: string;

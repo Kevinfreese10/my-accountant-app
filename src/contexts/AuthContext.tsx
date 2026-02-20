@@ -1,4 +1,3 @@
-
 'use client';
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { User } from '@/lib/types';
@@ -78,12 +77,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         try {
             const collectionsToTry = ['users', 'aiAccountantClients'];
-            let userDocSnap;
             let foundUser: User | null = null;
             
             for (const collectionName of collectionsToTry) {
                 const userDocRef = doc(db, collectionName, firebaseUser.uid);
-                userDocSnap = await getDoc(userDocRef);
+                const userDocSnap = await getDoc(userDocRef);
                 if (userDocSnap.exists()) {
                     foundUser = { ...userDocSnap.data(), id: userDocSnap.id, uid: userDocSnap.id } as User;
                     break;
