@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -182,7 +183,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
         const orderId = await getNextOrderId();
         const customerFullName = `${values.customerFirstName} ${values.customerLastName}`;
         
-        // Calculate reseller total cost (what partner pays us)
+        // Calculate reseller total cost (what partner pays My Accountant)
         const resellerTotal = values.items.reduce((acc, item) => {
             const resellerBase = item.isCustom ? (item.price * 0.9) : (item.resellerPrice || item.price);
             return acc + (resellerBase * item.quantity);
@@ -208,8 +209,8 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
                 discountType: item.discountType,
                 discountValue: item.discountValue,
             })),
-            total: resellerTotal, // What partner pays My Accountant
-            clientTotal: total, // What client pays partner
+            total: resellerTotal,
+            clientTotal: total,
             status: 'Pending Payment',
             originalOrderId: null,
             isOutsourced: false,
@@ -222,6 +223,8 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
 
         const confirmationEmailSubject = `Order Confirmation: #${orderId}`;
         const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={partner} />);
+        
+        // Use sendEmail with resellerId to trigger white-label SMTP
         await sendEmail({
             to: values.customerEmail,
             subject: confirmationEmailSubject,
@@ -274,7 +277,6 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
                     const isCustom = form.watch(`items.${index}.isCustom`);
                     const lineItem = form.watch(`items.${index}`);
                     const serviceId = form.watch(`items.${index}.serviceId`);
-                    const selectedService = serviceId ? allServices.find(s => s.id === serviceId) : null;
                     
                     return (
                     <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-x-3 gap-y-2 p-3 border rounded-md relative items-start">

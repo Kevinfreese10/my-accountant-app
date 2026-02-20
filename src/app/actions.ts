@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch } from 'firebase/firestore';
@@ -51,7 +52,7 @@ export async function sendDocumentReviewFeedback({ orderId, clientName, clientEm
             orderId,
             documentUploads,
             orderUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${orderId}`,
-            resellerName
+            resellerName: `The ${resellerName} Team`
         })
     );
 
@@ -98,7 +99,7 @@ export async function notifyOfNewNote({
             notePreview,
             actionUrl,
             isToClient,
-            resellerName: isToClient ? resellerName : undefined
+            resellerName: isToClient ? `The ${resellerName} Team` : undefined
         })
     );
 
@@ -124,7 +125,7 @@ export async function sendOutstandingDocumentsReminder({ orderId, clientName, cl
             clientName,
             orderId,
             orderUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${orderId}`,
-            resellerName
+            resellerName: `The ${resellerName} Team`
         })
     );
 
@@ -136,7 +137,7 @@ export async function sendOutstandingDocumentsReminder({ orderId, clientName, cl
     });
 }
 
-export async function sendAiUserInvite(email: string, name: string, password_do_not_expose: string, clientName: string, clientId: string) {
+export async function sendAiUserInvite(email: string, name: string, password_do_not_expose: string, clientName: string, clientId: string, resellerId?: string) {
     const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL}/login`;
 
     const emailHtml = render(
@@ -153,5 +154,6 @@ export async function sendAiUserInvite(email: string, name: string, password_do_
         to: email,
         subject: `You've been invited to collaborate on ${clientName}`,
         html: emailHtml,
+        resellerId: resellerId,
     });
 }

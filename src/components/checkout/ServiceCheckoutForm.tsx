@@ -93,6 +93,8 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
       await setDoc(doc(db, 'orders', orderId), orderData);
       
       const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
+      
+      // Use sendEmail with resellerId if available to trigger partner white-label SMTP
       await sendEmail({
           to: orderData.customerEmail,
           bcc: 'kev@thinkestry.co.za',

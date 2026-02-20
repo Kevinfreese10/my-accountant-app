@@ -1,3 +1,4 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -102,7 +103,7 @@ export async function sendEmail({
           transportConfig = {
             host: partner.smtpDetails.host,
             port: Number(partner.smtpDetails.port || 465),
-            secure: partner.smtpDetails.port === '465',
+            secure: String(partner.smtpDetails.port) === '465',
             auth: {
               user: partner.smtpDetails.user,
               pass: partner.smtpDetails.pass,
@@ -111,6 +112,7 @@ export async function sendEmail({
               rejectUnauthorized: false
             }
           };
+          // CRITICAL: Ensure the from email address matches the authenticated SMTP user
           fromEmail = partner.smtpDetails.user;
           
           // Also BCC the partner on all their outgoing emails
@@ -129,6 +131,7 @@ export async function sendEmail({
       throw new Error('Email server is not configured.');
   }
 
+  // Construct the final from header
   const fromAddress = from || `"${fromName}" <${fromEmail}>`;
 
   const transporter = nodemailer.createTransport(transportConfig);
@@ -144,7 +147,7 @@ export async function sendEmail({
           attachments: attachments,
           replyTo: finalReplyTo,
       });
-      console.log('Email sent successfully:', info.messageId);
+      console.log('Email sent successfully:', info.messageId, 'from:', fromAddress);
       return info;
   } catch (error: any) {
       console.error('Nodemailer Error:', error);
