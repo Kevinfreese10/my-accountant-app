@@ -7,15 +7,15 @@ import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, 
 import { services as allServices } from '@/lib/data';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
-import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
-import NewTaskEmail from '@/components/emails/NewTaskEmail';
+import { DocumentRequestEmail } from '@/components/emails/DocumentRequestEmail';
+import { NewTaskEmail } from '@/components/emails/NewTaskEmail';
 import { format } from 'date-fns';
-import ClientDocumentUploadEmail from '@/components/emails/ClientDocumentUploadEmail';
-import DocumentReviewEmail from '@/components/emails/DocumentReviewEmail';
-import AIAccountantInviteEmail from '@/components/emails/AIAccountantInviteEmail';
-import NewNoteNotificationEmail from '@/components/emails/NewNoteNotificationEmail';
-import OutstandingDocumentsEmail from '@/components/emails/OutstandingDocumentsEmail';
-import AIAnalysisCompleteEmail from '@/components/emails/AIAnalysisCompleteEmail';
+import { ClientDocumentUploadEmail } from '@/components/emails/ClientDocumentUploadEmail';
+import { DocumentReviewEmail } from '@/components/emails/DocumentReviewEmail';
+import { AIAccountantInviteEmail } from '@/components/emails/AIAccountantInviteEmail';
+import { NewNoteNotificationEmail } from '@/components/emails/NewNoteNotificationEmail';
+import { OutstandingDocumentsEmail } from '@/components/emails/OutstandingDocumentsEmail';
+import { AIAnalysisCompleteEmail } from '@/components/emails/AIAnalysisCompleteEmail';
 import { extractSupplierName } from '@/ai/flows/extract-supplier-name';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 
@@ -292,6 +292,6 @@ export async function runAiAccountantAnalysis({
 
     } catch (error) {
         console.error("AI Analysis Job Failed:", error);
-        throw error;
+        return { success: false, error: "Internal Server Error" };
     }
 }

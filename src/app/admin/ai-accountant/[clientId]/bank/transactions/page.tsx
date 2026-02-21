@@ -1320,6 +1320,8 @@ const NewTransactionsTab = React.forwardRef<
                 } else {
                     toast({ title: "No transactions", description: "There were no new expense transactions to analyze." });
                 }
+            } else {
+                toast({ title: "Analysis Failed", description: result.error || "An unexpected error occurred.", variant: "destructive" });
             }
             
             refetch();
