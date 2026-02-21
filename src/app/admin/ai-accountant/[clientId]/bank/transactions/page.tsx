@@ -148,7 +148,8 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             const allDbOperations: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
             const dailyCounters: { [key: string]: number } = {};
             
-            const allRules = [...(client.allocationRules || []), ...globalRules];
+            // Only use client rules for auto-allocation on CSV import as per user preference
+            const allRules = [...(client.allocationRules || [])];
             allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             parsedTransactions.forEach((row, index) => {
@@ -1705,6 +1706,7 @@ const AIWorkflowTab = React.forwardRef<
     const [reviewedTransactions, setReviewedTransactions] = useState<ImportedTransaction[]>([]);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [approvalSettings, setApprovalSettings] = useState<{ [key: string]: { accountId: string, vatType: VatType, createRule: boolean } }>({});
+    const [viewingGroup, setViewingGroup] = useState<TransactionGroup | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!client?.uid || !bankAccountId) return;
@@ -1921,6 +1923,37 @@ const AIWorkflowTab = React.forwardRef<
                 onOpenChange={setIsCreateGeneralAccountOpen}
             />
 
+            <Dialog open={!!viewingGroup} onOpenChange={(o) => !o && setViewingGroup(null)}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>Transactions for {viewingGroup?.merchantKey}</DialogTitle>
+                        <DialogDescription>
+                            The following transactions have been grouped together for analysis.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-96 pr-4">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {viewingGroup?.transactions.map((tx) => (
+                                    <TableRow key={tx.id}>
+                                        <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                        <TableCell className="text-xs">{tx.description}</TableCell>
+                                        <TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                </DialogContent>
+            </Dialog>
+
             <div className="flex items-center justify-between gap-4 bg-primary/5 p-4 rounded-lg border border-primary/10">
                 <div className="space-y-1">
                     <h3 className="font-bold flex items-center gap-2">
@@ -1961,7 +1994,13 @@ const AIWorkflowTab = React.forwardRef<
                                     <div>
                                         <Badge variant="outline" className="mb-1 text-[10px] uppercase tracking-wider">Merchant</Badge>
                                         <h4 className="text-lg font-bold truncate">{group.merchantKey}</h4>
-                                        <p className="text-xs text-muted-foreground">{group.transactions.length} transactions in group</p>
+                                        <Button 
+                                            variant="link" 
+                                            className="p-0 h-auto text-xs text-primary underline-offset-4"
+                                            onClick={() => setViewingGroup(group)}
+                                        >
+                                            {group.transactions.length} transactions in group
+                                        </Button>
                                     </div>
                                     {group.status === 'processing' && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
                                 </div>

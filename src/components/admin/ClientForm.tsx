@@ -45,7 +45,7 @@ const formSchema = z.object({
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(['A', 'B', 'C']).optional().nullable(),
   status: z.enum(clientStatuses).optional(),
-  useGlobalRules: z.boolean().default(true),
+  useGlobalRules: z.boolean().default(false),
   initialRules: z.array(ruleSchema).optional(),
 });
 
@@ -72,7 +72,7 @@ export default function ClientForm({
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
             status: client?.status || 'Active',
-            useGlobalRules: true,
+            useGlobalRules: false,
             initialRules: [],
         },
     });
