@@ -1304,7 +1304,6 @@ const NewTransactionsTab = React.forwardRef<
         toast({ title: "Preparing AI Workflow...", description: "Identifying merchant groups." });
 
         try {
-            // 1. Fetch all NEW expense transactions for this bank account
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
             const q = query(
                 transRef, 
@@ -1321,13 +1320,11 @@ const NewTransactionsTab = React.forwardRef<
                 return;
             }
 
-            // 2. Identify unique descriptions to normalize
             const uniqueDescriptions = Array.from(new Set(newExpenses.map(tx => tx.description)));
             toast({ title: "Normalizing Merchants...", description: `Processing ${uniqueDescriptions.length} unique descriptions.` });
 
             const descriptionToMerchantKey: { [key: string]: string | null } = {};
             
-            // Normalize in batches to avoid too many parallel LLM calls
             for (let i = 0; i < uniqueDescriptions.length; i += 5) {
                 const batchDescriptions = uniqueDescriptions.slice(i, i + 5);
                 await Promise.all(batchDescriptions.map(async (desc) => {
@@ -1335,15 +1332,12 @@ const NewTransactionsTab = React.forwardRef<
                         const result = await extractSupplierName({ description: desc });
                         descriptionToMerchantKey[desc] = result.supplier;
                     } catch (e) {
-                        // Rather move the transaction back to new transactions than using the 1st word.
-                        // (i.e. don't update its status to ai_processing)
                         descriptionToMerchantKey[desc] = null;
                     }
                 }));
                 setSubmissionProgress(Math.min(100, Math.round(((i + 5) / uniqueDescriptions.length) * 100)));
             }
 
-            // 3. Update transactions with merchantKey and status
             const batch = writeBatch(db);
             let moveCount = 0;
             newExpenses.forEach(tx => {
@@ -1409,7 +1403,7 @@ const NewTransactionsTab = React.forwardRef<
             />
 
             <CardHeader className="p-0">
-                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="w-full">
+                <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
                         <TabsTrigger value="expenses">Expenses</TabsTrigger>
                         <TabsTrigger value="income">Income</TabsTrigger>
@@ -1758,8 +1752,6 @@ const AIWorkflowTab = React.forwardRef<
 
         try {
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
-            
-            // 1. Fetch transactions in workflow (ai_processing or ai_review)
             const workflowQuery = query(
                 transRef,
                 where('bankAccountId', '==', bankAccountId),
@@ -1768,7 +1760,6 @@ const AIWorkflowTab = React.forwardRef<
             const workflowSnap = await getDocs(workflowQuery);
             const workflowTxs = workflowSnap.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
 
-            // 2. Fetch historic REVIEWED transactions for this client to use as knowledge base
             const historyQuery = query(
                 transRef,
                 where('status', '==', 'reviewed'),
@@ -1779,7 +1770,6 @@ const AIWorkflowTab = React.forwardRef<
             const historyTxs = historySnap.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
             setReviewedTransactions(historyTxs);
 
-            // 3. Group the workflow transactions
             const merchantGroups: { [key: string]: ImportedTransaction[] } = {};
             workflowTxs.forEach(tx => {
                 const key = tx.merchantKey || 'UNKNOWN';
@@ -1796,12 +1786,10 @@ const AIWorkflowTab = React.forwardRef<
 
             setGroups(initialGroups);
 
-            // 4. Initialize approval settings from suggestions or history
             const settings: typeof approvalSettings = {};
             initialGroups.forEach(group => {
                 const suggestion = group.suggestion;
                 
-                // Priority 1: AI Result already on doc
                 if (suggestion) {
                     settings[group.merchantKey] = {
                         accountId: suggestion.accountId,
@@ -1809,7 +1797,6 @@ const AIWorkflowTab = React.forwardRef<
                         createRule: true
                     };
                 } else {
-                    // Priority 2: History Match
                     const historicMatch = historyTxs.find(h => h.merchantKey === group.merchantKey);
                     if (historicMatch && historicMatch.allocatedTo) {
                         settings[group.merchantKey] = {
@@ -1818,7 +1805,6 @@ const AIWorkflowTab = React.forwardRef<
                             createRule: true
                         };
                     } else {
-                        // Priority 3: Global Rules Match
                         const matchedRule = globalRules.find(r => 
                             r.keywords.some(kw => group.merchantKey.includes(kw.toUpperCase()))
                         );
@@ -1871,7 +1857,6 @@ const AIWorkflowTab = React.forwardRef<
                 });
 
                 if (result) {
-                    // Update transactions in Firestore with result
                     const batch = writeBatch(db);
                     const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
                     group.transactions.forEach(tx => {
@@ -1930,7 +1915,6 @@ const AIWorkflowTab = React.forwardRef<
                 });
             });
 
-            // If requested, create a Client-specific rule
             if (settings.createRule) {
                 const clientRef = doc(db, 'aiAccountantClients', client.uid);
                 const newRule: AllocationRule = {
@@ -2722,7 +2706,7 @@ const ReviewedTab = React.forwardRef<
                                     <AlertDialogDescription>
                                         This tool will analyze your reviewed transactions to find allocations that are inconsistent with how you've categorized similar items in the past.
                                     </AlertDialogDescription>
-                                </AccordionHeader>
+                                </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction onClick={handleReviewConsistency}>Yes, Review Consistency</AlertDialogAction>
@@ -2982,15 +2966,7 @@ function BankTransactionsPage() {
             const reviewQuery = query(transRef, where('status', '==', 'review'));
     
             try {
-                const snapshot = await getDocs(reviewQuery)
-                    .catch(async (serverError) => {
-                        const permissionError = new FirestorePermissionError({
-                            path: transRef.path,
-                            operation: 'list',
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
-                        throw serverError;
-                    });
+                const snapshot = await getDocs(reviewQuery);
                 if (snapshot.empty) return;
     
                 const batch = writeBatch(db);
@@ -3004,13 +2980,7 @@ function BankTransactionsPage() {
                     }
                 });
     
-                batch.commit().catch(async (serverError) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: `aiAccountantClients/${client.uid}/transactions`,
-                        operation: 'update',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                });
+                await batch.commit();
                 handleRefreshAll();
             } catch (error) {
                 console.error("Error migrating 'review' transactions:", error);
@@ -3027,15 +2997,7 @@ function BankTransactionsPage() {
         if (!clientId) return;
         try {
             const clientRef = doc(db, 'aiAccountantClients', clientId);
-            const clientSnap = await getDoc(clientRef)
-                .catch(async (serverError) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: clientRef.path,
-                        operation: 'get',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                    throw serverError;
-                });
+            const clientSnap = await getDoc(clientRef);
             if (clientSnap.exists()) {
                 const clientData = clientSnap.data() as User;
                  setClient(clientData);
@@ -3052,15 +3014,7 @@ function BankTransactionsPage() {
     const fetchGlobalRules = useCallback(async () => {
         try {
             const rulesRef = collection(db, 'allocationRules');
-            const querySnapshot = await getDocs(rulesRef)
-                .catch(async (serverError) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: rulesRef.path,
-                        operation: 'list',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                    throw serverError;
-                });
+            const querySnapshot = await getDocs(rulesRef);
             setGlobalRules(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllocationRule[]);
         } catch (error) {
             console.error("Error fetching global rules:", error);
@@ -3105,27 +3059,11 @@ function BankTransactionsPage() {
         const fetchCustomersAndInvoices = async () => {
             try {
                 const custRef = collection(db, `aiAccountantClients/${clientId}/customers`);
-                const custSnapshot = await getDocs(custRef)
-                    .catch(async (serverError) => {
-                        const permissionError = new FirestorePermissionError({
-                            path: custRef.path,
-                            operation: 'list',
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
-                        throw serverError;
-                    });
+                const custSnapshot = await getDocs(custRef);
                 setCustomers(custSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClientCustomer)));
 
                 const invRef = collection(db, `aiAccountantClients/${clientId}/invoices`);
-                const invSnapshot = await getDocs(invRef)
-                    .catch(async (serverError) => {
-                        const permissionError = new FirestorePermissionError({
-                            path: invRef.path,
-                            operation: 'list',
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
-                        throw serverError;
-                    });
+                const invSnapshot = await getDocs(invRef);
                 setInvoices(invSnapshot.docs.map(docSnap => {
                     const data = docSnap.data();
                     return { 
@@ -3159,15 +3097,7 @@ function BankTransactionsPage() {
         
         const transRef = collection(db, 'aiAccountantClients', client.uid!, 'transactions');
         const q = query(transRef, where('bankAccountId', '==', accountId));
-        const snapshot = await getDocs(q)
-            .catch(async (serverError) => {
-                const permissionError = new FirestorePermissionError({
-                    path: transRef.path,
-                    operation: 'list',
-                });
-                errorEmitter.emit('permission-error', permissionError);
-                throw serverError;
-            });
+        const snapshot = await getDocs(q);
 
         if (snapshot.empty) return;
 
@@ -3178,13 +3108,7 @@ function BankTransactionsPage() {
                 chunk.forEach(docSnap => {
                     batch.delete(docSnap.ref);
                 });
-                batch.commit().catch(async (serverError) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: `aiAccountantClients/${client.uid}/transactions`,
-                        operation: 'delete',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                });
+                await batch.commit();
             }
             toast({ title: "Transactions Cleared", variant: 'destructive' });
         } catch (e) {
