@@ -920,6 +920,7 @@ const NewTransactionsTab = React.forwardRef<
     const [isSaving, setIsSaving] = useState(false);
     const [triggerAllocation, setTriggerAllocation] = useState(false);
     const [isSubmittingToWorkflow, setIsSubmittingToWorkflow] = useState(false);
+    const [submissionProgress, setSubmissionProgress] = useState(0);
 
     // AI Research State
     const [isAiResearching, setIsAiResearching] = useState<string | null>(null);
@@ -1299,6 +1300,7 @@ const NewTransactionsTab = React.forwardRef<
     const handleRunAiWorkflow = async () => {
         if (!client || !client.uid || !bankAccountId) return;
         setIsSubmittingToWorkflow(true);
+        setSubmissionProgress(0);
         toast({ title: "Preparing AI Workflow...", description: "Identifying merchant groups." });
 
         try {
@@ -1336,6 +1338,7 @@ const NewTransactionsTab = React.forwardRef<
                         descriptionToMerchantKey[desc] = desc.split(/\s+/)[0].toUpperCase();
                     }
                 }));
+                setSubmissionProgress(Math.round(((i + 5) / uniqueDescriptions.length) * 100));
             }
 
             // 3. Update transactions with merchantKey and status
@@ -1358,6 +1361,7 @@ const NewTransactionsTab = React.forwardRef<
             toast({ title: "Workflow Failed", variant: "destructive" });
         } finally {
             setIsSubmittingToWorkflow(false);
+            setSubmissionProgress(0);
         }
     };
     
@@ -1474,8 +1478,17 @@ const NewTransactionsTab = React.forwardRef<
                         </Button>
                         {activeSubTab === 'expenses' && (
                             <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow}>
-                                {isSubmittingToWorkflow ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                Run AI Analysis
+                                {isSubmittingToWorkflow ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Preparing {submissionProgress}%
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles className="mr-2 h-4 w-4" />
+                                        Run AI Analysis
+                                    </>
+                                )}
                             </Button>
                         )}
                         <DropdownMenu>
@@ -1518,6 +1531,7 @@ const NewTransactionsTab = React.forwardRef<
                         />
                     </div>
                 </div>
+                {isSubmittingToWorkflow && <Progress value={submissionProgress} className="h-1 rounded-none" />}
             </CardHeader>
             <CardContent className="p-0">
                 <div className="overflow-x-auto">
