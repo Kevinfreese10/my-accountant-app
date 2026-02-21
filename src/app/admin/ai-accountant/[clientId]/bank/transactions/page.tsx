@@ -1325,7 +1325,7 @@ const NewTransactionsTab = React.forwardRef<
             const uniqueDescriptions = Array.from(new Set(newExpenses.map(tx => tx.description)));
             toast({ title: "Normalizing Merchants...", description: `Processing ${uniqueDescriptions.length} unique descriptions.` });
 
-            const descriptionToMerchantKey: { [key: string]: string } = {};
+            const descriptionToMerchantKey: { [key: string]: string | null } = {};
             
             // Normalize in batches to avoid too many parallel LLM calls
             for (let i = 0; i < uniqueDescriptions.length; i += 5) {
@@ -1335,25 +1335,36 @@ const NewTransactionsTab = React.forwardRef<
                         const result = await extractSupplierName({ description: desc });
                         descriptionToMerchantKey[desc] = result.supplier;
                     } catch (e) {
-                        descriptionToMerchantKey[desc] = desc.split(/\s+/)[0].toUpperCase();
+                        // Rather move the transaction back to new transactions than using the 1st word.
+                        // (i.e. don't update its status to ai_processing)
+                        descriptionToMerchantKey[desc] = null;
                     }
                 }));
-                setSubmissionProgress(Math.round(((i + 5) / uniqueDescriptions.length) * 100));
+                setSubmissionProgress(Math.min(100, Math.round(((i + 5) / uniqueDescriptions.length) * 100)));
             }
 
             // 3. Update transactions with merchantKey and status
             const batch = writeBatch(db);
+            let moveCount = 0;
             newExpenses.forEach(tx => {
                 const key = descriptionToMerchantKey[tx.description];
-                batch.update(doc(transRef, tx.id), {
-                    merchantKey: key,
-                    status: 'ai_processing'
-                });
+                if (key) {
+                    batch.update(doc(transRef, tx.id), {
+                        merchantKey: key,
+                        status: 'ai_processing'
+                    });
+                    moveCount++;
+                }
             });
-            await batch.commit();
-
-            toast({ title: "Submission Successful", description: "Transactions moved to AI Workflow tab for background processing." });
-            setActiveTab('ai-workflow');
+            
+            if (moveCount > 0) {
+                await batch.commit();
+                toast({ title: "Submission Successful", description: `${moveCount} transactions moved to AI Workflow tab.` });
+                setActiveTab('ai-workflow');
+            } else {
+                toast({ title: "Normalization Failed", description: "The AI assistant could not identify merchants. Transactions remain in 'New'.", variant: "destructive" });
+            }
+            
             refetch();
 
         } catch (error) {
@@ -1398,7 +1409,7 @@ const NewTransactionsTab = React.forwardRef<
             />
 
             <CardHeader className="p-0">
-                <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
+                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
                         <TabsTrigger value="expenses">Expenses</TabsTrigger>
                         <TabsTrigger value="income">Income</TabsTrigger>
@@ -2711,7 +2722,7 @@ const ReviewedTab = React.forwardRef<
                                     <AlertDialogDescription>
                                         This tool will analyze your reviewed transactions to find allocations that are inconsistent with how you've categorized similar items in the past.
                                     </AlertDialogDescription>
-                                </AlertDialogHeader>
+                                </AccordionHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction onClick={handleReviewConsistency}>Yes, Review Consistency</AlertDialogAction>
