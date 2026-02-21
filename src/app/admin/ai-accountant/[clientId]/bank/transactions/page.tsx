@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -42,6 +43,8 @@ import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-all
 import type { SuggestTransactionAllocationOutput } from '@/ai/flows/suggest-transaction-allocation';
 import { extractSupplierName } from '@/ai/flows/extract-supplier-name';
 import { Progress } from '@/components/ui/progress';
+import { useAuth } from '@/contexts/AuthContext';
+import { runAiAccountantAnalysis } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -905,6 +908,7 @@ const NewTransactionsTab = React.forwardRef<
         currentBalance: number;
     }
 >(({ client, bankAccountId, customers, invoices, fetchClientData, fetchGlobalRules, globalRules, onAccountCreated, setActiveTab, currentBalance }, ref) => {
+    const { user } = useAuth();
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -920,7 +924,6 @@ const NewTransactionsTab = React.forwardRef<
     const [isSaving, setIsSaving] = useState(false);
     const [triggerAllocation, setTriggerAllocation] = useState(false);
     const [isSubmittingToWorkflow, setIsSubmittingToWorkflow] = useState(false);
-    const [submissionProgress, setSubmissionProgress] = useState(0);
 
     // AI Research State
     const [isAiResearching, setIsAiResearching] = useState<string | null>(null);
@@ -1298,75 +1301,33 @@ const NewTransactionsTab = React.forwardRef<
     }, [client?.allocationRules, globalRules]);
 
     const handleRunAiWorkflow = async () => {
-        if (!client || !client.uid || !bankAccountId) return;
+        if (!client || !client.uid || !bankAccountId || !user?.email) return;
         setIsSubmittingToWorkflow(true);
-        setSubmissionProgress(0);
-        toast({ title: "Preparing AI Workflow...", description: "Identifying merchant groups." });
+        toast({ title: "AI Analysis Started", description: "The analysis is now running on the server. You will receive an email when it is complete." });
 
         try {
-            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
-            const q = query(
-                transRef, 
-                where('bankAccountId', '==', bankAccountId), 
-                where('status', '==', 'new'),
-                where('isExpense', '==', true)
-            );
-            const snapshot = await getDocs(q);
-            const newExpenses = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
-
-            if (newExpenses.length === 0) {
-                toast({ title: "No transactions", description: "There are no new expense transactions to process." });
-                setIsSubmittingToWorkflow(false);
-                return;
-            }
-
-            const uniqueDescriptions = Array.from(new Set(newExpenses.map(tx => tx.description)));
-            toast({ title: "Normalizing Merchants...", description: `Processing ${uniqueDescriptions.length} unique descriptions.` });
-
-            const descriptionToMerchantKey: { [key: string]: string | null } = {};
-            
-            for (let i = 0; i < uniqueDescriptions.length; i += 5) {
-                const batchDescriptions = uniqueDescriptions.slice(i, i + 5);
-                await Promise.all(batchDescriptions.map(async (desc) => {
-                    try {
-                        const result = await extractSupplierName({ description: desc });
-                        descriptionToMerchantKey[desc] = result.supplier;
-                    } catch (e) {
-                        descriptionToMerchantKey[desc] = null;
-                    }
-                }));
-                setSubmissionProgress(Math.min(100, Math.round(((i + 5) / uniqueDescriptions.length) * 100)));
-            }
-
-            const batch = writeBatch(db);
-            let moveCount = 0;
-            newExpenses.forEach(tx => {
-                const key = descriptionToMerchantKey[tx.description];
-                if (key) {
-                    batch.update(doc(transRef, tx.id), {
-                        merchantKey: key,
-                        status: 'ai_processing'
-                    });
-                    moveCount++;
-                }
+            const result = await runAiAccountantAnalysis({
+                clientId: client.uid,
+                bankAccountId: bankAccountId,
+                initiatorEmail: user.email
             });
-            
-            if (moveCount > 0) {
-                await batch.commit();
-                toast({ title: "Submission Successful", description: `${moveCount} transactions moved to AI Workflow tab.` });
-                setActiveTab('ai-workflow');
-            } else {
-                toast({ title: "Normalization Failed", description: "The AI assistant could not identify merchants. Transactions remain in 'New'.", variant: "destructive" });
+
+            if (result.success) {
+                if (result.count > 0) {
+                    toast({ title: "Analysis Complete", description: `${result.count} transactions moved to AI Workflow.` });
+                    setActiveTab('ai-workflow');
+                } else {
+                    toast({ title: "No transactions", description: "There were no new expense transactions to analyze." });
+                }
             }
             
             refetch();
 
         } catch (error) {
-            console.error("AI Workflow start error:", error);
+            console.error("AI Workflow error:", error);
             toast({ title: "Workflow Failed", variant: "destructive" });
         } finally {
             setIsSubmittingToWorkflow(false);
-            setSubmissionProgress(0);
         }
     };
     
@@ -1486,7 +1447,7 @@ const NewTransactionsTab = React.forwardRef<
                                 {isSubmittingToWorkflow ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Preparing {submissionProgress}%
+                                        Analyzing on Server...
                                     </>
                                 ) : (
                                     <>
@@ -1536,7 +1497,6 @@ const NewTransactionsTab = React.forwardRef<
                         />
                     </div>
                 </div>
-                {isSubmittingToWorkflow && <Progress value={submissionProgress} className="h-1 rounded-none" />}
             </CardHeader>
             <CardContent className="p-0">
                 <div className="overflow-x-auto">
