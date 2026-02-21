@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play } from 'lucide-react';
 import Papa from 'papaparse';
-import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationJob } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField, QueryConstraint, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -40,6 +40,8 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import type { SuggestTransactionAllocationOutput } from '@/ai/flows/suggest-transaction-allocation';
+import { extractSupplierName } from '@/ai/flows/extract-supplier-name';
+import { Progress } from '@/components/ui/progress';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -917,6 +919,7 @@ const NewTransactionsTab = React.forwardRef<
     const [searchResults, setSearchResults] = useState<ImportedTransaction[] | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [triggerAllocation, setTriggerAllocation] = useState(false);
+    const [isSubmittingToWorkflow, setIsSubmittingToWorkflow] = useState(false);
 
     // AI Research State
     const [isAiResearching, setIsAiResearching] = useState<string | null>(null);
@@ -1292,6 +1295,71 @@ const NewTransactionsTab = React.forwardRef<
             return true;
         });
     }, [client?.allocationRules, globalRules]);
+
+    const handleRunAiWorkflow = async () => {
+        if (!client || !client.uid || !bankAccountId) return;
+        setIsSubmittingToWorkflow(true);
+        toast({ title: "Preparing AI Workflow...", description: "Identifying merchant groups." });
+
+        try {
+            // 1. Fetch all NEW expense transactions for this bank account
+            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            const q = query(
+                transRef, 
+                where('bankAccountId', '==', bankAccountId), 
+                where('status', '==', 'new'),
+                where('isExpense', '==', true)
+            );
+            const snapshot = await getDocs(q);
+            const newExpenses = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
+
+            if (newExpenses.length === 0) {
+                toast({ title: "No transactions", description: "There are no new expense transactions to process." });
+                setIsSubmittingToWorkflow(false);
+                return;
+            }
+
+            // 2. Identify unique descriptions to normalize
+            const uniqueDescriptions = Array.from(new Set(newExpenses.map(tx => tx.description)));
+            toast({ title: "Normalizing Merchants...", description: `Processing ${uniqueDescriptions.length} unique descriptions.` });
+
+            const descriptionToMerchantKey: { [key: string]: string } = {};
+            
+            // Normalize in batches to avoid too many parallel LLM calls
+            for (let i = 0; i < uniqueDescriptions.length; i += 5) {
+                const batchDescriptions = uniqueDescriptions.slice(i, i + 5);
+                await Promise.all(batchDescriptions.map(async (desc) => {
+                    try {
+                        const result = await extractSupplierName({ description: desc });
+                        descriptionToMerchantKey[desc] = result.supplier;
+                    } catch (e) {
+                        descriptionToMerchantKey[desc] = desc.split(/\s+/)[0].toUpperCase();
+                    }
+                }));
+            }
+
+            // 3. Update transactions with merchantKey and status
+            const batch = writeBatch(db);
+            newExpenses.forEach(tx => {
+                const key = descriptionToMerchantKey[tx.description];
+                batch.update(doc(transRef, tx.id), {
+                    merchantKey: key,
+                    status: 'ai_processing'
+                });
+            });
+            await batch.commit();
+
+            toast({ title: "Submission Successful", description: "Transactions moved to AI Workflow tab for background processing." });
+            setActiveTab('ai-workflow');
+            refetch();
+
+        } catch (error) {
+            console.error("AI Workflow start error:", error);
+            toast({ title: "Workflow Failed", variant: "destructive" });
+        } finally {
+            setIsSubmittingToWorkflow(false);
+        }
+    };
     
     return (
         <Card>
@@ -1404,6 +1472,12 @@ const NewTransactionsTab = React.forwardRef<
                             {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4" />}
                             Apply Rules
                         </Button>
+                        {activeSubTab === 'expenses' && (
+                            <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow}>
+                                {isSubmittingToWorkflow ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                Run AI Analysis
+                            </Button>
+                        )}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" disabled={selectedTransactions.length === 0}>
@@ -1628,6 +1702,417 @@ const NewTransactionsTab = React.forwardRef<
 });
 NewTransactionsTab.displayName = 'NewTransactionsTab';
 
+interface TransactionGroup {
+    merchantKey: string;
+    transactions: ImportedTransaction[];
+    suggestion: SuggestTransactionAllocationOutput | null;
+    status: 'pending' | 'ready' | 'processing';
+}
+
+const AIWorkflowTab = React.forwardRef<
+    { refetch: () => void },
+    { 
+        client: User | null; 
+        bankAccountId: string | null; 
+        globalRules: AllocationRule[];
+        onAccountCreated: () => void;
+    }
+>(({ client, bankAccountId, globalRules, onAccountCreated }, ref) => {
+    const { toast } = useToast();
+    const [groups, setGroups] = useState<TransactionGroup[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isJobRunning, setIsJobRunning] = useState(false);
+    const [jobProgress, setJobProgress] = useState(0);
+    const [reviewedTransactions, setReviewedTransactions] = useState<ImportedTransaction[]>([]);
+    const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
+    const [approvalSettings, setApprovalSettings] = useState<{ [key: string]: { accountId: string, vatType: VatType, createRule: boolean } }>({});
+
+    const fetchData = useCallback(async () => {
+        if (!client?.uid || !bankAccountId) return;
+        setIsLoading(true);
+
+        try {
+            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            
+            // 1. Fetch transactions in workflow (ai_processing or ai_review)
+            const workflowQuery = query(
+                transRef,
+                where('bankAccountId', '==', bankAccountId),
+                where('status', 'in', ['ai_processing', 'ai_review'])
+            );
+            const workflowSnap = await getDocs(workflowQuery);
+            const workflowTxs = workflowSnap.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
+
+            // 2. Fetch historic REVIEWED transactions for this client to use as knowledge base
+            const historyQuery = query(
+                transRef,
+                where('status', '==', 'reviewed'),
+                orderBy('allocatedAt', 'desc'),
+                limit(500)
+            );
+            const historySnap = await getDocs(historyQuery);
+            const historyTxs = historySnap.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
+            setReviewedTransactions(historyTxs);
+
+            // 3. Group the workflow transactions
+            const merchantGroups: { [key: string]: ImportedTransaction[] } = {};
+            workflowTxs.forEach(tx => {
+                const key = tx.merchantKey || 'UNKNOWN';
+                if (!merchantGroups[key]) merchantGroups[key] = [];
+                merchantGroups[key].push(tx);
+            });
+
+            const initialGroups: TransactionGroup[] = Object.entries(merchantGroups).map(([key, txs]) => ({
+                merchantKey: key,
+                transactions: txs,
+                suggestion: txs[0].aiAllocationResult || null,
+                status: txs[0].status === 'ai_processing' ? 'pending' : 'ready'
+            }));
+
+            setGroups(initialGroups);
+
+            // 4. Initialize approval settings from suggestions or history
+            const settings: typeof approvalSettings = {};
+            initialGroups.forEach(group => {
+                const suggestion = group.suggestion;
+                
+                // Priority 1: AI Result already on doc
+                if (suggestion) {
+                    settings[group.merchantKey] = {
+                        accountId: suggestion.accountId,
+                        vatType: suggestion.vatType,
+                        createRule: true
+                    };
+                } else {
+                    // Priority 2: History Match
+                    const historicMatch = historyTxs.find(h => h.merchantKey === group.merchantKey);
+                    if (historicMatch && historicMatch.allocatedTo) {
+                        settings[group.merchantKey] = {
+                            accountId: historicMatch.allocatedTo.value,
+                            vatType: historicMatch.vatType || 'no_vat',
+                            createRule: true
+                        };
+                    } else {
+                        // Priority 3: Global Rules Match
+                        const matchedRule = globalRules.find(r => 
+                            r.keywords.some(kw => group.merchantKey.includes(kw.toUpperCase()))
+                        );
+                        if (matchedRule) {
+                            settings[group.merchantKey] = {
+                                accountId: matchedRule.accountId,
+                                vatType: matchedRule.vatType,
+                                createRule: true
+                            };
+                        }
+                    }
+                }
+            });
+            setApprovalSettings(settings);
+
+        } catch (error) {
+            console.error("AI Workflow fetch error:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [client, bankAccountId, globalRules]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    React.useImperativeHandle(ref, () => ({
+        refetch: fetchData,
+    }));
+
+    const runJob = async () => {
+        if (!client || !client.uid || isJobRunning) return;
+        const pendingGroups = groups.filter(g => g.status === 'pending');
+        if (pendingGroups.length === 0) return;
+
+        setIsJobRunning(true);
+        setJobProgress(0);
+
+        let processed = 0;
+        const total = pendingGroups.length;
+
+        for (const group of pendingGroups) {
+            try {
+                setGroups(prev => prev.map(g => g.merchantKey === group.merchantKey ? { ...g, status: 'processing' } : g));
+
+                const result = await suggestTransactionAllocation({
+                    description: group.transactions[0].description,
+                    chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
+                    isVatRegistered: !!client.isVatRegistered,
+                });
+
+                if (result) {
+                    // Update transactions in Firestore with result
+                    const batch = writeBatch(db);
+                    const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+                    group.transactions.forEach(tx => {
+                        batch.update(doc(transRef, tx.id), {
+                            status: 'ai_review',
+                            aiAllocationResult: result
+                        });
+                    });
+                    await batch.commit();
+
+                    setGroups(prev => prev.map(g => g.merchantKey === group.merchantKey ? { 
+                        ...g, 
+                        status: 'ready', 
+                        suggestion: result 
+                    } : g));
+
+                    setApprovalSettings(prev => ({
+                        ...prev,
+                        [group.merchantKey]: {
+                            accountId: result.accountId,
+                            vatType: result.vatType,
+                            createRule: true
+                        }
+                    }));
+                }
+            } catch (e) {
+                console.error(`Job failed for group ${group.merchantKey}`, e);
+            } finally {
+                processed++;
+                setJobProgress(Math.round((processed / total) * 100));
+            }
+        }
+
+        setIsJobRunning(false);
+        toast({ title: "Analysis Job Complete", description: `Processed ${processed} merchant groups.` });
+    };
+
+    const handleApproveGroup = async (group: TransactionGroup) => {
+        if (!client || !client.uid) return;
+        const settings = approvalSettings[group.merchantKey];
+        if (!settings) return;
+
+        toast({ title: "Approving Group...", description: `Moving ${group.transactions.length} transactions to Reviewed.` });
+
+        try {
+            const batch = writeBatch(db);
+            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            
+            group.transactions.forEach(tx => {
+                batch.update(doc(transRef, tx.id), {
+                    status: 'reviewed',
+                    allocatedTo: { value: settings.accountId, type: 'account' },
+                    vatType: settings.vatType,
+                    allocatedAt: Timestamp.now(),
+                    allocationSource: 'ai'
+                });
+            });
+
+            // If requested, create a Client-specific rule
+            if (settings.createRule) {
+                const clientRef = doc(db, 'aiAccountantClients', client.uid);
+                const newRule: AllocationRule = {
+                    id: `rule_${Date.now()}`,
+                    description: `Auto-categorization for ${group.merchantKey}`,
+                    keywords: [group.merchantKey.toUpperCase()],
+                    accountId: settings.accountId,
+                    vatType: settings.vatType,
+                    type: 'hard',
+                    scope: 'client',
+                    priority: 99
+                };
+                batch.update(clientRef, { allocationRules: arrayUnion(newRule) });
+            }
+
+            await batch.commit();
+            setGroups(prev => prev.filter(g => g.merchantKey !== group.merchantKey));
+            toast({ title: "Group Approved" });
+            
+        } catch (error) {
+            console.error("Approve group error:", error);
+            toast({ title: "Approval Failed", variant: "destructive" });
+        }
+    };
+
+    if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>;
+
+    if (groups.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
+                <BrainCircuit className="h-12 w-12 mb-4 opacity-20" />
+                <p>No transactions currently in the AI Workflow.</p>
+                <p className="text-sm">Submit expenses from the 'New Transactions' tab to begin.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6 p-4">
+            <CreateGeneralAccountDialog 
+                client={client}
+                onAccountCreated={onAccountCreated}
+                open={isCreateGeneralAccountOpen}
+                onOpenChange={setIsCreateGeneralAccountOpen}
+            />
+
+            <div className="flex items-center justify-between gap-4 bg-primary/5 p-4 rounded-lg border border-primary/10">
+                <div className="space-y-1">
+                    <h3 className="font-bold flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        AI Research Engine
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                        Identified {groups.length} merchant groups. {groups.filter(g => g.status === 'pending').length} need AI research.
+                    </p>
+                </div>
+                {isJobRunning ? (
+                    <div className="w-64 space-y-2">
+                        <div className="flex justify-between text-[10px] font-bold">
+                            <span>RESEARCHING...</span>
+                            <span>{jobProgress}%</span>
+                        </div>
+                        <Progress value={jobProgress} className="h-2" />
+                    </div>
+                ) : groups.some(g => g.status === 'pending') ? (
+                    <Button onClick={runJob}>
+                        <Play className="mr-2 h-4 w-4" />
+                        Start Research Job
+                    </Button>
+                ) : (
+                    <Badge variant="success" className="h-8 px-3">
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        All Research Complete
+                    </Badge>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+                {groups.map((group) => (
+                    <Card key={group.merchantKey} className={cn("overflow-hidden", group.status === 'processing' && "border-primary shadow-md")}>
+                        <div className="flex flex-col md:flex-row">
+                            <div className="p-4 md:w-1/3 bg-muted/30 border-r border-b md:border-b-0">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div>
+                                        <Badge variant="outline" className="mb-1 text-[10px] uppercase tracking-wider">Merchant</Badge>
+                                        <h4 className="text-lg font-bold truncate">{group.merchantKey}</h4>
+                                        <p className="text-xs text-muted-foreground">{group.transactions.length} transactions in group</p>
+                                    </div>
+                                    {group.status === 'processing' && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="text-[10px] font-bold uppercase text-muted-foreground">Example Description</div>
+                                    <p className="text-xs italic text-muted-foreground leading-relaxed">
+                                        "{group.transactions[0].description}"
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="p-4 flex-grow grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold uppercase text-muted-foreground">Allocate To Account</Label>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" className="w-full justify-start text-xs h-9" disabled={group.status === 'pending' || group.status === 'processing'}>
+                                                    {approvalSettings[group.merchantKey] 
+                                                        ? client?.chartOfAccounts?.find(a => a.id === approvalSettings[group.merchantKey].accountId)?.description 
+                                                        : "Loading allocation..."}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                <Command>
+                                                    <CommandInput placeholder="Search accounts..." />
+                                                    <CommandList>
+                                                        <ScrollArea className="h-64">
+                                                            <CommandGroup>
+                                                                <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary font-medium">
+                                                                    <PlusCircle className="mr-2 h-4 w-4"/>Create account
+                                                                </CommandItem>
+                                                                {client?.chartOfAccounts?.map(acc => (
+                                                                    <CommandItem key={acc.id} onSelect={() => setApprovalSettings(prev => ({
+                                                                        ...prev,
+                                                                        [group.merchantKey]: { ...prev[group.merchantKey], accountId: acc.id }
+                                                                    }))}>
+                                                                        {acc.description}
+                                                                    </CommandItem>
+                                                                ))}
+                                                            </CommandGroup>
+                                                        </ScrollArea>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold uppercase text-muted-foreground">VAT Treatment</Label>
+                                        <Select 
+                                            value={approvalSettings[group.merchantKey]?.vatType || 'no_vat'}
+                                            onValueChange={(v) => setApprovalSettings(prev => ({
+                                                ...prev,
+                                                [group.merchantKey]: { ...prev[group.merchantKey], vatType: v as VatType }
+                                            }))}
+                                            disabled={group.status === 'pending' || group.status === 'processing'}
+                                        >
+                                            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="p-3 rounded-lg bg-background border text-xs min-h-[80px]">
+                                        {group.status === 'ready' && group.suggestion ? (
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <Badge variant={group.suggestion.confidence > 80 ? 'success' : 'warning'} className="text-[10px]">
+                                                        {group.suggestion.confidence}% AI Confidence
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-muted-foreground leading-relaxed italic">
+                                                    {group.suggestion.summary}
+                                                </p>
+                                            </div>
+                                        ) : group.status === 'processing' ? (
+                                            <div className="flex flex-col items-center justify-center h-full gap-2">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <span className="animate-pulse">AI is researching...</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground italic">
+                                                Awaiting analysis...
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center justify-between pt-2">
+                                        <div className="flex items-center space-x-2">
+                                            <Checkbox 
+                                                id={`rule-${group.merchantKey}`} 
+                                                checked={approvalSettings[group.merchantKey]?.createRule}
+                                                onCheckedChange={(v) => setApprovalSettings(prev => ({
+                                                    ...prev,
+                                                    [group.merchantKey]: { ...prev[group.merchantKey], createRule: !!v }
+                                                }))}
+                                                disabled={group.status === 'pending' || group.status === 'processing'}
+                                            />
+                                            <Label htmlFor={`rule-${group.merchantKey}`} className="text-xs cursor-pointer">Create Client Rule</Label>
+                                        </div>
+                                        <Button size="sm" onClick={() => handleApproveGroup(group)} disabled={group.status !== 'ready'}>
+                                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                                            Approve Group
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+                ))}
+            </div>
+        </div>
+    );
+});
+AIWorkflowTab.displayName = 'AIWorkflowTab';
+
 const ReviewedTab = React.forwardRef<
     { refetch: () => void; },
     { client: User | null; bankAccountId: string | null; customers: ClientCustomer[], onAccountCreated: () => void; }
@@ -1635,6 +2120,7 @@ const ReviewedTab = React.forwardRef<
     
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [isSaving, setIsSaving] = useState(false);
+    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const { toast } = useToast();
     const [changes, setChanges] = useState<{ [txId: string]: Partial<ImportedTransaction> }>({});
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
@@ -1646,7 +2132,6 @@ const ReviewedTab = React.forwardRef<
     const [selectedCorrections, setSelectedCorrections] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [accountFilter, setAccountFilter] = useState('all');
-    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
 
 
     type SortField = 'date' | 'description' | 'amount' | 'allocatedTo' | 'vatType';
@@ -2461,6 +2946,7 @@ function BankTransactionsPage() {
     const [accountId, setAccountId] = useState<string | null>(accountIdFromUrl);
 
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
+    const aiWorkflowTabRef = useRef<{ refetch: () => void }>(null);
     const reviewedTabRef = useRef<{ refetch: () => void }>(null);
     
     useEffect(() => {
@@ -2638,6 +3124,7 @@ function BankTransactionsPage() {
 
     const handleRefreshAll = () => {
         newTransactionsTabRef.current?.refetch();
+        aiWorkflowTabRef.current?.refetch();
         reviewedTabRef.current?.refetch();
     };
 
@@ -2777,8 +3264,9 @@ function BankTransactionsPage() {
             </div>
             <div className="border rounded-lg mt-4">
                  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as string)} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                    <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none h-auto">
                         <TabsTrigger value="new-transactions">New Transactions</TabsTrigger>
+                        <TabsTrigger value="ai-workflow">AI Workflow</TabsTrigger>
                         <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
                     </TabsList>
                     <TabsContent value="new-transactions" className="p-0">
@@ -2794,6 +3282,15 @@ function BankTransactionsPage() {
                             globalRules={globalRules}
                             onAccountCreated={handleAccountCreated}
                             setActiveTab={setActiveTab}
+                        />
+                    </TabsContent>
+                    <TabsContent value="ai-workflow" className="p-0">
+                        <AIWorkflowTab
+                            ref={aiWorkflowTabRef}
+                            client={client}
+                            bankAccountId={accountId}
+                            globalRules={globalRules}
+                            onAccountCreated={handleAccountCreated}
                         />
                     </TabsContent>
                     <TabsContent value="reviewed" className="p-0">

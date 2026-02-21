@@ -369,6 +369,8 @@ export type AIAllocationResult = {
   accountId: string;
   vatType: VatType;
   confidence: number;
+  summary?: string;
+  suggestedKeyword?: string;
 };
 
 export type ImportedTransaction = {
