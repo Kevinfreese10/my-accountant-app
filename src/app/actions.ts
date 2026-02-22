@@ -1,7 +1,7 @@
 
 'use server';
 
-import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, AIAllocationResult, VatType } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
@@ -181,8 +181,49 @@ export async function moveTransactionToNew({ clientId, transactionId }: { client
 }
 
 /**
+ * Updates the global smart merchant database based on a user's approval.
+ */
+export async function updateGlobalMerchantDb({ merchantKey, accountId, vatType }: { merchantKey: string, accountId: string, vatType: string }) {
+    if (!merchantKey || merchantKey === 'UNKNOWN') return;
+    
+    const globalRef = doc(db, 'globalMerchants', merchantKey.toUpperCase());
+    const fieldKey = `${accountId.replace(/\//g, '_')}_${vatType}`;
+
+    try {
+        const snap = await getDoc(globalRef);
+        if (!snap.exists()) {
+            await setDoc(globalRef, {
+                merchantKey: merchantKey.toUpperCase(),
+                topAccountId: accountId,
+                topVatType: vatType,
+                topUsageCount: 1,
+                allocations: { [fieldKey]: 1 },
+                lastUpdated: serverTimestamp()
+            });
+        } else {
+            const data = snap.data();
+            const currentCount = (data.allocations?.[fieldKey] || 0) + 1;
+            
+            const updateData: any = {
+                [`allocations.${fieldKey}`]: increment(1),
+                lastUpdated: serverTimestamp()
+            };
+
+            if (currentCount > data.topUsageCount) {
+                updateData.topAccountId = accountId;
+                updateData.topVatType = vatType;
+                updateData.topUsageCount = currentCount;
+            }
+
+            await updateDoc(globalRef, updateData);
+        }
+    } catch (e) {
+        console.error("Global DB Update failed", e);
+    }
+}
+
+/**
  * PHASE 1: Immediate Status Lock
- * Marks all expense transactions as 'ai_processing' to prevent manual conflicts.
  */
 export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
     try {
@@ -209,8 +250,7 @@ export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: {
 }
 
 /**
- * PHASE 2: Group & Smart Match Job (History + Rules Only)
- * Performs grouping, history lookup, and rules checking.
+ * PHASE 2: Group & 4-Tier Match Job (History + Rules + Global DB)
  */
 export async function runAiAccountantAnalysis({ 
     clientId, 
@@ -239,8 +279,8 @@ export async function runAiAccountantAnalysis({
 
         if (processingExpenses.length === 0) return { success: true, count: 0 };
 
-        // 1. Fetch History & Rules
-        const historyQuery = query(transRef, where('status', 'in', ['reviewed', 'allocated']), limit(500));
+        // 1. Fetch Local Data
+        const historyQuery = query(transRef, where('status', 'in', ['reviewed', 'allocated']), limit(1000));
         const historySnap = await getDocs(historyQuery);
         const history = historySnap.docs.map(d => d.data() as ImportedTransaction);
 
@@ -249,17 +289,16 @@ export async function runAiAccountantAnalysis({
         const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
-        // 2. Group by description
+        // 2. Group by description & Match
         const uniqueDescriptions = Array.from(new Set(processingExpenses.map(tx => tx.description)));
-        const merchantAnalysis: { [key: string]: { merchantKey: string | null, result: AIAllocationResult | null, source: 'history' | 'rule' | 'ai' | null } } = {};
+        const merchantAnalysis: { [key: string]: { merchantKey: string | null, result: AIAllocationResult | null, source: string | null } } = {};
 
         for (const desc of uniqueDescriptions) {
             let merchantKey: string | null = null;
             let finalResult: AIAllocationResult | null = null;
-            let finalSource: 'history' | 'rule' | 'ai' | null = null;
+            let finalSource: string | null = null;
 
             try {
-                // Step A: Normalize
                 const norm = await extractSupplierName({ description: desc });
                 merchantKey = norm.supplier;
 
@@ -268,7 +307,7 @@ export async function runAiAccountantAnalysis({
                 }
 
                 if (merchantKey) {
-                    // Step B: Tier 1 - History
+                    // TIER 1: History
                     const histMatch = history.find(h => h.merchantKey === merchantKey && h.allocatedTo);
                     if (histMatch) {
                         finalResult = {
@@ -279,7 +318,7 @@ export async function runAiAccountantAnalysis({
                         };
                         finalSource = 'history';
                     } else {
-                        // Step C: Tier 2 - Rules
+                        // TIER 2: Rules
                         const ruleMatch = allRules.find(r => r.keywords.some(kw => merchantKey!.includes(kw.toUpperCase())));
                         if (ruleMatch) {
                             finalResult = {
@@ -289,6 +328,20 @@ export async function runAiAccountantAnalysis({
                                 summary: `Matched active allocation rule for ${merchantKey}.`
                             };
                             finalSource = 'rule';
+                        } else {
+                            // TIER 3: Global Smart DB
+                            const globalRef = doc(db, 'globalMerchants', merchantKey.toUpperCase());
+                            const globalSnap = await getDoc(globalRef);
+                            if (globalSnap.exists()) {
+                                const gd = globalSnap.data();
+                                finalResult = {
+                                    accountId: gd.topAccountId,
+                                    vatType: gd.topVatType,
+                                    confidence: 85,
+                                    summary: `Matched top global allocation used by other practitioners.`
+                                };
+                                finalSource = 'global_db';
+                            }
                         }
                     }
                 }
@@ -299,7 +352,7 @@ export async function runAiAccountantAnalysis({
             merchantAnalysis[desc] = { merchantKey, result: finalResult, source: finalSource };
         }
 
-        // 3. Batch Update Firestore to 'ai_review'
+        // 3. Batch Update
         const batch = writeBatch(db);
         let moveCount = 0;
         processingExpenses.forEach(tx => {
@@ -369,9 +422,8 @@ export async function researchMerchantWithAi({
             isVatRegistered
         });
 
-        // Update all transactions in this group
         const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
-        const q = query(transRef, where('description', '==', description), where('status', '==', 'ai_review'));
+        const q = query(transRef, where('description', '==', description), where('status', 'in', ['ai_review', 'ai_processing']));
         const snapshot = await getDocs(q);
 
         const batch = writeBatch(db);

@@ -37,7 +37,7 @@ import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const db = getFirestore(firebaseApp);
@@ -656,7 +656,6 @@ interface TransactionGroup {
 const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: { 
     client: User | null; 
     bankAccountId: string | null; 
-    globalRules: AllocationRule[];
     onAccountCreated: () => void;
 }) => {
     const { toast } = useToast();
@@ -715,6 +714,14 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     allocationSource: tx.allocationSource || 'ai'
                 });
             });
+            
+            // SMART LEARNING: Contribute to Global DB
+            updateGlobalMerchantDb({
+                merchantKey: group.merchantKey,
+                accountId: settings.accountId,
+                vatType: settings.vatType
+            });
+
             if (settings.createRule && group.transactions[0].allocationSource === 'ai') {
                 batch.update(doc(db, 'aiAccountantClients', client.uid), { allocationRules: arrayUnion({ id: `rule_${Date.now()}`, description: `Auto-categorization for ${group.merchantKey}`, keywords: [group.merchantKey.toUpperCase()], accountId: settings.accountId, vatType: settings.vatType, type: 'hard', scope: 'client', priority: 99 }) });
             }
@@ -726,7 +733,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
 
     const handleApproveAllSmartMatches = async () => {
         if (!client?.uid) return;
-        const smartGroups = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule'));
+        const smartGroups = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule' || g.transactions[0].allocationSource === 'global_db'));
         if (smartGroups.length === 0) {
             toast({ title: "No Smart Matches found to approve." });
             return;
@@ -745,6 +752,12 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         allocatedAt: serverTimestamp(),
                         allocationSource: tx.allocationSource
                     });
+                });
+                
+                updateGlobalMerchantDb({
+                    merchantKey: group.merchantKey,
+                    accountId: settings.accountId,
+                    vatType: settings.vatType
                 });
             });
             await batch.commit();
@@ -780,7 +793,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
 
     if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>;
 
-    const smartMatchCount = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule')).length;
+    const smartMatchCount = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule' || g.transactions[0].allocationSource === 'global_db')).length;
 
     return (
         <div className="space-y-6 p-4">
@@ -824,7 +837,9 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             <div className="grid grid-cols-1 gap-4">
                 {groups.map((group) => {
                     const firstTx = group.transactions[0];
-                    const isSmartMatch = firstTx.allocationSource === 'history' || firstTx.allocationSource === 'rule';
+                    const sourceLabel = firstTx.allocationSource === 'history' ? 'HISTORY MATCH' : 
+                                      firstTx.allocationSource === 'rule' ? 'RULE MATCH' :
+                                      firstTx.allocationSource === 'global_db' ? 'SMART DB MATCH' : null;
                     
                     return (
                     <Card key={group.merchantKey} className={cn("overflow-hidden border shadow-sm", group.status === 'server_researching' && "opacity-75 border-dashed")}>
@@ -882,7 +897,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                                 ? "bg-green-600 hover:bg-green-600 text-white" 
                                                 : "bg-yellow-500 hover:bg-yellow-500 text-white"
                                             )}>
-                                                {isSmartMatch ? 'SMART MATCH' : `${group.suggestion.confidence}% AI Confidence`}
+                                                {sourceLabel || `${group.suggestion.confidence}% AI Confidence`}
                                             </Badge>
                                         ) : (
                                             <Badge variant="secondary" className="text-[10px] font-bold py-1 px-3 rounded-full">
@@ -908,7 +923,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                             className="rounded border-muted-foreground/30 data-[state=checked]:bg-primary"
                                             checked={approvalSettings[group.merchantKey]?.createRule} 
                                             onCheckedChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], createRule: !!v}}))} 
-                                            disabled={isSmartMatch}
+                                            disabled={!!sourceLabel}
                                         />
                                         <Label htmlFor={`rule-${group.merchantKey}`} className="text-xs font-bold text-muted-foreground cursor-pointer">Create Client Rule</Label>
                                     </div>
@@ -1150,7 +1165,7 @@ export default function BankTransactionsPage() {
                         <NewTransactionsTab client={client} bankAccountId={accountId} currentBalance={stats.balance} globalRules={globalRules} onAccountCreated={fetchClientData} setActiveTab={setActiveTab} customers={customers} />
                     </TabsContent>
                     <TabsContent value="ai-workflow" className="p-0">
-                        <AIWorkflowTab client={client} bankAccountId={accountId} globalRules={globalRules} onAccountCreated={fetchClientData} />
+                        <AIWorkflowTab client={client} bankAccountId={accountId} onAccountCreated={fetchClientData} />
                     </TabsContent>
                     <TabsContent value="reviewed" className="p-0">
                         <ReviewedTab client={client} bankAccountId={accountId} customers={[]} onAccountCreated={fetchClientData} />
