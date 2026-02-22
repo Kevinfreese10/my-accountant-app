@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2 } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,7 +37,6 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams } from 'next/navigation';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
 import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew } from '@/app/actions';
@@ -127,7 +127,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild><Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import CSV</Button></DialogTrigger>
+            <DialogTrigger asChild><Button variant="outline" className="bg-primary text-primary-foreground hover:bg-primary/90 border-none font-bold"><FileUp className="mr-2 h-4 w-4" /> Import CSV</Button></DialogTrigger>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader><DialogTitle>Import Bank Statement</DialogTitle></DialogHeader>
                 <div className="space-y-4 py-4">
@@ -272,31 +272,166 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
     );
 }
 
+function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction, onAction }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    suggestion: AIAllocationResult | null;
+    transaction: ImportedTransaction | null;
+    onAction: (mode: 'new' | 'append') => void;
+}) {
+    if (!suggestion || !transaction) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /> AI Allocation Suggestion</DialogTitle>
+                    <DialogDescription>AI Analysis for: <strong>{transaction.description}</strong></DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="bg-primary/5 p-4 rounded-lg border border-primary/10">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs font-bold uppercase text-muted-foreground">Confidence</span>
+                            <Badge variant={suggestion.confidence > 80 ? 'success' : 'warning'}>{suggestion.confidence}%</Badge>
+                        </div>
+                        <p className="text-sm italic text-muted-foreground leading-relaxed">"{suggestion.summary}"</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <p className="font-bold text-muted-foreground text-[10px] uppercase">Account</p>
+                            <p className="font-semibold">{suggestion.accountId}</p>
+                        </div>
+                        <div>
+                            <p className="font-bold text-muted-foreground text-[10px] uppercase">VAT</p>
+                            <p className="font-semibold">{suggestion.vatType}</p>
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                    <Button variant="outline" onClick={() => onAction('append')} className="flex-1">Add Keyword to Existing Rule</Button>
+                    <Button onClick={() => onAction('new')} className="flex-1">Create New Rule</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 // #endregion
 
-const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, globalRules, onAccountCreated, setActiveTab, currentBalance }, ref) => {
+const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, globalRules, onAccountCreated, setActiveTab, currentBalance, customers }, ref) => {
     const { user } = useAuth();
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [allocations, setAllocations] = useState<any>({});
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<any>({});
+    const [transactionDescriptionForRule, setTransactionDescriptionForRule] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [isAiResearching, setIsAiResearching] = useState<string | null>(null);
+    const [isAiReviewOpen, setIsAiReviewOpen] = useState(false);
+    const [aiSuggestion, setAiSuggestion] = useState<AIAllocationResult | null>(null);
+    const [selectedTxForAi, setSelectedTxForAi] = useState<ImportedTransaction | null>(null);
+    const [isRuleAllocating, setIsRuleAllocating] = useState(false);
+    const [isSubmittingToWorkflow, setIsSubmittingToWorkflow] = useState(false);
+
+    type SortField = 'date' | 'description' | 'amount';
+    const [sortField, setSortField] = useState<SortField>('description');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
             where('bankAccountId', '==', bankAccountId),
-            where('status', '==', 'new'),
+            where('status', 'in', ['new', 'ai_processing']),
             where('isExpense', '==', activeSubTab === 'expenses'),
-            orderBy('description', 'asc')
+            orderBy(sortField, sortDirection)
         );
-    }, [client?.uid, bankAccountId, activeSubTab]);
+    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
 
-    const { documents: transactions, isLoading, refetch, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
+    const { documents: fetchedTransactions, isLoading, refetch, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
+
+    const transactions = useMemo(() => {
+        if (!searchTerm.trim()) return fetchedTransactions;
+        return fetchedTransactions.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [fetchedTransactions, searchTerm]);
 
     React.useImperativeHandle(ref, () => ({ refetch }));
+
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (!client?.uid || selectedTransactions.length === 0) return;
+        try {
+            const batch = writeBatch(db);
+            selectedTransactions.forEach(id => batch.delete(doc(db, 'aiAccountantClients', client.uid!, 'transactions', id)));
+            await batch.commit();
+            toast({ title: 'Deleted', description: `${selectedTransactions.length} transactions removed.` });
+            setSelectedTransactions([]);
+            refetch();
+        } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
+    };
+
+    const handleBulkAllocate = async (allocation: { value: string, type: 'account' | 'customer' | 'supplier' }, vatType: VatType) => {
+        if (!client?.uid || selectedTransactions.length === 0) return;
+        try {
+            const batch = writeBatch(db);
+            selectedTransactions.forEach(id => {
+                batch.update(doc(db, 'aiAccountantClients', client.uid!, 'transactions', id), {
+                    status: 'reviewed',
+                    allocatedTo: allocation,
+                    vatType: client.isVatRegistered ? vatType : 'no_vat',
+                    allocatedAt: serverTimestamp(),
+                    allocationSource: 'manual'
+                });
+            });
+            await batch.commit();
+            toast({ title: 'Allocated', description: `${selectedTransactions.length} transactions updated.` });
+            setSelectedTransactions([]);
+            refetch();
+        } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
+    };
+
+    const handleAllocateByRules = async () => {
+        if (!client?.uid) return;
+        setIsRuleAllocating(true);
+        try {
+            const rulesQuery = collection(db, "allocationRules");
+            const rulesSnap = await getDocs(rulesQuery);
+            const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+            const allRules = [...(client.allocationRules || []), ...globalRules];
+
+            const batch = writeBatch(db);
+            let count = 0;
+            fetchedTransactions.forEach(tx => {
+                const match = allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase())));
+                if (match) {
+                    batch.update(doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id), {
+                        status: 'reviewed',
+                        allocatedTo: { value: match.accountId, type: 'account' },
+                        vatType: client.isVatRegistered ? match.vatType : 'no_vat',
+                        allocatedAt: serverTimestamp(),
+                        allocationSource: 'rule'
+                    });
+                    count++;
+                }
+            });
+            if (count > 0) {
+                await batch.commit();
+                toast({ title: 'Rules Applied', description: `${count} transactions auto-allocated.` });
+                refetch();
+            } else { toast({ title: 'No Matches', description: 'No rules matched the current transactions.' }); }
+        } catch (e) { toast({ title: 'Error', variant: 'destructive' }); } finally { setIsRuleAllocating(false); }
+    };
 
     const handleSaveAllocations = async () => {
         if (!client?.uid || Object.keys(allocations).length === 0) return;
@@ -304,12 +439,11 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         try {
             const batch = writeBatch(db);
             Object.entries(allocations).forEach(([txId, alloc]: [string, any]) => {
-                const txRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId);
-                batch.update(txRef, {
+                batch.update(doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId), {
                     status: 'reviewed',
                     allocatedTo: { value: alloc.value, type: alloc.type },
                     vatType: client.isVatRegistered ? alloc.vatType : 'no_vat',
-                    allocatedAt: Timestamp.now(),
+                    allocatedAt: serverTimestamp(),
                     allocationSource: 'manual',
                 });
             });
@@ -322,50 +456,179 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
 
     const handleRunAiWorkflow = async () => {
         if (!client?.uid || !bankAccountId || !user?.email) return;
-        toast({ title: "Starting AI Analysis..." });
+        setIsSubmittingToWorkflow(true);
         try {
             const lockRes = await prepareAiAccountantAnalysis({ clientId: client.uid, bankAccountId });
             if (lockRes.count > 0) {
                 setActiveTab('ai-workflow');
                 runAiAccountantAnalysis({ clientId: client.uid, bankAccountId, initiatorEmail: user.email });
-            } else {
-                toast({ title: "No new expenses found to process." });
-            }
-        } catch (e) { toast({ title: "Workflow Failed", variant: "destructive" }); }
+            } else { toast({ title: "No new expenses found to process." }); }
+        } catch (e) { toast({ title: "Workflow Failed", variant: "destructive" }); } finally { setIsSubmittingToWorkflow(false); }
+    };
+
+    const handleAiResearch = async (tx: ImportedTransaction) => {
+        if (!client) return;
+        setIsAiResearching(tx.id);
+        setSelectedTxForAi(tx);
+        try {
+            const res = await suggestTransactionAllocation({
+                description: tx.description,
+                chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
+                isVatRegistered: !!client.isVatRegistered,
+            });
+            setAiSuggestion(res);
+            setIsAiReviewOpen(true);
+        } catch (e) { toast({ title: "Analysis Failed", variant: "destructive" }); } finally { setIsAiResearching(null); }
+    };
+
+    const handleAiReviewAction = (mode: 'new' | 'append') => {
+        if (!aiSuggestion || !selectedTxForAi) return;
+        setTransactionDescriptionForRule(selectedTxForAi.description);
+        setRuleDefaultValues({
+            mode,
+            description: `Rule for: ${aiSuggestion.suggestedKeyword || 'Merchant'}`,
+            keywords: aiSuggestion.suggestedKeyword || '',
+            accountId: aiSuggestion.accountId,
+            vatType: aiSuggestion.vatType,
+            scope: 'client',
+        });
+        setIsAiReviewOpen(false);
+        setIsCreateRuleOpen(true);
     };
 
     return (
         <div className="space-y-4">
-            <CreateRuleDialog client={client} onRuleCreated={refetch} open={isCreateRuleOpen} onOpenChange={setIsCreateRuleOpen} defaultValues={ruleDefaultValues} transactionDescription={null} existingRules={globalRules} />
+            <CreateRuleDialog client={client} onRuleCreated={refetch} open={isCreateRuleOpen} onOpenChange={setIsCreateRuleOpen} defaultValues={ruleDefaultValues} transactionDescription={transactionDescriptionForRule} existingRules={globalRules} />
             <CreateGeneralAccountDialog client={client} onAccountCreated={onAccountCreated} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
+            <AIAllocationReviewDialog open={isAiReviewOpen} onOpenChange={setIsAiReviewOpen} suggestion={aiSuggestion} transaction={selectedTxForAi} onAction={handleAiReviewAction} />
+            
             <Card>
                 <CardHeader className="p-0 border-b">
                     <Tabs value={activeSubTab} onValueChange={(v: any) => setActiveSubTab(v)} className="w-full">
                         <TabsList className="grid w-full grid-cols-2 rounded-none"><TabsTrigger value="expenses">Expenses</TabsTrigger><TabsTrigger value="income">Income</TabsTrigger></TabsList>
                     </Tabs>
-                    <div className="p-4 flex justify-between items-center gap-2">
-                        <div className="flex gap-2">
-                            {bankAccountId && <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={currentBalance} onImportComplete={refetch} globalRules={globalRules} />}
-                            {activeSubTab === 'expenses' && <Button variant="secondary" onClick={handleRunAiWorkflow}><Sparkles className="mr-2 h-4 w-4" /> Run AI Analysis</Button>}
+                    <div className="p-4 flex justify-between items-center gap-2 flex-wrap">
+                        <div className="flex gap-2 flex-wrap">
+                            <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={currentBalance} onImportComplete={refetch} globalRules={globalRules} />
+                            
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                        Manual Allocate <ChevronsUpDown className="ml-2 h-4 w-4"/>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="w-64 p-0">
+                                    <Command>
+                                        <CommandInput placeholder="Search accounts..." />
+                                        <CommandList>
+                                            <CommandEmpty>No results found.</CommandEmpty>
+                                            <ScrollArea className="h-72">
+                                                <CommandGroup>
+                                                    <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary font-medium cursor-pointer"><PlusCircle className="mr-2 h-4 w-4" />Create new account...</CommandItem>
+                                                </CommandGroup>
+                                                <CommandSeparator />
+                                                {activeSubTab === 'income' && (
+                                                    <CommandGroup heading="Customers">
+                                                        {customers.map(c => <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>{c.name}</CommandItem>)}
+                                                    </CommandGroup>
+                                                )}
+                                                <CommandGroup heading="General Ledger Accounts">
+                                                    {client?.chartOfAccounts?.map(acc => (
+                                                        <DropdownMenuSub key={acc.id}>
+                                                            <DropdownMenuSubTrigger><CommandItem onSelect={(e) => e.preventDefault()}>{acc.description}</CommandItem></DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubContent className="w-56">
+                                                                <DropdownMenuLabel>VAT Treatment</DropdownMenuLabel>
+                                                                <DropdownMenuSeparator />
+                                                                {allVatTypes.map(v => <DropdownMenuItem key={v.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, v.name as VatType)}>{v.label}</DropdownMenuItem>)}
+                                                            </DropdownMenuSubContent>
+                                                        </DropdownMenuSub>
+                                                    ))}
+                                                </CommandGroup>
+                                            </ScrollArea>
+                                        </CommandList>
+                                    </Command>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating}>
+                                {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4" />} Apply Rules
+                            </Button>
+
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild><Button variant="outline" disabled={selectedTransactions.length === 0}>Actions ...</Button></DropdownMenuTrigger>
+                                <DropdownMenuContent><DropdownMenuItem className="text-destructive" onClick={handleBulkDelete}>Delete Selected</DropdownMenuItem></DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {activeSubTab === 'expenses' && <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow}><Sparkles className="mr-2 h-4 w-4" /> Run AI Analysis</Button>}
+                        </div>
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="Search descriptions..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8 w-64" />
                         </div>
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
-                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Allocate To</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-12"><Checkbox checked={transactions.length > 0 && selectedTransactions.length === transactions.length} onCheckedChange={(v) => setSelectedTransactions(v ? transactions.map(tx => tx.id) : [])} /></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                <TableHead>Reference</TableHead>
+                                <TableHead>Allocate To</TableHead>
+                                <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
                         <TableBody>
-                            {isLoading ? <TableRow><TableCell colSpan={4} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
+                            {isLoading ? <TableRow><TableCell colSpan={7} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
                              transactions.map(tx => (
                                 <TableRow key={tx.id}>
+                                    <TableCell><Checkbox checked={selectedTransactions.includes(tx.id)} onCheckedChange={(v) => setSelectedTransactions(prev => v ? [...prev, tx.id] : prev.filter(id => id !== tx.id))} /></TableCell>
                                     <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                    <TableCell>{tx.description}</TableCell>
                                     <TableCell>
-                                        <Select onValueChange={(v) => setAllocations((p: any) => ({...p, [tx.id]: { value: v, type: 'account', vatType: 'standard_rated_purchases' }}))}>
-                                            <SelectTrigger className="h-8"><SelectValue placeholder="Select account..." /></SelectTrigger>
-                                            <SelectContent>{client?.chartOfAccounts?.map(a => <SelectItem key={a.id} value={a.id}>{a.description}</SelectItem>)}</SelectContent>
-                                        </Select>
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">{tx.description}</span>
+                                            {tx.merchantKey && <Badge variant="secondary" className="w-fit mt-1 text-[10px]">{tx.merchantKey}</Badge>}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs opacity-70">{tx.reference}</TableCell>
+                                    <TableCell>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" className="h-8 text-xs w-full justify-start">{allocations[tx.id] ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || 'Selected' : 'Select...'}</Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-64 p-0">
+                                                <Command>
+                                                    <CommandInput placeholder="Search..." />
+                                                    <CommandList>
+                                                        <CommandGroup heading="GL Accounts">
+                                                            {client?.chartOfAccounts?.map(a => <CommandItem key={a.id} onSelect={() => setAllocations(p => ({...p, [tx.id]: { value: a.id, type: 'account', vatType: 'standard_rated_purchases' }}))}>{a.description}</CommandItem>)}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
                                     </TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleAiResearch(tx)} disabled={isAiResearching === tx.id}>
+                                                {isAiResearching === tx.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4" />}
+                                            </Button>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4"/></Button></DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => {
+                                                        const keyword = tx.description.split(/\s+/)[0];
+                                                        setTransactionDescriptionForRule(tx.description);
+                                                        setRuleDefaultValues({ description: `Rule for: ${keyword}`, keywords: keyword, accountId: '', vatType: 'standard_rated_purchases' });
+                                                        setIsCreateRuleOpen(true);
+                                                    }}>Create Rule</DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+                                    </TableCell>
                                 </TableRow>
                              ))}
                         </TableBody>
@@ -666,6 +929,7 @@ export default function BankTransactionsPage() {
     const [allAccountTransactions, setAllAccountTransactions] = useState<any[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const [activeTab, setActiveTab] = useState('new-transactions');
+    const [customers, setCustomers] = useState<ClientCustomer[]>([]);
 
     const fetchClientData = useCallback(async () => {
         if (!params.clientId) return;
@@ -683,7 +947,13 @@ export default function BankTransactionsPage() {
         setGlobalRules(rulesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AllocationRule)));
     }, []);
 
-    useEffect(() => { fetchClientData(); fetchGlobalRules(); }, [fetchClientData, fetchGlobalRules]);
+    const fetchCustomers = useCallback(async () => {
+        if (!params.clientId) return;
+        const custSnap = await getDocs(collection(db, `aiAccountantClients/${params.clientId}/customers`));
+        setCustomers(custSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClientCustomer)));
+    }, [params.clientId]);
+
+    useEffect(() => { fetchClientData(); fetchGlobalRules(); fetchCustomers(); }, [fetchClientData, fetchGlobalRules, fetchCustomers]);
     
     useEffect(() => {
         if (!params.clientId || !accountId) return;
@@ -724,7 +994,7 @@ export default function BankTransactionsPage() {
                         <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
                     </TabsList>
                     <TabsContent value="new-transactions" className="p-0">
-                        <NewTransactionsTab client={client} bankAccountId={accountId} currentBalance={stats.balance} globalRules={globalRules} onAccountCreated={fetchClientData} setActiveTab={setActiveTab} />
+                        <NewTransactionsTab client={client} bankAccountId={accountId} currentBalance={stats.balance} globalRules={globalRules} onAccountCreated={fetchClientData} setActiveTab={setActiveTab} customers={customers} />
                     </TabsContent>
                     <TabsContent value="ai-workflow" className="p-0">
                         <AIWorkflowTab client={client} bankAccountId={accountId} globalRules={globalRules} onAccountCreated={fetchClientData} />
