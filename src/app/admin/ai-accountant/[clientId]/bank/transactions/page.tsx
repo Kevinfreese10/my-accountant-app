@@ -19,7 +19,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -45,6 +45,7 @@ import { extractSupplierName } from '@/ai/flows/extract-supplier-name';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew } from '@/app/actions';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -523,7 +524,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g., Office Flowers" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                         <DialogFooter>
-                            <Button type="button" variant="ghost" onClick={onOpenChange.bind(null, false)}>Cancel</Button>
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                             <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create Account</Button>
                         </DialogFooter>
                     </form>
@@ -1347,7 +1348,7 @@ const NewTransactionsTab = React.forwardRef<
     };
     
     return (
-        <Card>
+        <div className="space-y-4">
             <CreateRuleDialog
                 client={client}
                 onRuleCreated={handleRuleCreated}
@@ -1378,320 +1379,322 @@ const NewTransactionsTab = React.forwardRef<
                 onAction={handleAiReviewAction}
             />
 
-            <CardHeader className="p-0">
-                <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
-                        <TabsTrigger value="expenses">Expenses</TabsTrigger>
-                        <TabsTrigger value="income">Income</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-                 <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2">
-                        {bankAccountId && client && <ImportDialog 
-                            client={client}
-                            bankAccountId={bankAccountId}
-                            currentBalance={currentBalance} 
-                            onImportComplete={refetch}
-                            globalRules={globalRules}
-                        />}
-                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
-                                    Manual Allocate <ChevronsUpDown className="ml-2 h-4 w-4"/>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-64 p-0">
-                               <Command>
-                                 <CommandInput placeholder="Search accounts..." />
-                                 <CommandList>
-                                    <CommandEmpty>No results found.</CommandEmpty>
-                                    <ScrollArea className="h-72">
-                                        <CommandGroup>
-                                            <CommandItem onSelect={() => {setIsCreateGeneralAccountOpen(true);}} className="text-primary hover:bg-primary/5 cursor-pointer font-medium">
-                                                <PlusCircle className="mr-2 h-4 w-4 text-primary"/>Create new account...
-                                            </CommandItem>
-                                        </CommandGroup>
-                                        <CommandSeparator />
-                                        {activeSubTab === 'income' && customers.length > 0 && (
-                                            <CommandGroup heading="Customers">
-                                                {customers.map(c => (
-                                                    <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')} className="cursor-pointer">
-                                                        {c.name}
-                                                    </CommandItem>
+            <Card>
+                <CardHeader className="p-0">
+                    <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                            <TabsTrigger value="expenses">Expenses</TabsTrigger>
+                            <TabsTrigger value="income">Income</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                    <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                            {bankAccountId && client && <ImportDialog 
+                                client={client}
+                                bankAccountId={bankAccountId}
+                                currentBalance={currentBalance} 
+                                onImportComplete={refetch}
+                                globalRules={globalRules}
+                            />}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                        Manual Allocate <ChevronsUpDown className="ml-2 h-4 w-4"/>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="w-64 p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search accounts..." />
+                                    <CommandList>
+                                        <CommandEmpty>No results found.</CommandEmpty>
+                                        <ScrollArea className="h-72">
+                                            <CommandGroup>
+                                                <CommandItem onSelect={() => {setIsCreateGeneralAccountOpen(true);}} className="text-primary hover:bg-primary/5 cursor-pointer font-medium">
+                                                    <PlusCircle className="mr-2 h-4 w-4 text-primary"/>Create new account...
+                                                </CommandItem>
+                                            </CommandGroup>
+                                            <CommandSeparator />
+                                            {activeSubTab === 'income' && customers.length > 0 && (
+                                                <CommandGroup heading="Customers">
+                                                    {customers.map(c => (
+                                                        <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')} className="cursor-pointer">
+                                                            {c.name}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            )}
+                                            {activeSubTab === 'income' && <CommandSeparator />}
+                                            <CommandGroup heading="General Ledger Accounts">
+                                                {client?.chartOfAccounts?.map(acc => (
+                                                    <DropdownMenuSub key={acc.id}>
+                                                        <DropdownMenuSubTrigger>
+                                                            <CommandItem onSelect={(e) => e.preventDefault()} className="w-full cursor-pointer">
+                                                                <span>{acc.description}</span>
+                                                            </CommandItem>
+                                                        </DropdownMenuSubTrigger>
+                                                        <DropdownMenuSubContent className="w-56">
+                                                            <DropdownMenuLabel>Select VAT Treatment</DropdownMenuLabel>
+                                                            <DropdownMenuSeparator />
+                                                            <ScrollArea className="h-64">
+                                                                {client?.isVatRegistered ? allVatTypes.map(vat => (
+                                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                                        {vat.label}
+                                                                    </DropdownMenuItem>
+                                                                )) : (
+                                                                    <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
+                                                                        No VAT
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                            </ScrollArea>
+                                                        </DropdownMenuSubContent>
+                                                    </DropdownMenuSub>
                                                 ))}
                                             </CommandGroup>
-                                        )}
-                                        {activeSubTab === 'income' && <CommandSeparator />}
-                                        <CommandGroup heading="General Ledger Accounts">
-                                            {client?.chartOfAccounts?.map(acc => (
-                                                <DropdownMenuSub key={acc.id}>
-                                                    <DropdownMenuSubTrigger>
-                                                        <CommandItem onSelect={(e) => e.preventDefault()} className="w-full cursor-pointer">
-                                                            <span>{acc.description}</span>
-                                                        </CommandItem>
-                                                    </DropdownMenuSubTrigger>
-                                                    <DropdownMenuSubContent className="w-56">
-                                                        <DropdownMenuLabel>Select VAT Treatment</DropdownMenuLabel>
-                                                        <DropdownMenuSeparator />
-                                                        <ScrollArea className="h-64">
-                                                            {client?.isVatRegistered ? allVatTypes.map(vat => (
-                                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                                    {vat.label}
-                                                                </DropdownMenuItem>
-                                                            )) : (
-                                                                <DropdownMenuItem onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, 'no_vat')}>
-                                                                    No VAT
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                        </ScrollArea>
-                                                    </DropdownMenuSubContent>
-                                                </DropdownMenuSub>
-                                            ))}
-                                        </CommandGroup>
-                                    </ScrollArea>
-                                 </CommandList>
-                               </Command>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating}>
-                            {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4" />}
-                            Apply Rules
-                        </Button>
-                        {activeSubTab === 'expenses' && (
-                            <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow}>
-                                {isSubmittingToWorkflow ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Locking Transactions...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Sparkles className="mr-2 h-4 w-4" />
-                                        Run AI Analysis
-                                    </>
-                                )}
+                                        </ScrollArea>
+                                    </CommandList>
+                                </Command>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating}>
+                                {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4" />}
+                                Apply Rules
                             </Button>
-                        )}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" disabled={selectedTransactions.length === 0}>
-                                    Actions <MoreHorizontal className="ml-2 h-4 w-4" />
+                            {activeSubTab === 'expenses' && (
+                                <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow}>
+                                    {isSubmittingToWorkflow ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Locking Transactions...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="mr-2 h-4 w-4" />
+                                            Run AI Analysis
+                                        </>
+                                    )}
                                 </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                            Delete Selected
-                                        </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This will permanently delete {selectedTransactions.length} selected transaction(s).
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            type="search"
-                            placeholder="Search descriptions..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-8 w-64"
-                        />
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableCell className="w-12 p-2">
-                                     <Checkbox
-                                        checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
-                                        onCheckedChange={(checked) => {
-                                            setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
-                                        }}
-                                    />
-                                </TableCell>
-                                <TableHead>
-                                    <Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
-                                </TableHead>
-                                <TableHead>
-                                     <Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
-                                </TableHead>
-                                <TableHead>Reference</TableHead>
-                                <TableHead className="w-[250px]">Allocate To</TableHead>
-                                {client?.isVatRegistered && <TableHead className="w-[180px]">VAT Type</TableHead>}
-                                <TableHead className="text-right">
-                                     <Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
-                                </TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading || isSearching ? (
-                                <TableRow><TableCell colSpan={8} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
-                            ) : transactions.length === 0 ? (
-                                <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No new transactions found.</TableCell></TableRow>
-                            ) : (
-                                transactions.map(tx => (
-                                    <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
-                                        <TableCell className="p-2">
-                                            <Checkbox
-                                                checked={selectedTransactions.includes(tx.id)}
-                                                onCheckedChange={(checked) => {
-                                                    setSelectedTransactions(prev =>
-                                                        checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
-                                                    );
-                                                }}
-                                            />
-                                        </TableCell>
-                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                        <TableCell className="whitespace-normal break-words">
-                                            <p>{tx.description}</p>
-                                            {tx.merchantKey && <Badge variant="secondary" className="mt-1">{tx.merchantKey}</Badge>}
-                                        </TableCell>
-                                        <TableCell className="font-mono">{tx.reference}</TableCell>
-                                        <TableCell>
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" className="w-full justify-start text-left font-normal h-8">
-                                                        {allocations[tx.id] ? [...(client.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || [...(client.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.name : "Select..."}
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                                                    <Command className="border-0">
-                                                        <CommandInput placeholder="Search accounts..." />
-                                                        <CommandList>
-                                                            <CommandEmpty>No results found.</CommandEmpty>
-                                                            <ScrollArea className="h-72">
-                                                                <CommandGroup>
-                                                                    <CommandItem 
-                                                                        onSelect={() => setIsCreateGeneralAccountOpen(true)} 
-                                                                        className="text-primary hover:bg-primary/5 cursor-pointer font-medium py-3"
-                                                                    >
-                                                                        <PlusCircle className="mr-2 h-4 w-4 text-primary"/>Create new account...
-                                                                    </CommandItem>
-                                                                </CommandGroup>
-                                                                <CommandSeparator />
-                                                                <CommandGroup heading="Customers">
-                                                                    {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))} className="cursor-pointer py-2">{c.name}</CommandItem>)}
-                                                                </CommandGroup>
-                                                                <CommandSeparator />
-                                                                <CommandGroup heading="General Ledger Accounts">
-                                                                    {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account', vatType: prev[tx.id]?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat') }}))} className="cursor-pointer py-2">{acc.description}</CommandItem>)}
-                                                                </CommandGroup>
-                                                            </ScrollArea>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
-                                        </TableCell>
-                                        {client?.isVatRegistered && (
-                                            <TableCell>
-                                                <Select
-                                                   value={allocations[tx.id]?.vatType}
-                                                   onValueChange={(value) => setAllocations(prev => ({...prev, [tx.id]: {...prev[tx.id], vatType: value as VatType}}))}
-                                                   disabled={!allocations[tx.id] || allocations[tx.id]?.type === 'customer'}
-                                                >
-                                                    <SelectTrigger className="h-8"><SelectValue placeholder="Select VAT type" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {allVatTypes.map(vat => (
-                                                            <SelectItem key={vat.name} value={vat.name}>{vat.label}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </TableCell>
-                                        )}
-                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    className="text-primary"
-                                                    onClick={() => handleAiResearch(tx)}
-                                                    disabled={isAiResearching === tx.id}
-                                                >
-                                                    {isAiResearching === tx.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                                                </Button>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent>
-                                                        <DropdownMenuItem onSelect={() => {
-                                                            const keyword = tx.merchantKey || tx.description.split(/\s+/)[0];
-                                                            setTransactionDescriptionForRule(tx.description);
-                                                            setIsCreateRuleOpen(true);
-                                                            setRuleDefaultValues({ 
-                                                                description: `Rule for: ${keyword}`, 
-                                                                keywords: keyword, 
-                                                                accountId: '', 
-                                                                vatType: 'standard_rated_purchases',
-                                                            });
-                                                        }}>
-                                                            Create Rule from Transaction
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
                             )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-             <CardFooter className="flex items-center justify-between p-4">
-                 <Button onClick={handleSaveAllocations} disabled={isSaving || Object.keys(allocations).length === 0}>
-                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Save Allocations
-                </Button>
-                 <div className="flex items-center gap-2">
-                    
-                    {!searchTerm && (
-                        <div className="flex items-center space-x-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={goToPreviousPage}
-                                disabled={!canGoPrev || isLoading}
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                                Previous
-                            </Button>
-                            <span className="text-sm font-medium">
-                                Page {currentPage}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={goToNextPage}
-                                disabled={!canGoNext || isLoading}
-                            >
-                                Next
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" disabled={selectedTransactions.length === 0}>
+                                        Actions <MoreHorizontal className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                Delete Selected
+                                            </DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will permanently delete {selectedTransactions.length} selected transaction(s).
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
-                    )}
-                 </div>
-            </CardFooter>
-        </Card>
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="search"
+                                placeholder="Search descriptions..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-8 w-64"
+                            />
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableCell className="w-12 p-2">
+                                        <Checkbox
+                                            checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
+                                            onCheckedChange={(checked) => {
+                                                setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
+                                            }}
+                                        />
+                                    </TableCell>
+                                    <TableHead>
+                                        <Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                    </TableHead>
+                                    <TableHead>Reference</TableHead>
+                                    <TableHead className="w-[250px]">Allocate To</TableHead>
+                                    {client?.isVatRegistered && <TableHead className="w-[180px]">VAT Type</TableHead>}
+                                    <TableHead className="text-right">
+                                        <Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                    </TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading || isSearching ? (
+                                    <TableRow><TableCell colSpan={8} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                                ) : transactions.length === 0 ? (
+                                    <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No new transactions found.</TableCell></TableRow>
+                                ) : (
+                                    transactions.map(tx => (
+                                        <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                            <TableCell className="p-2">
+                                                <Checkbox
+                                                    checked={selectedTransactions.includes(tx.id)}
+                                                    onCheckedChange={(checked) => {
+                                                        setSelectedTransactions(prev =>
+                                                            checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
+                                                        );
+                                                    }}
+                                                />
+                                            </TableCell>
+                                            <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell className="whitespace-normal break-words">
+                                                <p>{tx.description}</p>
+                                                {tx.merchantKey && <Badge variant="secondary" className="mt-1">{tx.merchantKey}</Badge>}
+                                            </TableCell>
+                                            <TableCell className="font-mono">{tx.reference}</TableCell>
+                                            <TableCell>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button variant="outline" className="w-full justify-start text-left font-normal h-8">
+                                                            {allocations[tx.id] ? [...(client.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || [...(client.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.name : "Select..."}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                                        <Command className="border-0">
+                                                            <CommandInput placeholder="Search accounts..." />
+                                                            <CommandList>
+                                                                <CommandEmpty>No results found.</CommandEmpty>
+                                                                <ScrollArea className="h-72">
+                                                                    <CommandGroup>
+                                                                        <CommandItem 
+                                                                            onSelect={() => setIsCreateGeneralAccountOpen(true)} 
+                                                                            className="text-primary hover:bg-primary/5 cursor-pointer font-medium py-3"
+                                                                        >
+                                                                            <PlusCircle className="mr-2 h-4 w-4 text-primary"/>Create new account...
+                                                                        </CommandItem>
+                                                                    </CommandGroup>
+                                                                    <CommandSeparator />
+                                                                    <CommandGroup heading="Customers">
+                                                                        {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer', vatType: 'no_vat' }}))} className="cursor-pointer py-2">{c.name}</CommandItem>)}
+                                                                    </CommandGroup>
+                                                                    <CommandSeparator />
+                                                                    <CommandGroup heading="General Ledger Accounts">
+                                                                        {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account', vatType: prev[tx.id]?.vatType || (client.isVatRegistered ? 'standard_rated_purchases' : 'no_vat') }}))} className="cursor-pointer py-2">{acc.description}</CommandItem>)}
+                                                                    </CommandGroup>
+                                                                </ScrollArea>
+                                                            </CommandList>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </TableCell>
+                                            {client?.isVatRegistered && (
+                                                <TableCell>
+                                                    <Select
+                                                    value={allocations[tx.id]?.vatType}
+                                                    onValueChange={(value) => setAllocations(prev => ({...prev, [tx.id]: {...prev[tx.id], vatType: value as VatType}}))}
+                                                    disabled={!allocations[tx.id] || allocations[tx.id]?.type === 'customer'}
+                                                    >
+                                                        <SelectTrigger className="h-8"><SelectValue placeholder="Select VAT type" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {allVatTypes.map(vat => (
+                                                                <SelectItem key={vat.name} value={vat.name}>{vat.label}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </TableCell>
+                                            )}
+                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="text-primary"
+                                                        onClick={() => handleAiResearch(tx)}
+                                                        disabled={isAiResearching === tx.id}
+                                                    >
+                                                        {isAiResearching === tx.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                                    </Button>
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent>
+                                                            <DropdownMenuItem onSelect={() => {
+                                                                const keyword = tx.merchantKey || tx.description.split(/\s+/)[0];
+                                                                setTransactionDescriptionForRule(tx.description);
+                                                                setIsCreateRuleOpen(true);
+                                                                setRuleDefaultValues({ 
+                                                                    description: `Rule for: ${keyword}`, 
+                                                                    keywords: keyword, 
+                                                                    accountId: '', 
+                                                                    vatType: 'standard_rated_purchases',
+                                                                });
+                                                            }}>
+                                                                Create Rule from Transaction
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </CardContent>
+                <CardFooter className="flex items-center justify-between p-4">
+                    <Button onClick={handleSaveAllocations} disabled={isSaving || Object.keys(allocations).length === 0}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Save Allocations
+                    </Button>
+                    <div className="flex items-center gap-2">
+                        
+                        {!searchTerm && (
+                            <div className="flex items-center space-x-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={goToPreviousPage}
+                                    disabled={!canGoPrev || isLoading}
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                    Previous
+                                </Button>
+                                <span className="text-sm font-medium">
+                                    Page {currentPage}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={goToNextPage}
+                                    disabled={!canGoNext || isLoading}
+                                >
+                                    Next
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </CardFooter>
+            </Card>
+        </div>
     );
 });
 NewTransactionsTab.displayName = 'NewTransactionsTab';
