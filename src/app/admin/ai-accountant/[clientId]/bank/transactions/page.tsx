@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2 } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationJob } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -43,7 +44,7 @@ import type { SuggestTransactionAllocationOutput } from '@/ai/flows/suggest-tran
 import { extractSupplierName } from '@/ai/flows/extract-supplier-name';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -676,7 +677,7 @@ const RuleForm = ({ chartOfAccounts, existingRules, defaultValues, onSave, onCan
                             </FormItem>
                         )}
                     />
-                    <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
                     <FormField control={form.control} name="scope" render={({ field }) => (
                         <FormItem>
                             <FormLabel>Rule Scope</FormLabel>
@@ -1714,10 +1715,10 @@ const AIWorkflowTab = React.forwardRef<
     const { toast } = useToast();
     const [groups, setGroups] = useState<TransactionGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [reviewedTransactions, setReviewedTransactions] = useState<ImportedTransaction[]>([]);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [approvalSettings, setApprovalSettings] = useState<{ [key: string]: { accountId: string, vatType: VatType, createRule: boolean } }>({});
     const [viewingGroup, setViewingGroup] = useState<TransactionGroup | null>(null);
+    const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!client?.uid || !bankAccountId) return;
@@ -1823,6 +1824,31 @@ const AIWorkflowTab = React.forwardRef<
         }
     };
 
+    const handleMoveSingleTransactionToNew = async (txId: string) => {
+        if (!client || !client.uid) return;
+        setIsMovingBack(txId);
+        try {
+            await moveTransactionToNew({ clientId: client.uid, transactionId: txId });
+            toast({ title: "Transaction Moved", description: "Moved back to New Transactions tab." });
+            
+            // Local state cleanup
+            if (viewingGroup) {
+                const updatedTxs = viewingGroup.transactions.filter(t => t.id !== txId);
+                if (updatedTxs.length === 0) {
+                    setViewingGroup(null);
+                    setGroups(prev => prev.filter(g => g.merchantKey !== viewingGroup.merchantKey));
+                } else {
+                    setViewingGroup({ ...viewingGroup, transactions: updatedTxs });
+                    setGroups(prev => prev.map(g => g.merchantKey === viewingGroup.merchantKey ? { ...g, transactions: updatedTxs } : g));
+                }
+            }
+        } catch (e) {
+            toast({ title: "Failed to move", variant: "destructive" });
+        } finally {
+            setIsMovingBack(null);
+        }
+    }
+
     if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>;
 
     if (groups.length === 0) {
@@ -1859,6 +1885,7 @@ const AIWorkflowTab = React.forwardRef<
                                     <TableHead>Date</TableHead>
                                     <TableHead>Description</TableHead>
                                     <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="w-10"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -1867,6 +1894,24 @@ const AIWorkflowTab = React.forwardRef<
                                         <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
                                         <TableCell className="text-xs">{tx.description}</TableCell>
                                         <TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}</TableCell>
+                                        <TableCell>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="icon" 
+                                                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                                            onClick={() => handleMoveSingleTransactionToNew(tx.id)}
+                                                            disabled={isMovingBack === tx.id}
+                                                        >
+                                                            {isMovingBack === tx.id ? <Loader2 className="h-3 w-3 animate-spin"/> : <Undo2 className="h-3 w-3" />}
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>Move back to New</TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>

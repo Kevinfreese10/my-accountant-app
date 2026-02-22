@@ -1,6 +1,7 @@
+
 'use server';
 
-import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, AIAllocationResult, VatType, AIAllocationJob } from '@/lib/types';
 import { services as allServices } from '@/lib/data';
@@ -162,6 +163,25 @@ export async function sendAiUserInvite(email: string, name: string, password_do_
 }
 
 /**
+ * Moves a specific transaction back to 'new' status.
+ */
+export async function moveTransactionToNew({ clientId, transactionId }: { clientId: string, transactionId: string }) {
+    try {
+        const transRef = doc(db, 'aiAccountantClients', clientId, 'transactions', transactionId);
+        await updateDoc(transRef, {
+            status: 'new',
+            merchantKey: deleteField(),
+            aiAllocationResult: deleteField(),
+            allocationSource: deleteField(),
+        });
+        return { success: true };
+    } catch (e) {
+        console.error("Failed to move transaction back to new:", e);
+        throw e;
+    }
+}
+
+/**
  * PHASE 1: Immediate Status Lock
  * Marks all expense transactions as 'ai_processing' to prevent manual conflicts.
  */
@@ -243,6 +263,11 @@ export async function runAiAccountantAnalysis({
                 const norm = await extractSupplierName({ description: desc });
                 merchantKey = norm.supplier;
 
+                // Explicitly check for UNKNOWN or null merchant keys
+                if (!merchantKey || merchantKey.toUpperCase() === 'UNKNOWN') {
+                    merchantKey = null; // Mark as null to trigger return to 'new'
+                }
+
                 if (merchantKey) {
                     // Step B: Tier 1 - History
                     const histMatch = history.find(h => h.merchantKey === merchantKey && h.allocatedTo);
@@ -295,8 +320,13 @@ export async function runAiAccountantAnalysis({
                 });
                 moveCount++;
             } else {
-                // If normalization failed, move back to new
-                batch.update(doc(transRef, tx.id), { status: 'new' });
+                // If normalization failed or was 'UNKNOWN', move back to new
+                batch.update(doc(transRef, tx.id), { 
+                    status: 'new',
+                    merchantKey: deleteField(),
+                    aiAllocationResult: deleteField(),
+                    allocationSource: deleteField()
+                });
             }
         });
 
@@ -317,6 +347,8 @@ export async function runAiAccountantAnalysis({
                 subject: `AI Analysis Complete: ${client.companyName || client.name}`,
                 html: emailHtml,
             });
+        } else {
+            await batch.commit(); // Still commit to unlock items moved back to 'new'
         }
 
         return { success: true, count: moveCount };
