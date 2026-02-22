@@ -1,8 +1,9 @@
+
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, AIAllocationResult, VatType, AIAllocationJob } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, AIAllocationResult, VatType } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import React from 'react';
@@ -208,8 +209,8 @@ export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: {
 }
 
 /**
- * PHASE 2: Robust Server Side Research Job
- * Performs grouping, history lookup, rules checking, and AI research.
+ * PHASE 2: Group & Smart Match Job (History + Rules Only)
+ * Performs grouping, history lookup, and rules checking.
  */
 export async function runAiAccountantAnalysis({ 
     clientId, 
@@ -250,20 +251,20 @@ export async function runAiAccountantAnalysis({
 
         // 2. Group by description
         const uniqueDescriptions = Array.from(new Set(processingExpenses.map(tx => tx.description)));
-        const merchantAnalysis: { [key: string]: { merchantKey: string | null, result: AIAllocationResult | null } } = {};
+        const merchantAnalysis: { [key: string]: { merchantKey: string | null, result: AIAllocationResult | null, source: 'history' | 'rule' | 'ai' | null } } = {};
 
         for (const desc of uniqueDescriptions) {
             let merchantKey: string | null = null;
             let finalResult: AIAllocationResult | null = null;
+            let finalSource: 'history' | 'rule' | 'ai' | null = null;
 
             try {
                 // Step A: Normalize
                 const norm = await extractSupplierName({ description: desc });
                 merchantKey = norm.supplier;
 
-                // Explicitly check for UNKNOWN or null merchant keys
                 if (!merchantKey || merchantKey.toUpperCase() === 'UNKNOWN') {
-                    merchantKey = null; // Mark as null to trigger return to 'new'
+                    merchantKey = null; 
                 }
 
                 if (merchantKey) {
@@ -276,6 +277,7 @@ export async function runAiAccountantAnalysis({
                             confidence: 100,
                             summary: `Matched historical allocation for ${merchantKey}.`
                         };
+                        finalSource = 'history';
                     } else {
                         // Step C: Tier 2 - Rules
                         const ruleMatch = allRules.find(r => r.keywords.some(kw => merchantKey!.includes(kw.toUpperCase())));
@@ -286,14 +288,7 @@ export async function runAiAccountantAnalysis({
                                 confidence: 95,
                                 summary: `Matched active allocation rule for ${merchantKey}.`
                             };
-                        } else {
-                            // Step D: Tier 3 - AI Research
-                            const aiRes = await suggestTransactionAllocation({
-                                description: desc,
-                                chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
-                                isVatRegistered: !!client.isVatRegistered,
-                            });
-                            finalResult = aiRes;
+                            finalSource = 'rule';
                         }
                     }
                 }
@@ -301,7 +296,7 @@ export async function runAiAccountantAnalysis({
                 console.error(`Analysis failed for ${desc}`, e);
             }
 
-            merchantAnalysis[desc] = { merchantKey, result: finalResult };
+            merchantAnalysis[desc] = { merchantKey, result: finalResult, source: finalSource };
         }
 
         // 3. Batch Update Firestore to 'ai_review'
@@ -314,11 +309,10 @@ export async function runAiAccountantAnalysis({
                     merchantKey: analysis.merchantKey,
                     aiAllocationResult: analysis.result,
                     status: 'ai_review',
-                    allocationSource: 'ai'
+                    allocationSource: analysis.source
                 });
                 moveCount++;
             } else {
-                // If normalization failed or was 'UNKNOWN', move back to new
                 batch.update(doc(transRef, tx.id), { 
                     status: 'new',
                     merchantKey: deleteField(),
@@ -328,10 +322,9 @@ export async function runAiAccountantAnalysis({
             }
         });
 
-        if (moveCount > 0) {
-            await batch.commit();
+        await batch.commit();
 
-            // 4. Send Email Confirmation
+        if (moveCount > 0) {
             const emailHtml = render(
                 React.createElement(AIAnalysisCompleteEmail, {
                     clientName: client.companyName || client.name,
@@ -342,11 +335,9 @@ export async function runAiAccountantAnalysis({
 
             await sendEmail({
                 to: initiatorEmail,
-                subject: `AI Analysis Complete: ${client.companyName || client.name}`,
+                subject: `Smart Match Complete: ${client.companyName || client.name}`,
                 html: emailHtml,
             });
-        } else {
-            await batch.commit(); // Still commit to unlock items moved back to 'new'
         }
 
         return { success: true, count: moveCount };
@@ -354,5 +345,47 @@ export async function runAiAccountantAnalysis({
     } catch (error) {
         console.error("AI Analysis Job Failed:", error);
         return { success: false, error: "Internal Server Error" };
+    }
+}
+
+/**
+ * Researches a specific merchant group with AI.
+ */
+export async function researchMerchantWithAi({
+    clientId,
+    description,
+    chartOfAccounts,
+    isVatRegistered
+}: {
+    clientId: string,
+    description: string,
+    chartOfAccounts: string,
+    isVatRegistered: boolean
+}) {
+    try {
+        const result = await suggestTransactionAllocation({
+            description,
+            chartOfAccounts,
+            isVatRegistered
+        });
+
+        // Update all transactions in this group
+        const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        const q = query(transRef, where('description', '==', description), where('status', '==', 'ai_review'));
+        const snapshot = await getDocs(q);
+
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(d => {
+            batch.update(d.ref, {
+                aiAllocationResult: result,
+                allocationSource: 'ai'
+            });
+        });
+        await batch.commit();
+
+        return result;
+    } catch (error) {
+        console.error("Single merchant research failed:", error);
+        throw error;
     }
 }

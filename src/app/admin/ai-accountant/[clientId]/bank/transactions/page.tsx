@@ -19,7 +19,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -39,7 +39,7 @@ import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const db = getFirestore(firebaseApp);
@@ -559,7 +559,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                 <DropdownMenuContent><DropdownMenuItem className="text-destructive" onClick={handleBulkDelete}>Delete Selected</DropdownMenuItem></DropdownMenuContent>
                             </DropdownMenu>
 
-                            {activeSubTab === 'expenses' && <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow}><Sparkles className="mr-2 h-4 w-4" /> Run AI Analysis</Button>}
+                            {activeSubTab === 'expenses' && <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow}><Sparkles className="mr-2 h-4 w-4" /> Group & Smart Match</Button>}
                         </div>
                         <div className="relative">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -668,6 +668,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [approvalSettings, setApprovalSettings] = useState<any>({});
     const [viewingGroup, setViewingGroup] = useState<TransactionGroup | null>(null);
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
+    const [isResearchingId, setIsResearchingId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!client?.uid || !bankAccountId) return;
@@ -713,10 +714,10 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     allocatedTo: { value: settings.accountId, type: 'account' },
                     vatType: settings.vatType,
                     allocatedAt: serverTimestamp(),
-                    allocationSource: 'ai'
+                    allocationSource: tx.allocationSource || 'ai'
                 });
             });
-            if (settings.createRule) {
+            if (settings.createRule && group.transactions[0].allocationSource === 'ai') {
                 batch.update(doc(db, 'aiAccountantClients', client.uid), { allocationRules: arrayUnion({ id: `rule_${Date.now()}`, description: `Auto-categorization for ${group.merchantKey}`, keywords: [group.merchantKey.toUpperCase()], accountId: settings.accountId, vatType: settings.vatType, type: 'hard', scope: 'client', priority: 99 }) });
             }
             await batch.commit();
@@ -724,6 +725,35 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             setGroups(prev => prev.filter(g => g.merchantKey !== group.merchantKey));
         } catch (e) { toast({ title: "Approval Failed", variant: "destructive" }); }
     };
+
+    const handleApproveAllSmartMatches = async () => {
+        if (!client?.uid) return;
+        const smartGroups = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule'));
+        if (smartGroups.length === 0) {
+            toast({ title: "No Smart Matches found to approve." });
+            return;
+        }
+
+        try {
+            const batch = writeBatch(db);
+            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            smartGroups.forEach(group => {
+                const settings = approvalSettings[group.merchantKey];
+                group.transactions.forEach(tx => {
+                    batch.update(doc(transRef, tx.id), {
+                        status: 'reviewed',
+                        allocatedTo: { value: settings.accountId, type: 'account' },
+                        vatType: settings.vatType,
+                        allocatedAt: serverTimestamp(),
+                        allocationSource: tx.allocationSource
+                    });
+                });
+            });
+            await batch.commit();
+            toast({ title: "Approved all smart matches!" });
+            fetchData();
+        } catch (e) { toast({ title: "Bulk Approval Failed", variant: "destructive" }); }
+    }
 
     const handleMoveSingleTransactionToNew = async (txId: string) => {
         if (!client?.uid) return;
@@ -735,11 +765,39 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         } catch (e) { toast({ title: "Failed to move", variant: "destructive" }); } finally { setIsMovingBack(null); }
     };
 
+    const handleResearchWithAi = async (group: TransactionGroup) => {
+        if (!client?.uid) return;
+        setIsResearchingId(group.merchantKey);
+        try {
+            const res = await researchMerchantWithAi({
+                clientId: client.uid,
+                description: group.transactions[0].description,
+                chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
+                isVatRegistered: !!client.isVatRegistered
+            });
+            toast({ title: "Research Complete" });
+            fetchData();
+        } catch (e) { toast({ title: "Research Failed", variant: "destructive" }); } finally { setIsResearchingId(null); }
+    }
+
     if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>;
+
+    const smartMatchCount = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule')).length;
 
     return (
         <div className="space-y-6 p-4">
             <CreateGeneralAccountDialog client={client} onAccountCreated={fetchData} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
+            
+            <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border border-dashed">
+                <div className="space-y-1">
+                    <h3 className="font-bold text-sm">Review Identifiable Merchants</h3>
+                    <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI.</p>
+                </div>
+                <Button onClick={handleApproveAllSmartMatches} disabled={smartMatchCount === 0} className="bg-green-600 hover:bg-green-700 text-white">
+                    <CheckCheck className="mr-2 h-4 w-4" /> Approve {smartMatchCount} Smart Matches
+                </Button>
+            </div>
+
             <Dialog open={!!viewingGroup} onOpenChange={(o) => !o && setViewingGroup(null)}>
                 <DialogContent className="sm:max-w-xl">
                     <DialogHeader><DialogTitle>Transactions for {viewingGroup?.merchantKey}</DialogTitle></DialogHeader>
@@ -766,7 +824,11 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             </Dialog>
 
             <div className="grid grid-cols-1 gap-4">
-                {groups.map((group) => (
+                {groups.map((group) => {
+                    const firstTx = group.transactions[0];
+                    const isSmartMatch = firstTx.allocationSource === 'history' || firstTx.allocationSource === 'rule';
+                    
+                    return (
                     <Card key={group.merchantKey} className={cn("overflow-hidden border shadow-sm", group.status === 'server_researching' && "opacity-75 border-dashed")}>
                         <div className="grid grid-cols-1 md:grid-cols-12">
                             {/* Column 1: Merchant Info (Left) */}
@@ -786,10 +848,10 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                     <div className="space-y-1">
                                         <p className="text-[10px] font-bold uppercase text-muted-foreground">EXAMPLE REFERENCE</p>
                                         <p className="text-[11px] italic text-muted-foreground leading-snug break-words font-medium">
-                                            "{group.transactions[0].description}"
+                                            "{firstTx.description}"
                                         </p>
                                     </div>
-                                    {group.status === 'server_researching' && <div className="flex items-center gap-2 text-xs text-primary"><Loader2 className="h-3 w-3 animate-spin" /> Analyzing...</div>}
+                                    {group.status === 'server_researching' && <div className="flex items-center gap-2 text-xs text-primary"><Loader2 className="h-3 w-3 animate-spin" /> Identifying...</div>}
                                 </div>
                             </div>
                             
@@ -814,24 +876,30 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                             {/* Column 3: AI Insight & Actions (Right) */}
                             <div className="md:col-span-6 p-4 flex flex-col justify-between">
                                 <div className="p-4 rounded-xl border border-primary/10 bg-primary/5 flex-grow mb-4">
-                                    <div className="mb-3">
-                                        {group.status === 'ready' && group.suggestion ? (
+                                    <div className="mb-3 flex justify-between items-center">
+                                        {group.suggestion ? (
                                             <Badge className={cn(
                                                 "text-[10px] font-bold py-1 px-3 rounded-full",
                                                 group.suggestion.confidence > 80 
                                                 ? "bg-green-600 hover:bg-green-600 text-white" 
                                                 : "bg-yellow-500 hover:bg-yellow-500 text-white"
                                             )}>
-                                                {group.suggestion.confidence}% AI Confidence
+                                                {isSmartMatch ? 'SMART MATCH' : `${group.suggestion.confidence}% AI Confidence`}
                                             </Badge>
                                         ) : (
                                             <Badge variant="secondary" className="text-[10px] font-bold py-1 px-3 rounded-full">
-                                                Researching...
+                                                No Match Found
                                             </Badge>
+                                        )}
+                                        {!group.suggestion && (
+                                            <Button variant="ghost" size="sm" className="h-7 text-xs text-primary font-bold" onClick={() => handleResearchWithAi(group)} disabled={isResearchingId === group.merchantKey}>
+                                                {isResearchingId === group.merchantKey ? <Loader2 className="mr-1 h-3 w-3 animate-spin"/> : <Sparkles className="mr-1 h-3 w-3"/>}
+                                                Research with AI
+                                            </Button>
                                         )}
                                     </div>
                                     <p className="text-xs italic text-muted-foreground leading-relaxed">
-                                        {group.status === 'ready' && group.suggestion ? group.suggestion.summary : "The AI engine is currently performing research on this merchant across your history, rules, and external knowledge bases."}
+                                        {group.suggestion ? group.suggestion.summary : "No historical matches or active rules found for this merchant. Use the 'Research with AI' button to perform a deep analysis across our knowledge bases."}
                                     </p>
                                 </div>
                                 
@@ -842,13 +910,14 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                             className="rounded border-muted-foreground/30 data-[state=checked]:bg-primary"
                                             checked={approvalSettings[group.merchantKey]?.createRule} 
                                             onCheckedChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], createRule: !!v}}))} 
+                                            disabled={isSmartMatch}
                                         />
                                         <Label htmlFor={`rule-${group.merchantKey}`} className="text-xs font-bold text-muted-foreground cursor-pointer">Create Client Rule</Label>
                                     </div>
                                     <Button 
                                         className="bg-primary hover:bg-primary/90 text-white font-bold h-10 px-6 rounded-lg shadow-md" 
                                         onClick={() => handleApproveGroup(group)} 
-                                        disabled={group.status !== 'ready'}
+                                        disabled={!approvalSettings[group.merchantKey]?.accountId}
                                     >
                                         <CheckCircle2 className="mr-2 h-4 w-4" /> Approve Group
                                     </Button>
@@ -856,7 +925,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                             </div>
                         </div>
                     </Card>
-                ))}
+                )})}
             </div>
         </div>
     );
