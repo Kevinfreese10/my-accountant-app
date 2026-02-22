@@ -14,7 +14,7 @@ import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRight
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField, addDoc, limit, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField, addDoc, limit, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -36,7 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Button } from '@/components/ui/button';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
 import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew } from '@/app/actions';
@@ -930,6 +930,10 @@ export default function BankTransactionsPage() {
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const [activeTab, setActiveTab] = useState('new-transactions');
     const [customers, setCustomers] = useState<ClientCustomer[]>([]);
+    const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
+    const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
+    const [isClearAccountAlertOpen, setIsClearAccountAlertOpen] = useState(false);
+    const { toast } = useToast();
 
     const fetchClientData = useCallback(async () => {
         if (!params.clientId) return;
@@ -968,12 +972,76 @@ export default function BankTransactionsPage() {
         return { balance, unallocatedCount };
     }, [allAccountTransactions]);
 
+    const handleClearAccount = async () => {
+        if (!params.clientId || !accountId) return;
+        toast({ title: "Clearing account...", description: "Please wait." });
+        try {
+            const batch = writeBatch(db);
+            const transRef = collection(db, 'aiAccountantClients', params.clientId as string, 'transactions');
+            const q = query(transRef, where('bankAccountId', '==', accountId));
+            const snap = await getDocs(q);
+            snap.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+            toast({ title: "Account Cleared", description: "All transactions for this account have been deleted." });
+            setIsClearAccountAlertOpen(false);
+        } catch (e) {
+            toast({ title: "Error", variant: "destructive" });
+        }
+    };
+
+    const handleEditAccount = async (newName: string) => {
+        if (!client || !accountId) return;
+        try {
+            const updatedCOA = (client.chartOfAccounts || []).map(acc => acc.id === accountId ? { ...acc, description: newName } : acc);
+            await updateDoc(doc(db, 'aiAccountantClients', client.id), { chartOfAccounts: updatedCOA });
+            toast({ title: "Account Updated" });
+            fetchClientData();
+            setIsEditAccountOpen(false);
+        } catch (e) {
+            toast({ title: "Error", variant: "destructive" });
+        }
+    };
+
     if (!client) return <div className="text-center mt-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     
     const bankAccounts = client.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('8400-')) || [];
+    const selectedAccount = bankAccounts.find(a => a.id === accountId);
     
     return (
         <div className="space-y-4">
+            <CreateGeneralAccountDialog client={client} onAccountCreated={fetchClientData} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen} />
+            
+            <Dialog open={isEditAccountOpen} onOpenChange={setIsEditAccountOpen}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>Edit Bank Account Name</DialogTitle></DialogHeader>
+                    <div className="py-4">
+                        <Input id="new-account-name" defaultValue={selectedAccount?.description} placeholder="e.g. FNB Business Account" />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditAccountOpen(false)}>Cancel</Button>
+                        <Button onClick={() => {
+                            const val = (document.getElementById('new-account-name') as HTMLInputElement).value;
+                            handleEditAccount(val);
+                        }}>Save Changes</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <AlertDialog open={isClearAccountAlertOpen} onOpenChange={setIsClearAccountAlertOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete all transactions for the selected bank account ({selectedAccount?.description}). This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleClearAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Yes, Clear Account</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <div className="md:flex items-start justify-between">
                 <div className="flex flex-col gap-2">
                      <Select onValueChange={setAccountId} value={accountId || ''}>
@@ -984,6 +1052,24 @@ export default function BankTransactionsPage() {
                         <div><span className="text-muted-foreground">Balance: </span><span className="font-semibold">{formatPrice(stats.balance)}</span></div>
                         <div><span className="text-muted-foreground">Unallocated: </span><span className="font-semibold">{stats.unallocatedCount}</span></div>
                     </div>
+                </div>
+                <div className="flex items-center gap-2 mt-4 md:mt-0">
+                    <Button variant="outline" size="sm" onClick={() => fetchClientData()}>
+                        <RotateCcw className="mr-2 h-4 w-4" /> Refresh
+                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 border-none font-bold">
+                                <Settings className="mr-2 h-4 w-4" /> Manage
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setIsCreateAccountOpen(true)}>Create New Bank Account</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setIsEditAccountOpen(true)}>Edit Selected Account</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setIsClearAccountAlertOpen(true)} className="text-destructive">Clear Bank Account</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
             <div className="border rounded-lg mt-4">
