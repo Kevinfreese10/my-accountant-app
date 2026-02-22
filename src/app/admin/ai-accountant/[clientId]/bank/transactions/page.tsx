@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -505,62 +504,89 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
 
             <div className="grid grid-cols-1 gap-4">
                 {groups.map((group) => (
-                    <Card key={group.merchantKey} className={cn("overflow-hidden", group.status === 'server_researching' && "opacity-75 border-dashed")}>
-                        <div className="flex flex-col md:flex-row">
-                            <div className="p-4 md:w-1/4 bg-muted/30 border-r border-b md:border-b-0">
-                                <div className="flex flex-col gap-3">
+                    <Card key={group.merchantKey} className={cn("overflow-hidden border shadow-sm", group.status === 'server_researching' && "opacity-75 border-dashed")}>
+                        <div className="grid grid-cols-1 md:grid-cols-12">
+                            {/* Column 1: Merchant Info (Left) */}
+                            <div className="md:col-span-3 p-4 border-r border-b md:border-b-0 bg-muted/10">
+                                <div className="space-y-4">
                                     <div>
-                                        <Badge variant="outline" className="mb-1 text-[10px] uppercase tracking-wider">Merchant</Badge>
-                                        <h4 className="text-lg font-bold truncate leading-tight">{group.merchantKey}</h4>
-                                        <Button variant="link" className="p-0 h-auto text-xs text-primary underline-offset-2" onClick={() => setViewingGroup(group)}>{group.transactions.length} transactions</Button>
+                                        <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider mb-1">MERCHANT</Badge>
+                                        <h4 className="text-xl font-extrabold truncate uppercase leading-tight">{group.merchantKey}</h4>
+                                        <Button 
+                                            variant="link" 
+                                            className="p-0 h-auto text-sm text-primary font-medium hover:no-underline"
+                                            onClick={() => setViewingGroup(group)}
+                                        >
+                                            {group.transactions.length} transactions
+                                        </Button>
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-[10px] font-bold uppercase text-muted-foreground">Example Reference</p>
-                                        <p className="text-[11px] italic text-muted-foreground leading-snug break-words">"{group.transactions[0].description}"</p>
+                                        <p className="text-[10px] font-bold uppercase text-muted-foreground">EXAMPLE REFERENCE</p>
+                                        <p className="text-[11px] italic text-muted-foreground leading-snug break-words font-medium">
+                                            "{group.transactions[0].description}"
+                                        </p>
                                     </div>
                                     {group.status === 'server_researching' && <div className="flex items-center gap-2 text-xs text-primary"><Loader2 className="h-3 w-3 animate-spin" /> Analyzing...</div>}
                                 </div>
                             </div>
                             
-                            <div className="p-4 md:w-1/3 space-y-4 border-r">
+                            {/* Column 2: Selectors (Middle) */}
+                            <div className="md:col-span-3 p-4 border-r space-y-4">
                                 <div className="space-y-2">
-                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Allocate To</Label>
+                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">ALLOCATE TO</Label>
                                     <Select value={approvalSettings[group.merchantKey]?.accountId || ''} onValueChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], accountId: v}}))}>
-                                        <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select account..." /></SelectTrigger>
+                                        <SelectTrigger className="h-10 text-sm"><SelectValue placeholder="Select account..." /></SelectTrigger>
                                         <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent>
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">VAT</Label>
+                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">VAT</Label>
                                     <Select value={approvalSettings[group.merchantKey]?.vatType || 'no_vat'} onValueChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], vatType: v}}))}>
-                                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                        <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
                                         <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
                                     </Select>
                                 </div>
                             </div>
 
-                            <div className="p-4 flex-grow flex flex-col justify-between">
-                                <div className="space-y-3">
-                                    {group.status === 'ready' && group.suggestion ? (
-                                        <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
-                                            <Badge variant={group.suggestion.confidence > 80 ? 'success' : 'warning'} className="text-[10px] mb-2">
+                            {/* Column 3: AI Insight & Actions (Right) */}
+                            <div className="md:col-span-6 p-4 flex flex-col justify-between">
+                                <div className="p-4 rounded-xl border border-primary/10 bg-primary/5 flex-grow mb-4">
+                                    <div className="mb-3">
+                                        {group.status === 'ready' && group.suggestion ? (
+                                            <Badge className={cn(
+                                                "text-[10px] font-bold py-1 px-3 rounded-full",
+                                                group.suggestion.confidence > 80 
+                                                ? "bg-green-600 hover:bg-green-600 text-white" 
+                                                : "bg-yellow-500 hover:bg-yellow-500 text-white"
+                                            )}>
                                                 {group.suggestion.confidence}% AI Confidence
                                             </Badge>
-                                            <p className="text-xs italic text-muted-foreground leading-relaxed">{group.suggestion.summary}</p>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center py-6 text-muted-foreground italic gap-2 bg-muted/10 rounded-lg border border-dashed">
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                            <span className="text-xs">Researching on server...</span>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex items-center justify-between mt-4">
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox id={`rule-${group.merchantKey}`} checked={approvalSettings[group.merchantKey]?.createRule} onCheckedChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], createRule: !!v}}))} />
-                                        <Label htmlFor={`rule-${group.merchantKey}`} className="text-xs cursor-pointer font-medium">Create Client Rule</Label>
+                                        ) : (
+                                            <Badge variant="secondary" className="text-[10px] font-bold py-1 px-3 rounded-full">
+                                                Researching...
+                                            </Badge>
+                                        )}
                                     </div>
-                                    <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => handleApproveGroup(group)} disabled={group.status !== 'ready'}>
+                                    <p className="text-xs italic text-muted-foreground leading-relaxed">
+                                        {group.status === 'ready' && group.suggestion ? group.suggestion.summary : "The AI engine is currently performing research on this merchant across your history, rules, and external knowledge bases."}
+                                    </p>
+                                </div>
+                                
+                                <div className="flex items-center justify-between mt-auto pt-2">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox 
+                                            id={`rule-${group.merchantKey}`} 
+                                            className="rounded border-muted-foreground/30 data-[state=checked]:bg-primary"
+                                            checked={approvalSettings[group.merchantKey]?.createRule} 
+                                            onCheckedChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], createRule: !!v}}))} 
+                                        />
+                                        <Label htmlFor={`rule-${group.merchantKey}`} className="text-xs font-bold text-muted-foreground cursor-pointer">Create Client Rule</Label>
+                                    </div>
+                                    <Button 
+                                        className="bg-primary hover:bg-primary/90 text-white font-bold h-10 px-6 rounded-lg shadow-md" 
+                                        onClick={() => handleApproveGroup(group)} 
+                                        disabled={group.status !== 'ready'}
+                                    >
                                         <CheckCircle2 className="mr-2 h-4 w-4" /> Approve Group
                                     </Button>
                                 </div>
