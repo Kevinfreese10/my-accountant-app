@@ -3,14 +3,13 @@
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User, AllocationRule, ChartOfAccount } from '@/lib/types';
+import { User, AllocationRule } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
-import { Textarea } from '../ui/textarea';
 import { useState, useEffect } from 'react';
 import { Loader2, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
@@ -72,7 +71,7 @@ export default function ClientForm({
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
             status: client?.status || 'Active',
-            useGlobalRules: false,
+            useGlobalRules: false, // Explicitly false by default as requested
             initialRules: [],
         },
     });
@@ -116,7 +115,6 @@ export default function ClientForm({
     }, [client?.id, isAIClient, replace, toast]);
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        // Convert initialRules string keywords back to arrays for the main page handler
         const processedRules = values.useGlobalRules ? values.initialRules?.map(r => ({
             ...r,
             keywords: r.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean),
