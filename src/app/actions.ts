@@ -1,4 +1,3 @@
-
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit } from 'firebase/firestore';
@@ -7,6 +6,7 @@ import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, 
 import { services as allServices } from '@/lib/data';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
+import React from 'react';
 import { DocumentRequestEmail } from '@/components/emails/DocumentRequestEmail';
 import { NewTaskEmail } from '@/components/emails/NewTaskEmail';
 import { format } from 'date-fns';
@@ -25,7 +25,7 @@ const db = getFirestore(firebaseApp);
 
 export async function notifyStaffOfDocumentUpload({ orderId, clientName, assignedStaffName, assignedStaffEmail }: { orderId: string, clientName: string, assignedStaffName: string, assignedStaffEmail: string }) {
     const emailHtml = render(
-        ClientDocumentUploadEmail({
+        React.createElement(ClientDocumentUploadEmail, {
             assigneeName: assignedStaffName,
             clientName: clientName,
             orderId: orderId,
@@ -50,7 +50,7 @@ export async function sendDocumentReviewFeedback({ orderId, clientName, clientEm
     }
 
     const emailHtml = render(
-        DocumentReviewEmail({
+        React.createElement(DocumentReviewEmail, {
             clientName,
             orderId,
             documentUploads,
@@ -95,7 +95,7 @@ export async function notifyOfNewNote({
     }
 
     const emailHtml = render(
-        NewNoteNotificationEmail({
+        React.createElement(NewNoteNotificationEmail, {
             recipientName,
             senderName,
             orderId,
@@ -124,7 +124,7 @@ export async function sendOutstandingDocumentsReminder({ orderId, clientName, cl
     }
 
     const emailHtml = render(
-        OutstandingDocumentsEmail({
+        React.createElement(OutstandingDocumentsEmail, {
             clientName,
             orderId,
             orderUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${orderId}`,
@@ -144,7 +144,7 @@ export async function sendAiUserInvite(email: string, name: string, password_do_
     const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL}/login`;
 
     const emailHtml = render(
-        AIAccountantInviteEmail({
+        React.createElement(AIAccountantInviteEmail, {
             name: name.split(' ')[0],
             email: email,
             password: password_do_not_expose,
@@ -162,8 +162,36 @@ export async function sendAiUserInvite(email: string, name: string, password_do_
 }
 
 /**
- * Runs the full AI Analysis process on the server.
- * Normalizes merchants -> Researches (History -> Rules -> AI) -> Updates Firestore -> Emails User
+ * PHASE 1: Immediate Status Lock
+ * Marks all expense transactions as 'ai_processing' to prevent manual conflicts.
+ */
+export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
+    try {
+        const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        const q = query(
+            transRef, 
+            where('bankAccountId', '==', bankAccountId), 
+            where('status', '==', 'new'),
+            where('isExpense', '==', true)
+        );
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return { count: 0 };
+
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(d => {
+            batch.update(d.ref, { status: 'ai_processing' });
+        });
+        await batch.commit();
+        return { count: snapshot.size };
+    } catch (e) {
+        console.error("Locking failed", e);
+        throw e;
+    }
+}
+
+/**
+ * PHASE 2: Robust Server Side Research Job
+ * Performs grouping, history lookup, rules checking, and AI research.
  */
 export async function runAiAccountantAnalysis({ 
     clientId, 
@@ -184,13 +212,13 @@ export async function runAiAccountantAnalysis({
         const q = query(
             transRef, 
             where('bankAccountId', '==', bankAccountId), 
-            where('status', '==', 'new'),
+            where('status', '==', 'ai_processing'),
             where('isExpense', '==', true)
         );
         const snapshot = await getDocs(q);
-        const newExpenses = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
+        const processingExpenses = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
 
-        if (newExpenses.length === 0) return { success: true, count: 0 };
+        if (processingExpenses.length === 0) return { success: true, count: 0 };
 
         // 1. Fetch History & Rules
         const historyQuery = query(transRef, where('status', '==', 'reviewed'), limit(500));
@@ -203,7 +231,7 @@ export async function runAiAccountantAnalysis({
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
         // 2. Group by description
-        const uniqueDescriptions = Array.from(new Set(newExpenses.map(tx => tx.description)));
+        const uniqueDescriptions = Array.from(new Set(processingExpenses.map(tx => tx.description)));
         const merchantAnalysis: { [key: string]: { merchantKey: string | null, result: AIAllocationResult | null } } = {};
 
         for (const desc of uniqueDescriptions) {
@@ -253,10 +281,10 @@ export async function runAiAccountantAnalysis({
             merchantAnalysis[desc] = { merchantKey, result: finalResult };
         }
 
-        // 3. Batch Update Firestore
+        // 3. Batch Update Firestore to 'ai_review'
         const batch = writeBatch(db);
         let moveCount = 0;
-        newExpenses.forEach(tx => {
+        processingExpenses.forEach(tx => {
             const analysis = merchantAnalysis[tx.description];
             if (analysis && analysis.merchantKey) {
                 batch.update(doc(transRef, tx.id), {
@@ -266,6 +294,9 @@ export async function runAiAccountantAnalysis({
                     allocationSource: 'ai'
                 });
                 moveCount++;
+            } else {
+                // If normalization failed, move back to new
+                batch.update(doc(transRef, tx.id), { status: 'new' });
             }
         });
 
@@ -274,7 +305,7 @@ export async function runAiAccountantAnalysis({
 
             // 4. Send Email Confirmation
             const emailHtml = render(
-                AIAnalysisCompleteEmail({
+                React.createElement(AIAnalysisCompleteEmail, {
                     clientName: client.companyName || client.name,
                     totalProcessed: moveCount,
                     dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/ai-accountant/${clientId}/bank/transactions`

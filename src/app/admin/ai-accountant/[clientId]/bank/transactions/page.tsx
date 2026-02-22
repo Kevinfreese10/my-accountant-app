@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -10,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2 } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationJob } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,7 +18,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -44,7 +43,7 @@ import type { SuggestTransactionAllocationOutput } from '@/ai/flows/suggest-tran
 import { extractSupplierName } from '@/ai/flows/extract-supplier-name';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -841,7 +840,7 @@ function AIAllocationReviewDialog({
 }: { 
     open: boolean; 
     onOpenChange: (open: boolean) => void; 
-    suggestion: SuggestTransactionAllocationOutput | null;
+    suggestion: AIAllocationResult | null;
     transaction: ImportedTransaction | null;
     onAction: (mode: 'new' | 'append') => void;
 }) {
@@ -876,10 +875,12 @@ function AIAllocationReviewDialog({
                             <p className="text-sm font-semibold capitalize">{suggestion.vatType.replace(/_/g, ' ')}</p>
                         </div>
                     </div>
-                    <div className="space-y-1">
-                        <p className="text-xs font-medium text-muted-foreground">Suggested Root Keyword</p>
-                        <Badge variant="outline" className="text-sm font-mono">{suggestion.suggestedKeyword}</Badge>
-                    </div>
+                    {suggestion.suggestedKeyword && (
+                        <div className="space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground">Suggested Root Keyword</p>
+                            <Badge variant="outline" className="text-sm font-mono">{suggestion.suggestedKeyword}</Badge>
+                        </div>
+                    )}
                 </div>
                 <DialogFooter className="grid grid-cols-2 gap-2">
                     <Button variant="outline" onClick={() => onAction('append')}>
@@ -926,9 +927,9 @@ const NewTransactionsTab = React.forwardRef<
     const [triggerAllocation, setTriggerAllocation] = useState(false);
     const [isSubmittingToWorkflow, setIsSubmittingToWorkflow] = useState(false);
 
-    // AI Research State
+    // AI Research State (Manual Single Tx)
     const [isAiResearching, setIsAiResearching] = useState<string | null>(null);
-    const [aiSuggestion, setAiSuggestion] = useState<SuggestTransactionAllocationOutput | null>(null);
+    const [aiSuggestion, setAiSuggestion] = useState<AIAllocationResult | null>(null);
     const [selectedTxForAi, setSelectedTxForAi] = useState<ImportedTransaction | null>(null);
     const [isAiReviewOpen, setIsAiReviewOpen] = useState(false);
 
@@ -1260,7 +1261,13 @@ const NewTransactionsTab = React.forwardRef<
             });
 
             if (result) {
-                setAiSuggestion(result);
+                setAiSuggestion({
+                    accountId: result.accountId,
+                    vatType: result.vatType as VatType,
+                    confidence: result.confidence,
+                    summary: result.summary,
+                    suggestedKeyword: result.suggestedKeyword
+                });
                 setIsAiReviewOpen(true);
             }
         } catch (error) {
@@ -1277,8 +1284,8 @@ const NewTransactionsTab = React.forwardRef<
         setTransactionDescriptionForRule(selectedTxForAi.description);
         setRuleDefaultValues({
             mode: mode,
-            description: `Rule for: ${aiSuggestion.suggestedKeyword}`,
-            keywords: aiSuggestion.suggestedKeyword,
+            description: `Rule for: ${aiSuggestion.suggestedKeyword || 'Merchant'}`,
+            keywords: aiSuggestion.suggestedKeyword || '',
             accountId: aiSuggestion.accountId,
             vatType: aiSuggestion.vatType,
             scope: 'client',
@@ -1304,24 +1311,28 @@ const NewTransactionsTab = React.forwardRef<
     const handleRunAiWorkflow = async () => {
         if (!client || !client.uid || !bankAccountId || !user?.email) return;
         setIsSubmittingToWorkflow(true);
-        toast({ title: "AI Analysis Started", description: "The analysis is now running on the server. You will receive an email when it is complete." });
+        toast({ title: "Preparing AI Analysis...", description: "Moving transactions to workflow tab." });
 
         try {
-            const result = await runAiAccountantAnalysis({
+            // STEP 1: Fast Status Lock (PHASE 1)
+            const prepareRes = await prepareAiAccountantAnalysis({
                 clientId: client.uid,
                 bankAccountId: bankAccountId,
-                initiatorEmail: user.email
             });
 
-            if (result.success) {
-                if (result.count > 0) {
-                    toast({ title: "Analysis Complete", description: `${result.count} transactions moved to AI Workflow.` });
-                    setActiveTab('ai-workflow');
-                } else {
-                    toast({ title: "No transactions", description: "There were no new expense transactions to analyze." });
-                }
+            if (prepareRes.count > 0) {
+                // Instantly switch tabs so user sees the "Processing" items
+                setActiveTab('ai-workflow');
+                toast({ title: "Background Job Started", description: "Researching merchant groups on server. You will be emailed upon completion." });
+
+                // STEP 2: Background Research (PHASE 2)
+                runAiAccountantAnalysis({
+                    clientId: client.uid,
+                    bankAccountId: bankAccountId,
+                    initiatorEmail: user.email
+                });
             } else {
-                toast({ title: "Analysis Failed", description: result.error || "An unexpected error occurred.", variant: "destructive" });
+                toast({ title: "No new expenses", description: "All expense transactions are already processed or in workflow." });
             }
             
             refetch();
@@ -1450,7 +1461,7 @@ const NewTransactionsTab = React.forwardRef<
                                 {isSubmittingToWorkflow ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Analyzing on Server...
+                                        Locking Transactions...
                                     </>
                                 ) : (
                                     <>
@@ -1687,8 +1698,8 @@ NewTransactionsTab.displayName = 'NewTransactionsTab';
 interface TransactionGroup {
     merchantKey: string;
     transactions: ImportedTransaction[];
-    suggestion: SuggestTransactionAllocationOutput | null;
-    status: 'pending' | 'ready' | 'processing';
+    suggestion: AIAllocationResult | null;
+    status: 'pending' | 'ready' | 'processing' | 'server_researching';
 }
 
 const AIWorkflowTab = React.forwardRef<
@@ -1703,8 +1714,6 @@ const AIWorkflowTab = React.forwardRef<
     const { toast } = useToast();
     const [groups, setGroups] = useState<TransactionGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isJobRunning, setIsJobRunning] = useState(false);
-    const [jobProgress, setJobProgress] = useState(0);
     const [reviewedTransactions, setReviewedTransactions] = useState<ImportedTransaction[]>([]);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [approvalSettings, setApprovalSettings] = useState<{ [key: string]: { accountId: string, vatType: VatType, createRule: boolean } }>({});
@@ -1724,16 +1733,6 @@ const AIWorkflowTab = React.forwardRef<
             const workflowSnap = await getDocs(workflowQuery);
             const workflowTxs = workflowSnap.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
 
-            const historyQuery = query(
-                transRef,
-                where('status', '==', 'reviewed'),
-                orderBy('allocatedAt', 'desc'),
-                limit(500)
-            );
-            const historySnap = await getDocs(historyQuery);
-            const historyTxs = historySnap.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
-            setReviewedTransactions(historyTxs);
-
             const merchantGroups: { [key: string]: ImportedTransaction[] } = {};
             workflowTxs.forEach(tx => {
                 const key = tx.merchantKey || 'UNKNOWN';
@@ -1745,7 +1744,7 @@ const AIWorkflowTab = React.forwardRef<
                 merchantKey: key,
                 transactions: txs,
                 suggestion: txs[0].aiAllocationResult || null,
-                status: txs[0].status === 'ai_processing' ? 'pending' : 'ready'
+                status: txs[0].status === 'ai_processing' ? 'server_researching' : 'ready'
             }));
 
             setGroups(initialGroups);
@@ -1753,33 +1752,12 @@ const AIWorkflowTab = React.forwardRef<
             const settings: typeof approvalSettings = {};
             initialGroups.forEach(group => {
                 const suggestion = group.suggestion;
-                
                 if (suggestion) {
                     settings[group.merchantKey] = {
                         accountId: suggestion.accountId,
                         vatType: suggestion.vatType,
                         createRule: true
                     };
-                } else {
-                    const historicMatch = historyTxs.find(h => h.merchantKey === group.merchantKey);
-                    if (historicMatch && historicMatch.allocatedTo) {
-                        settings[group.merchantKey] = {
-                            accountId: historicMatch.allocatedTo.value,
-                            vatType: historicMatch.vatType || 'no_vat',
-                            createRule: true
-                        };
-                    } else {
-                        const matchedRule = globalRules.find(r => 
-                            r.keywords.some(kw => group.merchantKey.includes(kw.toUpperCase()))
-                        );
-                        if (matchedRule) {
-                            settings[group.merchantKey] = {
-                                accountId: matchedRule.accountId,
-                                vatType: matchedRule.vatType,
-                                createRule: true
-                            };
-                        }
-                    }
                 }
             });
             setApprovalSettings(settings);
@@ -1789,7 +1767,7 @@ const AIWorkflowTab = React.forwardRef<
         } finally {
             setIsLoading(false);
         }
-    }, [client, bankAccountId, globalRules]);
+    }, [client, bankAccountId]);
 
     useEffect(() => {
         fetchData();
@@ -1798,65 +1776,6 @@ const AIWorkflowTab = React.forwardRef<
     React.useImperativeHandle(ref, () => ({
         refetch: fetchData,
     }));
-
-    const runJob = async () => {
-        if (!client || !client.uid || isJobRunning) return;
-        const pendingGroups = groups.filter(g => g.status === 'pending');
-        if (pendingGroups.length === 0) return;
-
-        setIsJobRunning(true);
-        setJobProgress(0);
-
-        let processed = 0;
-        const total = pendingGroups.length;
-
-        for (const group of pendingGroups) {
-            try {
-                setGroups(prev => prev.map(g => g.merchantKey === group.merchantKey ? { ...g, status: 'processing' } : g));
-
-                const result = await suggestTransactionAllocation({
-                    description: group.transactions[0].description,
-                    chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
-                    isVatRegistered: !!client.isVatRegistered,
-                });
-
-                if (result) {
-                    const batch = writeBatch(db);
-                    const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
-                    group.transactions.forEach(tx => {
-                        batch.update(doc(transRef, tx.id), {
-                            status: 'ai_review',
-                            aiAllocationResult: result
-                        });
-                    });
-                    await batch.commit();
-
-                    setGroups(prev => prev.map(g => g.merchantKey === group.merchantKey ? { 
-                        ...g, 
-                        status: 'ready', 
-                        suggestion: result 
-                    } : g));
-
-                    setApprovalSettings(prev => ({
-                        ...prev,
-                        [group.merchantKey]: {
-                            accountId: result.accountId,
-                            vatType: result.vatType,
-                            createRule: true
-                        }
-                    }));
-                }
-            } catch (e) {
-                console.error(`Job failed for group ${group.merchantKey}`, e);
-            } finally {
-                processed++;
-                setJobProgress(Math.round((processed / total) * 100));
-            }
-        }
-
-        setIsJobRunning(false);
-        toast({ title: "Analysis Job Complete", description: `Processed ${processed} merchant groups.` });
-    };
 
     const handleApproveGroup = async (group: TransactionGroup) => {
         if (!client || !client.uid) return;
@@ -1963,33 +1882,20 @@ const AIWorkflowTab = React.forwardRef<
                         AI Research Engine
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                        Identified {groups.length} merchant groups. {groups.filter(g => g.status === 'pending').length} need AI research.
+                        {groups.filter(g => g.status === 'server_researching').length > 0 
+                            ? "AI is researching some merchant groups on the server. Results will appear as they finish."
+                            : "All identified merchant groups have been analyzed."}
                     </p>
                 </div>
-                {isJobRunning ? (
-                    <div className="w-64 space-y-2">
-                        <div className="flex justify-between text-[10px] font-bold">
-                            <span>RESEARCHING...</span>
-                            <span>{jobProgress}%</span>
-                        </div>
-                        <Progress value={jobProgress} className="h-2" />
-                    </div>
-                ) : groups.some(g => g.status === 'pending') ? (
-                    <Button onClick={runJob}>
-                        <Play className="mr-2 h-4 w-4" />
-                        Start Research Job
-                    </Button>
-                ) : (
-                    <Badge variant="success" className="h-8 px-3">
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        All Research Complete
-                    </Badge>
-                )}
+                <Button variant="outline" size="sm" onClick={fetchData} className="bg-background">
+                    <RotateCcw className="mr-2 h-3 w-3" />
+                    Refresh Status
+                </Button>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
                 {groups.map((group) => (
-                    <Card key={group.merchantKey} className={cn("overflow-hidden", group.status === 'processing' && "border-primary shadow-md")}>
+                    <Card key={group.merchantKey} className={cn("overflow-hidden", group.status === 'server_researching' && "opacity-75 border-dashed")}>
                         <div className="flex flex-col md:flex-row">
                             <div className="p-4 md:w-1/3 bg-muted/30 border-r border-b md:border-b-0">
                                 <div className="flex items-start justify-between mb-4">
@@ -2004,7 +1910,7 @@ const AIWorkflowTab = React.forwardRef<
                                             {group.transactions.length} transactions in group
                                         </Button>
                                     </div>
-                                    {group.status === 'processing' && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                                    {group.status === 'server_researching' && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
                                 </div>
                                 <div className="space-y-3">
                                     <div className="text-[10px] font-bold uppercase text-muted-foreground">Example Description</div>
@@ -2020,10 +1926,10 @@ const AIWorkflowTab = React.forwardRef<
                                         <Label className="text-xs font-bold uppercase text-muted-foreground">Allocate To Account</Label>
                                         <Popover>
                                             <PopoverTrigger asChild>
-                                                <Button variant="outline" className="w-full justify-start text-xs h-9" disabled={group.status === 'pending' || group.status === 'processing'}>
+                                                <Button variant="outline" className="w-full justify-start text-xs h-9" disabled={group.status === 'server_researching'}>
                                                     {approvalSettings[group.merchantKey] 
                                                         ? client?.chartOfAccounts?.find(a => a.id === approvalSettings[group.merchantKey].accountId)?.description 
-                                                        : "Loading allocation..."}
+                                                        : "Awaiting analysis..."}
                                                 </Button>
                                             </PopoverTrigger>
                                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
@@ -2059,7 +1965,7 @@ const AIWorkflowTab = React.forwardRef<
                                                 ...prev,
                                                 [group.merchantKey]: { ...prev[group.merchantKey], vatType: v as VatType }
                                             }))}
-                                            disabled={group.status === 'pending' || group.status === 'processing'}
+                                            disabled={group.status === 'server_researching'}
                                         >
                                             <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                                             <SelectContent>
@@ -2082,14 +1988,10 @@ const AIWorkflowTab = React.forwardRef<
                                                     {group.suggestion.summary}
                                                 </p>
                                             </div>
-                                        ) : group.status === 'processing' ? (
-                                            <div className="flex flex-col items-center justify-center h-full gap-2">
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                <span className="animate-pulse">AI is researching...</span>
-                                            </div>
                                         ) : (
-                                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground italic">
-                                                Awaiting analysis...
+                                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground italic gap-2">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <span>Researching on server...</span>
                                             </div>
                                         )}
                                     </div>
@@ -2103,7 +2005,7 @@ const AIWorkflowTab = React.forwardRef<
                                                     ...prev,
                                                     [group.merchantKey]: { ...prev[group.merchantKey], createRule: !!v }
                                                 }))}
-                                                disabled={group.status === 'pending' || group.status === 'processing'}
+                                                disabled={group.status === 'server_researching'}
                                             />
                                             <Label htmlFor={`rule-${group.merchantKey}`} className="text-xs cursor-pointer">Create Client Rule</Label>
                                         </div>
@@ -2309,7 +2211,7 @@ const ReviewedTab = React.forwardRef<
             ...prev,
             [txId]: {
                 ...prev[txId],
-                allocatedTo: { value: val, type: type as 'account' | 'customer' },
+                allocatedTo: { value: val, type: type as 'account' | 'customer' | 'supplier' },
                 allocationSource: 'manual'
             }
         }));
