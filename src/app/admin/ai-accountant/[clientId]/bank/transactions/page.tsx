@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -14,7 +13,7 @@ import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRight
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField, QueryConstraint, addDoc, limit } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField, QueryConstraint, addDoc, limit, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -26,7 +25,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
-import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup, CommandSeparator } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, parse } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -45,7 +44,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
-const BATCH_SIZE = 400;
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-GB', {
@@ -54,7 +52,7 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-// #region Components
+// #region Helper Components
 
 function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete, globalRules }: { client: User | null, bankAccountId: string, currentBalance: number, onImportComplete: () => void, globalRules: AllocationRule[] }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -63,41 +61,32 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
     const [isParsing, setIsParsing] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const { toast } = useToast();
-    const [importError, setImportError] = useState<string | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
             setIsParsing(true);
-            setImportError(null);
             setFile(selectedFile);
             
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const fileContent = event.target?.result;
-                if (!fileContent) { setIsParsing(false); return; }
-
-                Papa.parse(fileContent as string, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: (results) => {
-                        const data = results.data as any[];
-                        const transactions = data.map(row => {
-                            const normalizedRow: any = {};
-                            Object.keys(row).forEach(k => normalizedRow[k.toLowerCase().trim()] = row[k]);
-                            return {
-                                Date: normalizedRow.date || '',
-                                Description: normalizedRow.description || normalizedRow.desc || '',
-                                Amount: parseFloat(String(normalizedRow.amount || '').replace(/[^\d.-]/g, ''))
-                            };
-                        }).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
-                        
-                        setParsedTransactions(transactions);
-                        setIsParsing(false);
-                    }
-                });
-            };
-            reader.readAsText(selectedFile);
+            Papa.parse(selectedFile, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    const data = results.data as any[];
+                    const transactions = data.map(row => {
+                        const normalizedRow: any = {};
+                        Object.keys(row).forEach(k => normalizedRow[k.toLowerCase().trim()] = row[k]);
+                        return {
+                            Date: normalizedRow.date || '',
+                            Description: normalizedRow.description || normalizedRow.desc || '',
+                            Amount: parseFloat(String(normalizedRow.amount || '').replace(/[^\d.-]/g, ''))
+                        };
+                    }).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
+                    
+                    setParsedTransactions(transactions);
+                    setIsParsing(false);
+                }
+            });
         }
     };
     
@@ -106,15 +95,13 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
         setIsUploading(true);
         try {
             const batch = writeBatch(db);
-            const clientRules = client.allocationRules || [];
-
             parsedTransactions.forEach((row) => {
                 let parsedDate = parse(row.Date, 'dd/MM/yyyy', new Date());
                 if (isNaN(parsedDate.getTime())) parsedDate = new Date(row.Date);
                 if (isNaN(parsedDate.getTime())) return;
 
                 const newRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
-                const transaction: any = {
+                batch.set(newRef, {
                     clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: `CSV-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -123,20 +110,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
                     isExpense: row.Amount < 0,
                     bankAccountId: bankAccountId,
                     status: 'new'
-                };
-
-                const matchedRule = clientRules.find(rule =>
-                    rule.keywords.some(kw => row.Description.toLowerCase().includes(kw.toLowerCase()))
-                );
-
-                if (matchedRule) {
-                    transaction.status = 'reviewed';
-                    transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
-                    transaction.vatType = client.isVatRegistered ? matchedRule.vatType : 'no_vat';
-                    transaction.allocatedAt = Timestamp.now();
-                    transaction.allocationSource = 'rule';
-                }
-                batch.set(newRef, transaction);
+                });
             });
 
             await batch.commit();
@@ -153,7 +127,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild><Button><FileUp className="mr-2 h-4 w-4" /> Import CSV</Button></DialogTrigger>
+            <DialogTrigger asChild><Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import CSV</Button></DialogTrigger>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader><DialogTitle>Import Bank Statement</DialogTitle></DialogHeader>
                 <div className="space-y-4 py-4">
@@ -169,6 +143,88 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
             </DialogContent>
         </Dialog>
     )
+}
+
+const ruleFormSchema = z.object({
+  mode: z.enum(['new', 'append']).default('new'),
+  existingRuleId: z.string().optional(),
+  description: z.string().optional(),
+  keywords: z.string().min(2),
+  accountId: z.string().optional(),
+  vatType: z.string().optional(),
+  scope: z.enum(['global', 'client']).default('client'),
+});
+
+function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues, existingRules }: {
+    client: User | null;
+    onRuleCreated: () => void;
+    open: boolean;
+    onOpenChange: (isOpen: boolean) => void;
+    defaultValues: Partial<z.infer<typeof ruleFormSchema>>;
+    transactionDescription: string | null;
+    existingRules: AllocationRule[];
+}) {
+    const { toast } = useToast();
+    const form = useForm<z.infer<typeof ruleFormSchema>>({
+        resolver: zodResolver(ruleFormSchema),
+        defaultValues: { mode: 'new', ...defaultValues },
+    });
+    
+    const handleSave = async (values: z.infer<typeof ruleFormSchema>) => {
+        if (!client?.uid) return;
+        const keywordsArray = values.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean);
+
+        try {
+            if (values.mode === 'append' && values.existingRuleId) {
+                const rule = existingRules.find(r => r.id === values.existingRuleId);
+                if (rule) {
+                    const clientRef = doc(db, 'aiAccountantClients', client.uid);
+                    const updatedRules = (client.allocationRules || []).map(r => r.id === rule.id ? { ...r, keywords: Array.from(new Set([...r.keywords, ...keywordsArray])) } : r);
+                    await updateDoc(clientRef, { allocationRules: updatedRules });
+                }
+            } else {
+                const newRule = {
+                    id: `rule_${Date.now()}`,
+                    description: values.description || '',
+                    keywords: keywordsArray,
+                    accountId: values.accountId || '',
+                    vatType: values.vatType || 'no_vat',
+                    type: 'hard',
+                    scope: values.scope,
+                    priority: 99,
+                };
+                await updateDoc(doc(db, 'aiAccountantClients', client.uid), { allocationRules: arrayUnion(newRule) });
+            }
+            toast({ title: 'Rule Saved' });
+            onRuleCreated();
+            onOpenChange(false);
+        } catch(e) {
+            toast({ title: 'Error', variant: 'destructive'});
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader><DialogTitle>Create Allocation Rule</DialogTitle></DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
+                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                        <FormField control={form.control} name="accountId" render={({ field }) => (
+                            <FormItem><FormLabel>Account</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl>
+                                    <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </FormItem>
+                        )} />
+                        <DialogFooter><Button type="submit">Save Rule</Button></DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChange }: { client: User | null; onAccountCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -216,101 +272,17 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
     );
 }
 
-const ruleFormSchema = z.object({
-  mode: z.enum(['new', 'append']).default('new'),
-  existingRuleId: z.string().optional(),
-  description: z.string().optional(),
-  keywords: z.string().min(2),
-  accountId: z.string().optional(),
-  vatType: z.string().optional(),
-  scope: z.enum(['global', 'client']).default('client'),
-  isPriority: z.boolean().default(false),
-});
-
-function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues, transactionDescription, existingRules }: {
-    client: User | null;
-    onRuleCreated: () => void;
-    open: boolean;
-    onOpenChange: (isOpen: boolean) => void;
-    defaultValues: Partial<z.infer<typeof ruleFormSchema>>;
-    transactionDescription: string | null;
-    existingRules: AllocationRule[];
-}) {
-    const { toast } = useToast();
-    const form = useForm<z.infer<typeof ruleFormSchema>>({
-        resolver: zodResolver(ruleFormSchema),
-        defaultValues: { mode: 'new', ...defaultValues },
-    });
-    
-    const handleSave = async (values: z.infer<typeof ruleFormSchema>) => {
-        if (!client?.uid) return;
-        const keywordsArray = values.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean);
-
-        try {
-            if (values.mode === 'append' && values.existingRuleId) {
-                const rule = existingRules.find(r => r.id === values.existingRuleId);
-                if (rule) {
-                    const clientRef = doc(db, 'aiAccountantClients', client.uid);
-                    const updatedRules = (client.allocationRules || []).map(r => r.id === rule.id ? { ...r, keywords: Array.from(new Set([...r.keywords, ...keywordsArray])) } : r);
-                    await updateDoc(clientRef, { allocationRules: updatedRules });
-                }
-            } else {
-                const newRule = {
-                    id: `rule_${Date.now()}`,
-                    description: values.description || '',
-                    keywords: keywordsArray,
-                    accountId: values.accountId || '',
-                    vatType: values.vatType || 'no_vat',
-                    type: 'hard',
-                    scope: values.scope,
-                    priority: values.isPriority ? 1 : 99,
-                };
-                await updateDoc(doc(db, 'aiAccountantClients', client.uid), { allocationRules: arrayUnion(newRule) });
-            }
-            toast({ title: 'Rule Saved' });
-            onRuleCreated();
-            onOpenChange(false);
-        } catch(e) {
-            toast({ title: 'Error', variant: 'destructive'});
-        }
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg">
-                <DialogHeader><DialogTitle>Create Allocation Rule</DialogTitle></DialogHeader>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
-                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="accountId" render={({ field }) => (
-                            <FormItem><FormLabel>Account</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                                <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select>
-                            </FormItem>
-                        )} />
-                        <DialogFooter><Button type="submit">Save Rule</Button></DialogFooter>
-                    </form>
-                </Form>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 // #endregion
 
-const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, customers, fetchClientData, fetchGlobalRules, globalRules, onAccountCreated, setActiveTab, currentBalance }, ref) => {
+const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, globalRules, onAccountCreated, setActiveTab, currentBalance }, ref) => {
     const { user } = useAuth();
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
-    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [allocations, setAllocations] = useState<any>({});
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<any>({});
-    const [searchTerm, setSearchTerm] = useState('');
     const [isSaving, setIsSaving] = useState(false);
-    const [isAiResearching, setIsAiResearching] = useState<string | null>(null);
 
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -356,6 +328,8 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             if (lockRes.count > 0) {
                 setActiveTab('ai-workflow');
                 runAiAccountantAnalysis({ clientId: client.uid, bankAccountId, initiatorEmail: user.email });
+            } else {
+                toast({ title: "No new expenses found to process." });
             }
         } catch (e) { toast({ title: "Workflow Failed", variant: "destructive" }); }
     };
@@ -374,7 +348,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                             {bankAccountId && <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={currentBalance} onImportComplete={refetch} globalRules={globalRules} />}
                             {activeSubTab === 'expenses' && <Button variant="secondary" onClick={handleRunAiWorkflow}><Sparkles className="mr-2 h-4 w-4" /> Run AI Analysis</Button>}
                         </div>
-                        <Input placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-64" />
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -419,7 +392,7 @@ interface TransactionGroup {
     status: 'pending' | 'ready' | 'processing' | 'server_researching';
 }
 
-const AIWorkflowTab = ({ client, bankAccountId, globalRules, onAccountCreated }: { 
+const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: { 
     client: User | null; 
     bankAccountId: string | null; 
     globalRules: AllocationRule[];
@@ -476,7 +449,7 @@ const AIWorkflowTab = ({ client, bankAccountId, globalRules, onAccountCreated }:
                     status: 'reviewed',
                     allocatedTo: { value: settings.accountId, type: 'account' },
                     vatType: settings.vatType,
-                    allocatedAt: Timestamp.now(),
+                    allocatedAt: serverTimestamp(),
                     allocationSource: 'ai'
                 });
             });
@@ -533,39 +506,62 @@ const AIWorkflowTab = ({ client, bankAccountId, globalRules, onAccountCreated }:
                 {groups.map((group) => (
                     <Card key={group.merchantKey} className={cn("overflow-hidden", group.status === 'server_researching' && "opacity-75 border-dashed")}>
                         <div className="flex flex-col md:flex-row">
-                            <div className="p-4 md:w-1/3 bg-muted/30 border-r">
-                                <div className="flex items-start justify-between mb-4">
-                                    <div><Badge variant="outline" className="mb-1 text-[10px] uppercase">Merchant</Badge><h4 className="text-lg font-bold truncate">{group.merchantKey}</h4>
-                                    <Button variant="link" className="p-0 h-auto text-xs text-primary" onClick={() => setViewingGroup(group)}>{group.transactions.length} transactions</Button></div>
-                                    {group.status === 'server_researching' && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                            <div className="p-4 md:w-1/4 bg-muted/30 border-r border-b md:border-b-0">
+                                <div className="flex flex-col gap-3">
+                                    <div>
+                                        <Badge variant="outline" className="mb-1 text-[10px] uppercase tracking-wider">Merchant</Badge>
+                                        <h4 className="text-lg font-bold truncate leading-tight">{group.merchantKey}</h4>
+                                        <Button variant="link" className="p-0 h-auto text-xs text-primary underline-offset-2" onClick={() => setViewingGroup(group)}>{group.transactions.length} transactions</Button>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-bold uppercase text-muted-foreground">Example Reference</p>
+                                        <p className="text-[11px] italic text-muted-foreground leading-snug break-words">"{group.transactions[0].description}"</p>
+                                    </div>
+                                    {group.status === 'server_researching' && <div className="flex items-center gap-2 text-xs text-primary"><Loader2 className="h-3 w-3 animate-spin" /> Analyzing...</div>}
                                 </div>
-                                <p className="text-xs italic text-muted-foreground leading-relaxed">"{group.transactions[0].description}"</p>
                             </div>
-                            <div className="p-4 flex-grow grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-4">
-                                    <div className="space-y-2"><Label className="text-xs font-bold uppercase text-muted-foreground">Allocate To</Label>
-                                        <Select value={approvalSettings[group.merchantKey]?.accountId || ''} onValueChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], accountId: v}}))}>
-                                            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select account..." /></SelectTrigger>
-                                            <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2"><Label className="text-xs font-bold uppercase text-muted-foreground">VAT</Label>
-                                        <Select value={approvalSettings[group.merchantKey]?.vatType || 'no_vat'} onValueChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], vatType: v}}))}>
-                                            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                                            <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
-                                        </Select>
-                                    </div>
+                            
+                            <div className="p-4 md:w-1/3 space-y-4 border-r">
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Allocate To</Label>
+                                    <Select value={approvalSettings[group.merchantKey]?.accountId || ''} onValueChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], accountId: v}}))}>
+                                        <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select account..." /></SelectTrigger>
+                                        <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent>
+                                    </Select>
                                 </div>
-                                <div className="space-y-4">
-                                    <div className="p-3 rounded-lg bg-background border text-xs min-h-[80px]">
-                                        {group.status === 'ready' && group.suggestion ? (
-                                            <div className="space-y-2"><div className="flex items-center justify-between"><Badge variant={group.suggestion.confidence > 80 ? 'success' : 'warning'} className="text-[10px]">{group.suggestion.confidence}% AI Confidence</Badge></div><p className="text-muted-foreground italic">{group.suggestion.summary}</p></div>
-                                        ) : <div className="flex flex-col items-center justify-center h-full text-muted-foreground italic gap-2"><Loader2 className="h-4 w-4 animate-spin" /><span>Researching...</span></div>}
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">VAT</Label>
+                                    <Select value={approvalSettings[group.merchantKey]?.vatType || 'no_vat'} onValueChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], vatType: v}}))}>
+                                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                        <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div className="p-4 flex-grow flex flex-col justify-between">
+                                <div className="space-y-3">
+                                    {group.status === 'ready' && group.suggestion ? (
+                                        <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
+                                            <Badge variant={group.suggestion.confidence > 80 ? 'success' : 'warning'} className="text-[10px] mb-2">
+                                                {group.suggestion.confidence}% AI Confidence
+                                            </Badge>
+                                            <p className="text-xs italic text-muted-foreground leading-relaxed">{group.suggestion.summary}</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-6 text-muted-foreground italic gap-2 bg-muted/10 rounded-lg border border-dashed">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <span className="text-xs">Researching on server...</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center justify-between mt-4">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox id={`rule-${group.merchantKey}`} checked={approvalSettings[group.merchantKey]?.createRule} onCheckedChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], createRule: !!v}}))} />
+                                        <Label htmlFor={`rule-${group.merchantKey}`} className="text-xs cursor-pointer font-medium">Create Client Rule</Label>
                                     </div>
-                                    <div className="flex items-center justify-between pt-2">
-                                        <div className="flex items-center space-x-2"><Checkbox id={`rule-${group.merchantKey}`} checked={approvalSettings[group.merchantKey]?.createRule} onCheckedChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], createRule: !!v}}))} /><Label htmlFor={`rule-${group.merchantKey}`} className="text-xs cursor-pointer">Create Client Rule</Label></div>
-                                        <Button size="sm" onClick={() => handleApproveGroup(group)} disabled={group.status !== 'ready'}><CheckCircle2 className="mr-2 h-4 w-4" /> Approve Group</Button>
-                                    </div>
+                                    <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => handleApproveGroup(group)} disabled={group.status !== 'ready'}>
+                                        <CheckCircle2 className="mr-2 h-4 w-4" /> Approve Group
+                                    </Button>
                                 </div>
                             </div>
                         </div>
@@ -576,17 +572,14 @@ const AIWorkflowTab = ({ client, bankAccountId, globalRules, onAccountCreated }:
     );
 };
 
-const ReviewedTab = ({ client, bankAccountId, customers, onAccountCreated }: { 
+const ReviewedTab = ({ client, bankAccountId }: { 
     client: User | null; 
     bankAccountId: string | null; 
     customers: ClientCustomer[]; 
     onAccountCreated: () => void; 
 }) => {
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-    const [isSaving, setIsSaving] = useState(false);
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
-    const { toast } = useToast();
-    const [changes, setChanges] = useState<any>({});
     const uniqueChartOfAccounts = useMemo(() => client?.chartOfAccounts || [], [client]);
 
     const baseQuery = useMemo(() => {
@@ -597,23 +590,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, onAccountCreated }: {
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
     }, [client?.uid, bankAccountId, activeSubTab, dateRange]);
 
-    const { documents: transactions, isLoading, refetch } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
-
-    const handleSaveChanges = async () => {
-      if (!client?.uid || Object.keys(changes).length === 0) return;
-      setIsSaving(true);
-      try {
-          const batch = writeBatch(db);
-          Object.keys(changes).forEach(txId => {
-              const changeData = changes[txId];
-              batch.update(doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId), { ...changeData, allocationSource: 'manual' });
-          });
-          await batch.commit();
-          toast({ title: 'Success!' });
-          setChanges({});
-          refetch();
-      } catch (e) { console.error(e); } finally { setIsSaving(false); }
-    };
+    const { documents: transactions, isLoading, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
 
     return (
         <Card>
@@ -622,7 +599,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, onAccountCreated }: {
                     <TabsList className="grid w-full grid-cols-2 rounded-none"><TabsTrigger value="expenses">Reviewed Expenses</TabsTrigger><TabsTrigger value="income">Reviewed Income</TabsTrigger></TabsList>
                 </Tabs>
                  <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <Button onClick={handleSaveChanges} disabled={isSaving || Object.keys(changes).length === 0}>{isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Save Changes</Button>
+                    <div />
                     <DateRangePicker onDateChange={setDateRange} />
                 </div>
             </CardHeader>
@@ -635,18 +612,21 @@ const ReviewedTab = ({ client, bankAccountId, customers, onAccountCreated }: {
                             <TableRow key={tx.id}>
                                 <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                 <TableCell>{tx.description}</TableCell>
-                                <TableCell className="w-[250px]">
-                                    <Select onValueChange={(v) => setChanges((p: any) => ({...p, [tx.id]: { allocatedTo: { value: v, type: 'account' } }}))}>
-                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={uniqueChartOfAccounts.find(a => a.id === tx.allocatedTo?.value)?.description || 'Select...'} /></SelectTrigger>
-                                        <SelectContent>{uniqueChartOfAccounts.map(a => <SelectItem key={a.id} value={a.id}>{a.description}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                </TableCell>
+                                <TableCell className="text-sm">{uniqueChartOfAccounts.find(a => a.id === tx.allocatedTo?.value)?.description || tx.allocatedTo?.value}</TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                             </TableRow>
                          ))}
                     </TableBody>
                 </Table>
             </CardContent>
+            <CardFooter className="flex justify-between p-4 border-t">
+                <div />
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}>Previous</Button>
+                    <span className="text-sm">Page {currentPage}</span>
+                    <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}>Next</Button>
+                </div>
+            </CardFooter>
         </Card>
     );
 };
