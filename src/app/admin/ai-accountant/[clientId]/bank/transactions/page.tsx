@@ -18,7 +18,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -522,7 +522,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g., Office Flowers" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                         <DialogFooter>
-                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                            <Button type="button" variant="ghost" onClick={onOpenChange.bind(null, false)}>Cancel</Button>
                             <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create Account</Button>
                         </DialogFooter>
                     </form>
@@ -1147,7 +1147,7 @@ const NewTransactionsTab = React.forwardRef<
                 batch.commit().catch(async (serverError) => {
                     const permissionError = new FirestorePermissionError({
                         path: `aiAccountantClients/${client.uid}/transactions`,
-                        operation: 'delete',
+                        operation: 'update',
                     });
                     errorEmitter.emit('permission-error', permissionError);
                 });
@@ -2654,8 +2654,8 @@ const ReviewedTab = React.forwardRef<
                             <DropdownMenuContent>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); }} className="text-destructive">
-                                            Delete Selected
+                                        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); }}>
+                                            <span className="text-destructive">Delete Selected</span>
                                         </DropdownMenuItem>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
