@@ -1,4 +1,3 @@
-
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField } from 'firebase/firestore';
@@ -241,7 +240,7 @@ export async function runAiAccountantAnalysis({
         if (processingExpenses.length === 0) return { success: true, count: 0 };
 
         // 1. Fetch History & Rules
-        const historyQuery = query(transRef, where('status', '==', 'reviewed'), limit(500));
+        const historyQuery = query(transRef, where('status', 'in', ['reviewed', 'allocated']), limit(500));
         const historySnap = await getDocs(historyQuery);
         const history = historySnap.docs.map(d => d.data() as ImportedTransaction);
 
