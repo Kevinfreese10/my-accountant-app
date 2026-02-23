@@ -25,7 +25,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
-import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from "@/components/command";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, parse } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -963,6 +963,10 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [isResearchingId, setIsResearchingId] = useState<string | null>(null);
     const [isQueryDialogOpen, setIsQueryDialogOpen] = useState(false);
     const [queryEmail, setQueryEmail] = useState('');
+    
+    // User lookup states
+    const [isSearchingUser, setIsSearchingUser] = useState(false);
+    const [foundUser, setFoundUser] = useState<User | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!client?.uid || !bankAccountId) return;
@@ -995,6 +999,32 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     }, [client, bankAccountId]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
+
+    // Lookup user by email as accountant types
+    useEffect(() => {
+        const lookupUser = async () => {
+            if (!queryEmail || !queryEmail.includes('@') || queryEmail.length < 5) {
+                setFoundUser(null);
+                return;
+            }
+            setIsSearchingUser(true);
+            try {
+                const q = query(collection(db, 'users'), where('email', '==', queryEmail.trim().toLowerCase()), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    setFoundUser({ ...snap.docs[0].data(), id: snap.docs[0].id } as User);
+                } else {
+                    setFoundUser(null);
+                }
+            } catch (e) {
+                console.error("User lookup failed", e);
+            } finally {
+                setIsSearchingUser(false);
+            }
+        };
+        const timer = setTimeout(lookupUser, 500);
+        return () => clearTimeout(timer);
+    }, [queryEmail]);
 
     const handleRecheckRules = async () => {
         if (!client?.uid) return;
@@ -1064,6 +1094,14 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             if (snapshot.empty) {
                 toast({ title: "No transactions to query", description: "All items are currently allocated." });
                 return;
+            }
+
+            // LINK: If user exists, ensure they have shared access to this client profile
+            if (foundUser && foundUser.id) {
+                const clientDocRef = doc(db, 'aiAccountantClients', client.uid);
+                await updateDoc(clientDocRef, {
+                    sharedWith: arrayUnion(foundUser.id)
+                });
             }
 
             await sendAllocationQueryEmail({ 
@@ -1201,12 +1239,27 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     <div className="py-4 space-y-4">
                         <div className="space-y-2">
                             <Label>Client Email</Label>
-                            <Input 
-                                type="email" 
-                                value={queryEmail} 
-                                onChange={(e) => setQueryEmail(e.target.value)}
-                                placeholder="Enter client's email..."
-                            />
+                            <div className="relative">
+                                <Input 
+                                    type="email" 
+                                    value={queryEmail} 
+                                    onChange={(e) => setQueryEmail(e.target.value)}
+                                    placeholder="Enter client's email..."
+                                    className={cn(foundUser && "border-green-500 focus-visible:ring-green-500")}
+                                />
+                                {isSearchingUser && <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />}
+                            </div>
+                            {foundUser ? (
+                                <div className="flex items-center gap-2 text-xs text-green-600 font-bold bg-green-50 p-2 rounded border border-green-100 animate-in fade-in">
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    User found: {foundUser.name}. Sending will link their profile to this client.
+                                </div>
+                            ) : queryEmail && !isSearchingUser && queryEmail.includes('@') && (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 p-2 rounded border animate-in fade-in">
+                                    <AlertCircle className="h-3.5 w-3.5" />
+                                    No user found with this email. An invite will still be sent.
+                                </div>
+                            )}
                         </div>
                         <Alert>
                             <Info className="h-4 w-4" />
