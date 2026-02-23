@@ -43,6 +43,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
         }
     }, [clientId]);
 
+    const isChatPage = pathname?.endsWith('/chat');
 
     if (isLoading) {
         return (
@@ -70,81 +71,85 @@ export default function AIAccountantClientLayout({ children }: { children: React
                         <h1 className="text-2xl font-bold tracking-tight">{client?.companyName || client?.name}</h1>
                         <p className="text-muted-foreground">AI Accountant Module</p>
                     </div>
-                    <Button variant="outline" asChild className="bg-primary/5 border-primary/20 text-primary hover:bg-primary/10">
-                        <Link href={`/dashboard/ai-accountant/${clientId}/chat`}>
-                            <MessageSquareQuote className="mr-2 h-4 w-4"/>
-                            Explain Transactions Chat
-                        </Link>
-                    </Button>
+                    {!isChatPage && (
+                        <Button variant="outline" asChild className="bg-primary/5 border-primary/20 text-primary hover:bg-primary/10">
+                            <Link href={`/dashboard/ai-accountant/${clientId}/chat`}>
+                                <MessageSquareQuote className="mr-2 h-4 w-4"/>
+                                Explain Transactions Chat
+                            </Link>
+                        </Button>
+                    )}
                 </div>
             </div>
 
-            <Menubar className="w-full bg-card">
-                 <MenubarMenu>
-                    <MenubarTrigger>Quick View <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
-                    <MenubarContent>
-                        <MenubarItem>Customers</MenubarItem>
-                        <MenubarItem>Suppliers</MenubarItem>
-                        <MenubarItem>Items</MenubarItem>
-                    </MenubarContent>
-                </MenubarMenu>
-                <MenubarMenu>
-                    <MenubarTrigger>Customers <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
-                    <MenubarContent>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/customers`}>Customer List</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/invoices`}>Invoices</Link></MenubarItem>
-                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/quotes`}>Quotes</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/credit-notes`}>Credit Notes</Link></MenubarItem>
-                        <MenubarSeparator />
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/journals?type=customer`}>Customer Journals</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/customer-ledger`}>Customer Ledger</Link></MenubarItem>
-                    </MenubarContent>
-                </MenubarMenu>
-                <MenubarMenu>
-                    <MenubarTrigger>Suppliers <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
-                     <MenubarContent>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/suppliers`}>Supplier List</Link></MenubarItem>
-                        <MenubarSeparator />
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/journals?type=supplier`}>Supplier Journals</Link></MenubarItem>
-                    </MenubarContent>
-                </MenubarMenu>
-                <MenubarMenu>
-                    <MenubarTrigger>General Journal</MenubarTrigger>
-                     <MenubarContent>
-                         <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/general-journal`}>Post General Journal</Link></MenubarItem>
-                    </MenubarContent>
-                </MenubarMenu>
-                <MenubarMenu><MenubarTrigger>Items</MenubarTrigger></MenubarMenu>
-                <MenubarMenu>
-                     <MenubarTrigger>Banking <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
-                     <MenubarContent>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/bank/transactions`}>Bank & Credit Cards</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/bank-transactions`}>Bank Transaction Report</Link></MenubarItem>
-                     </MenubarContent>
-                </MenubarMenu>
-                 <MenubarMenu>
-                    <MenubarTrigger>VAT <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
-                    <MenubarContent>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat201`}>VAT201</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat-transactions`}>VAT Transactions</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat-recon`}>VAT Recon</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat-audit`}>VAT Audit</Link></MenubarItem>
-                    </MenubarContent>
-                </MenubarMenu>
-                 <MenubarMenu>
-                    <MenubarTrigger>Reports <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
-                    <MenubarContent>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/profit-and-loss`}>Profit & Loss</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/trial-balance`}>Trial Balance</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/general-ledger`}>General Ledger</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/transaction-search`}>Transaction Search</Link></MenubarItem>
-                        
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/age-analysis`}>Age Analysis</Link></MenubarItem>
-                        <MenubarSeparator />
-                        <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/account-transactions`}>Account Transactions</Link></MenubarItem>
-                    </MenubarContent>
-                </MenubarMenu>
-            </Menubar>
+            {!isChatPage && (
+                <Menubar className="w-full bg-card">
+                    <MenubarMenu>
+                        <MenubarTrigger>Quick View <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                        <MenubarContent>
+                            <MenubarItem>Customers</MenubarItem>
+                            <MenubarItem>Suppliers</MenubarItem>
+                            <MenubarItem>Items</MenubarItem>
+                        </MenubarContent>
+                    </MenubarMenu>
+                    <MenubarMenu>
+                        <MenubarTrigger>Customers <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                        <MenubarContent>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/customers`}>Customer List</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/invoices`}>Invoices</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/quotes`}>Quotes</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/credit-notes`}>Credit Notes</Link></MenubarItem>
+                            <MenubarSeparator />
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/journals?type=customer`}>Customer Journals</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/customer-ledger`}>Customer Ledger</Link></MenubarItem>
+                        </MenubarContent>
+                    </MenubarMenu>
+                    <MenubarMenu>
+                        <MenubarTrigger>Suppliers <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                        <MenubarContent>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/suppliers`}>Supplier List</Link></MenubarItem>
+                            <MenubarSeparator />
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/journals?type=supplier`}>Supplier Journals</Link></MenubarItem>
+                        </MenubarContent>
+                    </MenubarMenu>
+                    <MenubarMenu>
+                        <MenubarTrigger>General Journal</MenubarTrigger>
+                        <MenubarContent>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/general-journal`}>Post General Journal</Link></MenubarItem>
+                        </MenubarContent>
+                    </MenubarMenu>
+                    <MenubarMenu><MenubarTrigger>Items</MenubarTrigger></MenubarMenu>
+                    <MenubarMenu>
+                        <MenubarTrigger>Banking <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                        <MenubarContent>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/bank/transactions`}>Bank & Credit Cards</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/bank-transactions`}>Bank Transaction Report</Link></MenubarItem>
+                        </MenubarContent>
+                    </MenubarMenu>
+                    <MenubarMenu>
+                        <MenubarTrigger>VAT <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                        <MenubarContent>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat201`}>VAT201</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat-transactions`}>VAT Transactions</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat-recon`}>VAT Recon</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/vat-audit`}>VAT Audit</Link></MenubarItem>
+                        </MenubarContent>
+                    </MenubarMenu>
+                    <MenubarMenu>
+                        <MenubarTrigger>Reports <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                        <MenubarContent>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/profit-and-loss`}>Profit & Loss</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/trial-balance`}>Trial Balance</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/general-ledger`}>General Ledger</Link></MenubarItem>
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/transaction-search`}>Transaction Search</Link></MenubarItem>
+                            
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/age-analysis`}>Age Analysis</Link></MenubarItem>
+                            <MenubarSeparator />
+                            <MenubarItem asChild><Link href={`/dashboard/ai-accountant/${clientId}/reports/account-transactions`}>Account Transactions</Link></MenubarItem>
+                        </MenubarContent>
+                    </MenubarMenu>
+                </Menubar>
+            )}
             
             <main>
                 {children}
