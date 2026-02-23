@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,7 +36,7 @@ import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, sendAllocationQueryEmail } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 
@@ -954,6 +954,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [groups, setGroups] = useState<TransactionGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isRechecking, setIsRechecking] = useState(false);
+    const [isQueryingClient, setIsQueryingClient] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [approvalSettings, setApprovalSettings] = useState<any>({});
     const [viewingGroup, setViewingGroup] = useState<TransactionGroup | null>(null);
@@ -1045,6 +1046,28 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             toast({ title: "Recheck Failed", variant: "destructive" });
         } finally {
             setIsRechecking(false);
+        }
+    };
+
+    const handleQueryClient = async () => {
+        if (!client?.uid) return;
+        setIsQueryingClient(true);
+        try {
+            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            const q = query(transRef, where('bankAccountId', '==', bankAccountId), where('status', 'in', ['new', 'ai_review']));
+            const snapshot = await getDocs(q);
+            
+            if (snapshot.empty) {
+                toast({ title: "No transactions to query", description: "All items are currently allocated." });
+                return;
+            }
+
+            await sendAllocationQueryEmail({ clientId: client.uid, unallocatedCount: snapshot.size });
+            toast({ title: "Query Sent", description: "The client has been notified to clarify unallocated transactions via chat." });
+        } catch (error) {
+            toast({ title: "Failed to send query", variant: "destructive" });
+        } finally {
+            setIsQueryingClient(false);
         }
     };
 
@@ -1158,12 +1181,16 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             <CreateGeneralAccountDialog client={client} onAccountCreated={fetchData} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
             <GroupTransactionsDialog open={!!viewingGroup} onOpenChange={(o) => !o && setViewingGroup(null)} group={viewingGroup} onMoveToNew={handleMoveSingleTransactionToNew} />
             
-            <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border border-dashed">
+            <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border border-dashed gap-4 flex-wrap">
                 <div className="space-y-1">
                     <h3 className="font-bold text-sm">Review Identifiable Merchants</h3>
                     <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                    <Button variant="outline" onClick={handleQueryClient} disabled={isQueryingClient}>
+                        {isQueryingClient ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <MessageSquareQuote className="mr-2 h-4 w-4" />}
+                        Query Client
+                    </Button>
                     <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking || groups.length === 0}>
                         {isRechecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4" />}
                         Recheck Rules

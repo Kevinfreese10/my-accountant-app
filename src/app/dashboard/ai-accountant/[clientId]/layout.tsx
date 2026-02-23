@@ -1,4 +1,3 @@
-
 'use client';
 
 import { ReactNode, useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronLeft, ChevronDown } from 'lucide-react';
+import { ChevronLeft, ChevronDown, MessageSquareQuote } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Menubar,
@@ -66,8 +65,18 @@ export default function AIAccountantClientLayout({ children }: { children: React
                         Back to All Clients
                     </Link>
                 </Button>
-                <h1 className="text-2xl font-bold tracking-tight">{client?.companyName || client?.name}</h1>
-                <p className="text-muted-foreground">AI Accountant Module</p>
+                <div className="flex justify-between items-center gap-4 flex-wrap">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight">{client?.companyName || client?.name}</h1>
+                        <p className="text-muted-foreground">AI Accountant Module</p>
+                    </div>
+                    <Button variant="outline" asChild className="bg-primary/5 border-primary/20 text-primary hover:bg-primary/10">
+                        <Link href={`/dashboard/ai-accountant/${clientId}/chat`}>
+                            <MessageSquareQuote className="mr-2 h-4 w-4"/>
+                            Explain Transactions Chat
+                        </Link>
+                    </Button>
+                </div>
             </div>
 
             <Menubar className="w-full bg-card">
