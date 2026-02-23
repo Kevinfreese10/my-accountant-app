@@ -174,6 +174,9 @@ export async function moveTransactionToNew({ clientId, transactionId }: { client
             matchedRuleId: deleteField(),
             matchedRuleDescription: deleteField(),
             matchedKeyword: deleteField(),
+            allocatedTo: deleteField(),
+            vatType: deleteField(),
+            allocatedAt: deleteField()
         });
         return { success: true };
     } catch (e) {
@@ -293,7 +296,7 @@ export async function runAiAccountantAnalysis({
 
         // 2. Group by description & Match
         const uniqueDescriptions = Array.from(new Set(processingExpenses.map(tx => tx.description)));
-        const merchantAnalysis: { [key: string]: { merchantKey: string | null, result: AIAllocationResult | null, source: string | null, ruleId?: string, matchedKeyword?: string } } = {};
+        const merchantAnalysis: { [key: string]: { merchantKey: string | null, result: AIAllocationResult | null, source: string | null, ruleId?: string, matchedKeyword?: string, ruleDescription?: string } } = {};
 
         for (const desc of uniqueDescriptions) {
             let merchantKey: string | null = null;
@@ -301,6 +304,7 @@ export async function runAiAccountantAnalysis({
             let finalSource: string | null = null;
             let ruleId: string | undefined;
             let matchedKeyword: string | undefined;
+            let ruleDescription: string | undefined;
 
             try {
                 const norm = await extractSupplierName({ description: desc });
@@ -327,6 +331,7 @@ export async function runAiAccountantAnalysis({
                         if (ruleMatch) {
                             matchedKeyword = ruleMatch.keywords.find(kw => merchantKey!.includes(kw.toUpperCase()));
                             ruleId = ruleMatch.id;
+                            ruleDescription = ruleMatch.description;
                             finalResult = {
                                 accountId: ruleMatch.accountId,
                                 vatType: ruleMatch.vatType,
@@ -357,7 +362,7 @@ export async function runAiAccountantAnalysis({
                 console.error(`Analysis failed for ${desc}`, e);
             }
 
-            merchantAnalysis[desc] = { merchantKey, result: finalResult, source: finalSource, ruleId, matchedKeyword };
+            merchantAnalysis[desc] = { merchantKey, result: finalResult, source: finalSource, ruleId, matchedKeyword, ruleDescription };
         }
 
         // 3. Batch Update
@@ -372,6 +377,7 @@ export async function runAiAccountantAnalysis({
                     status: 'ai_review',
                     allocationSource: analysis.source,
                     matchedRuleId: analysis.ruleId || deleteField(),
+                    matchedRuleDescription: analysis.ruleDescription || deleteField(),
                     matchedKeyword: analysis.matchedKeyword || deleteField()
                 });
                 moveCount++;
@@ -382,6 +388,7 @@ export async function runAiAccountantAnalysis({
                     aiAllocationResult: deleteField(),
                     allocationSource: deleteField(),
                     matchedRuleId: deleteField(),
+                    matchedRuleDescription: deleteField(),
                     matchedKeyword: deleteField()
                 });
             }
