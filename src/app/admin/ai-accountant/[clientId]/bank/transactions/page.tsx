@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -1042,6 +1042,8 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
     const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
     const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
+    const [editedAllocations, setEditedAllocations] = useState<any>({});
+    const [isSaving, setIsSaving] = useState(false);
 
     const uniqueChartOfAccounts = useMemo(() => [...(client?.chartOfAccounts || [])].sort((a, b) => a.description.localeCompare(b.description)), [client]);
 
@@ -1109,11 +1111,42 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
         }
     };
 
+    const handleSaveEditedAllocations = async () => {
+        if (!client?.uid || Object.keys(editedAllocations).length === 0) return;
+        setIsSaving(true);
+        try {
+            const batch = writeBatch(db);
+            const txCollection = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            
+            Object.entries(editedAllocations).forEach(([txId, alloc]: [string, any]) => {
+                const tx = transactions.find(t => t.id === txId);
+                if (!tx) return;
+                
+                batch.update(doc(txCollection, txId), {
+                    allocatedTo: alloc.allocatedTo || tx.allocatedTo,
+                    vatType: alloc.vatType || tx.vatType || 'no_vat',
+                    allocatedAt: serverTimestamp(),
+                    allocationSource: 'manual'
+                });
+            });
+            
+            await batch.commit();
+            toast({ title: "Changes Saved", description: `${Object.keys(editedAllocations).length} transactions updated.` });
+            setEditedAllocations({});
+            refetch();
+        } catch (e) {
+            console.error(e);
+            toast({ title: "Error Saving", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     return (
         <div className="space-y-4">
             <Card>
                 <CardHeader className="p-0 border-b">
-                    <Tabs value={activeSubTab} onValueChange={(v: any) => { setActiveSubTab(v); setSelectedGlAccountId("all"); }} className="w-full">
+                    <Tabs value={activeSubTab} onValueChange={(v: any) => { setActiveSubTab(v); setSelectedGlAccountId("all"); setEditedAllocations({}); }} className="w-full">
                         <TabsList className="grid w-full grid-cols-2 rounded-none"><TabsTrigger value="expenses">Reviewed Expenses</TabsTrigger><TabsTrigger value="income">Reviewed Income</TabsTrigger></TabsList>
                     </Tabs>
                     <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -1148,11 +1181,65 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
                         </TableHeader>
                         <TableBody>
                             {isLoading ? <TableRow><TableCell colSpan={client?.isVatRegistered ? 7 : 6} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
-                            transactions.map(tx => (
-                                <TableRow key={tx.id}>
+                            transactions.map(tx => {
+                                const edited = editedAllocations[tx.id];
+                                const currentAlloc = edited?.allocatedTo || tx.allocatedTo;
+                                const currentVat = edited?.vatType || tx.vatType || "no_vat";
+
+                                return (
+                                <TableRow key={tx.id} className={cn(edited && "bg-primary/5")}>
                                     <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                     <TableCell>{tx.description}</TableCell>
-                                    <TableCell className="text-sm">{getAllocationName(tx.allocatedTo)}</TableCell>
+                                    <TableCell>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" className={cn("h-8 text-[11px] w-full justify-start", edited?.allocatedTo && "border-primary")}>
+                                                    {getAllocationName(currentAlloc)}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-64 p-0">
+                                                <Command>
+                                                    <CommandInput placeholder="Search accounts..." />
+                                                    <CommandList>
+                                                        <CommandGroup heading="GL Accounts">
+                                                            {client?.chartOfAccounts?.map(a => (
+                                                                <CommandItem 
+                                                                    key={a.id} 
+                                                                    onSelect={() => setEditedAllocations((p: any) => ({
+                                                                        ...p, 
+                                                                        [tx.id]: { 
+                                                                            ...(p[tx.id] || { vatType: tx.vatType }), 
+                                                                            allocatedTo: { value: a.id, type: 'account' }
+                                                                        }
+                                                                    }))}
+                                                                >
+                                                                    {a.description}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                        {activeSubTab === 'income' && (
+                                                            <CommandGroup heading="Customers">
+                                                                {customers.map(c => (
+                                                                    <CommandItem 
+                                                                        key={c.id} 
+                                                                        onSelect={() => setEditedAllocations((p: any) => ({
+                                                                            ...p, 
+                                                                            [tx.id]: { 
+                                                                                allocatedTo: { value: c.id, type: 'customer' },
+                                                                                vatType: 'no_vat' 
+                                                                            }
+                                                                        }))}
+                                                                    >
+                                                                        {c.name}
+                                                                    </CommandItem>
+                                                                ))}
+                                                            </CommandGroup>
+                                                        )}
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+                                    </TableCell>
                                     <TableCell>
                                         {tx.allocationSource === 'rule' ? (
                                             <TooltipProvider>
@@ -1180,43 +1267,77 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
                                         )}
                                     </TableCell>
                                     {client?.isVatRegistered && (
-                                        <TableCell className="text-xs">
-                                            {allVatTypes.find(v => v.name === tx.vatType)?.label || <span className="text-muted-foreground italic">No VAT</span>}
+                                        <TableCell>
+                                            <Select 
+                                                value={currentVat} 
+                                                onValueChange={(v) => setEditedAllocations((p: any) => ({
+                                                    ...p, 
+                                                    [tx.id]: { 
+                                                        ...(p[tx.id] || { allocatedTo: tx.allocatedTo }), 
+                                                        vatType: v 
+                                                    }
+                                                }))}
+                                            >
+                                                <SelectTrigger className={cn("h-8 text-[10px] w-full min-w-[120px]", edited?.vatType && "border-primary")}><SelectValue placeholder="Select VAT..." /></SelectTrigger>
+                                                <SelectContent>
+                                                    {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
                                         </TableCell>
                                     )}
                                     <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                     <TableCell className="text-right">
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4"/></Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => handleResetToNew(tx.id)} className="text-destructive">
-                                                    <Undo2 className="mr-2 h-4 w-4" /> Move to New
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem onClick={() => {
-                                                    const account = uniqueChartOfAccounts.find(a => a.id === tx.allocatedTo?.value);
-                                                    if (account) {
-                                                        window.location.href = `/admin/ai-accountant/${client?.uid}/reports/general-ledger?accountId=${account.id}`;
-                                                    }
+                                        <div className="flex items-center justify-end gap-1">
+                                            {edited && (
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => {
+                                                    const newEdited = { ...editedAllocations };
+                                                    delete newEdited[tx.id];
+                                                    setEditedAllocations(newEdited);
                                                 }}>
-                                                    <ArrowRightLeft className="mr-2 h-4 w-4" /> View Ledger
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4"/></Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleResetToNew(tx.id)} className="text-destructive">
+                                                        <Undo2 className="mr-2 h-4 w-4" /> Move to New
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={() => {
+                                                        const account = uniqueChartOfAccounts.find(a => a.id === tx.allocatedTo?.value);
+                                                        if (account) {
+                                                            window.location.href = `/admin/ai-accountant/${client?.uid}/reports/general-ledger?accountId=${account.id}`;
+                                                        }
+                                                    }}>
+                                                        <ArrowRightLeft className="mr-2 h-4 w-4" /> View Ledger
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            )})}
                         </TableBody>
                     </Table>
                 </CardContent>
                 <CardFooter className="flex justify-between p-4 border-t">
-                    <div className="flex items-center gap-2">
+                    <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}>Previous</Button>
-                        <span className="text-sm">Page {currentPage}</span>
+                        <span className="text-sm self-center">Page {currentPage}</span>
                         <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}>Next</Button>
                     </div>
+                    {Object.keys(editedAllocations).length > 0 && (
+                        <div className="flex gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => setEditedAllocations({})}>Cancel Edits</Button>
+                            <Button size="sm" onClick={handleSaveEditedAllocations} disabled={isSaving}>
+                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Save {Object.keys(editedAllocations).length} Changes
+                            </Button>
+                        </div>
+                    )}
                 </CardFooter>
             </Card>
         </div>
