@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Send, Bot, User, CheckCircle2, AlertCircle, Info, Banknote, MessageSquareQuote } from 'lucide-react';
+import { Loader2, Send, Bot, User, CheckCircle2, AlertCircle, Info, Banknote, MessageSquareQuote } from 'lucide-center';
 import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -167,11 +167,11 @@ export default function ClientAllocationChatPage() {
                                     <div key={q.id} className="p-4 space-y-1">
                                         <div className="flex justify-between items-center">
                                             <Badge variant="default" className="text-[9px] uppercase font-bold px-1.5 h-4">Email Invite Sent</Badge>
-                                            <span className="text-[10px] text-muted-foreground font-bold">
+                                            <span className="text-[10px] text-slate-950 font-bold">
                                                 {format(q.sentAt?.toDate?.() || new Date(), 'dd MMM, HH:mm')}
                                             </span>
                                         </div>
-                                        <p className="text-sm font-bold text-slate-900 leading-snug">
+                                        <p className="text-sm font-bold text-slate-950 leading-snug">
                                             Accountant needs info for {q.unallocatedCount} transactions.
                                         </p>
                                     </div>
@@ -183,11 +183,11 @@ export default function ClientAllocationChatPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
+                        <CardTitle className="flex items-center gap-2 text-slate-950">
                             <Banknote className="h-5 w-5 text-primary" />
                             Pending Clarification
                         </CardTitle>
-                        <CardDescription>
+                        <CardDescription className="text-slate-900 font-medium">
                             The following {pendingTransactions.length} items need your attention.
                         </CardDescription>
                     </CardHeader>
@@ -197,18 +197,18 @@ export default function ClientAllocationChatPage() {
                                 {pendingTransactions.map(tx => (
                                     <div key={tx.id} className="p-4 space-y-1 hover:bg-muted/30 transition-colors border-l-2 border-transparent hover:border-primary">
                                         <div className="flex justify-between items-start">
-                                            <p className="text-xs font-bold text-slate-900 uppercase tracking-widest">{format(new Date(tx.date), 'dd MMM yyyy')}</p>
+                                            <p className="text-xs font-bold text-slate-950 uppercase tracking-widest">{format(new Date(tx.date), 'dd MMM yyyy')}</p>
                                             <p className="text-sm font-mono font-bold text-slate-950">{formatPrice(tx.amount)}</p>
                                         </div>
-                                        <p className="text-sm font-semibold leading-tight text-slate-900">{tx.description}</p>
+                                        <p className="text-sm font-bold leading-tight text-slate-950">{tx.description}</p>
                                         {tx.status === 'ai_review' && <Badge variant="secondary" className="text-[10px] py-0 font-bold">Reviewing Group</Badge>}
                                     </div>
                                 ))}
                                 {pendingTransactions.length === 0 && (
                                     <div className="p-8 text-center text-muted-foreground">
                                         <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-green-500" />
-                                        <p className="text-sm font-bold text-slate-900">All caught up!</p>
-                                        <p className="text-xs">No transactions need clarification.</p>
+                                        <p className="text-sm font-bold text-slate-950">All caught up!</p>
+                                        <p className="text-xs font-medium text-slate-900">No transactions need clarification.</p>
                                     </div>
                                 )}
                             </div>
@@ -218,8 +218,8 @@ export default function ClientAllocationChatPage() {
                 
                 <Alert className="bg-primary/5 border-primary/20">
                     <Info className="h-4 w-4" />
-                    <AlertTitle className="font-bold">How it works</AlertTitle>
-                    <AlertDescription className="text-xs leading-relaxed font-medium">
+                    <AlertTitle className="font-bold text-slate-950">How it works</AlertTitle>
+                    <AlertDescription className="text-xs leading-relaxed font-bold text-slate-900">
                         Khai (your AI assistant) will ask you about these transactions one by one. Simply tell her what they were for (e.g., "Lunch with client" or "Office rental") and she'll handle the accounting mapping for you.
                     </AlertDescription>
                 </Alert>
@@ -233,8 +233,8 @@ export default function ClientAllocationChatPage() {
                                 <Bot className="h-6 w-6" />
                             </div>
                             <div>
-                                <CardTitle className="text-lg font-bold">Chat with Khai</CardTitle>
-                                <CardDescription className="text-xs font-semibold text-primary">Secure Transaction Assistant</CardDescription>
+                                <CardTitle className="text-lg font-bold text-slate-950">Chat with Khai</CardTitle>
+                                <CardDescription className="text-xs font-bold text-primary">Secure Transaction Assistant</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
@@ -248,12 +248,18 @@ export default function ClientAllocationChatPage() {
                                             "max-w-[80%] rounded-2xl px-4 py-3 shadow-sm",
                                             m.role === 'user' 
                                                 ? "bg-primary text-primary-foreground rounded-br-none" 
-                                                : "bg-muted border rounded-bl-none text-foreground"
+                                                : "bg-muted border rounded-bl-none text-slate-950"
                                         )}>
                                             <div className={cn("prose prose-sm", m.role === 'user' ? "prose-invert" : "text-slate-950 font-bold")}>
-                                                <ReactMarkdown>{m.content}</ReactMarkdown>
+                                                <ReactMarkdown
+                                                    components={{
+                                                        p: ({node, ...props}) => <p className="text-sm my-0 leading-relaxed font-bold text-slate-950" {...props} />,
+                                                        ul: ({node, ...props}) => <ul className="list-disc pl-4 my-2 font-bold text-slate-950" {...props} />,
+                                                        li: ({node, ...props}) => <li className="my-1 font-bold text-slate-950" {...props} />,
+                                                    }}
+                                                >{m.content}</ReactMarkdown>
                                             </div>
-                                            <p className={cn("text-[10px] mt-1 font-bold", m.role === 'user' ? "text-right opacity-70" : "text-left text-slate-900 opacity-50")}>
+                                            <p className={cn("text-[10px] mt-1 font-bold", m.role === 'user' ? "text-right opacity-70" : "text-left text-slate-950 opacity-70")}>
                                                 {format(m.timestamp, 'HH:mm')}
                                             </p>
                                         </div>
@@ -263,7 +269,7 @@ export default function ClientAllocationChatPage() {
                                     <div className="flex justify-start">
                                         <div className="bg-muted px-4 py-3 rounded-2xl rounded-bl-none border flex items-center gap-2">
                                             <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                                            <span className="text-xs font-bold text-slate-900 italic">Khai is thinking...</span>
+                                            <span className="text-xs font-bold text-slate-950 italic">Khai is thinking...</span>
                                         </div>
                                     </div>
                                 )}

@@ -100,9 +100,9 @@ export default function WebsiteAIWidget() {
                     )}>
                         <ReactMarkdown
                             components={{
-                                p: ({node, ...props}) => <p className="text-sm my-0 leading-relaxed font-bold" {...props} />,
-                                ul: ({node, ...props}) => <ul className="list-disc pl-4 my-2" {...props} />,
-                                li: ({node, ...props}) => <li className="my-1" {...props} />,
+                                p: ({node, ...props}) => <p className="text-sm my-0 leading-relaxed font-bold text-slate-950" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc pl-4 my-2 font-bold text-slate-950" {...props} />,
+                                li: ({node, ...props}) => <li className="my-1 font-bold text-slate-950" {...props} />,
                             }}
                         >{message.text}</ReactMarkdown>
                         {message.role === 'bot' && message.serviceUrl && (

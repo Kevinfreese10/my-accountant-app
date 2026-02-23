@@ -159,9 +159,9 @@ export default function DashboardPage() {
             {pendingCount > 0 && user && (
                 <Alert className="bg-primary/10 border-primary/20 shadow-sm animate-in fade-in slide-in-from-top-4">
                     <Bot className="h-5 w-5 text-primary" />
-                    <AlertTitle className="font-bold">Chat with Khai</AlertTitle>
+                    <AlertTitle className="font-bold text-slate-950">Chat with Khai</AlertTitle>
                     <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <span>You have <strong>{pendingCount}</strong> allocations waiting to be finalized.</span>
+                        <span className="text-slate-950 font-bold">You have <strong>{pendingCount}</strong> allocations waiting to be finalized.</span>
                         <Button size="sm" asChild>
                             <Link href={`/dashboard/ai-accountant/${user.uid}/chat`}>
                                 Open Chat <ArrowRight className="ml-2 h-4 w-4" />
