@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -26,7 +25,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
-import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from 'cmdk';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, parse } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -247,7 +246,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
             onAccountCreated();
             onOpenChange(false);
         } catch (error) {
-            toast({ title: 'Error', variant: 'destructive' });
+            toast({ title: 'Error', description: 'Failed to create account.', variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -438,12 +437,12 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             const batch = writeBatch(db);
             Object.entries(allocations).forEach(([txId, alloc]: [string, any]) => {
                 const tx = transactions.find(t => t.id === txId);
-                const defaultVat = activeSubTab === 'income' ? 'no_vat' : 'standard_rated_purchases';
+                const selectedVat = alloc.vatType || tx?.vatType || '';
                 
                 batch.update(doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId), {
                     status: 'reviewed',
                     allocatedTo: { value: alloc.value, type: alloc.type },
-                    vatType: client.isVatRegistered ? (alloc.vatType || tx?.vatType || defaultVat) : 'no_vat',
+                    vatType: client.isVatRegistered ? selectedVat : 'no_vat',
                     allocatedAt: serverTimestamp(),
                     allocationSource: 'manual',
                 });
@@ -659,7 +658,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                     {client?.isVatRegistered && (
                                         <TableCell>
                                             <Select 
-                                                value={allocations[tx.id]?.vatType || tx.vatType || (activeSubTab === 'income' ? 'no_vat' : 'standard_rated_purchases')} 
+                                                value={allocations[tx.id]?.vatType || tx.vatType || ""} 
                                                 onValueChange={(v) => setAllocations(p => ({
                                                     ...p, 
                                                     [tx.id]: { 
@@ -668,7 +667,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                     }
                                                 }))}
                                             >
-                                                <SelectTrigger className="h-8 text-[10px] w-full min-w-[120px]"><SelectValue /></SelectTrigger>
+                                                <SelectTrigger className="h-8 text-[10px] w-full min-w-[120px]"><SelectValue placeholder="Select VAT..." /></SelectTrigger>
                                                 <SelectContent>
                                                     {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
                                                 </SelectContent>
@@ -1068,9 +1067,9 @@ const ReviewedTab = ({ client, bankAccountId }: {
             <CardFooter className="flex justify-between p-4 border-t">
                 <div />
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}>Previous</Button>
-                    <span className="text-sm">Page {currentPage}</span>
                     <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}>Next</Button>
+                    <span className="text-sm">Page {currentPage}</span>
+                    <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}>Previous</Button>
                 </div>
             </CardFooter>
         </Card>
