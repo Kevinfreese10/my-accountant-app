@@ -422,6 +422,7 @@ export async function runAiAccountantAnalysis({
 
 /**
  * Researches a specific merchant group with AI.
+ * First checks latest allocation rules one more time before searching on the internet.
  */
 export async function researchMerchantWithAi({
     clientId,
@@ -435,12 +436,44 @@ export async function researchMerchantWithAi({
     isVatRegistered: boolean
 }) {
     try {
-        const result = await suggestTransactionAllocation({
-            description,
-            chartOfAccounts,
-            isVatRegistered
-        });
+        // 1. FRESH RULE CHECK
+        const clientRef = doc(db, 'aiAccountantClients', clientId);
+        const clientSnap = await getDoc(clientRef);
+        if (!clientSnap.exists()) throw new Error("Client not found.");
+        const client = clientSnap.data() as User;
 
+        const rulesQuery = collection(db, "allocationRules");
+        const rulesSnap = await getDocs(rulesQuery);
+        const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+        const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+
+        const match = allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase())));
+        
+        let result: AIAllocationResult;
+        let source: string;
+
+        if (match) {
+            const keyword = match.keywords.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
+            result = {
+                accountId: match.accountId,
+                vatType: isVatRegistered ? match.vatType : 'no_vat',
+                confidence: 100,
+                summary: `Matched latest existing allocation rule for ${keyword}.`,
+                ruleId: match.id,
+                matchedKeyword: keyword
+            };
+            source = 'rule';
+        } else {
+            // 2. PROCEED TO AI SEARCH
+            result = await suggestTransactionAllocation({
+                description,
+                chartOfAccounts,
+                isVatRegistered
+            });
+            source = 'ai';
+        }
+
+        // 3. APPLY TO ALL IN GROUP
         const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
         const q = query(transRef, where('description', '==', description), where('status', 'in', ['ai_review', 'ai_processing']));
         const snapshot = await getDocs(q);
@@ -449,7 +482,10 @@ export async function researchMerchantWithAi({
         snapshot.docs.forEach(d => {
             batch.update(d.ref, {
                 aiAllocationResult: result,
-                allocationSource: 'ai'
+                allocationSource: source,
+                matchedRuleId: result.ruleId || deleteField(),
+                matchedKeyword: result.matchedKeyword || deleteField(),
+                status: 'ai_review'
             });
         });
         await batch.commit();
