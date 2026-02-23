@@ -29,7 +29,7 @@ type Message = {
 };
 
 const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-GB', {
+    return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
     }).format(price);
@@ -61,32 +61,46 @@ export default function ClientAllocationChatPage() {
     useEffect(() => {
         if (!clientId) return;
 
-        const fetchData = async () => {
-            const clientSnap = await getDoc(doc(db, 'aiAccountantClients', clientId));
-            if (clientSnap.exists()) setClient(clientSnap.data());
+        // 1. Fetch Static Client Data
+        getDoc(doc(db, 'aiAccountantClients', clientId)).then(snap => {
+            if (snap.exists()) setClient(snap.data());
+        });
 
-            // Real-time listener for pending transactions (New + AI Review)
-            const q = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('status', 'in', ['new', 'ai_review']));
-            const unsubscribeTxs = onSnapshot(q, (snap) => {
-                const txs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                setPendingTransactions(txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
-                setIsPageLoading(false);
-            });
+        // 2. Setup Real-time listener for pending transactions
+        // We look for 'new', 'ai_processing', and 'ai_review' to ensure nothing is missed
+        const txsQuery = query(
+            collection(db, 'aiAccountantClients', clientId, 'transactions'), 
+            where('status', 'in', ['new', 'ai_processing', 'ai_review'])
+        );
+        
+        const unsubscribeTxs = onSnapshot(txsQuery, (snap) => {
+            const txs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setPendingTransactions(txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+            setIsPageLoading(false);
+        }, (error) => {
+            console.error("Transactions listener failed:", error);
+            setIsPageLoading(false);
+        });
 
-            // Real-time listener for accountant queries
-            const qQueries = query(collection(db, 'aiAccountantClients', clientId, 'allocationQueries'), where('status', '==', 'pending'), orderBy('sentAt', 'desc'));
-            const unsubscribeQueries = onSnapshot(qQueries, (snap) => {
-                const fetchedQueries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                setQueries(fetchedQueries);
-            });
+        // 3. Setup Real-time listener for accountant queries
+        const queriesQuery = query(
+            collection(db, 'aiAccountantClients', clientId, 'allocationQueries'), 
+            where('status', '==', 'pending'), 
+            orderBy('sentAt', 'desc')
+        );
+        
+        const unsubscribeQueries = onSnapshot(queriesQuery, (snap) => {
+            const fetchedQueries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setQueries(fetchedQueries);
+        }, (error) => {
+            console.error("Queries listener failed:", error);
+        });
 
-            return () => {
-                unsubscribeTxs();
-                unsubscribeQueries();
-            };
+        // Return unsubscribe functions directly to useEffect for proper cleanup
+        return () => {
+            unsubscribeTxs();
+            unsubscribeQueries();
         };
-
-        fetchData();
     }, [clientId]);
 
     const handleStartChat = async () => {
@@ -208,13 +222,16 @@ export default function ClientAllocationChatPage() {
                         <ScrollArea className="h-[300px]">
                             <div className="divide-y">
                                 {pendingTransactions.map(tx => (
-                                    <div key={tx.id} className="py-3 space-y-1">
+                                    <div key={tx.id} className="py-3 space-y-1 px-1">
                                         <div className="flex justify-between items-start">
                                             <p className="text-[10px] font-bold text-primary uppercase tracking-widest">{format(new Date(tx.date), 'dd MMM yyyy')}</p>
                                             <p className="text-xs font-mono font-bold text-slate-950">{formatPrice(tx.amount)}</p>
                                         </div>
-                                        <p className="text-sm font-bold leading-tight text-slate-950 truncate" title={tx.description}>{tx.description}</p>
-                                        {tx.status === 'ai_review' && <Badge variant="secondary" className="text-[9px] py-0 font-bold">AI Workflow</Badge>}
+                                        <p className="text-sm font-bold leading-tight text-slate-950 line-clamp-2" title={tx.description}>{tx.description}</p>
+                                        <div className="flex gap-1 mt-1">
+                                            {tx.status === 'ai_review' && <Badge variant="secondary" className="text-[9px] py-0 font-bold">AI Research Complete</Badge>}
+                                            {tx.status === 'ai_processing' && <Badge variant="outline" className="text-[9px] py-0 font-bold animate-pulse">Accountant Processing</Badge>}
+                                        </div>
                                     </div>
                                 ))}
                                 {pendingTransactions.length === 0 && (

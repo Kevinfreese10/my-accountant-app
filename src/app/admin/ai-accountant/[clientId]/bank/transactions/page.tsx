@@ -1088,6 +1088,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         setIsQueryingClient(true);
         try {
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            // Include 'new' and 'ai_review' items in the count sent to the client
             const q = query(transRef, where('bankAccountId', '==', bankAccountId), where('status', 'in', ['new', 'ai_review']));
             const snapshot = await getDocs(q);
             
