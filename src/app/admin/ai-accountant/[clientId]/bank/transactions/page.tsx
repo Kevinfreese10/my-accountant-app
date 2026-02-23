@@ -432,7 +432,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
             const allRules = [...(client.allocationRules || []), ...globalRules];
 
-            // FIX: Query ALL unallocated transactions for the entire bank account, not just the visible page.
+            // Query ALL unallocated transactions for the entire bank account
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
             const q = query(
                 transRef, 
@@ -919,31 +919,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 </Button>
             </div>
 
-            <Dialog open={!!viewingGroup} onOpenChange={(o) => !o && setViewingGroup(null)}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader><DialogTitle>Transactions for {viewingGroup?.merchantKey}</DialogTitle></DialogHeader>
-                    <ScrollArea className="max-h-96 pr-4">
-                        <Table>
-                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="w-10"></TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {viewingGroup?.transactions.map((tx) => (
-                                    <TableRow key={tx.id}>
-                                        <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                        <TableCell className="text-xs">{tx.description}</TableCell>
-                                        <TableCell className="text-right text-xs font-mono">{formatPrice(tx.amount)}</TableCell>
-                                        <TableCell>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleMoveSingleTransactionToNew(tx.id)} disabled={isMovingBack === tx.id}>
-                                                {isMovingBack === tx.id ? <Loader2 className="h-3 w-3 animate-spin"/> : <Undo2 className="h-3 w-3" />}
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </ScrollArea>
-                </DialogContent>
-            </Dialog>
-
             <div className="grid grid-cols-1 gap-4">
                 {groups.map((group) => {
                     const firstTx = group.transactions[0];
@@ -1054,7 +1029,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     );
 };
 
-const ReviewedTab = ({ client, bankAccountId }: { 
+const ReviewedTab = ({ client, bankAccountId, customers }: { 
     client: User | null; 
     bankAccountId: string | null; 
     customers: ClientCustomer[]; 
@@ -1062,61 +1037,100 @@ const ReviewedTab = ({ client, bankAccountId }: {
 }) => {
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
-    const uniqueChartOfAccounts = useMemo(() => client?.chartOfAccounts || [], [client]);
+    const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
+    const uniqueChartOfAccounts = useMemo(() => [...(client?.chartOfAccounts || [])].sort((a, b) => a.description.localeCompare(b.description)), [client]);
 
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
-        let constraints: any[] = [where('bankAccountId', '==', bankAccountId), where('status', 'in', ['reviewed', 'allocated']), where('isExpense', '==', activeSubTab === 'expenses'), orderBy('description', 'asc')];
+        let constraints: any[] = [
+            where('bankAccountId', '==', bankAccountId), 
+            where('status', 'in', ['reviewed', 'allocated']), 
+            where('isExpense', '==', activeSubTab === 'expenses'), 
+            orderBy('date', 'desc')
+        ];
+        
+        if (selectedGlAccountId !== "all") {
+            constraints.push(where('allocatedTo.value', '==', selectedGlAccountId));
+        }
+
         if (dateRange?.from) constraints.push(where('date', '>=', dateRange.from.toISOString()));
         if (dateRange?.to) constraints.push(where('date', '<=', dateRange.to.toISOString()));
+        
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, activeSubTab, dateRange]);
+    }, [client?.uid, bankAccountId, activeSubTab, dateRange, selectedGlAccountId]);
 
     const { documents: transactions, isLoading, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
 
+    const getAllocationName = (allocatedTo: any) => {
+        if (!allocatedTo) return 'Unallocated';
+        if (allocatedTo.type === 'customer') {
+            return customers.find(c => c.id === allocatedTo.value)?.name || allocatedTo.value;
+        }
+        return uniqueChartOfAccounts.find(a => a.id === allocatedTo.value)?.description || allocatedTo.value;
+    };
+
     return (
-        <Card>
-            <CardHeader className="p-0 border-b">
-                 <Tabs value={activeSubTab} onValueChange={(v: any) => setActiveSubTab(v)} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 rounded-none"><TabsTrigger value="expenses">Reviewed Expenses</TabsTrigger><TabsTrigger value="income">Reviewed Income</TabsTrigger></TabsList>
-                </Tabs>
-                 <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div />
-                    <DateRangePicker onDateChange={setDateRange} />
-                </div>
-            </CardHeader>
-            <CardContent className="p-0">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Allocated To</TableHead>
-                            <TableHead className="text-right">Amount</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? <TableRow><TableCell colSpan={4} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
-                         transactions.map(tx => (
-                            <TableRow key={tx.id}>
-                                <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                <TableCell>{tx.description}</TableCell>
-                                <TableCell className="text-sm">{uniqueChartOfAccounts.find(a => a.id === tx.allocatedTo?.value)?.description || tx.allocatedTo?.value}</TableCell>
-                                <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+        <div className="space-y-4">
+            <Card>
+                <CardHeader className="p-0 border-b">
+                    <Tabs value={activeSubTab} onValueChange={(v: any) => { setActiveSubTab(v); setSelectedGlAccountId("all"); }} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 rounded-none"><TabsTrigger value="expenses">Reviewed Expenses</TabsTrigger><TabsTrigger value="income">Reviewed Income</TabsTrigger></TabsList>
+                    </Tabs>
+                    <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                            <Select value={selectedGlAccountId} onValueChange={setSelectedGlAccountId}>
+                                <SelectTrigger className="w-full md:w-[240px]">
+                                    <SelectValue placeholder="Filter by Account..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Accounts</SelectItem>
+                                    {uniqueChartOfAccounts.map(acc => (
+                                        <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <DateRangePicker onDateChange={setDateRange} />
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead>Allocated To</TableHead>
+                                {client?.isVatRegistered && <TableHead>VAT Type</TableHead>}
+                                <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
-                         ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-            <CardFooter className="flex justify-between p-4 border-t">
-                <div />
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}>Next</Button>
-                    <span className="text-sm">Page {currentPage}</span>
-                    <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}>Previous</Button>
-                </div>
-            </CardFooter>
-        </Card>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? <TableRow><TableCell colSpan={client?.isVatRegistered ? 5 : 4} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
+                            transactions.map(tx => (
+                                <TableRow key={tx.id}>
+                                    <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                    <TableCell>{tx.description}</TableCell>
+                                    <TableCell className="text-sm">{getAllocationName(tx.allocatedTo)}</TableCell>
+                                    {client?.isVatRegistered && (
+                                        <TableCell className="text-xs">
+                                            {allVatTypes.find(v => v.name === tx.vatType)?.label || <span className="text-muted-foreground italic">No VAT</span>}
+                                        </TableCell>
+                                    )}
+                                    <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+                <CardFooter className="flex justify-between p-4 border-t">
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}>Previous</Button>
+                        <span className="text-sm">Page {currentPage}</span>
+                        <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}>Next</Button>
+                    </div>
+                </CardFooter>
+            </Card>
+        </div>
     );
 };
 
@@ -1285,7 +1299,7 @@ export default function BankTransactionsPage() {
                         <AIWorkflowTab client={client} bankAccountId={accountId} onAccountCreated={fetchClientData} />
                     </TabsContent>
                     <TabsContent value="reviewed" className="p-0">
-                        <ReviewedTab client={client} bankAccountId={accountId} customers={[]} onAccountCreated={fetchClientData} />
+                        <ReviewedTab client={client} bankAccountId={accountId} customers={customers} onAccountCreated={fetchClientData} />
                     </TabsContent>
                 </Tabs>
             </div>
