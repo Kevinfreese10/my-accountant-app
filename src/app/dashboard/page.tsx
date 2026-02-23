@@ -204,8 +204,8 @@ export default function DashboardPage() {
                                                     {formatDistanceToNow(date, { addSuffix: true })}
                                                 </p>
                                             </div>
-                                            <div className="bg-muted/50 p-3 rounded-lg border border-muted text-foreground">
-                                                <p className="text-sm leading-relaxed italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
+                                            <div className="bg-muted/50 p-3 rounded-lg border border-muted">
+                                                <p className="text-sm text-foreground/90 leading-relaxed italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
                                             </div>
                                             <div className="flex justify-end pt-1">
                                                 <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={() => archiveNotification(noteId)}>

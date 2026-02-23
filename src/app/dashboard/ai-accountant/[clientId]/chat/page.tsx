@@ -211,10 +211,10 @@ export default function ClientAllocationChatPage() {
                                                 ? "bg-primary text-primary-foreground rounded-br-none" 
                                                 : "bg-muted border rounded-bl-none text-foreground"
                                         )}>
-                                            <div className={cn("prose prose-sm", m.role === 'user' ? "prose-invert" : "text-foreground font-medium")}>
+                                            <div className={cn("prose prose-sm", m.role === 'user' ? "prose-invert" : "text-slate-950 font-semibold")}>
                                                 <ReactMarkdown>{m.content}</ReactMarkdown>
                                             </div>
-                                            <p className={cn("text-[10px] mt-1 opacity-70", m.role === 'user' ? "text-right" : "text-left font-semibold")}>
+                                            <p className={cn("text-[10px] mt-1 opacity-70", m.role === 'user' ? "text-right" : "text-left font-bold text-slate-900")}>
                                                 {format(m.timestamp, 'HH:mm')}
                                             </p>
                                         </div>
@@ -224,7 +224,7 @@ export default function ClientAllocationChatPage() {
                                     <div className="flex justify-start">
                                         <div className="bg-muted px-4 py-3 rounded-2xl rounded-bl-none border flex items-center gap-2">
                                             <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                                            <span className="text-xs font-bold text-foreground/70 italic">Khai is thinking...</span>
+                                            <span className="text-xs font-bold text-slate-900 italic">Khai is thinking...</span>
                                         </div>
                                     </div>
                                 )}
@@ -239,7 +239,7 @@ export default function ClientAllocationChatPage() {
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 disabled={isLoading || pendingTransactions.length === 0}
-                                className="flex-grow bg-background h-12 text-foreground font-medium"
+                                className="flex-grow bg-background h-12 text-foreground font-medium border-primary/20 focus-visible:ring-primary"
                                 autoComplete="off"
                             />
                             <Button type="submit" size="icon" disabled={isLoading || !inputValue.trim() || pendingTransactions.length === 0} className="h-12 w-12 rounded-full">

@@ -66,6 +66,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const navItems = [
      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
      { href: '/dashboard/orders', label: 'My Orders', icon: ShieldCheck, roles: ['client', 'ai_accountant'] },
+     { href: `/dashboard/ai-accountant/${user.uid}/chat`, label: 'Transaction Chat', icon: MessageSquareQuote, roles: ['client'] },
      { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
   ];
 
@@ -105,6 +106,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['partner', 'partner_staff'] },
     { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['partner', 'partner_staff'] },
     { href: '/partner/outsourced-orders', label: 'Outsourced Orders', icon: FileText, roles: ['partner', 'partner_staff'] },
+    { href: `/dashboard/ai-accountant/${user.uid}/chat`, label: 'Transaction Chat', icon: MessageSquareQuote, roles: ['partner', 'partner_staff'] },
     { href: '/partner/clients', label: 'Manage Clients', icon: BookUser, roles: ['partner', 'partner_staff'] },
     { href: '/partner/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['partner', 'partner_staff'] },
     { href: '/partner/staff', label: 'Manage Staff', icon: Users, roles: ['partner'] },
@@ -143,7 +145,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         
         {(user.role === 'client') && visibleNavItems.map((item) => (
             <SidebarMenuItem key={item.label}>
-            <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+            <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
                 <Link href={item.href}>
                 <item.icon />
                 <span>{item.label}</span>
@@ -153,7 +155,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
         ))}
         
         {(hasAIAccountantAccess && (user.role === 'client')) && (
-             <>
              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`) && !pathname.includes('/chat')} tooltip="AI Accountant">
                     <Link href={`${basePath}/ai-accountant/clients`}>
@@ -162,15 +163,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
                     </Link>
                 </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.includes('/chat')} tooltip="Transaction Chat">
-                    <Link href={`/dashboard/ai-accountant/${user.uid}/chat`}>
-                        <MessageSquareQuote />
-                        <span>Transaction Chat</span>
-                    </Link>
-                </SidebarMenuButton>
-            </SidebarMenuItem>
-            </>
         )}
 
         {user.role === 'ai_accountant' && visibleAiAccountantNavItems.map((item) => (
@@ -196,8 +188,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         ))}
 
         {(user.role === 'partner' || user.role === 'partner_staff') && (
-            <>
-            {visiblePartnerNavItems.map((item) => (
+            visiblePartnerNavItems.map((item) => (
                 <SidebarMenuItem key={item.label}>
                 <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
                     <Link href={item.href}>
@@ -206,16 +197,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
                     </Link>
                 </SidebarMenuButton>
                 </SidebarMenuItem>
-            ))}
-            <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.includes('/chat')} tooltip="Transaction Chat">
-                    <Link href={`/dashboard/ai-accountant/${user.uid}/chat`}>
-                        <MessageSquareQuote />
-                        <span>Transaction Chat</span>
-                    </Link>
-                </SidebarMenuButton>
-            </SidebarMenuItem>
-            </>
+            ))
         )}
 
         
