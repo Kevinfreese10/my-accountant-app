@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Download, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Search, ArrowRight, User, Banknote, Calendar as CalendarIcon, CheckCheck, ChevronsUpDown, Info, RotateCcw } from 'lucide-react';
+import { Loader2, Download, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Search, ArrowRight, User, Banknote, Calendar as CalendarIcon, CheckCheck, ChevronsUpDown, Info, RotateCcw, Trash } from 'lucide-react';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { extractStatementPeriod, ExtractStatementPeriodOutput } from '@/ai/flows/extract-statement-period';
 import { getFirestore, collection, getDocs, doc, query, where, getDoc, writeBatch, serverTimestamp, orderBy, limit } from 'firebase/firestore';
@@ -25,6 +24,7 @@ import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-f
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 const db = getFirestore(firebaseApp);
 
@@ -61,6 +61,7 @@ export default function PdfToCsvPage() {
   
   const [dateRange, setDateRange] = useState<[number, number]>([0, 100]);
   const { toast } = useToast();
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -212,6 +213,7 @@ export default function PdfToCsvPage() {
         toast({ title: 'Import Successful', description: `${filteredTransactions.length} transactions imported. ${matchCount} auto-allocated.` });
         router.push(`/admin/ai-accountant/${selectedClient.id}/bank/transactions?accountId=${watchBankAccountId}`);
     } catch (e) {
+        console.error("Import error:", e);
         toast({ title: 'Import Failed', variant: 'destructive' });
     } finally {
         setIsImporting(false);
@@ -461,5 +463,3 @@ export default function PdfToCsvPage() {
     </div>
   );
 }
-
-import { Trash } from 'lucide-react';

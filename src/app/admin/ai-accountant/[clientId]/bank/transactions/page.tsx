@@ -206,7 +206,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
             setIsOpen(false);
         } catch (error) {
             console.error("Import error", error);
-            toast({ title: "Import Failed", description: "Make sure you don't have undefined fields.", variant: "destructive"});
+            toast({ title: "Import Failed", description: "An unexpected error occurred. Please check your data format.", variant: "destructive"});
         } finally {
             setIsUploading(false);
         }
@@ -830,7 +830,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                                 <CommandItem 
                                                                     key={a.id} 
                                                                     value={a.description}
-                                                                    onSelect={() => setAllocations(p => ({
+                                                                    onSelect={() => setAllocations((p: any) => ({
                                                                         ...p, 
                                                                         [tx.id]: { 
                                                                             ...(p[tx.id] || { type: 'account' }), 
@@ -850,7 +850,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                                     <CommandItem 
                                                                         key={c.id} 
                                                                         value={c.name}
-                                                                        onSelect={() => setAllocations(p => ({
+                                                                        onSelect={() => setAllocations((p: any) => ({
                                                                             ...p, 
                                                                             [tx.id]: { 
                                                                                 value: c.id, 
@@ -874,7 +874,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                         <TableCell>
                                             <Select 
                                                 value={allocations[tx.id]?.vatType || tx.vatType || ""} 
-                                                onValueChange={(v) => setAllocations(p => ({
+                                                onValueChange={(v) => setAllocations((p: any) => ({
                                                     ...p, 
                                                     [tx.id]: { 
                                                         ...(p[tx.id] || { value: '', type: 'account' }), 
