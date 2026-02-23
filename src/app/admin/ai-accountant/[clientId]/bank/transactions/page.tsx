@@ -38,6 +38,7 @@ import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-all
 import { useAuth } from '@/contexts/AuthContext';
 import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -112,6 +113,12 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
     const [isParsing, setIsParsing] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const { toast } = useToast();
+
+    const importTotal = useMemo(() => {
+        return parsedTransactions.reduce((sum, tx) => sum + tx.Amount, 0);
+    }, [parsedTransactions]);
+
+    const potentialBalance = currentBalance + importTotal;
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
@@ -211,6 +218,32 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                 <div className="space-y-4 py-4">
                      <Input id="statement-file" type="file" accept=".csv" onChange={handleFileChange} />
                      {isParsing && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 animate-spin"/> Parsing...</p>}
+                     
+                     {parsedTransactions.length > 0 && (
+                        <div className="bg-muted/50 p-4 rounded-lg border space-y-2 animate-in fade-in slide-in-from-top-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Transactions Found:</span>
+                                <span className="font-bold">{parsedTransactions.length}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Current Balance:</span>
+                                <span className="font-semibold">{formatPrice(currentBalance)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Import Total:</span>
+                                <span className={cn("font-bold", importTotal < 0 ? "text-destructive" : "text-green-600")}>
+                                    {formatPrice(importTotal)}
+                                </span>
+                            </div>
+                            <Separator />
+                            <div className="flex justify-between text-sm pt-1">
+                                <span className="text-muted-foreground font-semibold">New Potential Balance:</span>
+                                <span className="font-bold text-primary text-lg">
+                                    {formatPrice(potentialBalance)}
+                                </span>
+                            </div>
+                        </div>
+                     )}
                 </div>
                 <DialogFooter>
                     <Button type="button" onClick={handleImport} disabled={isUploading || isParsing || parsedTransactions.length === 0}>
@@ -467,7 +500,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     const [allocations, setAllocations] = useState<any>({});
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
+    const [isCreateRuleOpen, setIsCreateOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<any>({});
     const [transactionDescriptionForRule, setTransactionDescriptionForRule] = useState<string | null>(null);
@@ -665,12 +698,12 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             scope: 'client',
         });
         setIsAiReviewOpen(false);
-        setIsCreateRuleOpen(true);
+        setIsCreateOpen(true);
     };
 
     return (
         <div className="space-y-4">
-            <CreateRuleDialog client={client} onRuleCreated={refetch} open={isCreateRuleOpen} onOpenChange={setIsCreateRuleOpen} defaultValues={ruleDefaultValues} transactionDescription={transactionDescriptionForRule} existingRules={globalRules} />
+            <CreateRuleDialog client={client} onRuleCreated={refetch} open={isCreateRuleOpen} onOpenChange={setIsCreateOpen} defaultValues={ruleDefaultValues} transactionDescription={transactionDescriptionForRule} existingRules={globalRules} />
             <CreateGeneralAccountDialog client={client} onAccountCreated={onAccountCreated} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
             <AIAllocationReviewDialog open={isAiReviewOpen} onOpenChange={setIsAiReviewOpen} suggestion={aiSuggestion} transaction={selectedTxForAi} onAction={handleAiReviewAction} />
             
@@ -868,7 +901,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                         const keyword = tx.description.split(/\s+/)[0];
                                                         setTransactionDescriptionForRule(tx.description);
                                                         setRuleDefaultValues({ description: `Rule for: ${keyword}`, keywords: keyword, accountId: '', vatType: activeSubTab === 'income' ? 'standard_rated_sales' : 'standard_rated_purchases' });
-                                                        setIsCreateRuleOpen(true);
+                                                        setIsCreateOpen(true);
                                                     }}>Create Rule</DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
@@ -1543,7 +1576,7 @@ export default function BankTransactionsPage() {
 
     const handleClearAccount = async () => {
         if (!params.clientId || !accountId) return;
-        toast({ title: "Clearing account...", description: "Please wait." });
+        toast({ title: "Cleaning account...", description: "Please wait." });
         try {
             const batch = writeBatch(db);
             const transRef = collection(db, 'aiAccountantClients', params.clientId as string, 'transactions');
