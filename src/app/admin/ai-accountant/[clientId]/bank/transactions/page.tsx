@@ -960,6 +960,8 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [viewingGroup, setViewingGroup] = useState<TransactionGroup | null>(null);
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
     const [isResearchingId, setIsResearchingId] = useState<string | null>(null);
+    const [isQueryDialogOpen, setIsQueryDialogOpen] = useState(false);
+    const [queryEmail, setQueryEmail] = useState('');
 
     const fetchData = useCallback(async () => {
         if (!client?.uid || !bankAccountId) return;
@@ -987,6 +989,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             const settings: any = {};
             initialGroups.forEach(g => { if (g.suggestion) settings[g.merchantKey] = { accountId: g.suggestion.accountId, vatType: g.suggestion.vatType, createRule: true }; });
             setApprovalSettings(settings);
+            setQueryEmail(client.email || '');
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
     }, [client, bankAccountId]);
 
@@ -1050,7 +1053,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     };
 
     const handleQueryClient = async () => {
-        if (!client?.uid) return;
+        if (!client?.uid || !queryEmail) return;
         setIsQueryingClient(true);
         try {
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
@@ -1062,8 +1065,13 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 return;
             }
 
-            await sendAllocationQueryEmail({ clientId: client.uid, unallocatedCount: snapshot.size });
-            toast({ title: "Query Sent", description: "The client has been notified to clarify unallocated transactions via chat." });
+            await sendAllocationQueryEmail({ 
+                clientId: client.uid, 
+                clientEmail: queryEmail,
+                unallocatedCount: snapshot.size 
+            });
+            toast({ title: "Query Sent", description: `The client has been notified at ${queryEmail}.` });
+            setIsQueryDialogOpen(false);
         } catch (error) {
             toast({ title: "Failed to send query", variant: "destructive" });
         } finally {
@@ -1181,14 +1189,50 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             <CreateGeneralAccountDialog client={client} onAccountCreated={fetchData} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
             <GroupTransactionsDialog open={!!viewingGroup} onOpenChange={(o) => !o && setViewingGroup(null)} group={viewingGroup} onMoveToNew={handleMoveSingleTransactionToNew} />
             
+            <Dialog open={isQueryDialogOpen} onOpenChange={setIsQueryDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Query Client</DialogTitle>
+                        <DialogDescription>
+                            Send a secure chat link to the client to clarify these transactions.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="space-y-2">
+                            <Label>Client Email</Label>
+                            <Input 
+                                type="email" 
+                                value={queryEmail} 
+                                onChange={(e) => setQueryEmail(e.target.value)}
+                                placeholder="Enter client's email..."
+                            />
+                        </div>
+                        <Alert>
+                            <Info className="h-4 w-4" />
+                            <AlertTitle>Conversational Chat</AlertTitle>
+                            <AlertDescription className="text-xs">
+                                The client will be asked about transactions one-by-one by Khai (AI Assistant) and their responses will automatically allocate the items.
+                            </AlertDescription>
+                        </Alert>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsQueryDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleQueryClient} disabled={isQueryingClient || !queryEmail}>
+                            {isQueryingClient ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />}
+                            Send Query Email
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border border-dashed gap-4 flex-wrap">
                 <div className="space-y-1">
                     <h3 className="font-bold text-sm">Review Identifiable Merchants</h3>
                     <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI.</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    <Button variant="outline" onClick={handleQueryClient} disabled={isQueryingClient}>
-                        {isQueryingClient ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <MessageSquareQuote className="mr-2 h-4 w-4" />}
+                    <Button variant="outline" onClick={() => setIsQueryDialogOpen(true)} disabled={groups.length === 0}>
+                        <MessageSquareQuote className="mr-2 h-4 w-4" />
                         Query Client
                     </Button>
                     <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking || groups.length === 0}>

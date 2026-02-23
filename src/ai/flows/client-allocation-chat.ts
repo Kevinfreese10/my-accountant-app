@@ -7,7 +7,6 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { ChartOfAccount, ImportedTransaction, VatType } from '@/lib/types';
 
 const ChatMessageSchema = z.object({
   role: z.enum(['user', 'bot']),

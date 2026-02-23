@@ -501,14 +501,12 @@ export async function researchMerchantWithAi({
 /**
  * Sends an email to the client asking them to clarify unallocated transactions.
  */
-export async function sendAllocationQueryEmail({ clientId, unallocatedCount }: { clientId: string, unallocatedCount: number }) {
+export async function sendAllocationQueryEmail({ clientId, clientEmail, unallocatedCount }: { clientId: string, clientEmail: string, unallocatedCount: number }) {
     try {
         const clientRef = doc(db, 'aiAccountantClients', clientId);
         const clientSnap = await getDoc(clientRef);
         if (!clientSnap.exists()) throw new Error("Client not found.");
         const client = clientSnap.data() as User;
-
-        if (!client.email) throw new Error("Client has no email address.");
 
         const chatUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/ai-accountant/${clientId}/chat`;
 
@@ -521,7 +519,7 @@ export async function sendAllocationQueryEmail({ clientId, unallocatedCount }: {
         );
 
         await sendEmail({
-            to: client.email,
+            to: clientEmail,
             subject: `Action Required: Clarification needed for ${unallocatedCount} transactions`,
             html: emailHtml,
         });
