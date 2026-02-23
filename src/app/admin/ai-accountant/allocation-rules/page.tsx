@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { optimizeAllocationRule } from "@/ai/flows/optimize-allocation-rule";
+import { Label } from "@/components/ui/label";
 
 
 const db = getFirestore(firebaseApp);
