@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -10,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -92,7 +91,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
         if (!client?.uid || !bankAccountId || parsedTransactions.length === 0) return;
         setIsUploading(true);
         try {
-            // 1. Fetch rules once for automatic application during import
             const rulesQuery = collection(db, "allocationRules");
             const rulesSnap = await getDocs(rulesQuery);
             const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
@@ -125,6 +123,8 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                     txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
                     txData.allocatedAt = serverTimestamp();
                     txData.allocationSource = 'rule';
+                    txData.matchedRuleId = match.id;
+                    txData.matchedRuleDescription = match.description;
                     matchCount++;
                 }
 
@@ -432,7 +432,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
             const allRules = [...(client.allocationRules || []), ...globalRules];
 
-            // Query ALL unallocated transactions for the entire bank account
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
             const q = query(
                 transRef, 
@@ -453,7 +452,9 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                         allocatedTo: { value: match.accountId, type: 'account' },
                         vatType: client.isVatRegistered ? match.vatType : 'no_vat',
                         allocatedAt: serverTimestamp(),
-                        allocationSource: 'rule'
+                        allocationSource: 'rule',
+                        matchedRuleId: match.id,
+                        matchedRuleDescription: match.description
                     });
                     count++;
                 }
@@ -1035,10 +1036,35 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
     customers: ClientCustomer[]; 
     onAccountCreated: () => void; 
 }) => {
+    const { toast } = useToast();
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
+    const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
+    const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
+
     const uniqueChartOfAccounts = useMemo(() => [...(client?.chartOfAccounts || [])].sort((a, b) => a.description.localeCompare(b.description)), [client]);
+
+    // Fetch unique accounts that actually have transactions to populate the filter
+    useEffect(() => {
+        if (!client?.uid || !bankAccountId) return;
+        const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+        const q = query(transRef, 
+            where('bankAccountId', '==', bankAccountId), 
+            where('status', 'in', ['reviewed', 'allocated']),
+            where('isExpense', '==', activeSubTab === 'expenses')
+        );
+        
+        const unsubscribe = onSnapshot(q, (snap) => {
+            const ids = new Set<string>();
+            snap.docs.forEach(doc => {
+                const data = doc.data() as ImportedTransaction;
+                if (data.allocatedTo?.value) ids.add(data.allocatedTo.value);
+            });
+            setUsedAccountIds(ids);
+        });
+        return () => unsubscribe();
+    }, [client?.uid, bankAccountId, activeSubTab]);
 
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -1059,7 +1085,7 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
     }, [client?.uid, bankAccountId, activeSubTab, dateRange, selectedGlAccountId]);
 
-    const { documents: transactions, isLoading, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
+    const { documents: transactions, isLoading, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage, refetch } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
 
     const getAllocationName = (allocatedTo: any) => {
         if (!allocatedTo) return 'Unallocated';
@@ -1067,6 +1093,20 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
             return customers.find(c => c.id === allocatedTo.value)?.name || allocatedTo.value;
         }
         return uniqueChartOfAccounts.find(a => a.id === allocatedTo.value)?.description || allocatedTo.value;
+    };
+
+    const handleResetToNew = async (txId: string) => {
+        if (!client?.uid) return;
+        setIsMovingBack(txId);
+        try {
+            await moveTransactionToNew({ clientId: client.uid, transactionId: txId });
+            toast({ title: "Allocation Cleared", description: "Transaction moved back to 'New' tab." });
+            refetch();
+        } catch (e) { 
+            toast({ title: "Failed to reset", variant: "destructive" }); 
+        } finally { 
+            setIsMovingBack(null); 
+        }
     };
 
     return (
@@ -1083,8 +1123,8 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
                                     <SelectValue placeholder="Filter by Account..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Accounts</SelectItem>
-                                    {uniqueChartOfAccounts.map(acc => (
+                                    <SelectItem value="all">All Accounts ({usedAccountIds.size})</SelectItem>
+                                    {uniqueChartOfAccounts.filter(acc => usedAccountIds.has(acc.id)).map(acc => (
                                         <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -1100,23 +1140,72 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
                                 <TableHead>Date</TableHead>
                                 <TableHead>Description</TableHead>
                                 <TableHead>Allocated To</TableHead>
+                                <TableHead>Source</TableHead>
                                 {client?.isVatRegistered && <TableHead>VAT Type</TableHead>}
                                 <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading ? <TableRow><TableCell colSpan={client?.isVatRegistered ? 5 : 4} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
+                            {isLoading ? <TableRow><TableCell colSpan={client?.isVatRegistered ? 7 : 6} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
                             transactions.map(tx => (
                                 <TableRow key={tx.id}>
                                     <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                     <TableCell>{tx.description}</TableCell>
                                     <TableCell className="text-sm">{getAllocationName(tx.allocatedTo)}</TableCell>
+                                    <TableCell>
+                                        {tx.allocationSource === 'rule' ? (
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Link href="/admin/ai-accountant/allocation-rules" className="cursor-pointer">
+                                                            <Badge variant="outline" className="text-[10px] gap-1"><BookOpen className="h-3 w-3"/> Rule</Badge>
+                                                        </Link>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p className="font-bold">Rule Match</p>
+                                                        <p className="text-xs">{tx.matchedRuleDescription || "Automated keyword match."}</p>
+                                                        <p className="text-[10px] mt-1 text-primary">Click to manage rules</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        ) : tx.allocationSource === 'ai' ? (
+                                            <Badge variant="secondary" className="text-[10px] gap-1"><Sparkles className="h-3 w-3"/> AI</Badge>
+                                        ) : tx.allocationSource === 'history' ? (
+                                            <Badge variant="outline" className="text-[10px] gap-1 border-primary/30 text-primary"><History className="h-3 w-3"/> History</Badge>
+                                        ) : tx.allocationSource === 'global_db' ? (
+                                            <Badge variant="outline" className="text-[10px] gap-1 border-green-500/30 text-green-600"><RotateCw className="h-3 w-3"/> Smart DB</Badge>
+                                        ) : (
+                                            <Badge variant="ghost" className="text-[10px] opacity-50">Manual</Badge>
+                                        )}
+                                    </TableCell>
                                     {client?.isVatRegistered && (
                                         <TableCell className="text-xs">
                                             {allVatTypes.find(v => v.name === tx.vatType)?.label || <span className="text-muted-foreground italic">No VAT</span>}
                                         </TableCell>
                                     )}
                                     <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4"/></Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => handleResetToNew(tx.id)} className="text-destructive">
+                                                    <Undo2 className="mr-2 h-4 w-4" /> Move to New
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem onClick={() => {
+                                                    const account = uniqueChartOfAccounts.find(a => a.id === tx.allocatedTo?.value);
+                                                    if (account) {
+                                                        window.location.href = `/admin/ai-accountant/${client?.uid}/reports/general-ledger?accountId=${account.id}`;
+                                                    }
+                                                }}>
+                                                    <ArrowRightLeft className="mr-2 h-4 w-4" /> View Ledger
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>

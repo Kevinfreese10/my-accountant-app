@@ -397,7 +397,9 @@ export type ImportedTransaction = {
     extractedSupplier?: string;
     aiAllocationResult?: AIAllocationResult | null;
     auditFiles?: { name: string; url: string; }[];
-    allocationSource?: 'rule' | 'manual' | 'ai';
+    allocationSource?: 'rule' | 'manual' | 'ai' | 'history' | 'global_db';
+    matchedRuleId?: string;
+    matchedRuleDescription?: string;
 };
 
 export type AllocatedTransaction = {
@@ -419,7 +421,9 @@ export type AllocatedTransaction = {
     allocatedAt: any; // Using `any` for Firestore Timestamp compatibility
     extractedSupplier?: string;
     auditFiles?: { name: string; url: string; }[];
-    allocationSource?: 'rule' | 'manual' | 'ai';
+    allocationSource?: 'rule' | 'manual' | 'ai' | 'history' | 'global_db';
+    matchedRuleId?: string;
+    matchedRuleDescription?: string;
 };
 
 export type ExtractedInvoice = {
