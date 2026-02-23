@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -50,6 +50,60 @@ const formatPrice = (price: number) => {
 };
 
 // #region Helper Components
+
+function RuleViewDialog({ open, onOpenChange, rule, matchedKeyword }: { open: boolean, onOpenChange: (open: boolean) => void, rule: AllocationRule | null, matchedKeyword?: string | null }) {
+    if (!rule) return null;
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                        Allocation Rule Details
+                    </DialogTitle>
+                    <DialogDescription>Details for rule: <strong>{rule.description}</strong></DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    {matchedKeyword && (
+                        <div className="bg-primary/5 p-3 rounded-lg border border-primary/20">
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-1">Triggering Keyword</p>
+                            <Badge variant="outline" className="text-sm font-bold border-primary/30 text-primary uppercase">
+                                {matchedKeyword}
+                            </Badge>
+                        </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Allocate To</p>
+                            <p className="text-sm font-semibold">{rule.accountId}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">VAT Treatment</p>
+                            <p className="text-sm font-semibold capitalize">{rule.vatType.replace(/_/g, ' ')}</p>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">All Rule Keywords</p>
+                        <div className="flex flex-wrap gap-1">
+                            {rule.keywords.map(kw => (
+                                <Badge key={kw} variant="secondary" className={cn("text-[10px]", kw.toUpperCase() === matchedKeyword?.toUpperCase() && "bg-primary text-primary-foreground")}>
+                                    {kw}
+                                </Badge>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button asChild variant="outline" className="w-full">
+                        <Link href="/admin/ai-accountant/allocation-rules">
+                            Manage All Rules <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete }: { client: User | null, bankAccountId: string, currentBalance: number, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -119,12 +173,14 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                 };
 
                 if (match) {
+                    const keyword = match.keywords.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
                     txData.allocatedTo = { value: match.accountId, type: 'account' };
                     txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
                     txData.allocatedAt = serverTimestamp();
                     txData.allocationSource = 'rule';
                     txData.matchedRuleId = match.id;
                     txData.matchedRuleDescription = match.description;
+                    txData.matchedKeyword = keyword;
                     matchCount++;
                 }
 
@@ -447,6 +503,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                 const tx = d.data() as ImportedTransaction;
                 const match = allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase())));
                 if (match) {
+                    const keyword = match.keywords.find(kw => tx.description.toUpperCase().includes(kw.toUpperCase()));
                     batch.update(d.ref, {
                         status: 'reviewed',
                         allocatedTo: { value: match.accountId, type: 'account' },
@@ -454,7 +511,8 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                         allocatedAt: serverTimestamp(),
                         allocationSource: 'rule',
                         matchedRuleId: match.id,
-                        matchedRuleDescription: match.description
+                        matchedRuleDescription: match.description,
+                        matchedKeyword: keyword
                     });
                     count++;
                 }
@@ -824,7 +882,9 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     allocatedTo: { value: settings.accountId, type: 'account' },
                     vatType: settings.vatType,
                     allocatedAt: serverTimestamp(),
-                    allocationSource: tx.allocationSource || 'ai'
+                    allocationSource: tx.allocationSource || 'ai',
+                    matchedRuleId: group.suggestion?.ruleId || deleteField(),
+                    matchedKeyword: group.suggestion?.matchedKeyword || deleteField()
                 });
             });
             
@@ -863,7 +923,9 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         allocatedTo: { value: settings.accountId, type: 'account' },
                         vatType: settings.vatType,
                         allocatedAt: serverTimestamp(),
-                        allocationSource: tx.allocationSource
+                        allocationSource: tx.allocationSource,
+                        matchedRuleId: group.suggestion?.ruleId || deleteField(),
+                        matchedKeyword: group.suggestion?.matchedKeyword || deleteField()
                     });
                 });
                 
@@ -1032,22 +1094,25 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     );
 };
 
-const ReviewedTab = ({ client, bankAccountId, customers }: { 
+const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountCreated }: { 
     client: User | null; 
     bankAccountId: string | null; 
     customers: ClientCustomer[]; 
+    globalRules: AllocationRule[];
     onAccountCreated: () => void; 
 }) => {
     const { toast } = useToast();
-    const [dateRange, setDateRange] = setDateRange = useState<DateRange | undefined>(undefined);
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
     const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
     const [editedAllocations, setEditedAllocations] = useState<any>({});
     const [isSaving, setIsSaving] = useState(false);
+    const [viewingRuleData, setViewingRuleData] = useState<{ rule: AllocationRule, keyword?: string } | null>(null);
 
     const uniqueChartOfAccounts = useMemo(() => [...(client?.chartOfAccounts || [])].sort((a, b) => a.description.localeCompare(b.description)), [client]);
+    const allAvailableRules = useMemo(() => [...(client?.allocationRules || []), ...globalRules], [client?.allocationRules, globalRules]);
 
     // Fetch unique accounts that actually have transactions to populate the filter
     useEffect(() => {
@@ -1146,6 +1211,12 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
 
     return (
         <div className="space-y-4">
+            <RuleViewDialog 
+                open={!!viewingRuleData} 
+                onOpenChange={(open) => !open && setViewingRuleData(null)}
+                rule={viewingRuleData?.rule || null}
+                matchedKeyword={viewingRuleData?.keyword}
+            />
             <Card>
                 <CardHeader className="p-0 border-b">
                     <Tabs value={activeSubTab} onValueChange={(v: any) => { setActiveSubTab(v); setSelectedGlAccountId("all"); setEditedAllocations({}); }} className="w-full">
@@ -1249,20 +1320,16 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
                                     </TableCell>
                                     <TableCell>
                                         {tx.allocationSource === 'rule' ? (
-                                            <TooltipProvider>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Link href="/admin/ai-accountant/allocation-rules" className="cursor-pointer">
-                                                            <Badge variant="outline" className="text-[10px] gap-1"><BookOpen className="h-3 w-3"/> Rule</Badge>
-                                                        </Link>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        <p className="font-bold">Rule Match</p>
-                                                        <p className="text-xs">{tx.matchedRuleDescription || "Automated keyword match."}</p>
-                                                        <p className="text-[10px] mt-1 text-primary">Click to manage rules</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
+                                            <Badge 
+                                                variant="outline" 
+                                                className="text-[10px] gap-1 cursor-pointer hover:bg-muted"
+                                                onClick={() => {
+                                                    const rule = allAvailableRules.find(r => r.id === tx.matchedRuleId);
+                                                    if (rule) setViewingRuleData({ rule, keyword: tx.matchedKeyword });
+                                                }}
+                                            >
+                                                <BookOpen className="h-3 w-3"/> Rule
+                                            </Badge>
                                         ) : tx.allocationSource === 'ai' ? (
                                             <Badge variant="secondary" className="text-[10px] gap-1"><Sparkles className="h-3 w-3"/> AI</Badge>
                                         ) : tx.allocationSource === 'history' ? (
@@ -1511,7 +1578,7 @@ export default function BankTransactionsPage() {
                         <AIWorkflowTab client={client} bankAccountId={accountId} onAccountCreated={fetchClientData} />
                     </TabsContent>
                     <TabsContent value="reviewed" className="p-0">
-                        <ReviewedTab client={client} bankAccountId={accountId} customers={customers} onAccountCreated={fetchClientData} />
+                        <ReviewedTab client={client} bankAccountId={accountId} customers={customers} globalRules={globalRules} onAccountCreated={fetchClientData} />
                     </TabsContent>
                 </Tabs>
             </div>

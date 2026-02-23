@@ -1,4 +1,3 @@
-
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp } from 'firebase/firestore';
@@ -172,6 +171,9 @@ export async function moveTransactionToNew({ clientId, transactionId }: { client
             merchantKey: deleteField(),
             aiAllocationResult: deleteField(),
             allocationSource: deleteField(),
+            matchedRuleId: deleteField(),
+            matchedRuleDescription: deleteField(),
+            matchedKeyword: deleteField(),
         });
         return { success: true };
     } catch (e) {
@@ -291,12 +293,14 @@ export async function runAiAccountantAnalysis({
 
         // 2. Group by description & Match
         const uniqueDescriptions = Array.from(new Set(processingExpenses.map(tx => tx.description)));
-        const merchantAnalysis: { [key: string]: { merchantKey: string | null, result: AIAllocationResult | null, source: string | null } } = {};
+        const merchantAnalysis: { [key: string]: { merchantKey: string | null, result: AIAllocationResult | null, source: string | null, ruleId?: string, matchedKeyword?: string } } = {};
 
         for (const desc of uniqueDescriptions) {
             let merchantKey: string | null = null;
             let finalResult: AIAllocationResult | null = null;
             let finalSource: string | null = null;
+            let ruleId: string | undefined;
+            let matchedKeyword: string | undefined;
 
             try {
                 const norm = await extractSupplierName({ description: desc });
@@ -321,11 +325,15 @@ export async function runAiAccountantAnalysis({
                         // TIER 2: Rules
                         const ruleMatch = allRules.find(r => r.keywords.some(kw => merchantKey!.includes(kw.toUpperCase())));
                         if (ruleMatch) {
+                            matchedKeyword = ruleMatch.keywords.find(kw => merchantKey!.includes(kw.toUpperCase()));
+                            ruleId = ruleMatch.id;
                             finalResult = {
                                 accountId: ruleMatch.accountId,
                                 vatType: ruleMatch.vatType,
                                 confidence: 95,
-                                summary: `Matched active allocation rule for ${merchantKey}.`
+                                summary: `Matched active allocation rule for ${merchantKey}.`,
+                                ruleId: ruleMatch.id,
+                                matchedKeyword: matchedKeyword
                             };
                             finalSource = 'rule';
                         } else {
@@ -349,7 +357,7 @@ export async function runAiAccountantAnalysis({
                 console.error(`Analysis failed for ${desc}`, e);
             }
 
-            merchantAnalysis[desc] = { merchantKey, result: finalResult, source: finalSource };
+            merchantAnalysis[desc] = { merchantKey, result: finalResult, source: finalSource, ruleId, matchedKeyword };
         }
 
         // 3. Batch Update
@@ -362,7 +370,9 @@ export async function runAiAccountantAnalysis({
                     merchantKey: analysis.merchantKey,
                     aiAllocationResult: analysis.result,
                     status: 'ai_review',
-                    allocationSource: analysis.source
+                    allocationSource: analysis.source,
+                    matchedRuleId: analysis.ruleId || deleteField(),
+                    matchedKeyword: analysis.matchedKeyword || deleteField()
                 });
                 moveCount++;
             } else {
@@ -370,7 +380,9 @@ export async function runAiAccountantAnalysis({
                     status: 'new',
                     merchantKey: deleteField(),
                     aiAllocationResult: deleteField(),
-                    allocationSource: deleteField()
+                    allocationSource: deleteField(),
+                    matchedRuleId: deleteField(),
+                    matchedKeyword: deleteField()
                 });
             }
         });

@@ -366,11 +366,13 @@ export type Task = {
 };
 
 export type AIAllocationResult = {
+  ruleId?: string;
   accountId: string;
   vatType: VatType;
   confidence: number;
   summary?: string;
   suggestedKeyword?: string;
+  matchedKeyword?: string;
 };
 
 export type ImportedTransaction = {
@@ -400,6 +402,7 @@ export type ImportedTransaction = {
     allocationSource?: 'rule' | 'manual' | 'ai' | 'history' | 'global_db';
     matchedRuleId?: string;
     matchedRuleDescription?: string;
+    matchedKeyword?: string;
 };
 
 export type AllocatedTransaction = {
@@ -424,6 +427,7 @@ export type AllocatedTransaction = {
     allocationSource?: 'rule' | 'manual' | 'ai' | 'history' | 'global_db';
     matchedRuleId?: string;
     matchedRuleDescription?: string;
+    matchedKeyword?: string;
 };
 
 export type ExtractedInvoice = {
