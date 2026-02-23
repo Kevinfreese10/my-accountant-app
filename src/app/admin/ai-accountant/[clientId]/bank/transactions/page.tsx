@@ -394,6 +394,70 @@ function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction,
     );
 }
 
+interface TransactionGroup {
+    merchantKey: string;
+    transactions: ImportedTransaction[];
+    suggestion: AIAllocationResult | null;
+    status: 'pending' | 'ready' | 'processing' | 'server_researching';
+}
+
+function GroupTransactionsDialog({ open, onOpenChange, group, onMoveToNew }: { 
+    open: boolean, 
+    onOpenChange: (open: boolean) => void, 
+    group: TransactionGroup | null,
+    onMoveToNew: (txId: string) => Promise<void>
+}) {
+    const [isMoving, setIsMoving] = useState<string | null>(null);
+    if (!group) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Transactions for: {group.merchantKey}</DialogTitle>
+                    <DialogDescription>Review individual transactions in this group.</DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[60vh] overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {group.transactions.map(tx => (
+                                <TableRow key={tx.id}>
+                                    <TableCell className="text-xs">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                    <TableCell className="text-xs font-medium">{tx.description}</TableCell>
+                                    <TableCell className="text-right font-mono text-xs">{formatPrice(tx.amount)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="text-destructive h-7 text-[10px]"
+                                            onClick={() => {
+                                                setIsMoving(tx.id);
+                                                onMoveToNew(tx.id).finally(() => setIsMoving(null));
+                                            }}
+                                            disabled={isMoving === tx.id}
+                                        >
+                                            {isMoving === tx.id ? <Loader2 className="h-3 w-3 animate-spin mr-1"/> : <Undo2 className="h-3 w-3 mr-1"/>}
+                                            Move to New
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 // #endregion
 
 const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, globalRules, onAccountCreated, setActiveTab, currentBalance, customers }, ref) => {
@@ -824,13 +888,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
 });
 NewTransactionsTab.displayName = 'NewTransactionsTab';
 
-interface TransactionGroup {
-    merchantKey: string;
-    transactions: ImportedTransaction[];
-    suggestion: AIAllocationResult | null;
-    status: 'pending' | 'ready' | 'processing' | 'server_researching';
-}
-
 const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: { 
     client: User | null; 
     bankAccountId: string | null; 
@@ -970,7 +1027,12 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             });
             toast({ title: "Research Complete" });
             fetchData();
-        } catch (e) { toast({ title: "Research Failed", variant: "destructive" }); } finally { setIsResearchingId(null); }
+        } catch (error) {
+            console.error("Research Failed", error);
+            toast({ title: "Research Failed", variant: "destructive" });
+        } finally {
+            setIsResearchingId(null);
+        }
     }
 
     if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>;
@@ -980,6 +1042,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     return (
         <div className="space-y-6 p-4">
             <CreateGeneralAccountDialog client={client} onAccountCreated={fetchData} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
+            <GroupTransactionsDialog open={!!viewingGroup} onOpenChange={(o) => !o && setViewingGroup(null)} group={viewingGroup} onMoveToNew={handleMoveSingleTransactionToNew} />
             
             <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border border-dashed">
                 <div className="space-y-1">
