@@ -617,7 +617,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                     </Tabs>
                     <div className="p-4 flex justify-between items-center gap-2 flex-wrap">
                         <div className="flex gap-2 flex-wrap">
-                            <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={stats.balance} onImportComplete={refetch} />
+                            <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={currentBalance} onImportComplete={refetch} />
                             
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
