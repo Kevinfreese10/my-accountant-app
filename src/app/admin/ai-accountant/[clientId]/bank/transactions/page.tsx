@@ -25,7 +25,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
-import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from 'cmdk';
+import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from "@/components/ui/command";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, parse } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -390,7 +390,7 @@ function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction,
     onOpenChange: (open: boolean) => void;
     suggestion: AIAllocationResult | null;
     transaction: ImportedTransaction | null;
-    onAction: (mode: 'new' | 'append') => void;
+    onAction: (mode: 'new' | 'append' | 'allocate') => void;
 }) {
     if (!suggestion || !transaction) return null;
 
@@ -421,8 +421,9 @@ function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction,
                     </div>
                 </div>
                 <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                    <Button onClick={() => onAction('allocate')} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">Allocate Only</Button>
                     <Button variant="outline" onClick={() => onAction('append')} className="flex-1">Add Keyword to Existing Rule</Button>
-                    <Button onClick={() => onAction('new')} className="flex-1">Create New Rule</Button>
+                    <Button variant="outline" onClick={() => onAction('new')} className="flex-1">Create New Rule</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -689,8 +690,30 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         } catch (e) { toast({ title: "Analysis Failed", variant: "destructive" }); } finally { setIsAiResearching(null); }
     };
 
-    const handleAiReviewAction = (mode: 'new' | 'append') => {
-        if (!aiSuggestion || !selectedTxForAi) return;
+    const handleAiReviewAction = async (mode: 'new' | 'append' | 'allocate') => {
+        if (!aiSuggestion || !selectedTxForAi || !client) return;
+        
+        if (mode === 'allocate') {
+            try {
+                const batch = writeBatch(db);
+                const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+                batch.update(doc(transRef, selectedTxForAi.id), {
+                    status: 'reviewed',
+                    allocatedTo: { value: aiSuggestion.accountId, type: 'account' },
+                    vatType: aiSuggestion.vatType,
+                    allocatedAt: serverTimestamp(),
+                    allocationSource: 'ai',
+                });
+                await batch.commit();
+                toast({ title: "Transaction Allocated" });
+                setIsAiReviewOpen(false);
+                refetch();
+            } catch (e) {
+                toast({ title: "Allocation Failed", variant: "destructive" });
+            }
+            return;
+        }
+
         setTransactionDescriptionForRule(selectedTxForAi.description);
         setRuleDefaultValues({
             mode,
@@ -820,9 +843,9 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                     </span>
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-64 p-0" align="start">
+                                            <PopoverContent className="w-[300px] p-0" align="start">
                                                 <Command className="w-full">
-                                                    <CommandInput placeholder="Search accounts..." className="border-b" />
+                                                    <CommandInput placeholder="Search accounts..." />
                                                     <CommandList className="max-h-72 overflow-y-auto">
                                                         <CommandEmpty>No results found.</CommandEmpty>
                                                         <CommandGroup heading="GL Accounts">
@@ -1107,7 +1130,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     };
 
     const handleResearchWithAi = async (group: TransactionGroup) => {
-        if (!client?.uid) return;
+        if (!client) return;
         setIsResearchingId(group.merchantKey);
         try {
             const res = await researchMerchantWithAi({
@@ -1440,9 +1463,9 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                                                     </span>
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-64 p-0" align="start">
+                                            <PopoverContent className="w-[300px] p-0" align="start">
                                                 <Command className="w-full">
-                                                    <CommandInput placeholder="Search accounts..." className="border-b" />
+                                                    <CommandInput placeholder="Search accounts..." />
                                                     <CommandList className="max-h-72 overflow-y-auto">
                                                         <CommandEmpty>No results found.</CommandEmpty>
                                                         <CommandGroup heading="GL Accounts">
