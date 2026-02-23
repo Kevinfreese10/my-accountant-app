@@ -185,9 +185,12 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                     txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
                     txData.allocatedAt = serverTimestamp();
                     txData.allocationSource = 'rule';
-                    txData.matchedRuleId = match.id;
-                    txData.matchedRuleDescription = match.description;
-                    txData.matchedKeyword = keyword;
+                    
+                    // Safety check: ensure no undefined values are added to the batch
+                    if (match.id) txData.matchedRuleId = match.id;
+                    if (match.description) txData.matchedRuleDescription = match.description;
+                    if (keyword) txData.matchedKeyword = keyword;
+                    
                     matchCount++;
                 }
 
