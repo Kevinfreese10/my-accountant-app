@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for answering questions based on website content and general knowledge.
@@ -10,7 +9,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { faqs } from '@/lib/data';
 import { fetchKnowledgeBase } from '@/lib/knowledge-base';
 import { getFirestore, collection, addDoc, Timestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -103,9 +101,6 @@ export async function websiteQAndA(
     BLOG POSTS:
     ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
 
-    FREQUENTLY ASKED QUESTIONS:
-    ${faqs.map(f => `Question: ${f.question}, Answer: ${f.answer}`).join('\n\n')}
-
     KNOWLEDGE BASE:
     ${knowledgeBaseItems.map(item => `Question: ${item.question}, Answer: ${item.answer}`).join('\n\n')}
     
@@ -135,7 +130,7 @@ export async function websiteQAndA(
     name: 'websiteQAndAPrompt',
     input: {schema: WebsiteQAndAInputSchema},
     output: {schema: WebsiteQAndAOutputSchema},
-    prompt: `You are an expert AI assistant for a company called "My Accountant". Your name is 'Khai'.
+    prompt: `You are an expert male AI assistant for a company called "My Accountant". Your name is 'Khai'.
     
     Your personality is friendly, professional, and very helpful. Start your responses with a warm, welcoming tone and use paragraphs for spacing to make your answers easy to read.
     
