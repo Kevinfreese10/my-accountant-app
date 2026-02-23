@@ -23,6 +23,7 @@ import {
   Wrench,
   PanelLeft,
   ChevronDown,
+  MessageSquareQuote,
 } from 'lucide-react';
 
 import {
@@ -152,14 +153,24 @@ export default function DashboardNav({ user }: { user: UserType }) {
         ))}
         
         {(hasAIAccountantAccess && (user.role === 'client')) && (
+             <>
              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`)} tooltip="AI Accountant">
+                <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`) && !pathname.includes('/chat')} tooltip="AI Accountant">
                     <Link href={`${basePath}/ai-accountant/clients`}>
                         <BrainCircuit />
                         <span>AI Accountant</span>
                     </Link>
                 </SidebarMenuButton>
             </SidebarMenuItem>
+            <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname.includes('/chat')} tooltip="Transaction Chat">
+                    <Link href={`/dashboard/ai-accountant/${user.uid}/chat`}>
+                        <MessageSquareQuote />
+                        <span>Transaction Chat</span>
+                    </Link>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+            </>
         )}
 
         {user.role === 'ai_accountant' && visibleAiAccountantNavItems.map((item) => (
@@ -184,16 +195,28 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuItem>
         ))}
 
-        {(user.role === 'partner' || user.role === 'partner_staff') && visiblePartnerNavItems.map((item) => (
-            <SidebarMenuItem key={item.label}>
-            <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
-                <Link href={item.href}>
-                <item.icon />
-                <span>{item.label}</span>
-                </Link>
-            </SidebarMenuButton>
+        {(user.role === 'partner' || user.role === 'partner_staff') && (
+            <>
+            {visiblePartnerNavItems.map((item) => (
+                <SidebarMenuItem key={item.label}>
+                <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
+                    <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                    </Link>
+                </SidebarMenuButton>
+                </SidebarMenuItem>
+            ))}
+            <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname.includes('/chat')} tooltip="Transaction Chat">
+                    <Link href={`/dashboard/ai-accountant/${user.uid}/chat`}>
+                        <MessageSquareQuote />
+                        <span>Transaction Chat</span>
+                    </Link>
+                </SidebarMenuButton>
             </SidebarMenuItem>
-        ))}
+            </>
+        )}
 
         
         {(user.role === 'admin' || user.role === 'staff') && (

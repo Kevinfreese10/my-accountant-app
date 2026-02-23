@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive, Wallet2, TrendingUp } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive, Wallet2, TrendingUp, Bot } from 'lucide-react';
 import Image from 'next/image';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Order, Service, User, OrderNote } from '@/lib/types';
@@ -26,6 +26,7 @@ import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/e
 import { getNextOrderId } from '@/lib/sequence';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
@@ -159,6 +160,7 @@ export default function PartnerDashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
     const [allStaff, setAllStaff] = useState<User[]>([]);
+    const [pendingCount, setPendingCount] = useState(0);
     
     const archivedNotifications = user?.archivedNotifications || [];
 
@@ -238,10 +240,18 @@ export default function PartnerDashboardPage() {
           errorEmitter.emit('permission-error', permissionError);
       });
 
+      // Count pending transactions for Partner's own chat
+      const transRef = collection(db, 'aiAccountantClients', user.uid, 'transactions');
+      const transQ = query(transRef, where('status', 'in', ['new', 'ai_review']));
+      const unsubTrans = onSnapshot(transQ, (snap) => {
+          setPendingCount(snap.size);
+      });
+
       return () => {
           staffUnsubscribe();
           unsubClientOrders();
           unsubOutsourcedOrders();
+          unsubTrans();
       }
     }, [user?.uid]);
 
@@ -299,6 +309,21 @@ export default function PartnerDashboardPage() {
                     </Card>
                 )}
             </div>
+
+            {pendingCount > 0 && user && (
+                <Alert className="bg-primary/10 border-primary/20 shadow-sm animate-in fade-in slide-in-from-top-4">
+                    <Bot className="h-5 w-5 text-primary" />
+                    <AlertTitle className="font-bold">Chat with Khai</AlertTitle>
+                    <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <span>You have <strong>{pendingCount}</strong> practice allocations waiting to be finalized.</span>
+                        <Button size="sm" asChild>
+                            <Link href={`/dashboard/ai-accountant/${user.uid}/chat`}>
+                                Open Chat <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </Button>
+                    </AlertDescription>
+                </Alert>
+            )}
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <Card className="lg:col-span-2">

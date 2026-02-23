@@ -5,7 +5,7 @@ import { Order, User, OrderNote } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
 import { getFirestore, collection, orderBy, query, onSnapshot, doc, updateDoc, arrayUnion, where, or } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, ArrowRight, Inbox, Archive } from 'lucide-react';
+import { Loader2, ArrowRight, Inbox, Archive, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
@@ -33,6 +34,7 @@ export default function DashboardPage() {
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [archivedNotifications, setArchivedNotifications] = useState<string[]>([]);
+    const [pendingCount, setPendingCount] = useState(0);
 
     useEffect(() => {
         const storedArchived = localStorage.getItem('archivedNotifications-client');
@@ -51,7 +53,6 @@ export default function DashboardPage() {
         setIsLoading(true);
 
         const staffRef = collection(db, "users");
-        // Expand query to include all roles who might leave notes for white-label support
         const staffUnsubscribe = onSnapshot(query(staffRef, where('role', 'in', ['staff', 'admin', 'partner', 'partner_staff', 'ai_accountant'])), (snapshot) => {
             setAllStaff(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User)));
         }, async (error) => {
@@ -63,6 +64,8 @@ export default function DashboardPage() {
         });
 
         let ordersUnsubscribe = () => {};
+        let transUnsubscribe = () => {};
+
         if (user) {
             const ordersRef = collection(db, 'orders');
             const q = query(
@@ -107,6 +110,13 @@ export default function DashboardPage() {
                 errorEmitter.emit('permission-error', permissionError);
                 setIsLoading(false);
             });
+
+            // Count pending transactions for Khai Chat
+            const transRef = collection(db, 'aiAccountantClients', user.uid, 'transactions');
+            const transQ = query(transRef, where('status', 'in', ['new', 'ai_review']));
+            transUnsubscribe = onSnapshot(transQ, (snap) => {
+                setPendingCount(snap.size);
+            });
         } else {
             setIsLoading(false);
         }
@@ -114,6 +124,7 @@ export default function DashboardPage() {
         return () => {
             staffUnsubscribe();
             ordersUnsubscribe();
+            transUnsubscribe();
         }
     }, [user]);
 
@@ -144,6 +155,21 @@ export default function DashboardPage() {
                 <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
                 <p className="text-muted-foreground">Here's a summary of your recent activity and notifications.</p>
             </div>
+
+            {pendingCount > 0 && user && (
+                <Alert className="bg-primary/10 border-primary/20 shadow-sm animate-in fade-in slide-in-from-top-4">
+                    <Bot className="h-5 w-5 text-primary" />
+                    <AlertTitle className="font-bold">Chat with Khai</AlertTitle>
+                    <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <span>You have <strong>{pendingCount}</strong> allocations waiting to be finalized.</span>
+                        <Button size="sm" asChild>
+                            <Link href={`/dashboard/ai-accountant/${user.uid}/chat`}>
+                                Open Chat <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </Button>
+                    </AlertDescription>
+                </Alert>
+            )}
             
             <Card>
                 <CardHeader>
@@ -178,8 +204,8 @@ export default function DashboardPage() {
                                                     {formatDistanceToNow(date, { addSuffix: true })}
                                                 </p>
                                             </div>
-                                            <div className="bg-muted/50 p-3 rounded-lg border border-muted">
-                                                <p className="text-sm text-foreground/90 leading-relaxed italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
+                                            <div className="bg-muted/50 p-3 rounded-lg border border-muted text-foreground">
+                                                <p className="text-sm leading-relaxed italic" dangerouslySetInnerHTML={{ __html: `"${note.text.replace(/\n/g, '<br />')}"` }} />
                                             </div>
                                             <div className="flex justify-end pt-1">
                                                 <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={() => archiveNotification(noteId)}>
