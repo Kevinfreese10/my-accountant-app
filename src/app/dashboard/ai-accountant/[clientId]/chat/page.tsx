@@ -250,7 +250,7 @@ export default function ClientAllocationChatPage() {
                                                 ? "bg-primary text-primary-foreground rounded-br-none" 
                                                 : "bg-muted border rounded-bl-none text-foreground"
                                         )}>
-                                            <div className={cn("prose prose-sm", m.role === 'user' ? "prose-invert" : "text-slate-950 font-semibold")}>
+                                            <div className={cn("prose prose-sm", m.role === 'user' ? "prose-invert" : "text-slate-950 font-bold")}>
                                                 <ReactMarkdown>{m.content}</ReactMarkdown>
                                             </div>
                                             <p className={cn("text-[10px] mt-1 font-bold", m.role === 'user' ? "text-right opacity-70" : "text-left text-slate-900 opacity-50")}>
