@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 
