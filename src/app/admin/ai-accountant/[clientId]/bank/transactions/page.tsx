@@ -613,9 +613,16 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
 
                             {activeSubTab === 'expenses' && <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow}><Sparkles className="mr-2 h-4 w-4" /> Group & Smart Match</Button>}
                         </div>
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input placeholder="Search descriptions..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8 w-64" />
+                        <div className="flex items-center gap-4 flex-wrap">
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}><ChevronLeft className="h-4 w-4" /></Button>
+                                <span className="text-xs font-medium min-w-[60px] text-center">Page {currentPage}</span>
+                                <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}><ChevronRight className="h-4 w-4" /></Button>
+                            </div>
+                            <div className="relative">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input placeholder="Search descriptions..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8 w-64" />
+                            </div>
                         </div>
                     </div>
                 </CardHeader>
@@ -743,13 +750,8 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                         </TableBody>
                     </Table>
                 </CardContent>
-                <CardFooter className="flex justify-between p-4 border-t">
+                <CardFooter className="flex justify-end p-4 border-t">
                     <Button onClick={handleSaveAllocations} disabled={isSaving || Object.keys(allocations).length === 0}>Save Allocations</Button>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}>Previous</Button>
-                        <span className="text-sm">Page {currentPage}</span>
-                        <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}>Next</Button>
-                    </div>
                 </CardFooter>
             </Card>
         </div>
@@ -1037,7 +1039,7 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
     onAccountCreated: () => void; 
 }) => {
     const { toast } = useToast();
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const [dateRange, setDateRange] = setDateRange = useState<DateRange | undefined>(undefined);
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
     const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
@@ -1162,6 +1164,11 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
                                     ))}
                                 </SelectContent>
                             </Select>
+                            <div className="flex items-center gap-2 ml-4">
+                                <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}><ChevronLeft className="h-4 w-4" /></Button>
+                                <span className="text-xs font-medium min-w-[60px] text-center">Page {currentPage}</span>
+                                <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}><ChevronRight className="h-4 w-4" /></Button>
+                            </div>
                         </div>
                         <DateRangePicker onDateChange={setDateRange} />
                     </div>
@@ -1323,12 +1330,7 @@ const ReviewedTab = ({ client, bankAccountId, customers }: {
                         </TableBody>
                     </Table>
                 </CardContent>
-                <CardFooter className="flex justify-between p-4 border-t">
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}>Previous</Button>
-                        <span className="text-sm self-center">Page {currentPage}</span>
-                        <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}>Next</Button>
-                    </div>
+                <CardFooter className="flex justify-end p-4 border-t">
                     {Object.keys(editedAllocations).length > 0 && (
                         <div className="flex gap-2">
                             <Button variant="ghost" size="sm" onClick={() => setEditedAllocations({})}>Cancel Edits</Button>
