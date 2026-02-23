@@ -195,19 +195,20 @@ export default function ClientAllocationChatPage() {
                         <ScrollArea className="h-[400px]">
                             <div className="divide-y">
                                 {pendingTransactions.map(tx => (
-                                    <div key={tx.id} className="p-4 space-y-1 hover:bg-muted/30 transition-colors">
+                                    <div key={tx.id} className="p-4 space-y-1 hover:bg-muted/30 transition-colors border-l-2 border-transparent hover:border-primary">
                                         <div className="flex justify-between items-start">
-                                            <p className="text-xs font-bold text-foreground/60 uppercase tracking-widest">{format(new Date(tx.date), 'dd MMM yyyy')}</p>
-                                            <p className="text-sm font-mono font-bold">{formatPrice(tx.amount)}</p>
+                                            <p className="text-xs font-bold text-slate-900 uppercase tracking-widest">{format(new Date(tx.date), 'dd MMM yyyy')}</p>
+                                            <p className="text-sm font-mono font-bold text-slate-950">{formatPrice(tx.amount)}</p>
                                         </div>
                                         <p className="text-sm font-semibold leading-tight text-slate-900">{tx.description}</p>
-                                        {tx.status === 'ai_review' && <Badge variant="secondary" className="text-[10px] py-0">Reviewing Group</Badge>}
+                                        {tx.status === 'ai_review' && <Badge variant="secondary" className="text-[10px] py-0 font-bold">Reviewing Group</Badge>}
                                     </div>
                                 ))}
                                 {pendingTransactions.length === 0 && (
                                     <div className="p-8 text-center text-muted-foreground">
                                         <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-green-500" />
-                                        <p className="text-sm">All caught up! No transactions need clarification.</p>
+                                        <p className="text-sm font-bold text-slate-900">All caught up!</p>
+                                        <p className="text-xs">No transactions need clarification.</p>
                                     </div>
                                 )}
                             </div>
@@ -217,8 +218,8 @@ export default function ClientAllocationChatPage() {
                 
                 <Alert className="bg-primary/5 border-primary/20">
                     <Info className="h-4 w-4" />
-                    <AlertTitle>How it works</AlertTitle>
-                    <AlertDescription className="text-xs leading-relaxed">
+                    <AlertTitle className="font-bold">How it works</AlertTitle>
+                    <AlertDescription className="text-xs leading-relaxed font-medium">
                         Khai (your AI assistant) will ask you about these transactions one by one. Simply tell her what they were for (e.g., "Lunch with client" or "Office rental") and she'll handle the accounting mapping for you.
                     </AlertDescription>
                 </Alert>
@@ -232,13 +233,13 @@ export default function ClientAllocationChatPage() {
                                 <Bot className="h-6 w-6" />
                             </div>
                             <div>
-                                <CardTitle className="text-lg">Chat with Khai</CardTitle>
-                                <CardDescription className="text-xs">Secure Transaction Assistant</CardDescription>
+                                <CardTitle className="text-lg font-bold">Chat with Khai</CardTitle>
+                                <CardDescription className="text-xs font-semibold text-primary">Secure Transaction Assistant</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
                     
-                    <CardContent className="flex-grow overflow-hidden relative p-0">
+                    <CardContent className="flex-grow overflow-hidden relative p-0 bg-white">
                         <ScrollArea className="h-full px-6 py-6" ref={scrollRef}>
                             <div className="space-y-6">
                                 {messages.map((m, i) => (
@@ -252,7 +253,7 @@ export default function ClientAllocationChatPage() {
                                             <div className={cn("prose prose-sm", m.role === 'user' ? "prose-invert" : "text-slate-950 font-semibold")}>
                                                 <ReactMarkdown>{m.content}</ReactMarkdown>
                                             </div>
-                                            <p className={cn("text-[10px] mt-1 opacity-70", m.role === 'user' ? "text-right" : "text-left font-bold text-slate-900")}>
+                                            <p className={cn("text-[10px] mt-1 font-bold", m.role === 'user' ? "text-right opacity-70" : "text-left text-slate-900 opacity-50")}>
                                                 {format(m.timestamp, 'HH:mm')}
                                             </p>
                                         </div>
@@ -277,7 +278,7 @@ export default function ClientAllocationChatPage() {
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 disabled={isLoading || pendingTransactions.length === 0}
-                                className="flex-grow bg-background h-12 text-foreground font-medium border-primary/20 focus-visible:ring-primary"
+                                className="flex-grow bg-background h-12 text-slate-950 font-bold border-primary/20 focus-visible:ring-primary"
                                 autoComplete="off"
                             />
                             <Button type="submit" size="icon" disabled={isLoading || !inputValue.trim() || pendingTransactions.length === 0} className="h-12 w-12 rounded-full">

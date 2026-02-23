@@ -131,6 +131,14 @@
         { "fieldPath": "assignedTo", "arrayConfig": "CONTAINS" },
         { "fieldPath": "dueDate", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "allocationQueries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "sentAt", "order": "DESCENDING" }
+      ]
     }
   ]
 }

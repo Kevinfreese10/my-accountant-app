@@ -85,7 +85,7 @@ export default function WebsiteAIWidget() {
 
       {isOpen && (
         <div className="fixed bottom-24 right-4 left-4 z-50 sm:left-auto sm:w-full sm:max-w-sm">
-          <Card className="flex flex-col h-[60vh] shadow-xl bg-white">
+          <Card className="flex flex-col h-[60vh] shadow-xl bg-white border-2">
             <CardContent ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {chatHistory.map((message, index) => (
                 <div key={index} className={cn("flex items-end gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}>
@@ -95,12 +95,12 @@ export default function WebsiteAIWidget() {
                     </div>
                   )}
                    <div className={cn(
-                        "p-3 rounded-lg max-w-xs prose prose-sm",
-                        message.role === 'user' ? "bg-primary text-primary-foreground prose-invert" : "bg-muted text-foreground font-medium"
+                        "p-3 rounded-lg max-w-xs prose prose-sm shadow-sm border",
+                        message.role === 'user' ? "bg-primary text-primary-foreground prose-invert border-primary" : "bg-muted text-slate-950 font-semibold border-muted"
                     )}>
                         <ReactMarkdown
                             components={{
-                                p: ({node, ...props}) => <p className="text-sm my-0" {...props} />,
+                                p: ({node, ...props}) => <p className="text-sm my-0 leading-relaxed" {...props} />,
                                 ul: ({node, ...props}) => <ul className="list-disc pl-4 my-2" {...props} />,
                                 li: ({node, ...props}) => <li className="my-1" {...props} />,
                             }}
@@ -121,13 +121,13 @@ export default function WebsiteAIWidget() {
                     <div className="relative h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
                       <Image src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1761278314476-Playful%20Accountant%20Co.%20Logo%20Design.png?alt=media&token=d0f0c369-7b88-4e41-bdaf-400d292b592b" alt="Khai AI Assistant" fill className="object-cover" />
                     </div>
-                    <div className="p-3 rounded-lg bg-muted flex items-center">
+                    <div className="p-3 rounded-lg bg-muted flex items-center border border-muted">
                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
                     </div>
                 </div>
               )}
             </CardContent>
-            <CardFooter className="p-2 border-t">
+            <CardFooter className="p-2 border-t bg-muted/10">
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="w-full flex items-center gap-2">
                   <FormField
@@ -136,13 +136,13 @@ export default function WebsiteAIWidget() {
                     render={({ field }) => (
                       <FormItem className="flex-grow">
                         <FormControl>
-                          <Input placeholder="Type your message..." {...field} autoComplete="off" className="text-foreground font-medium" />
+                          <Input placeholder="Type your message..." {...field} autoComplete="off" className="text-slate-950 font-bold bg-white" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" size="icon" disabled={isLoading}>
+                  <Button type="submit" size="icon" disabled={isLoading} className="rounded-full h-10 w-10">
                     <Send className="h-5 w-5" />
                   </Button>
                 </form>
