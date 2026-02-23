@@ -96,11 +96,11 @@ export default function WebsiteAIWidget() {
                   )}
                    <div className={cn(
                         "p-3 rounded-lg max-w-xs prose prose-sm shadow-sm border",
-                        message.role === 'user' ? "bg-primary text-primary-foreground prose-invert border-primary" : "bg-muted text-slate-950 font-semibold border-muted"
+                        message.role === 'user' ? "bg-primary text-primary-foreground prose-invert border-primary" : "bg-muted text-slate-950 font-bold border-muted"
                     )}>
                         <ReactMarkdown
                             components={{
-                                p: ({node, ...props}) => <p className="text-sm my-0 leading-relaxed" {...props} />,
+                                p: ({node, ...props}) => <p className="text-sm my-0 leading-relaxed font-bold" {...props} />,
                                 ul: ({node, ...props}) => <ul className="list-disc pl-4 my-2" {...props} />,
                                 li: ({node, ...props}) => <li className="my-1" {...props} />,
                             }}
