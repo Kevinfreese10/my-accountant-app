@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -51,7 +52,7 @@ const formatPrice = (price: number) => {
 
 // #region Helper Components
 
-function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete, globalRules }: { client: User | null, bankAccountId: string, currentBalance: number, onImportComplete: () => void, globalRules: AllocationRule[] }) {
+function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete }: { client: User | null, bankAccountId: string, currentBalance: number, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [parsedTransactions, setParsedTransactions] = useState<any[]>([]);
@@ -91,27 +92,51 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete,
         if (!client?.uid || !bankAccountId || parsedTransactions.length === 0) return;
         setIsUploading(true);
         try {
+            // 1. Fetch rules once for automatic application during import
+            const rulesQuery = collection(db, "allocationRules");
+            const rulesSnap = await getDocs(rulesQuery);
+            const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+            const allRules = [...(client.allocationRules || []), ...globalRules];
+
             const batch = writeBatch(db);
+            let matchCount = 0;
+
             parsedTransactions.forEach((row) => {
                 let parsedDate = parse(row.Date, 'dd/MM/yyyy', new Date());
                 if (isNaN(parsedDate.getTime())) parsedDate = new Date(row.Date);
                 if (isNaN(parsedDate.getTime())) return;
 
-                const newRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
-                batch.set(newRef, {
+                const description = row.Description;
+                const match = allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase())));
+
+                const txData: any = {
                     clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: `CSV-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                    description: row.Description,
+                    description: description,
                     amount: row.Amount,
                     isExpense: row.Amount < 0,
                     bankAccountId: bankAccountId,
-                    status: 'new'
-                });
+                    status: match ? 'reviewed' : 'new'
+                };
+
+                if (match) {
+                    txData.allocatedTo = { value: match.accountId, type: 'account' };
+                    txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
+                    txData.allocatedAt = serverTimestamp();
+                    txData.allocationSource = 'rule';
+                    matchCount++;
+                }
+
+                const newRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
+                batch.set(newRef, txData);
             });
 
             await batch.commit();
-            toast({ title: "Import Successful", description: `${parsedTransactions.length} transactions imported.`});
+            toast({ 
+                title: "Import Successful", 
+                description: `${parsedTransactions.length} transactions imported. ${matchCount} auto-allocated by rules.`
+            });
             onImportComplete();
             setIsOpen(false);
         } catch (error) {
@@ -399,7 +424,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     };
 
     const handleAllocateByRules = async () => {
-        if (!client?.uid) return;
+        if (!client?.uid || !bankAccountId) return;
         setIsRuleAllocating(true);
         try {
             const rulesQuery = collection(db, "allocationRules");
@@ -407,12 +432,23 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
             const allRules = [...(client.allocationRules || []), ...globalRules];
 
+            // FIX: Query ALL unallocated transactions for the entire bank account, not just the visible page.
+            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            const q = query(
+                transRef, 
+                where('bankAccountId', '==', bankAccountId), 
+                where('status', '==', 'new'),
+                where('isExpense', '==', activeSubTab === 'expenses')
+            );
+            const snapshot = await getDocs(q);
+
             const batch = writeBatch(db);
             let count = 0;
-            fetchedTransactions.forEach(tx => {
+            snapshot.docs.forEach(d => {
+                const tx = d.data() as ImportedTransaction;
                 const match = allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase())));
                 if (match) {
-                    batch.update(doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id), {
+                    batch.update(d.ref, {
                         status: 'reviewed',
                         allocatedTo: { value: match.accountId, type: 'account' },
                         vatType: client.isVatRegistered ? match.vatType : 'no_vat',
@@ -422,12 +458,20 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                     count++;
                 }
             });
+
             if (count > 0) {
                 await batch.commit();
-                toast({ title: 'Rules Applied', description: `${count} transactions auto-allocated.` });
+                toast({ title: 'Rules Applied', description: `${count} transactions auto-allocated across all pages.` });
                 refetch();
-            } else { toast({ title: 'No Matches', description: 'No rules matched the current transactions.' }); }
-        } catch (e) { toast({ title: 'Error', variant: 'destructive' }); } finally { setIsRuleAllocating(false); }
+            } else { 
+                toast({ title: 'No Matches', description: 'No rules matched any unallocated transactions.' }); 
+            }
+        } catch (e) { 
+            console.error(e);
+            toast({ title: 'Error', description: 'Failed to apply rules.', variant: 'destructive' }); 
+        } finally { 
+            setIsRuleAllocating(false); 
+        }
     };
 
     const handleSaveAllocations = async () => {
@@ -514,7 +558,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                     </Tabs>
                     <div className="p-4 flex justify-between items-center gap-2 flex-wrap">
                         <div className="flex gap-2 flex-wrap">
-                            <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={currentBalance} onImportComplete={refetch} globalRules={globalRules} />
+                            <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={currentBalance} onImportComplete={refetch} />
                             
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
