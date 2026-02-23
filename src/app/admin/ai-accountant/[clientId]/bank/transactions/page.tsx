@@ -186,7 +186,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                     txData.allocatedAt = serverTimestamp();
                     txData.allocationSource = 'rule';
                     
-                    // Safety check: ensure no undefined values are added to the batch
                     if (match.id) txData.matchedRuleId = match.id;
                     if (match.description) txData.matchedRuleDescription = match.description;
                     if (keyword) txData.matchedKeyword = keyword;
@@ -207,7 +206,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
             setIsOpen(false);
         } catch (error) {
             console.error("Import error", error);
-            toast({ title: "Import Failed", variant: "destructive"});
+            toast({ title: "Import Failed", description: "Make sure you don't have undefined fields.", variant: "destructive"});
         } finally {
             setIsUploading(false);
         }
@@ -931,6 +930,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const { toast } = useToast();
     const [groups, setGroups] = useState<TransactionGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRechecking, setIsRechecking] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [approvalSettings, setApprovalSettings] = useState<any>({});
     const [viewingGroup, setViewingGroup] = useState<TransactionGroup | null>(null);
@@ -968,6 +968,63 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    const handleRecheckRules = async () => {
+        if (!client?.uid) return;
+        setIsRechecking(true);
+        try {
+            // Fetch fresh rules
+            const clientRef = doc(db, 'aiAccountantClients', client.uid);
+            const clientSnap = await getDoc(clientRef);
+            const latestClient = clientSnap.data() as User;
+            
+            const rulesQuery = collection(db, "allocationRules");
+            const rulesSnap = await getDocs(rulesQuery);
+            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+            const allRules = [...(latestClient.allocationRules || []), ...globalRulesList].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+
+            const updatedGroups = groups.map(group => {
+                const description = group.transactions[0].description;
+                const match = allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase())));
+                
+                if (match) {
+                    const keyword = match.keywords.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
+                    const newSuggestion: AIAllocationResult = {
+                        accountId: match.accountId,
+                        vatType: client.isVatRegistered ? match.vatType : 'no_vat',
+                        confidence: 100,
+                        summary: `Matched latest existing allocation rule for ${keyword}.`,
+                        ruleId: match.id,
+                        matchedKeyword: keyword
+                    };
+                    
+                    setApprovalSettings((prev: any) => ({
+                        ...prev,
+                        [group.merchantKey]: {
+                            accountId: match.accountId,
+                            vatType: newSuggestion.vatType,
+                            createRule: false
+                        }
+                    }));
+
+                    return {
+                        ...group,
+                        suggestion: newSuggestion,
+                        status: 'ready' as const,
+                        transactions: group.transactions.map(tx => ({...tx, allocationSource: 'rule' as const}))
+                    };
+                }
+                return group;
+            });
+
+            setGroups(updatedGroups);
+            toast({ title: "Rules Rechecked", description: "Groups updated based on the latest allocation rules." });
+        } catch (e) {
+            toast({ title: "Recheck Failed", variant: "destructive" });
+        } finally {
+            setIsRechecking(false);
+        }
+    };
+
     const handleApproveGroup = async (group: TransactionGroup) => {
         if (!client?.uid) return;
         const settings = approvalSettings[group.merchantKey];
@@ -987,7 +1044,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 });
             });
             
-            // SMART LEARNING: Contribute to Global DB
             updateGlobalMerchantDb({
                 merchantKey: group.merchantKey,
                 accountId: settings.accountId,
@@ -1084,9 +1140,15 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     <h3 className="font-bold text-sm">Review Identifiable Merchants</h3>
                     <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI.</p>
                 </div>
-                <Button onClick={handleApproveAllSmartMatches} disabled={smartMatchCount === 0} className="bg-green-600 hover:bg-green-700 text-white">
-                    <CheckCheck className="mr-2 h-4 w-4" /> Approve {smartMatchCount} Smart Matches
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking || groups.length === 0}>
+                        {isRechecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4" />}
+                        Recheck Rules
+                    </Button>
+                    <Button onClick={handleApproveAllSmartMatches} disabled={smartMatchCount === 0} className="bg-green-600 hover:bg-green-700 text-white">
+                        <CheckCheck className="mr-2 h-4 w-4" /> Approve {smartMatchCount} Smart Matches
+                    </Button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
@@ -1099,7 +1161,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     return (
                     <Card key={group.merchantKey} className={cn("overflow-hidden border shadow-sm", group.status === 'server_researching' && "opacity-75 border-dashed")}>
                         <div className="grid grid-cols-1 md:grid-cols-12">
-                            {/* Column 1: Merchant Info (Left) */}
                             <div className="md:col-span-3 p-4 border-r border-b md:border-b-0 bg-muted/10">
                                 <div className="space-y-4">
                                     <div>
@@ -1123,7 +1184,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                 </div>
                             </div>
                             
-                            {/* Column 2: Selectors (Middle) */}
                             <div className="md:col-span-3 p-4 border-r space-y-4">
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">ALLOCATE TO</Label>
@@ -1141,7 +1201,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                 </div>
                             </div>
 
-                            {/* Column 3: AI Insight & Actions (Right) */}
                             <div className="md:col-span-6 p-4 flex flex-col justify-between">
                                 <div className="p-4 rounded-xl border border-primary/10 bg-primary/5 flex-grow mb-4">
                                     <div className="mb-3 flex justify-between items-center">
@@ -1219,7 +1278,6 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
     const uniqueChartOfAccounts = useMemo(() => [...(client?.chartOfAccounts || [])].sort((a, b) => a.description.localeCompare(b.description)), [client]);
     const allAvailableRules = useMemo(() => [...(client?.allocationRules || []), ...globalRules], [client?.allocationRules, globalRules]);
 
-    // Fetch unique accounts that actually have transactions to populate the filter
     useEffect(() => {
         if (!client?.uid || !bankAccountId) return;
         const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
