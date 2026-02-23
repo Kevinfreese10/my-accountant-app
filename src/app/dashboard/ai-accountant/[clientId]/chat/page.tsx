@@ -5,8 +5,8 @@ import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Send, Bot, User, CheckCircle2, AlertCircle, Info, Banknote } from 'lucide-react';
-import { getFirestore, doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { Loader2, Send, Bot, User, CheckCircle2, AlertCircle, Info, Banknote, MessageSquareQuote } from 'lucide-react';
+import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -43,6 +43,7 @@ export default function ClientAllocationChatPage() {
     
     const [client, setClient] = useState<any>(null);
     const [pendingTransactions, setPendingTransactions] = useState<any[]>([]);
+    const [queries, setQueries] = useState<any[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -65,13 +66,23 @@ export default function ClientAllocationChatPage() {
 
             // Real-time listener for pending transactions
             const q = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), where('status', 'in', ['new', 'ai_review']));
-            const unsubscribe = onSnapshot(q, (snap) => {
+            const unsubscribeTxs = onSnapshot(q, (snap) => {
                 const txs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 setPendingTransactions(txs);
                 setIsPageLoading(false);
             });
 
-            return unsubscribe;
+            // Real-time listener for accountant queries (pending invites)
+            const qQueries = query(collection(db, 'aiAccountantClients', clientId, 'allocationQueries'), where('status', '==', 'pending'), orderBy('sentAt', 'desc'));
+            const unsubscribeQueries = onSnapshot(qQueries, (snap) => {
+                const fetchedQueries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                setQueries(fetchedQueries);
+            });
+
+            return () => {
+                unsubscribeTxs();
+                unsubscribeQueries();
+            };
         };
 
         fetchData();
@@ -88,7 +99,7 @@ export default function ClientAllocationChatPage() {
         try {
             const res = await processClientAllocationChat({
                 history: [],
-                pendingTransactions: pendingTransactions.slice(0, 5), // Only pass small subset for context
+                pendingTransactions: pendingTransactions.slice(0, 5), 
                 chartOfAccounts: client?.chartOfAccounts || [],
                 isVatRegistered: !!client?.isVatRegistered
             });
@@ -118,7 +129,6 @@ export default function ClientAllocationChatPage() {
                 isVatRegistered: !!client?.isVatRegistered
             });
 
-            // Handle tool-like output for allocation
             if (res.allocation) {
                 await finalizeChatAllocation({
                     clientId,
@@ -143,6 +153,34 @@ export default function ClientAllocationChatPage() {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto">
             <div className="lg:col-span-4 space-y-6">
+                {queries.length > 0 && (
+                    <Card className="border-primary bg-primary/5">
+                        <CardHeader className="py-3">
+                            <CardTitle className="flex items-center gap-2 text-sm text-primary">
+                                <MessageSquareQuote className="h-4 w-4" />
+                                Active Requests
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="divide-y divide-primary/10">
+                                {queries.map(q => (
+                                    <div key={q.id} className="p-4 space-y-1">
+                                        <div className="flex justify-between items-center">
+                                            <Badge variant="default" className="text-[9px] uppercase font-bold px-1.5 h-4">Email Invite Sent</Badge>
+                                            <span className="text-[10px] text-muted-foreground font-bold">
+                                                {format(q.sentAt?.toDate?.() || new Date(), 'dd MMM, HH:mm')}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-900 leading-snug">
+                                            Accountant needs info for {q.unallocatedCount} transactions.
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -162,7 +200,7 @@ export default function ClientAllocationChatPage() {
                                             <p className="text-xs font-bold text-foreground/60 uppercase tracking-widest">{format(new Date(tx.date), 'dd MMM yyyy')}</p>
                                             <p className="text-sm font-mono font-bold">{formatPrice(tx.amount)}</p>
                                         </div>
-                                        <p className="text-sm font-semibold leading-tight text-foreground/90">{tx.description}</p>
+                                        <p className="text-sm font-semibold leading-tight text-slate-900">{tx.description}</p>
                                         {tx.status === 'ai_review' && <Badge variant="secondary" className="text-[10px] py-0">Reviewing Group</Badge>}
                                     </div>
                                 ))}

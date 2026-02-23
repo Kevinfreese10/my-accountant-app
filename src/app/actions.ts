@@ -388,9 +388,9 @@ export async function runAiAccountantAnalysis({
                     merchantKey: deleteField(),
                     aiAllocationResult: deleteField(),
                     allocationSource: deleteField(),
-                    matchedRuleId: deleteField(),
-                    matchedRuleDescription: deleteField(),
-                    matchedKeyword: deleteField()
+                    matchedRuleId: analysis.ruleId || deleteField(),
+                    matchedRuleDescription: analysis.ruleDescription || deleteField(),
+                    matchedKeyword: analysis.matchedKeyword || deleteField()
                 });
             }
         });
@@ -445,7 +445,7 @@ export async function researchMerchantWithAi({
 
         const rulesQuery = collection(db, "allocationRules");
         const rulesSnap = await getDocs(rulesQuery);
-        const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+        const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...doc.data() } as AllocationRule));
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
         const match = allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase())));
@@ -522,6 +522,15 @@ export async function sendAllocationQueryEmail({ clientId, clientEmail, unalloca
             to: clientEmail,
             subject: `Action Required: Clarification needed for ${unallocatedCount} transactions`,
             html: emailHtml,
+        });
+
+        // Log the query in Firestore for the client to see in their chat
+        const queriesRef = collection(db, 'aiAccountantClients', clientId, 'allocationQueries');
+        await setDoc(doc(queriesRef), {
+            emailSentTo: clientEmail,
+            unallocatedCount,
+            sentAt: serverTimestamp(),
+            status: 'pending'
         });
 
         return { success: true };
