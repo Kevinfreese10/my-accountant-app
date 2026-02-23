@@ -96,7 +96,7 @@ export default function WebsiteAIWidget() {
                   )}
                    <div className={cn(
                         "p-3 rounded-lg max-w-xs prose prose-sm",
-                        message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                        message.role === 'user' ? "bg-primary text-primary-foreground prose-invert" : "bg-muted text-foreground font-medium"
                     )}>
                         <ReactMarkdown
                             components={{
@@ -106,7 +106,7 @@ export default function WebsiteAIWidget() {
                             }}
                         >{message.text}</ReactMarkdown>
                         {message.role === 'bot' && message.serviceUrl && (
-                           <Button asChild variant="link" className="p-0 h-auto mt-2 text-primary">
+                           <Button asChild variant="link" className="p-0 h-auto mt-2 text-primary font-bold">
                              <Link href={message.serviceUrl}>
                                View Service <ArrowRight className="ml-1 h-4 w-4" />
                             </Link>
@@ -136,7 +136,7 @@ export default function WebsiteAIWidget() {
                     render={({ field }) => (
                       <FormItem className="flex-grow">
                         <FormControl>
-                          <Input placeholder="Type your message..." {...field} autoComplete="off" />
+                          <Input placeholder="Type your message..." {...field} autoComplete="off" className="text-foreground font-medium" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

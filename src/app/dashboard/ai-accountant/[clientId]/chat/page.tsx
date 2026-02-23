@@ -159,10 +159,10 @@ export default function ClientAllocationChatPage() {
                                 {pendingTransactions.map(tx => (
                                     <div key={tx.id} className="p-4 space-y-1 hover:bg-muted/30 transition-colors">
                                         <div className="flex justify-between items-start">
-                                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{format(new Date(tx.date), 'dd MMM yyyy')}</p>
+                                            <p className="text-xs font-bold text-foreground/60 uppercase tracking-widest">{format(new Date(tx.date), 'dd MMM yyyy')}</p>
                                             <p className="text-sm font-mono font-bold">{formatPrice(tx.amount)}</p>
                                         </div>
-                                        <p className="text-sm font-medium leading-tight">{tx.description}</p>
+                                        <p className="text-sm font-semibold leading-tight text-foreground/90">{tx.description}</p>
                                         {tx.status === 'ai_review' && <Badge variant="secondary" className="text-[10px] py-0">Reviewing Group</Badge>}
                                     </div>
                                 ))}
@@ -209,12 +209,12 @@ export default function ClientAllocationChatPage() {
                                             "max-w-[80%] rounded-2xl px-4 py-3 shadow-sm",
                                             m.role === 'user' 
                                                 ? "bg-primary text-primary-foreground rounded-br-none" 
-                                                : "bg-muted border rounded-bl-none"
+                                                : "bg-muted border rounded-bl-none text-foreground"
                                         )}>
-                                            <div className="prose prose-sm prose-invert dark:prose-invert">
+                                            <div className={cn("prose prose-sm", m.role === 'user' ? "prose-invert" : "text-foreground font-medium")}>
                                                 <ReactMarkdown>{m.content}</ReactMarkdown>
                                             </div>
-                                            <p className={cn("text-[10px] mt-1 opacity-50", m.role === 'user' ? "text-right" : "text-left")}>
+                                            <p className={cn("text-[10px] mt-1 opacity-70", m.role === 'user' ? "text-right" : "text-left font-semibold")}>
                                                 {format(m.timestamp, 'HH:mm')}
                                             </p>
                                         </div>
@@ -224,7 +224,7 @@ export default function ClientAllocationChatPage() {
                                     <div className="flex justify-start">
                                         <div className="bg-muted px-4 py-3 rounded-2xl rounded-bl-none border flex items-center gap-2">
                                             <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                                            <span className="text-xs font-medium text-muted-foreground italic">Khai is thinking...</span>
+                                            <span className="text-xs font-bold text-foreground/70 italic">Khai is thinking...</span>
                                         </div>
                                     </div>
                                 )}
@@ -239,7 +239,7 @@ export default function ClientAllocationChatPage() {
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 disabled={isLoading || pendingTransactions.length === 0}
-                                className="flex-grow bg-background h-12"
+                                className="flex-grow bg-background h-12 text-foreground font-medium"
                                 autoComplete="off"
                             />
                             <Button type="submit" size="icon" disabled={isLoading || !inputValue.trim() || pendingTransactions.length === 0} className="h-12 w-12 rounded-full">
