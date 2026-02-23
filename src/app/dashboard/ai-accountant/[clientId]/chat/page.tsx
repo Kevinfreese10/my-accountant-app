@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Send, Bot, User, CheckCircle2, AlertCircle, Info, Banknote, MessageSquareQuote, Play, RotateCcw } from 'lucide-react';
-import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { Loader2, Send, Bot, User, CheckCircle2, AlertCircle, Info, Banknote, MessageSquareQuote, Play, RotateCcw, RefreshCcw } from 'lucide-react';
+import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, orderBy, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -48,6 +48,7 @@ export default function ClientAllocationChatPage() {
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isPageLoading, setIsPageLoading] = useState(true);
+    const [isSyncing, setIsSyncing] = useState(false);
     const [chatStarted, setChatStarted] = useState(false);
     
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -58,6 +59,32 @@ export default function ClientAllocationChatPage() {
         }
     }, [messages]);
 
+    const fetchPendingTransactions = useCallback(async (isManual = false) => {
+        if (!clientId) return;
+        if (isManual) setIsSyncing(true);
+        
+        try {
+            const txsQuery = query(
+                collection(db, 'aiAccountantClients', clientId, 'transactions'), 
+                where('status', 'in', ['new', 'ai_processing', 'ai_review']),
+                orderBy('date', 'asc')
+            );
+            
+            const snap = await getDocs(txsQuery);
+            const txs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setPendingTransactions(txs);
+            
+            if (isManual) {
+                toast({ title: "Transactions Synced", description: `Fetched ${txs.length} pending items.` });
+            }
+        } catch (error) {
+            console.error("Manual fetch failed:", error);
+            if (isManual) toast({ title: "Fetch Failed", variant: "destructive" });
+        } finally {
+            if (isManual) setIsSyncing(false);
+        }
+    }, [clientId, toast]);
+
     useEffect(() => {
         if (!clientId) return;
 
@@ -67,15 +94,15 @@ export default function ClientAllocationChatPage() {
         });
 
         // 2. Setup Real-time listener for pending transactions
-        // We look for 'new', 'ai_processing', and 'ai_review' to ensure nothing is missed
         const txsQuery = query(
             collection(db, 'aiAccountantClients', clientId, 'transactions'), 
-            where('status', 'in', ['new', 'ai_processing', 'ai_review'])
+            where('status', 'in', ['new', 'ai_processing', 'ai_review']),
+            orderBy('date', 'asc')
         );
         
         const unsubscribeTxs = onSnapshot(txsQuery, (snap) => {
             const txs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            setPendingTransactions(txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+            setPendingTransactions(txs);
             setIsPageLoading(false);
         }, (error) => {
             console.error("Transactions listener failed:", error);
@@ -96,7 +123,6 @@ export default function ClientAllocationChatPage() {
             console.error("Queries listener failed:", error);
         });
 
-        // Return unsubscribe functions directly to useEffect for proper cleanup
         return () => {
             unsubscribeTxs();
             unsubscribeQueries();
@@ -198,11 +224,23 @@ export default function ClientAllocationChatPage() {
                 )}
 
                 <Card className="border-2">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-slate-950">
-                            <Banknote className="h-5 w-5 text-primary" />
-                            Pending Clarification
-                        </CardTitle>
+                    <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="flex items-center gap-2 text-slate-950">
+                                <Banknote className="h-5 w-5 text-primary" />
+                                Pending Clarification
+                            </CardTitle>
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                onClick={() => fetchPendingTransactions(true)}
+                                disabled={isSyncing}
+                                title="Fetch all transactions"
+                            >
+                                <RefreshCcw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+                            </Button>
+                        </div>
                         <CardDescription className="text-slate-900 font-medium">
                             {pendingTransactions.length} items waiting for your input.
                         </CardDescription>
