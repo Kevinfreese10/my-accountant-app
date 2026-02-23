@@ -198,7 +198,7 @@ export default function ClientAllocationChatPage() {
                 {queries.length > 0 && (
                     <Card className="border-primary bg-primary/5">
                         <CardHeader className="py-3">
-                            <CardTitle className="flex items-center gap-2 text-sm text-primary">
+                            <CardTitle className="flex items-center gap-2 text-sm text-primary font-bold">
                                 <MessageSquareQuote className="h-4 w-4" />
                                 Active Requests
                             </CardTitle>
@@ -225,35 +225,35 @@ export default function ClientAllocationChatPage() {
 
                 <Card className="border-2">
                     <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="flex items-center gap-2 text-slate-950">
-                                <Banknote className="h-5 w-5 text-primary" />
-                                Pending Clarification
-                            </CardTitle>
-                            <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                onClick={() => fetchPendingTransactions(true)}
-                                disabled={isSyncing}
-                                title="Fetch all transactions"
-                            >
-                                <RefreshCcw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
-                            </Button>
-                        </div>
-                        <CardDescription className="text-slate-900 font-medium">
+                        <CardTitle className="flex items-center gap-2 text-slate-950">
+                            <Banknote className="h-5 w-5 text-primary" />
+                            Pending Clarification
+                        </CardTitle>
+                        <CardDescription className="text-slate-900 font-bold">
                             {pendingTransactions.length} items waiting for your input.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <Button 
-                            onClick={handleStartChat} 
-                            disabled={isLoading || pendingTransactions.length === 0}
-                            className="w-full font-bold h-12 gap-2"
-                        >
-                            {chatStarted ? <RotateCcw className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
-                            {chatStarted ? 'Restart Chat with Khai' : 'Start Chat with Khai'}
-                        </Button>
+                        <div className="flex flex-col gap-2">
+                            <Button 
+                                onClick={handleStartChat} 
+                                disabled={isLoading || pendingTransactions.length === 0}
+                                className="w-full font-bold h-12 gap-2"
+                            >
+                                {chatStarted ? <RotateCcw className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
+                                {chatStarted ? 'Restart Chat with Khai' : 'Start Chat with Khai'}
+                            </Button>
+                            
+                            <Button 
+                                variant="outline" 
+                                className="w-full font-bold h-10 gap-2 border-primary/20"
+                                onClick={() => fetchPendingTransactions(true)}
+                                disabled={isSyncing}
+                            >
+                                <RefreshCcw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+                                Refresh Transactions
+                            </Button>
+                        </div>
                         
                         <Separator />
                         

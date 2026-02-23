@@ -66,13 +66,14 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const navItems = [
      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
      { href: '/dashboard/orders', label: 'My Orders', icon: ShieldCheck, roles: ['client', 'ai_accountant'] },
-     { href: `/dashboard/ai-accountant/${user.uid}/chat`, label: 'Transaction Chat', icon: MessageSquareQuote, roles: ['client'] },
+     { href: `/dashboard/ai-accountant/${user.uid}/chat`, label: 'Transaction Chat', icon: MessageSquareQuote, roles: ['client', 'admin', 'staff'] },
      { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
   ];
 
   const adminNavItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
+    { href: `/dashboard/ai-accountant/${user.uid}/chat`, label: 'Transaction Chat', icon: MessageSquareQuote, roles: ['admin', 'staff'] },
     { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
@@ -83,6 +84,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const aiAccountantNavItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ai_accountant'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['ai_accountant'] },
+    { href: `/dashboard/ai-accountant/${user.uid}/chat`, label: 'Transaction Chat', icon: MessageSquareQuote, roles: ['ai_accountant'] },
   ];
   
   const settingsNavItems = [

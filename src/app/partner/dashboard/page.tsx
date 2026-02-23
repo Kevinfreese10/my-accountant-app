@@ -292,7 +292,7 @@ export default function PartnerDashboardPage() {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.contactPerson}!</h1>
+                    <h1 className="text-3xl font-bold tracking-tight text-slate-950">Welcome, {user?.contactPerson}!</h1>
                     <p className="text-lg text-muted-foreground">{user?.companyName}</p>
                 </div>
                 {user && (
@@ -313,12 +313,12 @@ export default function PartnerDashboardPage() {
             </div>
 
             {pendingCount > 0 && user && (
-                <Alert className="bg-primary/10 border-primary/20 shadow-sm animate-in fade-in slide-in-from-top-4">
+                <Alert className="bg-primary/10 border-primary/20 shadow-sm animate-in fade-in slide-in-from-top-4 border-2">
                     <Bot className="h-5 w-5 text-primary" />
-                    <AlertTitle className="font-bold">Chat with Khai</AlertTitle>
+                    <AlertTitle className="font-bold text-slate-950">Chat with Khai</AlertTitle>
                     <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <span>You have <strong>{pendingCount}</strong> practice allocations waiting to be finalized.</span>
-                        <Button size="sm" asChild>
+                        <span className="text-slate-950 font-bold">Chat with Khai waiting to finalize <strong>{pendingCount}</strong> allocations.</span>
+                        <Button size="sm" asChild className="font-bold">
                             <Link href={`/dashboard/ai-accountant/${user.uid}/chat`}>
                                 Open Chat <ArrowRight className="ml-2 h-4 w-4" />
                             </Link>
