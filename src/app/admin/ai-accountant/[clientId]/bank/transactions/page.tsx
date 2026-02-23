@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,7 +25,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
-import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from "@/components/command";
+import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from "@/components/ui/command";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, parse } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -847,7 +847,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                             <PopoverContent className="w-[300px] p-0" align="start">
                                                 <Command className="w-full">
                                                     <CommandInput placeholder="Search accounts..." />
-                                                    <CommandList className="max-h-72 overflow-y-auto">
+                                                    <CommandList>
                                                         <CommandEmpty>No results found.</CommandEmpty>
                                                         <CommandGroup heading="GL Accounts">
                                                             {client?.chartOfAccounts?.map(a => (
@@ -1591,7 +1591,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                                             <PopoverContent className="w-[300px] p-0" align="start">
                                                 <Command className="w-full">
                                                     <CommandInput placeholder="Search accounts..." />
-                                                    <CommandList className="max-h-72 overflow-y-auto">
+                                                    <CommandList>
                                                         <CommandEmpty>No results found.</CommandEmpty>
                                                         <CommandGroup heading="GL Accounts">
                                                             {client?.chartOfAccounts?.map(a => (
