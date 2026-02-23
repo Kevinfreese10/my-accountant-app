@@ -437,10 +437,13 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         try {
             const batch = writeBatch(db);
             Object.entries(allocations).forEach(([txId, alloc]: [string, any]) => {
+                const tx = transactions.find(t => t.id === txId);
+                const defaultVat = activeSubTab === 'income' ? 'no_vat' : 'standard_rated_purchases';
+                
                 batch.update(doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId), {
                     status: 'reviewed',
                     allocatedTo: { value: alloc.value, type: alloc.type },
-                    vatType: client.isVatRegistered ? alloc.vatType : 'no_vat',
+                    vatType: client.isVatRegistered ? (alloc.vatType || tx?.vatType || defaultVat) : 'no_vat',
                     allocatedAt: serverTimestamp(),
                     allocationSource: 'manual',
                 });
@@ -449,7 +452,12 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             toast({ title: "Allocations Saved" });
             setAllocations({});
             refetch();
-        } catch (e) { console.error(e); } finally { setIsSaving(false); }
+        } catch (e) { 
+            console.error(e); 
+            toast({ title: "Error Saving", variant: "destructive" });
+        } finally { 
+            setIsSaving(false); 
+        }
     };
 
     const handleRunAiWorkflow = async () => {
@@ -533,7 +541,9 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                 <CommandGroup heading="General Ledger Accounts">
                                                     {client?.chartOfAccounts?.map(acc => (
                                                         <DropdownMenuSub key={acc.id}>
-                                                            <DropdownMenuSubTrigger><CommandItem onSelect={(e) => e.preventDefault()}>{acc.description}</CommandItem></DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubTrigger>
+                                                                <span>{acc.description}</span>
+                                                            </DropdownMenuSubTrigger>
                                                             <DropdownMenuSubContent className="w-56">
                                                                 <DropdownMenuLabel>VAT Treatment</DropdownMenuLabel>
                                                                 <DropdownMenuSeparator />
@@ -574,12 +584,13 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead>Reference</TableHead>
                                 <TableHead>Allocate To</TableHead>
+                                {client?.isVatRegistered && <TableHead className="w-[180px]">VAT Type</TableHead>}
                                 <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading ? <TableRow><TableCell colSpan={7} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
+                            {isLoading ? <TableRow><TableCell colSpan={client?.isVatRegistered ? 8 : 7} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
                              transactions.map(tx => (
                                 <TableRow key={tx.id}>
                                     <TableCell><Checkbox checked={selectedTransactions.includes(tx.id)} onCheckedChange={(v) => setSelectedTransactions(prev => v ? [...prev, tx.id] : prev.filter(id => id !== tx.id))} /></TableCell>
@@ -594,20 +605,76 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                     <TableCell>
                                         <Popover>
                                             <PopoverTrigger asChild>
-                                                <Button variant="outline" className="h-8 text-xs w-full justify-start">{allocations[tx.id] ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || 'Selected' : 'Select...'}</Button>
+                                                <Button variant="outline" className="h-8 text-[11px] w-full justify-start">
+                                                    {allocations[tx.id] 
+                                                        ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || 'Selected' 
+                                                        : 'Select Account...'}
+                                                </Button>
                                             </PopoverTrigger>
                                             <PopoverContent className="w-64 p-0">
                                                 <Command>
-                                                    <CommandInput placeholder="Search..." />
+                                                    <CommandInput placeholder="Search accounts..." />
                                                     <CommandList>
                                                         <CommandGroup heading="GL Accounts">
-                                                            {client?.chartOfAccounts?.map(a => <CommandItem key={a.id} onSelect={() => setAllocations(p => ({...p, [tx.id]: { value: a.id, type: 'account', vatType: 'standard_rated_purchases' }}))}>{a.description}</CommandItem>)}
+                                                            {client?.chartOfAccounts?.map(a => (
+                                                                <CommandItem 
+                                                                    key={a.id} 
+                                                                    onSelect={() => setAllocations(p => ({
+                                                                        ...p, 
+                                                                        [tx.id]: { 
+                                                                            ...(p[tx.id] || { type: 'account' }), 
+                                                                            value: a.id, 
+                                                                            type: 'account' 
+                                                                        }
+                                                                    }))}
+                                                                >
+                                                                    {a.description}
+                                                                </CommandItem>
+                                                            ))}
                                                         </CommandGroup>
+                                                        {activeSubTab === 'income' && (
+                                                            <CommandGroup heading="Customers">
+                                                                {customers.map(c => (
+                                                                    <CommandItem 
+                                                                        key={c.id} 
+                                                                        onSelect={() => setAllocations(p => ({
+                                                                            ...p, 
+                                                                            [tx.id]: { 
+                                                                                value: c.id, 
+                                                                                type: 'customer', 
+                                                                                vatType: 'no_vat' 
+                                                                            }
+                                                                        }))}
+                                                                    >
+                                                                        {c.name}
+                                                                    </CommandItem>
+                                                                ))}
+                                                            </CommandGroup>
+                                                        )}
                                                     </CommandList>
                                                 </Command>
                                             </PopoverContent>
                                         </Popover>
                                     </TableCell>
+                                    {client?.isVatRegistered && (
+                                        <TableCell>
+                                            <Select 
+                                                value={allocations[tx.id]?.vatType || tx.vatType || (activeSubTab === 'income' ? 'no_vat' : 'standard_rated_purchases')} 
+                                                onValueChange={(v) => setAllocations(p => ({
+                                                    ...p, 
+                                                    [tx.id]: { 
+                                                        ...(p[tx.id] || { value: '', type: 'account' }), 
+                                                        vatType: v 
+                                                    }
+                                                }))}
+                                            >
+                                                <SelectTrigger className="h-8 text-[10px] w-full min-w-[120px]"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        </TableCell>
+                                    )}
                                     <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-1">
@@ -620,7 +687,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                     <DropdownMenuItem onClick={() => {
                                                         const keyword = tx.description.split(/\s+/)[0];
                                                         setTransactionDescriptionForRule(tx.description);
-                                                        setRuleDefaultValues({ description: `Rule for: ${keyword}`, keywords: keyword, accountId: '', vatType: 'standard_rated_purchases' });
+                                                        setRuleDefaultValues({ description: `Rule for: ${keyword}`, keywords: keyword, accountId: '', vatType: activeSubTab === 'income' ? 'standard_rated_sales' : 'standard_rated_purchases' });
                                                         setIsCreateRuleOpen(true);
                                                     }}>Create Rule</DropdownMenuItem>
                                                 </DropdownMenuContent>
@@ -977,7 +1044,14 @@ const ReviewedTab = ({ client, bankAccountId }: {
             </CardHeader>
             <CardContent className="p-0">
                 <Table>
-                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Allocated To</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Allocated To</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                    </TableHeader>
                     <TableBody>
                         {isLoading ? <TableRow><TableCell colSpan={4} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
                          transactions.map(tx => (
@@ -1075,7 +1149,7 @@ export default function BankTransactionsPage() {
         if (!client || !accountId) return;
         try {
             const updatedCOA = (client.chartOfAccounts || []).map(acc => acc.id === accountId ? { ...acc, description: newName } : acc);
-            await updateDoc(doc(db, 'aiAccountantClients', client.id), { chartOfAccounts: updatedCOA });
+            await updateDoc(doc(db, 'aiAccountantClients', client.uid), { chartOfAccounts: updatedCOA });
             toast({ title: "Account Updated" });
             fetchClientData();
             setIsEditAccountOpen(false);
