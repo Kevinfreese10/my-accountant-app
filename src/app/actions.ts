@@ -259,7 +259,8 @@ export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: {
 }
 
 /**
- * PHASE 2: Deterministic Grouping & Precedence Matching
+ * PHASE 2: Deterministic Grouping & Precedence Matching (REGEX-FIRST)
+ * Processes in batches to provide real-time progress.
  */
 export async function runAiAccountantAnalysis({ 
     clientId, 
@@ -298,88 +299,93 @@ export async function runAiAccountantAnalysis({
         const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
-        // 2. Process transactions with Regex Cleaner
-        const batch = writeBatch(db);
+        // 2. Process transactions in batches of 20
         let moveCount = 0;
+        const batchSize = 20;
 
-        for (const tx of processingExpenses) {
-            const result = BankCleaner.process(tx.description);
-            let finalResult: AIAllocationResult | null = null;
-            let matchType: 'exact' | 'alias' | 'fuzzy' | 'manual' | null = null;
-            let allocationSource: string | null = null;
-            let ruleId: string | undefined;
-            let matchedKeyword: string | undefined;
+        for (let i = 0; i < processingExpenses.length; i += batchSize) {
+            const batch = writeBatch(db);
+            const chunk = processingExpenses.slice(i, i + batchSize);
 
-            // PRECEDENCE MATCHING
-            
-            // TIER 1: History Match (By exact MerchantKey)
-            const histMatch = history.find(h => h.merchantKey === result.merchantKey && h.allocatedTo);
-            if (histMatch) {
-                finalResult = {
-                    accountId: histMatch.allocatedTo!.value,
-                    vatType: histMatch.vatType || 'no_vat',
-                    confidence: 100,
-                    summary: `Matched historical allocation for ${result.cleanDescription}.`
-                };
-                matchType = 'exact';
-                allocationSource = 'history';
-            }
+            for (const tx of chunk) {
+                // DETERSMINISTIC REGEX CLEANING (za_banks_v1.1)
+                const result = BankCleaner.process(tx.description);
+                let finalResult: AIAllocationResult | null = null;
+                let matchType: 'exact' | 'alias' | 'fuzzy' | 'manual' | null = null;
+                let allocationSource: string | null = null;
+                let ruleId: string | undefined;
+                let matchedKeyword: string | undefined;
 
-            // TIER 2: Rules Match
-            if (!finalResult) {
-                const ruleMatch = allRules.find(r => r.keywords.some(kw => result.cleanDescription.toUpperCase().includes(kw.toUpperCase())));
-                if (ruleMatch) {
-                    matchedKeyword = ruleMatch.keywords.find(kw => result.cleanDescription.toUpperCase().includes(kw.toUpperCase()));
+                // PRECEDENCE MATCHING
+                
+                // TIER 1: History Match (By exact MerchantKey)
+                const histMatch = history.find(h => h.merchantKey === result.merchantKey && h.allocatedTo);
+                if (histMatch) {
                     finalResult = {
-                        accountId: ruleMatch.accountId,
-                        vatType: client.isVatRegistered ? ruleMatch.vatType : 'no_vat',
-                        confidence: 95,
-                        summary: `Matched active allocation rule for ${matchedKeyword}.`,
-                        ruleId: ruleMatch.id,
-                        matchedKeyword: matchedKeyword
-                    };
-                    matchType = 'alias';
-                    allocationSource = 'rule';
-                    ruleId = ruleMatch.id;
-                }
-            }
-
-            // TIER 3: Global Smart DB (Exact Key Match)
-            if (!finalResult) {
-                const globalRef = doc(db, 'globalMerchants', result.merchantKey);
-                const globalSnap = await getDoc(globalRef);
-                if (globalSnap.exists()) {
-                    const gd = globalSnap.data();
-                    finalResult = {
-                        accountId: gd.topAccountId,
-                        vatType: gd.topVatType,
-                        confidence: 85,
-                        summary: `Matched top global allocation used by other practitioners.`
+                        accountId: histMatch.allocatedTo!.value,
+                        vatType: histMatch.vatType || 'no_vat',
+                        confidence: 100,
+                        summary: `Matched historical allocation for ${result.cleanDescription}.`
                     };
                     matchType = 'exact';
-                    allocationSource = 'global_db';
+                    allocationSource = 'history';
                 }
+
+                // TIER 2: Rules Match
+                if (!finalResult) {
+                    const ruleMatch = allRules.find(r => r.keywords.some(kw => result.cleanDescription.toUpperCase().includes(kw.toUpperCase())));
+                    if (ruleMatch) {
+                        matchedKeyword = ruleMatch.keywords.find(kw => result.cleanDescription.toUpperCase().includes(kw.toUpperCase()));
+                        finalResult = {
+                            accountId: ruleMatch.accountId,
+                            vatType: client.isVatRegistered ? ruleMatch.vatType : 'no_vat',
+                            confidence: 95,
+                            summary: `Matched active allocation rule for ${matchedKeyword}.`,
+                            ruleId: ruleMatch.id,
+                            matchedKeyword: matchedKeyword
+                        };
+                        matchType = 'alias';
+                        allocationSource = 'rule';
+                        ruleId = ruleMatch.id;
+                    }
+                }
+
+                // TIER 3: Global Smart DB (Exact Key Match)
+                if (!finalResult) {
+                    const globalRef = doc(db, 'globalMerchants', result.merchantKey);
+                    const globalSnap = await getDoc(globalRef);
+                    if (globalSnap.exists()) {
+                        const gd = globalSnap.data();
+                        finalResult = {
+                            accountId: gd.topAccountId,
+                            vatType: gd.topVatType,
+                            confidence: 85,
+                            summary: `Matched top global allocation used by other practitioners.`
+                        };
+                        matchType = 'exact';
+                        allocationSource = 'global_db';
+                    }
+                }
+
+                // UPDATE TRANSACTION
+                batch.update(doc(transRef, tx.id), {
+                    rawDescription: tx.description,
+                    cleanDescription: result.cleanDescription,
+                    merchantKey: result.merchantKey,
+                    merchantKey2: result.merchantKey2,
+                    paymentChannel: result.paymentChannel,
+                    cleaningVersion: result.cleaningVersion,
+                    aiAllocationResult: finalResult,
+                    status: 'ai_review', // Transition to review status
+                    allocationSource: allocationSource,
+                    matchType: matchType,
+                    matchedRuleId: ruleId || deleteField(),
+                    matchedKeyword: matchedKeyword || deleteField()
+                });
+                moveCount++;
             }
-
-            // UPDATE TRANSACTION
-            batch.update(doc(transRef, tx.id), {
-                rawDescription: tx.description,
-                cleanDescription: result.cleanDescription,
-                merchantKey: result.merchantKey,
-                merchantKey2: result.merchantKey2,
-                paymentChannel: result.paymentChannel,
-                cleaningVersion: result.cleaningVersion,
-                aiAllocationResult: finalResult,
-                status: 'ai_review',
-                allocationSource: allocationSource,
-                matchType: matchType,
-                matchedRuleId: ruleId || deleteField(),
-                matchedKeyword: matchedKeyword || deleteField()
-            });
-            moveCount++;
+            await batch.commit();
         }
-
-        await batch.commit();
 
         // 3. Notify Initiator
         if (moveCount > 0) {

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -41,6 +40,7 @@ import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionTo
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Progress } from "@/components/ui/progress";
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -676,9 +676,16 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             const lockRes = await prepareAiAccountantAnalysis({ clientId: client.uid, bankAccountId });
             if (lockRes.count > 0) {
                 setActiveTab('ai-workflow');
+                // runAiAccountantAnalysis is now robust and batches commits
                 runAiAccountantAnalysis({ clientId: client.uid, bankAccountId, initiatorEmail: user.email });
-            } else { toast({ title: "No new expenses found to process." }); }
-        } catch (e) { toast({ title: "Workflow Failed", variant: "destructive" }); } finally { setIsSubmittingToWorkflow(false); }
+            } else { 
+                toast({ title: "No new expenses found to process." }); 
+                setIsSubmittingToWorkflow(false);
+            }
+        } catch (e) { 
+            toast({ title: "Workflow Failed", variant: "destructive" }); 
+            setIsSubmittingToWorkflow(false);
+        }
     };
 
     const handleAiResearch = async (tx: ImportedTransaction) => {
@@ -797,7 +804,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                 <DropdownMenuContent><DropdownMenuItem className="text-destructive" onClick={handleBulkDelete}>Delete Selected</DropdownMenuItem></DropdownMenuContent>
                             </DropdownMenu>
 
-                            {activeSubTab === 'expenses' && <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow}><Sparkles className="mr-2 h-4 w-4" /> Group & Smart Match</Button>}
+                            {activeSubTab === 'expenses' && <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow} className="font-bold border-2 border-primary/20"><Sparkles className="mr-2 h-4 w-4" /> Group & Smart Match</Button>}
                         </div>
                         <div className="flex items-center gap-4 flex-wrap">
                             <div className="flex items-center gap-2">
@@ -976,16 +983,21 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [isSearchingUser, setIsSearchingUser] = useState(false);
     const [foundUser, setFoundUser] = useState<User | null>(null);
 
-    const fetchData = useCallback(async () => {
+    // REAL-TIME PROGRESS CALCULATION
+    const [workflowTransactions, setWorkflowTransactions] = useState<ImportedTransaction[]>([]);
+    
+    useEffect(() => {
         if (!client?.uid || !bankAccountId) return;
-        setIsLoading(true);
-        try {
-            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
-            const workflowSnap = await getDocs(query(transRef, where('bankAccountId', '==', bankAccountId), where('status', 'in', ['ai_processing', 'ai_review'])));
-            const workflowTxs = workflowSnap.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
-
+        const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+        const q = query(transRef, where('bankAccountId', '==', bankAccountId), where('status', 'in', ['ai_processing', 'ai_review']));
+        
+        const unsubscribe = onSnapshot(q, (snap) => {
+            const txs = snap.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
+            setWorkflowTransactions(txs);
+            
+            // Build groups reactively
             const merchantGroups: { [key: string]: ImportedTransaction[] } = {};
-            workflowTxs.forEach(tx => {
+            txs.forEach(tx => {
                 const key = tx.merchantKey || tx.cleanDescription || 'UNKNOWN';
                 if (!merchantGroups[key]) merchantGroups[key] = [];
                 merchantGroups[key].push(tx);
@@ -999,14 +1011,30 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             }));
 
             setGroups(initialGroups);
-            const settings: any = {};
-            initialGroups.forEach(g => { if (g.suggestion) settings[g.merchantKey] = { accountId: g.suggestion.accountId, vatType: g.suggestion.vatType, createRule: true }; });
-            setApprovalSettings(settings);
-            setQueryEmail(client.email || '');
-        } catch (e) { console.error(e); } finally { setIsLoading(false); }
+            
+            // Update settings for new groups
+            setApprovalSettings((prev: any) => {
+                const newSettings = { ...prev };
+                initialGroups.forEach(g => { 
+                    if (g.suggestion && !newSettings[g.merchantKey]) {
+                        newSettings[g.merchantKey] = { accountId: g.suggestion.accountId, vatType: g.suggestion.vatType, createRule: true }; 
+                    }
+                });
+                return newSettings;
+            });
+            
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, [client, bankAccountId]);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    const progressStats = useMemo(() => {
+        const total = workflowTransactions.length;
+        const processed = workflowTransactions.filter(tx => tx.status === 'ai_review').length;
+        const percentage = total > 0 ? (processed / total) * 100 : 0;
+        return { total, processed, percentage };
+    }, [workflowTransactions]);
 
     // Lookup user by email as accountant types
     useEffect(() => {
@@ -1097,7 +1125,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         try {
             const res = await resetAiAccountantAnalysis({ clientId: client.uid, bankAccountId });
             toast({ title: "Analysis Stopped", description: `${res.count} transactions have been reset to 'new'.` });
-            fetchData();
         } catch (e) {
             toast({ title: "Reset Failed", variant: "destructive" });
         } finally {
@@ -1208,7 +1235,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             });
             await batch.commit();
             toast({ title: "Approved all smart matches!" });
-            fetchData();
         } catch (e) { toast({ title: "Bulk Approval Failed", variant: "destructive" }); }
     }
 
@@ -1218,7 +1244,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         try {
             await moveTransactionToNew({ clientId: client.uid, transactionId: txId });
             toast({ title: "Transaction Moved" });
-            fetchData();
         } catch (e) { toast({ title: "Failed to move", variant: "destructive" }); } finally { setIsMovingBack(null); }
     };
 
@@ -1233,7 +1258,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 isVatRegistered: !!client.isVatRegistered
             });
             toast({ title: "Research Complete" });
-            fetchData();
         } catch (error) {
             console.error("Research Failed", error);
             toast({ title: "Research Failed", variant: "destructive" });
@@ -1245,11 +1269,11 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>;
 
     const smartMatchCount = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule' || g.transactions[0].allocationSource === 'global_db')).length;
-    const isCurrentlyProcessing = groups.some(g => g.status === 'server_researching');
+    const isCurrentlyProcessing = workflowTransactions.some(tx => tx.status === 'ai_processing');
 
     return (
         <div className="space-y-6 p-4">
-            <CreateGeneralAccountDialog client={client} onAccountCreated={fetchData} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
+            <CreateGeneralAccountDialog client={client} onAccountCreated={() => {}} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
             <GroupTransactionsDialog open={!!viewingGroup} onOpenChange={(o) => !o && setViewingGroup(null)} group={viewingGroup} onMoveToNew={handleMoveSingleTransactionToNew} />
             
             <Dialog open={isQueryDialogOpen} onOpenChange={setIsQueryDialogOpen}>
@@ -1303,6 +1327,28 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 </DialogContent>
             </Dialog>
 
+            {isCurrentlyProcessing && (
+                <Card className="border-primary bg-primary/5 shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+                    <CardHeader className="py-3 px-4 border-b border-primary/10">
+                        <div className="flex justify-between items-center">
+                            <CardTitle className="text-sm font-bold text-primary flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 animate-pulse" />
+                                Smart Identification in Progress...
+                            </CardTitle>
+                            <span className="text-xs font-bold text-primary tabular-nums">
+                                {progressStats.processed} / {progressStats.total} items
+                            </span>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-4 space-y-2">
+                        <Progress value={progressStats.percentage} className="h-2" />
+                        <p className="text-[10px] text-muted-foreground italic">
+                            Currently cleaning descriptions and matching against rules, history, and global smart database.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+
             <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border border-dashed gap-4 flex-wrap">
                 <div className="space-y-1">
                     <h3 className="font-bold text-sm">Review Identifiable Merchants</h3>
@@ -1320,7 +1366,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     {isCurrentlyProcessing && (
                         <Button variant="destructive" onClick={handleResetAnalysis} disabled={isReseting}>
                             {isReseting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <StopCircle className="mr-2 h-4 w-4" />}
-                            Stop & Reset AI Workflow
+                            Stop & Reset
                         </Button>
                     )}
                     <Button onClick={handleApproveAllSmartMatches} disabled={smartMatchCount === 0} className="bg-green-600 hover:bg-green-700 text-white">
@@ -1358,7 +1404,12 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                             "{firstTx.description}"
                                         </p>
                                     </div>
-                                    {group.status === 'server_researching' && <div className="flex items-center gap-2 text-xs text-primary"><Loader2 className="h-3 w-3 animate-spin" /> Identifying...</div>}
+                                    {group.status === 'server_researching' && (
+                                        <div className="flex items-center gap-2 text-xs text-primary font-bold">
+                                            <Loader2 className="h-3 w-3 animate-spin" /> 
+                                            Identifying...
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             
@@ -1926,12 +1977,12 @@ export default function BankTransactionsPage() {
                                 <Settings className="mr-2 h-4 w-4" /> Manage
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownContent align="end">
                             <DropdownMenuItem onClick={() => setIsCreateAccountOpen(true)}>Create New Bank Account</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setIsEditAccountOpen(true)}>Edit Selected Account</DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => setIsClearAccountAlertOpen(true)} className="text-destructive">Clear Bank Account</DropdownMenuItem>
-                        </DropdownMenuContent>
+                        </DropdownContent>
                     </DropdownMenu>
                 </div>
             </div>

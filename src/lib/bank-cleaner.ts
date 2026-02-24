@@ -5,13 +5,13 @@
 
 import { merchantSeeds } from './merchant-seeds';
 
-const CLEANING_VERSION = 'za_banks_v1.0';
+const CLEANING_VERSION = 'za_banks_v1.1';
 
 const STOPWORDS = new Set([
     'PTY', 'LTD', 'CC', 'INC', 'CO', 'SA', 'RSA', 'SOUTH', 'AFRICA',
     'THE', 'AND', 'OF', 'FOR', 'ON', 'IN', 'AT', 'WITH', 'BY', 'AN', 'A',
     'ONLINE', 'PAYMENT', 'TRANSFER', 'ACCOUNT', 'EFT', 'MOBILE', 'APP',
-    'BANKING', 'PURCHASE', 'CREDIT', 'DEBIT', 'CARD'
+    'BANKING', 'PURCHASE', 'CREDIT', 'DEBIT', 'CARD', 'PURCH'
 ]);
 
 export class BankCleaner {
@@ -39,8 +39,8 @@ export class BankCleaner {
         str = str.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ' '); // YYYY-MM-DD
         str = str.replace(/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/g, ' '); // DD/MM/YYYY
 
-        // D. Card fragments
-        str = str.replace(/\b\d{4}[*Xx]{2,}\d{2,4}\b/g, ' ');
+        // D. Card fragments - Broadened to catch 6-digit prefixes
+        str = str.replace(/\b\d{4,6}[*Xx]{2,}\d{2,4}\b/g, ' ');
         str = str.replace(/\b(CARD|CRD)\s*\d{2,4}\b/g, ' ');
 
         // E. Channel & Direction detection + removal
@@ -68,7 +68,7 @@ export class BankCleaner {
         }
 
         // H. Clutter words
-        str = str.replace(/\b(REF|REFERENCE|REFF|DESC|DESCRIPTION|TRN|TRAN|TXN|TRANS|TRANSACTION|AUTH|AUTHCODE|TRACE)\b/g, ' ');
+        str = str.replace(/\b(REF|REFERENCE|REFF|DESC|DESCRIPTION|TRN|TRAN|TXN|TRANS|TRANSACTION|AUTH|AUTHCODE|TRACE|PURCH|PURCHASE)\b/g, ' ');
 
         // I. Person names cleaning (Initials)
         str = str.replace(/^\b[A-Z]\b\s+/g, '');
@@ -109,17 +109,6 @@ export class BankCleaner {
             .slice(0, 8)
             .join(' ')
             .trim();
-    }
-
-    /**
-     * Similarity scorer using Jaccard Token overlap.
-     */
-    static getSimilarity(s1: string, s2: string): number {
-        const t1 = new Set(s1.split(' '));
-        const t2 = new Set(s2.split(' '));
-        const intersection = new Set([...t1].filter(x => t2.has(x)));
-        const union = new Set([...t1, ...t2]);
-        return intersection.size / union.size;
     }
 
     /**
