@@ -290,7 +290,7 @@ export async function runAiAccountantAnalysis({
 
         if (processingExpenses.length === 0) return { success: true, count: 0 };
 
-        // 1. Fetch Dictionaries & Rules
+        // 1. Fetch Dictionaries & Rules once
         const historyQuery = query(transRef, where('status', 'in', ['reviewed', 'allocated']), limit(1000));
         const historySnap = await getDocs(historyQuery);
         const history = historySnap.docs.map(d => d.data() as ImportedTransaction);
@@ -308,8 +308,8 @@ export async function runAiAccountantAnalysis({
             const batch = writeBatch(db);
             const chunk = processingExpenses.slice(i, i + batchSize);
 
-            for (const tx of chunk) {
-                // DETERMINISTIC REGEX CLEANING (za_banks_v1.1)
+            // Process identifying logic for each item in parallel for speed
+            await Promise.all(chunk.map(async (tx) => {
                 const result = BankCleaner.process(tx.description);
                 let finalResult: SmartAllocationResult | null = null;
                 let matchType: 'exact' | 'alias' | 'fuzzy' | 'manual' | null = null;
@@ -320,16 +320,18 @@ export async function runAiAccountantAnalysis({
                 // PRECEDENCE MATCHING (Deterministic logic tree)
                 
                 // TIER 1: History Match (By exact MerchantKey)
-                const histMatch = history.find(h => h.merchantKey === result.merchantKey && h.allocatedTo);
-                if (histMatch) {
-                    finalResult = {
-                        accountId: histMatch.allocatedTo!.value,
-                        vatType: histMatch.vatType || 'no_vat',
-                        confidence: 100,
-                        summary: `Matched historical allocation for ${result.cleanDescription}.`
-                    };
-                    matchType = 'exact';
-                    allocationSource = 'history';
+                if (result.merchantKey) {
+                    const histMatch = history.find(h => h.merchantKey === result.merchantKey && h.allocatedTo);
+                    if (histMatch) {
+                        finalResult = {
+                            accountId: histMatch.allocatedTo!.value,
+                            vatType: histMatch.vatType || 'no_vat',
+                            confidence: 100,
+                            summary: `Matched historical allocation for ${result.cleanDescription}.`
+                        };
+                        matchType = 'exact';
+                        allocationSource = 'history';
+                    }
                 }
 
                 // TIER 2: Rules Match
@@ -352,23 +354,27 @@ export async function runAiAccountantAnalysis({
                 }
 
                 // TIER 3: Global Smart DB (Exact Key Match)
-                if (!finalResult) {
-                    const globalRef = doc(db, 'globalMerchants', result.merchantKey);
-                    const globalSnap = await getDoc(globalRef);
-                    if (globalSnap.exists()) {
-                        const gd = globalSnap.data();
-                        finalResult = {
-                            accountId: gd.topAccountId,
-                            vatType: gd.topVatType,
-                            confidence: 85,
-                            summary: `Matched top global allocation used by other practitioners.`
-                        };
-                        matchType = 'exact';
-                        allocationSource = 'global_db';
+                if (!finalResult && result.merchantKey) {
+                    try {
+                        const globalRef = doc(db, 'globalMerchants', result.merchantKey);
+                        const globalSnap = await getDoc(globalRef);
+                        if (globalSnap.exists()) {
+                            const gd = globalSnap.data();
+                            finalResult = {
+                                accountId: gd.topAccountId,
+                                vatType: gd.topVatType,
+                                confidence: 85,
+                                summary: `Matched top global allocation used by other practitioners.`
+                            };
+                            matchType = 'exact';
+                            allocationSource = 'global_db';
+                        }
+                    } catch (e) {
+                        console.error(`Global DB lookup failed for key: ${result.merchantKey}`, e);
                     }
                 }
 
-                // UPDATE TRANSACTION
+                // UPDATE TRANSACTION IN BATCH
                 batch.update(doc(transRef, tx.id), {
                     rawDescription: tx.description,
                     cleanDescription: result.cleanDescription,
@@ -384,7 +390,9 @@ export async function runAiAccountantAnalysis({
                     matchedKeyword: matchedKeyword || deleteField()
                 });
                 moveCount++;
-            }
+            }));
+            
+            // Commit batch of 20
             await batch.commit();
         }
 

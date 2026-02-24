@@ -92,7 +92,7 @@ export class BankCleaner {
             .replace(/&/g, 'AND')
             .replace(/[^A-Z0-9 ]+/g, ' ') // Remove all non-alphanumeric
             .split(' ')
-            .filter(token => token.length > 2 && !STOPWORDS.has(token))
+            .filter(token => token.length >= 2 && !STOPWORDS.has(token)) // Changed to >= 2 to catch short merchant names
             .slice(0, 5) // Keep first 5 tokens
             .join(' ')
             .trim();
