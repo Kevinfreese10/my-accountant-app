@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers, FileSpreadsheet } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, SmartAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -41,6 +42,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from "@/components/ui/progress";
+import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -325,7 +327,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem> )} />
+                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
                         <FormField control={form.control} name="accountId" render={({ field }) => (
                             <FormItem><FormLabel>Account</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -676,7 +678,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             const lockRes = await prepareAiAccountantAnalysis({ clientId: client.uid, bankAccountId });
             if (lockRes.count > 0) {
                 setActiveTab('ai-workflow');
-                // runAiAccountantAnalysis is a deterministic app-based process
                 runAiAccountantAnalysis({ clientId: client.uid, bankAccountId, initiatorEmail: user.email });
             } else { 
                 toast({ title: "No new expenses found to process." }); 
@@ -741,6 +742,57 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         setIsCreateOpen(true);
     };
 
+    const handleDownloadExcel = () => {
+        if (!client) return;
+        const wb = XLSX.utils.book_new();
+        
+        // Main Data
+        const rows = [['Date', 'Description', 'Reference', 'Amount', 'Allocate To', 'VAT Type']];
+        transactions.forEach(tx => {
+            rows.push([
+                format(new Date(tx.date), 'dd/MM/yyyy'),
+                tx.description,
+                tx.reference,
+                tx.amount,
+                '',
+                ''
+            ]);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        
+        // Add Validation Sheet
+        const validationRows = [['GL Accounts', 'VAT Types']];
+        const accounts = client.chartOfAccounts || [];
+        const maxLen = Math.max(accounts.length, allVatTypes.length);
+        for(let i=0; i<maxLen; i++) {
+            validationRows.push([
+                accounts[i]?.description || '',
+                allVatTypes[i]?.label || ''
+            ]);
+        }
+        const valWs = XLSX.utils.aoa_to_sheet(validationRows);
+        XLSX.utils.book_append_sheet(wb, valWs, 'Validation');
+        
+        // Apply Dropdowns (Best effort for Excel)
+        if (rows.length > 1) {
+            ws['!dataValidation'] = [
+                {
+                    sqref: `E2:E${rows.length}`,
+                    type: 'list',
+                    formula1: 'Validation!$A$2:$A$500'
+                },
+                {
+                    sqref: `F2:F${rows.length}`,
+                    type: 'list',
+                    formula1: 'Validation!$B$2:$B$10'
+                }
+            ];
+        }
+
+        XLSX.utils.book_append_sheet(wb, ws, 'New Transactions');
+        XLSX.writeFile(wb, `Unallocated_${activeSubTab}_${client.name}.xlsx`);
+    };
+
     return (
         <div className="space-y-4">
             <CreateRuleDialog client={client} onRuleCreated={refetch} open={isCreateRuleOpen} onOpenChange={setIsCreateOpen} defaultValues={ruleDefaultValues} transactionDescription={transactionDescriptionForRule} existingRules={globalRules} />
@@ -756,6 +808,10 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                         <div className="flex gap-2 flex-wrap">
                             <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={currentBalance} onImportComplete={refetch} />
                             
+                            <Button variant="outline" onClick={handleDownloadExcel} disabled={transactions.length === 0}>
+                                <FileSpreadsheet className="mr-2 h-4 w-4"/> Download Excel
+                            </Button>
+
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" disabled={selectedTransactions.length === 0}>
@@ -1071,8 +1127,8 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 setIsSearchingUser(false);
             }
         };
-        const lookupTimer = setTimeout(lookupUser, 500);
-        return () => clearTimeout(lookupTimer);
+        const lookupUserTimer = setTimeout(lookupUser, 500);
+        return () => clearTimeout(lookupUserTimer);
     }, [queryEmail]);
 
     const handleCombineGroups = async (sourceMerchantKey: string, targetGroup: TransactionGroup) => {
@@ -1363,6 +1419,64 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         }
     }
 
+    const handleDownloadExcel = () => {
+        if (!client) return;
+        const wb = XLSX.utils.book_new();
+        
+        const rows = [['Merchant Group / Description', 'Date', 'Amount', 'Allocate To', 'VAT Type']];
+        const validations: any[] = [];
+        let currentRow = 2;
+
+        groups.forEach(group => {
+            // Header Row for Group
+            rows.push([group.merchantKey, '', '', '', '']);
+            validations.push({
+                sqref: `D${currentRow}:D${currentRow}`,
+                type: 'list',
+                formula1: 'Validation!$A$2:$A$500'
+            });
+            validations.push({
+                sqref: `E${currentRow}:E${currentRow}`,
+                type: 'list',
+                formula1: 'Validation!$B$2:$B$10'
+            });
+            currentRow++;
+
+            // Individual transactions
+            group.transactions.forEach(tx => {
+                rows.push([
+                    `  ${tx.description}`,
+                    format(new Date(tx.date), 'dd/MM/yyyy'),
+                    tx.amount,
+                    '',
+                    ''
+                ]);
+                currentRow++;
+            });
+            rows.push([]);
+            currentRow++;
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!dataValidation'] = validations;
+        XLSX.utils.book_append_sheet(wb, ws, 'Unallocated Groups');
+
+        // Reference Sheet
+        const valData = [['GL Accounts', 'VAT Types']];
+        const accounts = client.chartOfAccounts || [];
+        const maxLen = Math.max(accounts.length, allVatTypes.length);
+        for(let i=0; i<maxLen; i++) {
+            valData.push([
+                accounts[i]?.description || '',
+                allVatTypes[i]?.label || ''
+            ]);
+        }
+        const valWs = XLSX.utils.aoa_to_sheet(valData);
+        XLSX.utils.book_append_sheet(wb, valWs, 'Validation');
+
+        XLSX.writeFile(wb, `SmartMatch_Review_${client.name}.xlsx`);
+    };
+
     if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>;
 
     const smartMatchCount = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule' || g.transactions[0].allocationSource === 'global_db')).length;
@@ -1503,7 +1617,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                 Smart Identification in Progress...
                             </CardTitle>
                             <span className="text-xs font-bold text-primary tabular-nums">
-                                {progressStats.processed} / {progressStats.total} items
+                                {processedTransactionsCount} / {workflowTransactions.length} items
                             </span>
                         </div>
                     </CardHeader>
@@ -1522,6 +1636,9 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI. Drag and drop groups to merge them.</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
+                    <Button variant="outline" onClick={handleDownloadExcel} disabled={groups.length === 0}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel
+                    </Button>
                     <Button variant="outline" onClick={handleRegroupRequest} disabled={isRegrouping || groups.length < 2}>
                         {isRegrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Layers className="mr-2 h-4 w-4" />}
                         Smart Regroup
