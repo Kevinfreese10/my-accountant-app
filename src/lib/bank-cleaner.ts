@@ -3,7 +3,7 @@
  * Implements regex-first deterministic cleaning and similarity scoring.
  */
 
-const CLEANING_VERSION = 'za_banks_v1.2';
+const CLEANING_VERSION = 'za_banks_v1.3';
 
 const STOPWORDS = new Set([
     'PTY', 'LTD', 'CC', 'INC', 'CO', 'SA', 'RSA', 'SOUTH', 'AFRICA',
@@ -20,7 +20,9 @@ const SIMILARITY_STOPWORDS = new Set([
     'REF', 'REFERENCE', 'INV', 'INVOICE', 'DOC', 'AUTH', 'AUTHCD', 'TRACE', 'TRN', 'TXN',
     'MAGTAPE', 'MAGSTRIPE', 'MAG-STRIPE', 'CHIP', 'CONTACTLESS', 'TAP',
     'ATM', 'AUTOBANK', 'CASH', 'WITHDRAW', 'WDL', 'DEP', 'DEPOSIT',
-    'PTY', 'LTD', 'INC', 'CC', 'LLC', 'SOC', 'SA', 'SOUTHAFRICA'
+    'PTY', 'LTD', 'INC', 'CC', 'LLC', 'SOC', 'SA', 'SOUTHAFRICA',
+    'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+    'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
 ]);
 
 const GENERIC_FIRST_TOKENS = new Set([
@@ -37,18 +39,32 @@ export class BankCleaner {
         let str = description.toUpperCase();
         let channel = 'UNKNOWN';
 
+        // 1. Initial sanitization
         str = str.replace(/[_|]+/g, ' ');
         str = str.replace(/[•·]+/g, ' ');
         str = str.replace(/\s*[-–—]\s*/g, ' ');
+
+        // 2. Aggressive Reference/Blob Stripping
+        // Remove standalone numbers 5+ digits (auth codes, trace numbers)
         str = str.replace(/(?<!\d)\d{5,}(?!\d)/g, ' ');
+        
+        // Remove standard ISO/Time patterns
         str = str.replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\b/g, ' ');
         str = str.replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, ' ');
         str = str.replace(/\b\d{1,2}H\d{2}\b/g, ' ');
         str = str.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ' ');
         str = str.replace(/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/g, ' ');
-        str = str.replace(/\b\d{4,6}[*Xx]{2,}\d{2,4}\b/g, ' ');
+
+        // Remove alpha-numeric dates (e.g. 15 JAN, 07 OCT)
+        str = str.replace(/\b\d{1,2}\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/g, ' ');
+
+        // Remove masked card numbers (handles 123456****1234 or 123456*1234)
+        str = str.replace(/\b\d{4,6}[*Xx]+\d{2,4}\b/g, ' ');
+        
+        // Remove trailing card label digits
         str = str.replace(/\b(CARD|CRD)\s*\d{2,4}\b/g, ' ');
 
+        // 3. Channel Identification & Removal
         if (/\b(INTERNET|IB|ONLINE|APP|EFT|ELECTRONIC)\b/i.test(str)) channel = 'EFT';
         if (/\b(POS|CARD\s*PURCHASE|VISA|MASTERCARD)\b/i.test(str)) channel = 'CARD';
 
@@ -58,6 +74,7 @@ export class BankCleaner {
         const directionRegex = /\b(PAYMENT\s*TO|PAY\s*TO|PAID\s*TO|TRANSFER\s*TO|XFER\s*TO|TRF\s*TO|PAYMENT\s*FROM|RECEIVED\s*FROM|TRANSFER\s*FROM|XFER\s*FROM|TRF\s*FROM)\b/g;
         str = str.replace(directionRegex, ' ');
 
+        // 4. SA Specific Standardization
         if (/\bINSTANT\s*MONEY\b/i.test(str)) return { clean: 'INSTANT MONEY', channel: 'EFT' };
         if (/\bE\s*WALLET\b/i.test(str)) return { clean: 'EWALLET', channel: 'EFT' };
         if (/\bCASH\s*SEND\b/i.test(str)) return { clean: 'CASH SEND', channel: 'EFT' };
@@ -70,8 +87,11 @@ export class BankCleaner {
             return { clean: 'CASH WITHDRAWAL', channel: 'ATM' };
         }
 
+        // 5. Clutter word removal
         str = str.replace(/\b(REF|REFERENCE|REFF|DESC|DESCRIPTION|TRN|TRAN|TXN|TRANS|TRANSACTION|AUTH|AUTHCODE|TRACE|PURCH|PURCHASE)\b/g, ' ');
-        str = str.replace(/^\b[A-Z]\b\s+/g, '');
+        str = str.replace(/^\b[A-Z]\b\s+/g, ''); // Remove single initials
+        
+        // Final trim and collapse
         str = str.replace(/\s+/g, ' ').trim();
         str = str.replace(/^[\s\W]+|[\s\W]+$/g, '');
 
@@ -107,12 +127,18 @@ export class BankCleaner {
 
     /**
      * Normalizes a string specifically for similarity comparison.
+     * Stripts all remaining digits and short noise.
      */
     static getSimilarityKey(description: string): string {
-        return description.toUpperCase()
+        // First run through standard clean to remove known blobs
+        const cleaned = this.clean(description).clean;
+        
+        return cleaned.toUpperCase()
+            .replace(/[0-9]/g, ' ') // Strip remaining numbers for fuzzy matching
             .split(/\s+/)
             .filter(t => t.length > 1 && !SIMILARITY_STOPWORDS.has(t))
-            .join(' ');
+            .join(' ')
+            .trim();
     }
 
     static calculateJaccard(s1: string, s2: string): number {
@@ -150,7 +176,9 @@ export class BankCleaner {
 
         const jaccard = this.calculateJaccard(key1, key2);
         const levenshtein = this.calculateLevenshtein(key1, key2);
-        const score = (0.7 * jaccard) + (0.3 * levenshtein);
+        
+        // Higher weight on token overlap for merchant names
+        const score = (0.8 * jaccard) + (0.2 * levenshtein);
 
         const firstToken1 = key1.split(' ')[0];
         const firstToken2 = key2.split(' ')[0];
@@ -159,7 +187,7 @@ export class BankCleaner {
         let reason = `Token overlap: ${Math.round(jaccard * 100)}%`;
         if (firstTokenMatch) reason += " + First word match";
 
-        // Collision Risk Check
+        // Collision Risk Check for generic starting words
         if (GENERIC_FIRST_TOKENS.has(firstToken1) && score < 0.98) {
             return { score: score * 0.5, reason: 'Generic token collision risk' };
         }
