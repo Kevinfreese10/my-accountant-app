@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, SmartAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,7 +36,7 @@ import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, sendAllocationQueryEmail, resetAiAccountantAnalysis, combineMerchantGroups } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, sendAllocationQueryEmail, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -965,6 +965,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     bankAccountId: string | null; 
     onAccountCreated: () => void;
 }) => {
+    const { user } = useAuth();
     const { toast } = useToast();
     const [groups, setGroups] = useState<TransactionGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -980,6 +981,13 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [queryEmail, setQueryEmail] = useState('');
     const [dragOverKey, setDragOverKey] = useState<string | null>(null);
     
+    // Regroup states
+    const [isRegrouping, setIsRegrouping] = useState(false);
+    const [proposedMerges, setProposedMerges] = useState<any[]>([]);
+    const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
+    const [isApplyingMerges, setIsApplyingMerges] = useState(false);
+    const [selectedMerges, setSelectedMerges] = useState<string[]>([]);
+
     // User lookup states
     const [isSearchingUser, setIsSearchingUser] = useState(false);
     const [foundUser, setFoundUser] = useState<User | null>(null);
@@ -1095,6 +1103,39 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         const sourceMerchantKey = e.dataTransfer.getData("sourceMerchantKey");
         if (sourceMerchantKey) {
             handleCombineGroups(sourceMerchantKey, targetGroup);
+        }
+    };
+
+    const handleRegroupRequest = async () => {
+        if (!client?.uid || !bankAccountId) return;
+        setIsRegrouping(true);
+        try {
+            const proposals = await proposeRegroups({ clientId: client.uid, bankAccountId });
+            setProposedMerges(proposals);
+            setSelectedMerges(proposals.map(p => `${p.fromKey}::${p.toKey}`));
+            setIsMergeDialogOpen(true);
+        } catch (e) {
+            toast({ title: "Regroup Failed", variant: "destructive" });
+        } finally {
+            setIsRegrouping(false);
+        }
+    };
+
+    const handleApplyRegroups = async () => {
+        if (!client?.uid || !user?.id) return;
+        setIsApplyingMerges(true);
+        try {
+            const mergesToApply = proposedMerges
+                .filter(p => selectedMerges.includes(`${p.fromKey}::${p.toKey}`))
+                .map(p => ({ fromKey: p.fromKey, toKey: p.toKey, fromTxIds: p.fromTxIds }));
+
+            await applyRegroups({ clientId: client.uid, merges: mergesToApply, userId: user.id });
+            toast({ title: "Regrouping Applied", description: `Successfully merged ${mergesToApply.length} merchant groups.` });
+            setIsMergeDialogOpen(false);
+        } catch (e) {
+            toast({ title: "Failed to apply merges", variant: "destructive" });
+        } finally {
+            setIsApplyingMerges(false);
         }
     };
 
@@ -1312,6 +1353,76 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             <CreateGeneralAccountDialog client={client} onAccountCreated={() => {}} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
             <GroupTransactionsDialog open={!!viewingGroup} onOpenChange={(o) => !o && setViewingGroup(null)} group={viewingGroup} onMoveToNew={handleMoveSingleTransactionToNew} />
             
+            {/* Regroup Proposals Dialog */}
+            <Dialog open={isMergeDialogOpen} onOpenChange={setIsMergeDialogOpen}>
+                <DialogContent className="sm:max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2"><Layers className="h-5 w-5 text-primary" /> Proposed Merchant Regroups</DialogTitle>
+                        <DialogDescription>
+                            Review the suggested merges identified by our fuzzy matching engine. No changes will be made until you apply them.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-[60vh] pr-4">
+                        <div className="space-y-4">
+                            {proposedMerges.map((merge, i) => {
+                                const mergeId = `${merge.fromKey}::${merge.toKey}`;
+                                const isSelected = selectedMerges.includes(mergeId);
+                                return (
+                                    <div key={i} className={cn("p-4 rounded-lg border-2 transition-all", isSelected ? "border-primary bg-primary/5" : "border-muted opacity-60")}>
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex-1 flex items-center gap-4">
+                                                <div className="flex-1">
+                                                    <Badge variant="outline" className="text-[10px] mb-1 uppercase tracking-widest">Merge From</Badge>
+                                                    <p className="font-bold text-sm text-destructive">{merge.fromKey}</p>
+                                                    <p className="text-[10px] text-muted-foreground mt-1">{merge.fromImpact} transactions</p>
+                                                </div>
+                                                <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                                                <div className="flex-1">
+                                                    <Badge variant="default" className="text-[10px] mb-1 uppercase tracking-widest">Merge Into</Badge>
+                                                    <p className="font-bold text-sm text-primary">{merge.toKey}</p>
+                                                    <p className="text-[10px] text-muted-foreground mt-1">{merge.toImpact} existing transactions</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <div className="flex items-center gap-2 justify-end mb-2">
+                                                    <Badge className={cn("text-[10px]", merge.confidence === 'High' ? 'bg-green-600' : 'bg-yellow-500')}>{merge.score}% Match</Badge>
+                                                    <Checkbox checked={isSelected} onCheckedChange={(checked) => setSelectedMerges(p => checked ? [...p, mergeId] : p.filter(id => id !== mergeId))} />
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground italic max-w-[150px]">{merge.reason}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <p className="text-[9px] font-bold text-muted-foreground uppercase">Examples (From)</p>
+                                                {merge.fromExamples.map((ex: string, j: number) => <p key={j} className="text-[10px] text-muted-foreground truncate italic">"{ex}"</p>)}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-[9px] font-bold text-muted-foreground uppercase">Examples (Into)</p>
+                                                {merge.toExamples.map((ex: string, j: number) => <p key={j} className="text-[10px] text-muted-foreground truncate italic">"{ex}"</p>)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                            {proposedMerges.length === 0 && (
+                                <div className="text-center py-12 text-muted-foreground">
+                                    <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                                    <p className="font-semibold">No redundant groups found.</p>
+                                    <p className="text-sm">The current grouping looks clean based on the latest algorithm.</p>
+                                </div>
+                            )}
+                        </div>
+                    </ScrollArea>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsMergeDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleApplyRegroups} disabled={selectedMerges.length === 0 || isApplyingMerges}>
+                            {isApplyingMerges && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            Apply {selectedMerges.length} Merges
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={isQueryDialogOpen} onOpenChange={setIsQueryDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -1391,6 +1502,10 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI. Drag and drop groups to merge them.</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
+                    <Button variant="outline" onClick={handleRegroupRequest} disabled={isRegrouping || groups.length < 2}>
+                        {isRegrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Layers className="mr-2 h-4 w-4" />}
+                        Smart Regroup
+                    </Button>
                     <Button variant="outline" onClick={() => setIsQueryDialogOpen(true)} disabled={groups.length === 0}>
                         <MessageSquareQuote className="mr-2 h-4 w-4" />
                         Query Client

@@ -379,8 +379,6 @@ export async function runAiAccountantAnalysis({
                     rawDescription: tx.description,
                     cleanDescription: result.cleanDescription,
                     merchantKey: result.merchantKey,
-                    merchantKey2: result.merchantKey2,
-                    paymentChannel: result.paymentChannel,
                     cleaningVersion: result.cleaningVersion,
                     smartAllocationResult: finalResult,
                     status: 'ai_review', // Transition to review status
@@ -640,6 +638,114 @@ export async function combineMerchantGroups({
         return { success: true };
     } catch (e) {
         console.error("Combine groups failed:", e);
+        throw e;
+    }
+}
+
+/**
+ * Analyzes unallocated merchant groups and proposes merges based on similarity.
+ */
+export async function proposeRegroups({ 
+    clientId, 
+    bankAccountId 
+}: { 
+    clientId: string, 
+    bankAccountId: string 
+}) {
+    try {
+        const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        const q = query(
+            transRef, 
+            where('bankAccountId', '==', bankAccountId), 
+            where('status', '==', 'ai_review')
+        );
+        const snapshot = await getDocs(q);
+        const transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
+
+        // 1. Build initial groups
+        const merchantGroups: { [key: string]: ImportedTransaction[] } = {};
+        transactions.forEach(tx => {
+            const key = tx.merchantKey || 'UNKNOWN';
+            if (!merchantGroups[key]) merchantGroups[key] = [];
+            merchantGroups[key].push(tx);
+        });
+
+        const groupKeys = Object.keys(merchantGroups).filter(k => k !== 'UNKNOWN').sort();
+        const proposals: any[] = [];
+
+        // 2. Pairwise comparison
+        for (let i = 0; i < groupKeys.length; i++) {
+            for (let j = i + 1; j < groupKeys.length; j++) {
+                const keyA = groupKeys[i];
+                const keyB = groupKeys[j];
+                
+                const { score, reason } = BankCleaner.getSimilarity(keyA, keyB);
+
+                if (score >= 0.88) {
+                    proposals.push({
+                        fromKey: keyA,
+                        toKey: keyB,
+                        score: Math.round(score * 100),
+                        reason,
+                        fromImpact: merchantGroups[keyA].length,
+                        toImpact: merchantGroups[keyB].length,
+                        fromExamples: merchantGroups[keyA].slice(0, 3).map(tx => tx.description),
+                        toExamples: merchantGroups[keyB].slice(0, 3).map(tx => tx.description),
+                        fromTxIds: merchantGroups[keyA].map(tx => tx.id),
+                        toTxIds: merchantGroups[keyB].map(tx => tx.id),
+                        confidence: score >= 0.95 ? 'High' : 'Medium'
+                    });
+                }
+            }
+        }
+
+        return proposals.sort((a, b) => b.score - a.score);
+    } catch (e) {
+        console.error("Propose regroups failed:", e);
+        throw e;
+    }
+}
+
+/**
+ * Applies approved regroups permanently.
+ */
+export async function applyRegroups({
+    clientId,
+    merges,
+    userId
+}: {
+    clientId: string,
+    merges: { fromKey: string, toKey: string, fromTxIds: string[] }[],
+    userId: string
+}) {
+    try {
+        const batch = writeBatch(db);
+        const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        
+        merges.forEach(merge => {
+            merge.fromTxIds.forEach(id => {
+                batch.update(doc(transRef, id), {
+                    merchantKey: merge.toKey,
+                    matchType: 'manual',
+                    allocationSource: 'manual'
+                });
+            });
+        });
+
+        // Log audit event
+        const auditRef = doc(collection(db, 'aiAccountantClients', clientId, 'auditLogs'));
+        batch.set(auditRef, {
+            type: 'regroup_applied',
+            userId,
+            timestamp: serverTimestamp(),
+            merges: merges.map(m => ({ from: m.fromKey, to: m.toKey, count: m.fromTxIds.length })),
+            algorithmVersion: 'za_banks_v1.2'
+        });
+
+        await batch.commit();
+        return { success: true };
+    } catch (e) {
+        console.error("Apply regroups failed:", e);
         throw e;
     }
 }
