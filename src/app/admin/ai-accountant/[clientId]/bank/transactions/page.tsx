@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, SmartAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,7 +36,7 @@ import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, sendAllocationQueryEmail, resetAiAccountantAnalysis } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, sendAllocationQueryEmail, resetAiAccountantAnalysis, combineMerchantGroups } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -978,6 +978,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [isResearchingId, setIsResearchingId] = useState<string | null>(null);
     const [isQueryDialogOpen, setIsQueryDialogOpen] = useState(false);
     const [queryEmail, setQueryEmail] = useState('');
+    const [dragOverKey, setDragOverKey] = useState<string | null>(null);
     
     // User lookup states
     const [isSearchingUser, setIsSearchingUser] = useState(false);
@@ -1008,7 +1009,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 transactions: txs,
                 suggestion: txs[0].smartAllocationResult || null,
                 status: txs[0].status === 'ai_processing' ? 'server_researching' : 'ready'
-            }));
+            })).sort((a, b) => a.merchantKey.localeCompare(b.merchantKey));
 
             setGroups(initialGroups);
             
@@ -1061,6 +1062,41 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         const timer = setTimeout(lookupUser, 500);
         return () => clearTimeout(timer);
     }, [queryEmail]);
+
+    const handleCombineGroups = async (sourceMerchantKey: string, targetGroup: TransactionGroup) => {
+        if (!client?.uid || sourceMerchantKey === targetGroup.merchantKey) return;
+        
+        const sourceGroup = groups.find(g => g.merchantKey === sourceMerchantKey);
+        if (!sourceGroup) return;
+
+        // Visual feedback
+        toast({ title: "Combining Groups...", description: `Merging ${sourceMerchantKey} into ${targetGroup.merchantKey}.` });
+
+        try {
+            await combineMerchantGroups({
+                clientId: client.uid,
+                transactionIds: sourceGroup.transactions.map(t => t.id),
+                newMerchantKey: targetGroup.merchantKey,
+                newCleanDescription: targetGroup.transactions[0].cleanDescription
+            });
+            toast({ title: "Groups Combined Successfully" });
+        } catch (error) {
+            toast({ title: "Failed to combine groups", variant: "destructive" });
+        }
+    };
+
+    const handleDragStart = (e: React.DragEvent, merchantKey: string) => {
+        e.dataTransfer.setData("sourceMerchantKey", merchantKey);
+    };
+
+    const handleDrop = (e: React.DragEvent, targetGroup: TransactionGroup) => {
+        e.preventDefault();
+        setDragOverKey(null);
+        const sourceMerchantKey = e.dataTransfer.getData("sourceMerchantKey");
+        if (sourceMerchantKey) {
+            handleCombineGroups(sourceMerchantKey, targetGroup);
+        }
+    };
 
     const handleRecheckRules = async () => {
         if (!client?.uid) return;
@@ -1352,7 +1388,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border border-dashed gap-4 flex-wrap">
                 <div className="space-y-1">
                     <h3 className="font-bold text-sm">Review Identifiable Merchants</h3>
-                    <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI.</p>
+                    <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI. Drag and drop groups to merge them.</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                     <Button variant="outline" onClick={() => setIsQueryDialogOpen(true)} disabled={groups.length === 0}>
@@ -1381,12 +1417,26 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     const sourceLabel = firstTx.allocationSource === 'history' ? 'HISTORY MATCH' : 
                                       firstTx.allocationSource === 'rule' ? 'RULE MATCH' :
                                       firstTx.allocationSource === 'global_db' ? 'SMART DB MATCH' : null;
+                    const isDraggingOver = dragOverKey === group.merchantKey;
                     
                     return (
-                    <Card key={group.merchantKey} className={cn("overflow-hidden border shadow-sm", group.status === 'server_researching' && "opacity-75 border-dashed")}>
+                    <Card 
+                        key={group.merchantKey} 
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, group.merchantKey)}
+                        onDragOver={(e) => { e.preventDefault(); setDragOverKey(group.merchantKey); }}
+                        onDragLeave={() => setDragOverKey(null)}
+                        onDrop={(e) => handleDrop(e, group)}
+                        className={cn(
+                            "overflow-hidden border shadow-sm transition-all cursor-move", 
+                            group.status === 'server_researching' && "opacity-75 border-dashed",
+                            isDraggingOver && "border-primary ring-2 ring-primary ring-inset bg-primary/5 scale-[1.01]"
+                        )}
+                    >
                         <div className="grid grid-cols-1 md:grid-cols-12">
-                            <div className="md:col-span-3 p-4 border-r border-b md:border-b-0 bg-muted/10">
-                                <div className="space-y-4">
+                            <div className="md:col-span-3 p-4 border-r border-b md:border-b-0 bg-muted/10 flex items-start gap-3">
+                                <GripVertical className="h-5 w-5 text-muted-foreground/30 mt-1 shrink-0" />
+                                <div className="space-y-4 flex-grow overflow-hidden">
                                     <div>
                                         <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider mb-1">MERCHANT</Badge>
                                         <h4 className="text-xl font-extrabold truncate uppercase leading-tight">{group.merchantKey}</h4>
@@ -1470,13 +1520,15 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                         />
                                         <Label htmlFor={`rule-${group.merchantKey}`} className="text-xs font-bold text-muted-foreground cursor-pointer">Create Client Rule</Label>
                                     </div>
-                                    <Button 
-                                        className="bg-primary hover:bg-primary/90 text-white font-bold h-10 px-6 rounded-lg shadow-md" 
-                                        onClick={() => handleApproveGroup(group)} 
-                                        disabled={!approvalSettings[group.merchantKey]?.accountId}
-                                    >
-                                        <CheckCircle2 className="mr-2 h-4 w-4" /> Approve Group
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                        <Button 
+                                            className="bg-primary hover:bg-primary/90 text-white font-bold h-10 px-6 rounded-lg shadow-md" 
+                                            onClick={() => handleApproveGroup(group)} 
+                                            disabled={!approvalSettings[group.merchantKey]?.accountId}
+                                        >
+                                            <CheckCircle2 className="mr-2 h-4 w-4" /> Approve Group
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

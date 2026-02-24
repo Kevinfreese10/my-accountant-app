@@ -608,3 +608,38 @@ export async function resetAiAccountantAnalysis({ clientId, bankAccountId }: { c
         throw e;
     }
 }
+
+/**
+ * Combines multiple merchant groups into one target group.
+ */
+export async function combineMerchantGroups({
+    clientId,
+    transactionIds,
+    newMerchantKey,
+    newCleanDescription
+}: {
+    clientId: string,
+    transactionIds: string[],
+    newMerchantKey: string,
+    newCleanDescription: string
+}) {
+    try {
+        const batch = writeBatch(db);
+        const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        
+        transactionIds.forEach(id => {
+            batch.update(doc(transRef, id), {
+                merchantKey: newMerchantKey,
+                cleanDescription: newCleanDescription,
+                matchType: 'manual', // Mark as manual merge
+                allocationSource: 'manual'
+            });
+        });
+        
+        await batch.commit();
+        return { success: true };
+    } catch (e) {
+        console.error("Combine groups failed:", e);
+        throw e;
+    }
+}
