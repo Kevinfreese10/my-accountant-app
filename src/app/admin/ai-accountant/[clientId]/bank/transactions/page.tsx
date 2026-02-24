@@ -400,34 +400,56 @@ function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction,
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /> AI Allocation Suggestion</DialogTitle>
-                    <DialogDescription>AI Analysis for: <strong>{transaction.description}</strong></DialogDescription>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" /> 
+                        AI Allocation Suggestion
+                    </DialogTitle>
+                    <DialogDescription className="break-words">
+                        AI Analysis for: <strong>{transaction.description}</strong>
+                    </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="bg-primary/5 p-4 rounded-lg border border-primary/10">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs font-bold uppercase text-muted-foreground">Confidence</span>
-                            <Badge variant={suggestion.confidence > 80 ? 'success' : 'warning'}>{suggestion.confidence}%</Badge>
+                
+                <div className="space-y-6 py-4">
+                    <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 overflow-hidden relative">
+                        <div className="flex justify-between items-center mb-3">
+                            <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Confidence Score</span>
+                            <Badge variant={suggestion.confidence > 80 ? 'success' : 'warning'} className="font-mono">
+                                {suggestion.confidence}%
+                            </Badge>
                         </div>
-                        <p className="text-sm italic text-muted-foreground leading-relaxed">"{suggestion.summary}"</p>
+                        <p className="text-sm italic text-foreground leading-relaxed">
+                            "{suggestion.summary}"
+                        </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                            <p className="font-bold text-muted-foreground text-[10px] uppercase">Account</p>
-                            <p className="font-semibold">{suggestion.accountId}</p>
+
+                    <div className="grid grid-cols-2 gap-6 px-1">
+                        <div className="space-y-1">
+                            <p className="font-bold text-muted-foreground text-[9px] uppercase tracking-widest">Suggested Account</p>
+                            <p className="font-bold text-sm text-primary">{suggestion.accountId}</p>
                         </div>
-                        <div>
-                            <p className="font-bold text-muted-foreground text-[10px] uppercase">VAT</p>
-                            <p className="font-semibold">{suggestion.vatType}</p>
+                        <div className="space-y-1">
+                            <p className="font-bold text-muted-foreground text-[9px] uppercase tracking-widest">VAT Treatment</p>
+                            <p className="font-bold text-sm capitalize">{suggestion.vatType.replace(/_/g, ' ')}</p>
                         </div>
                     </div>
                 </div>
-                <DialogFooter className="flex flex-col sm:flex-row gap-2">
-                    <Button onClick={() => onAction('allocate')} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">Allocate Only</Button>
-                    <Button variant="outline" onClick={() => onAction('append')} className="flex-1">Add Keyword to Existing Rule</Button>
-                    <Button variant="outline" onClick={() => onAction('new')} className="flex-1">Create New Rule</Button>
+
+                <Separator />
+
+                <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0">
+                    <Button onClick={() => onAction('allocate')} className="w-full bg-primary text-white hover:bg-primary/90 font-bold h-11">
+                        Allocate Only
+                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                        <Button variant="outline" onClick={() => onAction('append')} className="text-xs h-10 px-2 leading-tight">
+                            Add Keyword to Existing Rule
+                        </Button>
+                        <Button variant="outline" onClick={() => onAction('new')} className="text-xs h-10">
+                            Create New Rule
+                        </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -1617,7 +1639,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                 Smart Identification in Progress...
                             </CardTitle>
                             <span className="text-xs font-bold text-primary tabular-nums">
-                                {processedTransactionsCount} / {workflowTransactions.length} items
+                                {workflowTransactions.filter(tx => tx.status === 'ai_review').length} / {workflowTransactions.length} items
                             </span>
                         </div>
                     </CardHeader>
