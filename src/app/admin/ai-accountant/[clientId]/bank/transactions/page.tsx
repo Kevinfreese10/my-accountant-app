@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -219,7 +220,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader><DialogTitle>Import Bank Statement</DialogTitle></DialogHeader>
                 <div className="space-y-4 py-4">
-                     <Input id="statement-file" type="file" accept=".csv" onChange={handleFileChange} />
+                     <input id="statement-file" type="file" accept=".csv" onChange={handleFileChange} />
                      {isParsing && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 animate-spin"/> Parsing...</p>}
                      
                      {parsedTransactions.length > 0 && (
@@ -1820,16 +1821,34 @@ export default function BankTransactionsPage() {
         if (!params.clientId || !accountId) return;
         toast({ title: "Cleaning account...", description: "Please wait." });
         try {
-            const batch = writeBatch(db);
             const transRef = collection(db, 'aiAccountantClients', params.clientId as string, 'transactions');
             const q = query(transRef, where('bankAccountId', '==', accountId));
             const snap = await getDocs(q);
-            snap.forEach(d => batch.delete(d.ref));
-            await batch.commit();
-            toast({ title: "Account Cleared", description: "All transactions for this account have been deleted." });
+            
+            if (snap.empty) {
+                toast({ title: "Account is already empty" });
+                setIsClearAccountAlertOpen(false);
+                return;
+            }
+
+            // Chunk deletions to stay within the 500-op limit
+            const docs = snap.docs;
+            for (let i = 0; i < docs.length; i += 500) {
+                const batch = writeBatch(db);
+                const chunk = docs.slice(i, i + 500);
+                chunk.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+            }
+
+            toast({ title: "Account Cleared", description: `Successfully deleted ${snap.size} transactions.` });
             setIsClearAccountAlertOpen(false);
-        } catch (e) {
-            toast({ title: "Error", variant: "destructive" });
+        } catch (e: any) {
+            console.error("Clear account error:", e);
+            toast({ 
+                title: "Clear Failed", 
+                description: e.message || "An unexpected error occurred while deleting transactions.",
+                variant: "destructive" 
+            });
         }
     };
 
