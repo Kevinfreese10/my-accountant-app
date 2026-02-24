@@ -445,7 +445,7 @@ export async function researchMerchantWithAi({
 
         const rulesQuery = collection(db, "allocationRules");
         const rulesSnap = await getDocs(rulesQuery);
-        const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...doc.data() } as AllocationRule));
+        const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
         const match = allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase())));
@@ -570,6 +570,39 @@ export async function finalizeChatAllocation({
         return { success: true };
     } catch (e) {
         console.error("Chat allocation failed:", e);
+        throw e;
+    }
+}
+
+/**
+ * Resets any transactions locked in 'ai_processing' back to 'new'.
+ */
+export async function resetAiAccountantAnalysis({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
+    try {
+        const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        const q = query(
+            transRef, 
+            where('bankAccountId', '==', bankAccountId), 
+            where('status', '==', 'ai_processing')
+        );
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return { count: 0 };
+
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(d => {
+            batch.update(d.ref, { 
+                status: 'new',
+                merchantKey: deleteField(),
+                aiAllocationResult: deleteField(),
+                allocationSource: deleteField(),
+                matchedRuleId: deleteField(),
+                matchedKeyword: deleteField()
+            });
+        });
+        await batch.commit();
+        return { count: snapshot.size };
+    } catch (e) {
+        console.error("Reset failed", e);
         throw e;
     }
 }

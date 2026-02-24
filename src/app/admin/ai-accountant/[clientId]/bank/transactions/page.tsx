@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,7 +36,7 @@ import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, sendAllocationQueryEmail } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, sendAllocationQueryEmail, resetAiAccountantAnalysis } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -955,6 +955,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [groups, setGroups] = useState<TransactionGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isRechecking, setIsRechecking] = useState(false);
+    const [isReseting, setIsReseting] = useState(false);
     const [isQueryingClient, setIsQueryingClient] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [approvalSettings, setApprovalSettings] = useState<any>({});
@@ -1080,6 +1081,20 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             toast({ title: "Recheck Failed", variant: "destructive" });
         } finally {
             setIsRechecking(false);
+        }
+    };
+
+    const handleResetAnalysis = async () => {
+        if (!client?.uid || !bankAccountId) return;
+        setIsReseting(true);
+        try {
+            const res = await resetAiAccountantAnalysis({ clientId: client.uid, bankAccountId });
+            toast({ title: "Analysis Stopped", description: `${res.count} transactions have been reset to 'new'.` });
+            fetchData();
+        } catch (e) {
+            toast({ title: "Reset Failed", variant: "destructive" });
+        } finally {
+            setIsReseting(false);
         }
     };
 
@@ -1223,6 +1238,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>;
 
     const smartMatchCount = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule' || g.transactions[0].allocationSource === 'global_db')).length;
+    const isCurrentlyProcessing = groups.some(g => g.status === 'server_researching');
 
     return (
         <div className="space-y-6 p-4">
@@ -1294,6 +1310,12 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         {isRechecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4" />}
                         Recheck Rules
                     </Button>
+                    {isCurrentlyProcessing && (
+                        <Button variant="destructive" onClick={handleResetAnalysis} disabled={isReseting}>
+                            {isReseting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <StopCircle className="mr-2 h-4 w-4" />}
+                            Stop & Reset AI Workflow
+                        </Button>
+                    )}
                     <Button onClick={handleApproveAllSmartMatches} disabled={smartMatchCount === 0} className="bg-green-600 hover:bg-green-700 text-white">
                         <CheckCheck className="mr-2 h-4 w-4" /> Approve {smartMatchCount} Smart Matches
                     </Button>
