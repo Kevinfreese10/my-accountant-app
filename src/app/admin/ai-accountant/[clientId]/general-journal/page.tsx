@@ -9,12 +9,12 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown, PlusCircle } from 'lucide-react';
-import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion, setDoc } from 'firebase/firestore';
+import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown, PlusCircle, Calculator } from 'lucide-react';
+import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion, setDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { User, ChartOfAccount, AllocatedTransaction } from '@/lib/types';
+import { User, ChartOfAccount, AllocatedTransaction, VatType } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -24,7 +24,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from '@/components/ui/command';
+import { allVatTypes } from '@/lib/vat-types';
 
 
 const db = getFirestore(firebaseApp);
@@ -34,6 +35,7 @@ const journalLineSchema = z.object({
   description: z.string().optional(),
   debit: z.number().min(0).optional(),
   credit: z.number().min(0).optional(),
+  vatType: z.string().default('no_vat'),
 });
 
 const formSchema = z.object({
@@ -41,11 +43,19 @@ const formSchema = z.object({
   reference: z.string().min(1, "Reference is required."),
   lines: z.array(journalLineSchema).min(2, "At least two lines are required."),
 }).refine(data => {
-    const totalDebits = data.lines.reduce((acc, line) => acc + (line.debit || 0), 0);
-    const totalCredits = data.lines.reduce((acc, line) => acc + (line.credit || 0), 0);
-    return Math.abs(totalDebits - totalCredits) < 0.01; // Allow for floating point inaccuracies
+    const totalDebits = data.lines.reduce((acc, line) => {
+        const base = line.debit || 0;
+        const vat = (line.vatType === 'standard_rated_purchases' || line.vatType === 'standard_rated_sales' || line.vatType === 'capital_goods_purchases') ? base * 0.15 : 0;
+        return acc + base + vat;
+    }, 0);
+    const totalCredits = data.lines.reduce((acc, line) => {
+        const base = line.credit || 0;
+        const vat = (line.vatType === 'standard_rated_purchases' || line.vatType === 'standard_rated_sales' || line.vatType === 'capital_goods_purchases') ? base * 0.15 : 0;
+        return acc + base + vat;
+    }, 0);
+    return Math.abs(totalDebits - totalCredits) < 0.01;
 }, {
-    message: "Total debits must equal total credits.",
+    message: "Total inclusive debits must equal total inclusive credits.",
     path: ["lines"],
 });
 
@@ -53,7 +63,7 @@ type JournalFormValues = z.infer<typeof formSchema>;
 
 const formatPrice = (price: number | undefined) => {
     if (price === undefined || price === null || isNaN(price)) return '0.00';
-    return new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
+    return new Intl.NumberFormat('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
 };
 
 const generalAccountFormSchema = z.object({
@@ -144,15 +154,15 @@ export default function GeneralJournalsPage() {
             date: new Date(),
             reference: '',
             lines: [
-                { accountId: '', description: '', debit: 0, credit: 0 },
-                { accountId: '', description: '', debit: 0, credit: 0 },
+                { accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' },
+                { accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' },
             ],
         },
     });
     
     useEffect(() => {
         const reference = searchParams.get('reference');
-        if (reference && reference.startsWith('TAX-')) { // Only prefill for tax journals
+        if (reference && reference.startsWith('TAX-')) { 
             const date = searchParams.get('date');
             const line1_debit = searchParams.get('line1_debit');
             const line1_desc = searchParams.get('line1_desc');
@@ -166,8 +176,8 @@ export default function GeneralJournalsPage() {
                     date: date ? new Date(date) : new Date(),
                     reference: reference,
                     lines: [
-                        { accountId: line1_acc || '', description: line1_desc || '', debit: parseFloat(line1_debit), credit: 0 },
-                        { accountId: line2_acc || '', description: line2_desc || '', credit: parseFloat(line2_credit), debit: 0 },
+                        { accountId: line1_acc || '', description: line1_desc || '', debit: parseFloat(line1_debit), credit: 0, vatType: 'no_vat' },
+                        { accountId: line2_acc || '', description: line2_desc || '', credit: parseFloat(line2_credit), debit: 0, vatType: 'no_vat' },
                     ],
                 });
             }
@@ -183,9 +193,31 @@ export default function GeneralJournalsPage() {
     const watchedLines = form.watch("lines");
 
     const totals = useMemo(() => {
-        const totalDebits = watchedLines.reduce((acc, line) => acc + (line.debit || 0), 0);
-        const totalCredits = watchedLines.reduce((acc, line) => acc + (line.credit || 0), 0);
-        return { totalDebits, totalCredits };
+        let totalExclDebits = 0;
+        let totalExclCredits = 0;
+        let totalVat = 0;
+
+        watchedLines.forEach(line => {
+            const debit = line.debit || 0;
+            const credit = line.credit || 0;
+            const isStandard = line.vatType === 'standard_rated_purchases' || line.vatType === 'standard_rated_sales' || line.vatType === 'capital_goods_purchases';
+            
+            totalExclDebits += debit;
+            totalExclCredits += credit;
+
+            if (isStandard) {
+                const vat = (debit - credit) * 0.15;
+                totalVat += vat;
+            }
+        });
+
+        return { 
+            totalExclDebits, 
+            totalExclCredits, 
+            totalVat,
+            totalInclDebits: totalExclDebits + (totalVat > 0 ? totalVat : 0),
+            totalInclCredits: totalExclCredits + (totalVat < 0 ? -totalVat : 0)
+        };
     }, [watchedLines]);
     
     const generalAccounts = useMemo(() => {
@@ -207,7 +239,7 @@ export default function GeneralJournalsPage() {
                 collection(db, 'aiAccountantClients', clientId, 'transactions'),
                 where('bankAccountId', '==', 'JOURNAL'),
                 orderBy('date', 'desc'),
-                orderBy('reference', 'asc') // Add secondary sort
+                orderBy('reference', 'asc')
             );
             const journalsSnapshot = await getDocs(journalsQuery);
             const journals = journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction);
@@ -231,9 +263,10 @@ export default function GeneralJournalsPage() {
         
         try {
             const batch = writeBatch(db);
-            const journalTimestamp = Timestamp.now(); // Use a single timestamp for the whole journal
+            const journalTimestamp = Timestamp.now();
 
-            // If we are editing, delete the old journal entries first
+            const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
+
             if(editingJournalRef) {
                  const journalsToDeleteSnapshot = await getDocs(query(collection(db, "aiAccountantClients", client.id, "transactions"), where("reference", "==", editingJournalRef)));
                  journalsToDeleteSnapshot.forEach(journalDoc => {
@@ -241,40 +274,61 @@ export default function GeneralJournalsPage() {
                 });
             }
 
-            data.lines.forEach((line) => {
-                if ((line.debit || 0) > 0 || (line.credit || 0) > 0) {
-                    const amount = (line.debit || 0) - (line.credit || 0);
-                    const journalEntryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                    
-                    batch.set(journalEntryRef, {
+            for (const line of data.lines) {
+                const amount = (line.debit || 0) - (line.credit || 0);
+                if (amount === 0) continue;
+
+                const isStandardVat = line.vatType === 'standard_rated_purchases' || line.vatType === 'standard_rated_sales' || line.vatType === 'capital_goods_purchases';
+                const vatAmount = isStandardVat ? amount * 0.15 : 0;
+
+                // 1. Post Base Line (Exclusive)
+                const journalEntryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                batch.set(journalEntryRef, {
+                    clientId: client.id,
+                    date: data.date.toISOString(),
+                    reference: data.reference,
+                    description: line.description || 'General Journal Entry',
+                    amount: amount,
+                    isExpense: amount < 0,
+                    bankAccountId: 'JOURNAL',
+                    allocatedTo: { value: line.accountId, type: 'account' },
+                    vatType: line.vatType as VatType,
+                    status: 'allocated',
+                    allocatedAt: journalTimestamp,
+                });
+
+                // 2. Post VAT Line if applicable
+                if (vatAmount !== 0 && vatControlAccount) {
+                    const vatEntryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                    batch.set(vatEntryRef, {
                         clientId: client.id,
                         date: data.date.toISOString(),
                         reference: data.reference,
-                        description: line.description || 'General Journal Entry',
-                        amount: amount,
-                        isExpense: amount < 0,
+                        description: `VAT on: ${line.description || 'Journal Entry'}`,
+                        amount: vatAmount,
+                        isExpense: vatAmount < 0,
                         bankAccountId: 'JOURNAL',
-                        allocatedTo: { value: line.accountId, type: 'account' },
+                        allocatedTo: { value: vatControlAccount, type: 'account' },
                         vatType: 'no_vat',
                         status: 'allocated',
-                        allocatedAt: journalTimestamp, // Use the same timestamp for all lines in this journal
+                        allocatedAt: journalTimestamp,
                     });
                 }
-            });
+            }
 
             await batch.commit();
 
-            toast({ title: `Journal ${editingJournalRef ? 'Updated' : 'Posted'}`, description: `The journal entry has been successfully ${editingJournalRef ? 'updated' : 'recorded'}.` });
+            toast({ title: `Journal ${editingJournalRef ? 'Updated' : 'Posted'}`, description: `The journal entry has been successfully recorded.` });
             form.reset({
                  date: new Date(),
                  reference: '',
                  lines: [
-                    { accountId: '', description: '', debit: 0, credit: 0 },
-                    { accountId: '', description: '', debit: 0, credit: 0 },
+                    { accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' },
+                    { accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' },
                 ],
             });
             setEditingJournalRef(null);
-            fetchClientAndJournals(); // Re-fetch journals after posting
+            fetchClientAndJournals();
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to post journal entry.', variant: 'destructive' });
             console.error(error);
@@ -289,14 +343,19 @@ export default function GeneralJournalsPage() {
         const reference = entries[0].reference;
         const date = entries[0].date?.toDate ? entries[0].date.toDate() : new Date(entries[0].date);
 
-        const formLines = entries.map(entry => ({
+        // Filter out the automatic VAT lines when editing, as the form will re-calculate them
+        const vatControlAccountId = client?.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
+        const mainLines = entries.filter(e => e.allocatedTo.value !== vatControlAccountId);
+
+        const formLines = mainLines.map(entry => ({
             accountId: entry.allocatedTo.value,
             description: entry.description,
             debit: entry.amount > 0 ? entry.amount : 0,
             credit: entry.amount < 0 ? -entry.amount : 0,
+            vatType: entry.vatType || 'no_vat',
         }));
         
-        replace(formLines); // use 'replace' from useFieldArray
+        replace(formLines);
         form.setValue('date', date);
         form.setValue('reference', reference);
         setEditingJournalRef(reference);
@@ -308,8 +367,7 @@ export default function GeneralJournalsPage() {
       
       const q = query(
           collection(db, "aiAccountantClients", client.id, "transactions"), 
-          where("reference", "==", journalReference),
-          where("allocatedAt", "==", Timestamp.fromDate(new Date(journalDate)))
+          where("reference", "==", journalReference)
         );
 
       const journalsToDeleteSnapshot = await getDocs(q);
@@ -343,7 +401,6 @@ export default function GeneralJournalsPage() {
                 tx.allocatedTo?.value !== supplierControlAccount &&
                 !tx.reference.startsWith('TAX-')) {
                 
-                // Create a unique key for each batch using reference and exact timestamp
                 const uniqueKey = `${tx.reference}-${tx.allocatedAt.seconds}-${tx.allocatedAt.nanoseconds}`;
 
                 if (!grouped.has(uniqueKey)) {
@@ -382,9 +439,9 @@ export default function GeneralJournalsPage() {
                 <div className="flex justify-between items-center">
                     <div>
                         <CardTitle>{editingJournalRef ? `Editing Journal: ${editingJournalRef}` : 'Post General Journal'}</CardTitle>
-                        <CardDescription>Create manual journal entries between general ledger accounts.</CardDescription>
+                        <CardDescription>Create manual journal entries. VAT portions are automatically posted to the VAT Control Account.</CardDescription>
                     </div>
-                     {editingJournalRef && <Button variant="outline" onClick={() => { setEditingJournalRef(null); form.reset({ date: new Date(), reference: '', lines: [{ accountId: '', description: '', debit: 0, credit: 0 }, { accountId: '', description: '', debit: 0, credit: 0 }] }); }}>Cancel Edit</Button>}
+                     {editingJournalRef && <Button variant="outline" onClick={() => { setEditingJournalRef(null); form.reset({ date: new Date(), reference: '', lines: [{ accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' }, { accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' }] }); }}>Cancel Edit</Button>}
                 </div>
             </CardHeader>
             <CardContent>
@@ -399,10 +456,11 @@ export default function GeneralJournalsPage() {
                            <table className="min-w-full divide-y divide-gray-200">
                              <thead className="bg-gray-50">
                                <tr>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">Account</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">Description</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[200px]">Debit</th>
-                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[200px]">Credit</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">Account</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">Description</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[150px]">VAT %</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[150px]">Debit (Excl)</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[150px]">Credit (Excl)</th>
                                  <th className="px-3 py-2 w-[5%]"></th>
                                </tr>
                              </thead>
@@ -421,7 +479,7 @@ export default function GeneralJournalsPage() {
                                                             <Button
                                                             variant="outline"
                                                             role="combobox"
-                                                            className="w-full justify-between h-8 text-xs"
+                                                            className="w-full justify-between h-8 text-[11px]"
                                                             >
                                                             {field.value
                                                                 ? generalAccounts.find(
@@ -437,54 +495,83 @@ export default function GeneralJournalsPage() {
                                                                 <CommandInput placeholder="Search account..." />
                                                                 <CommandList>
                                                                     <CommandEmpty>No account found.</CommandEmpty>
-                                                                    <CommandItem onSelect={() => setIsCreateAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
-                                                                    {generalAccounts.map((acc) => (
-                                                                        <CommandItem
-                                                                            value={acc.description}
-                                                                            key={acc.id}
-                                                                            onSelect={() => {
-                                                                                form.setValue(`lines.${index}.accountId`, acc.id)
-                                                                            }}
-                                                                        >
-                                                                            {acc.description}
-                                                                        </CommandItem>
-                                                                    ))}
+                                                                    <CommandGroup>
+                                                                        <CommandItem onSelect={() => setIsCreateAccountOpen(true)} className="text-primary cursor-pointer"><PlusCircle className="mr-2 h-4 w-4"/>Create new account...</CommandItem>
+                                                                        {generalAccounts.map((acc) => (
+                                                                            <CommandItem
+                                                                                value={acc.description}
+                                                                                key={acc.id}
+                                                                                onSelect={() => {
+                                                                                    form.setValue(`lines.${index}.accountId`, acc.id)
+                                                                                }}
+                                                                            >
+                                                                                {acc.description}
+                                                                            </CommandItem>
+                                                                        ))}
+                                                                    </CommandGroup>
                                                                 </CommandList>
                                                             </Command>
                                                         </PopoverContent>
                                                     </Popover>
-                                                    <FormMessage />
                                                     </FormItem>
                                                 )}
                                                 />
                                         </td>
-                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
-                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.debit`} render={({ field }) => ( <Input type="number" step="0.01" className="h-8" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} /> )}/></td>
-                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.credit`} render={({ field }) => ( <Input type="number" step="0.01" className="h-8" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} /> )}/></td>
+                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8 text-[11px]" {...field} /> )}/></td>
                                         <td className="px-2 py-1 whitespace-nowrap">
-                                            <Button type="button" size="icon" variant="ghost" onClick={() => remove(index)} disabled={fields.length <= 2}><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                                            <FormField 
+                                                control={form.control} 
+                                                name={`lines.${index}.vatType`} 
+                                                render={({ field }) => ( 
+                                                    <FormItem>
+                                                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!client?.isVatRegistered}>
+                                                            <FormControl><SelectTrigger className="h-8 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                                                            <SelectContent>
+                                                                {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </FormItem> 
+                                                )} 
+                                            />
+                                        </td>
+                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.debit`} render={({ field }) => ( <Input type="number" step="0.01" className="h-8 text-[11px]" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} /> )}/></td>
+                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.credit`} render={({ field }) => ( <Input type="number" step="0.01" className="h-8 text-[11px]" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} /> )}/></td>
+                                        <td className="px-2 py-1 whitespace-nowrap text-right">
+                                            <Button type="button" size="icon" variant="ghost" onClick={() => remove(index)} disabled={fields.length <= 2}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                         </td>
                                   </tr>
                                 ))}
                              </tbody>
-                             <tfoot className="bg-gray-50">
-                                <tr>
-                                    <td colSpan={2} className="px-3 py-2 text-right font-bold">Totals</td>
-                                    <td className="px-3 py-2 font-mono">{formatPrice(totals.totalDebits)}</td>
-                                    <td className="px-3 py-2 font-mono">{formatPrice(totals.totalCredits)}</td>
+                             <tfoot className="bg-gray-50 border-t-2">
+                                <tr className="text-muted-foreground text-[11px]">
+                                    <td colSpan={3} className="px-3 py-1 text-right italic">Exclusive Base Total</td>
+                                    <td className="px-3 py-1 font-mono">{formatPrice(totals.totalExclDebits)}</td>
+                                    <td className="px-3 py-1 font-mono">{formatPrice(totals.totalExclCredits)}</td>
+                                    <td></td>
+                                </tr>
+                                <tr className="text-primary text-[11px]">
+                                    <td colSpan={3} className="px-3 py-1 text-right font-bold">Calculated VAT Portion</td>
+                                    <td className="px-3 py-1 font-mono font-bold">{totals.totalVat > 0 ? formatPrice(totals.totalVat) : '0.00'}</td>
+                                    <td className="px-3 py-1 font-mono font-bold">{totals.totalVat < 0 ? formatPrice(-totals.totalVat) : '0.00'}</td>
+                                    <td></td>
+                                </tr>
+                                <tr className="bg-muted/30">
+                                    <td colSpan={3} className="px-3 py-2 text-right font-bold">Inclusive Balance (MUST MATCH)</td>
+                                    <td className={cn("px-3 py-2 font-mono font-bold text-sm", Math.abs(totals.totalInclDebits - totals.totalInclCredits) > 0.01 && "text-destructive")}>{formatPrice(totals.totalInclDebits)}</td>
+                                    <td className={cn("px-3 py-2 font-mono font-bold text-sm", Math.abs(totals.totalInclDebits - totals.totalInclCredits) > 0.01 && "text-destructive")}>{formatPrice(totals.totalInclCredits)}</td>
                                     <td></td>
                                 </tr>
                              </tfoot>
                            </table>
                          </div>
                          <div className="flex justify-between items-center">
-                            <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', debit: 0, credit: 0 })}><Plus className="mr-2 h-4 w-4" /> Add Line</Button>
-                            {form.formState.errors.lines && <p className="text-sm font-medium text-destructive">{form.formState.errors.lines.message}</p>}
+                            <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' })}><Plus className="mr-2 h-4 w-4" /> Add Line</Button>
+                            {form.formState.errors.lines && <p className="text-sm font-medium text-destructive flex items-center gap-2"><AlertCircle className="h-4 w-4"/> {form.formState.errors.lines.message}</p>}
                          </div>
 
                          <CardFooter className="p-4 bg-muted rounded-b-lg mt-4 flex justify-end">
-                             <Button type="submit" disabled={isLoading}>
-                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                             <Button type="submit" disabled={isLoading || Math.abs(totals.totalInclDebits - totals.totalInclCredits) > 0.01}>
+                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
                                 {editingJournalRef ? 'Update Journal' : 'Post Journal'}
                             </Button>
                         </CardFooter>
@@ -601,7 +688,7 @@ export default function GeneralJournalsPage() {
                 </Table>
             </CardContent>
         </Card>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
                 <DialogTitle>Journal Details: {viewingJournal?.[0]?.reference}</DialogTitle>
                 <DialogDescription>
@@ -613,6 +700,7 @@ export default function GeneralJournalsPage() {
                     <TableRow>
                         <TableHead>Description</TableHead>
                         <TableHead>Account</TableHead>
+                        <TableHead>VAT Type</TableHead>
                         <TableHead className="text-right">Debit</TableHead>
                         <TableHead className="text-right">Credit</TableHead>
                     </TableRow>
@@ -624,6 +712,7 @@ export default function GeneralJournalsPage() {
                             <TableRow key={journal.id}>
                                 <TableCell>{journal.description}</TableCell>
                                 <TableCell>{account?.description || journal.allocatedTo.value}</TableCell>
+                                <TableCell className="text-[10px] text-muted-foreground">{allVatTypes.find(v => v.name === journal.vatType)?.label || 'No VAT'}</TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(journal.amount > 0 ? journal.amount : undefined)}</TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(journal.amount < 0 ? -journal.amount : undefined)}</TableCell>
                             </TableRow>
@@ -632,7 +721,7 @@ export default function GeneralJournalsPage() {
                 </TableBody>
                 <TableFooterComponent>
                     <TableRow>
-                        <TableCell colSpan={2} className="font-bold">Totals</TableCell>
+                        <TableCell colSpan={3} className="font-bold">Totals</TableCell>
                         <TableCell className="text-right font-bold font-mono">{formatPrice(viewingJournal?.reduce((sum, j) => sum + (j.amount > 0 ? j.amount : 0), 0))}</TableCell>
                         <TableCell className="text-right font-bold font-mono">{formatPrice(viewingJournal?.reduce((sum, j) => sum + (j.amount < 0 ? -j.amount : 0), 0))}</TableCell>
                     </TableRow>
@@ -643,3 +732,5 @@ export default function GeneralJournalsPage() {
     </Dialog>
     );
 }
+
+import { AlertCircle, CheckCircle } from "lucide-react";
