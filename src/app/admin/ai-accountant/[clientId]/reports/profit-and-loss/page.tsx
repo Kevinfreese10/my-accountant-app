@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react"
@@ -102,8 +101,8 @@ function ProfitAndLossReport({ client, transactions, dateRange, onPostJournal }:
                     exclusiveAmount = inclusiveAmount / 1.15;
                 }
 
-                // We only care about the contra entry for P&L
-                const contraAccountId = tx.status === 'allocated' && tx.allocatedTo 
+                // Updated: Include 'reviewed' status to correctly map Smart Match Queue items
+                const contraAccountId = (tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo 
                     ? tx.allocatedTo.value 
                     : '9500-001'; // Suspense Account
                 
@@ -388,5 +387,3 @@ export default function ProfitAndLossPage() {
         </div>
     );
 }
-
-    
