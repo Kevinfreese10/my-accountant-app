@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle } from 'lucide-react';
 import Papa from 'papaparse';
-import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, AIAllocationResult } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, SmartAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField, addDoc, limit, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -390,7 +390,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
 function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction, onAction }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    suggestion: AIAllocationResult | null;
+    suggestion: SmartAllocationResult | null;
     transaction: ImportedTransaction | null;
     onAction: (mode: 'new' | 'append' | 'allocate') => void;
 }) {
@@ -435,7 +435,7 @@ function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction,
 interface TransactionGroup {
     merchantKey: string;
     transactions: ImportedTransaction[];
-    suggestion: AIAllocationResult | null;
+    suggestion: SmartAllocationResult | null;
     status: 'pending' | 'ready' | 'processing' | 'server_researching';
 }
 
@@ -517,7 +517,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     const [isSaving, setIsSaving] = useState(false);
     const [isAiResearching, setIsAiResearching] = useState<string | null>(null);
     const [isAiReviewOpen, setIsAiReviewOpen] = useState(false);
-    const [aiSuggestion, setAiSuggestion] = useState<AIAllocationResult | null>(null);
+    const [aiSuggestion, setAiSuggestion] = useState<SmartAllocationResult | null>(null);
     const [selectedTxForAi, setSelectedTxForAi] = useState<ImportedTransaction | null>(null);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     const [isSubmittingToWorkflow, setIsSubmittingToWorkflow] = useState(false);
@@ -669,21 +669,21 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         }
     };
 
-    const handleRunAiWorkflow = async () => {
+    const handleRunSmartMatch = async () => {
         if (!client?.uid || !bankAccountId || !user?.email) return;
         setIsSubmittingToWorkflow(true);
         try {
             const lockRes = await prepareAiAccountantAnalysis({ clientId: client.uid, bankAccountId });
             if (lockRes.count > 0) {
                 setActiveTab('ai-workflow');
-                // runAiAccountantAnalysis is now robust and batches commits
+                // runAiAccountantAnalysis is a deterministic app-based process
                 runAiAccountantAnalysis({ clientId: client.uid, bankAccountId, initiatorEmail: user.email });
             } else { 
                 toast({ title: "No new expenses found to process." }); 
                 setIsSubmittingToWorkflow(false);
             }
         } catch (e) { 
-            toast({ title: "Workflow Failed", variant: "destructive" }); 
+            toast({ title: "Process Failed", variant: "destructive" }); 
             setIsSubmittingToWorkflow(false);
         }
     };
@@ -804,7 +804,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                 <DropdownMenuContent><DropdownMenuItem className="text-destructive" onClick={handleBulkDelete}>Delete Selected</DropdownMenuItem></DropdownMenuContent>
                             </DropdownMenu>
 
-                            {activeSubTab === 'expenses' && <Button variant="secondary" onClick={handleRunAiWorkflow} disabled={isSubmittingToWorkflow} className="font-bold border-2 border-primary/20"><Sparkles className="mr-2 h-4 w-4" /> Group & Smart Match</Button>}
+                            {activeSubTab === 'expenses' && <Button variant="secondary" onClick={handleRunSmartMatch} disabled={isSubmittingToWorkflow} className="font-bold border-2 border-primary/20"><RotateCw className="mr-2 h-4 w-4" /> Group & Smart Match</Button>}
                         </div>
                         <div className="flex items-center gap-4 flex-wrap">
                             <div className="flex items-center gap-2">
@@ -1006,7 +1006,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             const initialGroups: TransactionGroup[] = Object.entries(merchantGroups).map(([key, txs]) => ({
                 merchantKey: key,
                 transactions: txs,
-                suggestion: txs[0].aiAllocationResult || null,
+                suggestion: txs[0].smartAllocationResult || null,
                 status: txs[0].status === 'ai_processing' ? 'server_researching' : 'ready'
             }));
 
@@ -1082,7 +1082,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 
                 if (match) {
                     const keyword = match.keywords.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
-                    const newSuggestion: AIAllocationResult = {
+                    const newSuggestion: SmartAllocationResult = {
                         accountId: match.accountId,
                         vatType: client.isVatRegistered ? match.vatType : 'no_vat',
                         confidence: 100,
@@ -1332,7 +1332,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     <CardHeader className="py-3 px-4 border-b border-primary/10">
                         <div className="flex justify-between items-center">
                             <CardTitle className="text-sm font-bold text-primary flex items-center gap-2">
-                                <Sparkles className="h-4 w-4 animate-pulse" />
+                                <RotateCw className="h-4 w-4 animate-spin" />
                                 Smart Identification in Progress...
                             </CardTitle>
                             <span className="text-xs font-bold text-primary tabular-nums">
@@ -1343,7 +1343,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     <CardContent className="p-4 space-y-2">
                         <Progress value={progressStats.percentage} className="h-2" />
                         <p className="text-[10px] text-muted-foreground italic">
-                            Currently cleaning descriptions and matching against rules, history, and global smart database.
+                            Currently cleaning descriptions and matching against rules, history, and global smart database. This is a deterministic app-based process.
                         </p>
                     </CardContent>
                 </Card>
@@ -1440,7 +1440,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                                 ? "bg-green-600 hover:bg-green-600 text-white" 
                                                 : "bg-yellow-500 hover:bg-yellow-500 text-white"
                                             )}>
-                                                {sourceLabel || `${group.suggestion.confidence}% AI Confidence`}
+                                                {sourceLabel || `${group.suggestion.confidence}% Match Confidence`}
                                             </Badge>
                                         ) : (
                                             <Badge variant="secondary" className="text-[10px] font-bold py-1 px-3 rounded-full">
@@ -1990,7 +1990,7 @@ export default function BankTransactionsPage() {
                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none h-auto">
                         <TabsTrigger value="new-transactions">New Transactions</TabsTrigger>
-                        <TabsTrigger value="ai-workflow">AI Workflow</TabsTrigger>
+                        <TabsTrigger value="ai-workflow">Smart Match Queue</TabsTrigger>
                         <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
                     </TabsList>
                     <TabsContent value="new-transactions" className="p-0">

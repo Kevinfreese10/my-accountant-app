@@ -2,7 +2,7 @@
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, AIAllocationResult, VatType } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import React from 'react';
@@ -171,7 +171,7 @@ export async function moveTransactionToNew({ clientId, transactionId }: { client
             status: 'new',
             merchantKey: deleteField(),
             merchantKey2: deleteField(),
-            aiAllocationResult: deleteField(),
+            smartAllocationResult: deleteField(),
             allocationSource: deleteField(),
             matchType: deleteField(),
             matchedOn: deleteField(),
@@ -261,6 +261,7 @@ export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: {
 /**
  * PHASE 2: Deterministic Grouping & Precedence Matching (REGEX-FIRST)
  * Processes in batches to provide real-time progress.
+ * THIS IS AN APP-BASED PROCESS (DETERMINISTIC CODE), NOT AI-BASED.
  */
 export async function runAiAccountantAnalysis({ 
     clientId, 
@@ -308,15 +309,15 @@ export async function runAiAccountantAnalysis({
             const chunk = processingExpenses.slice(i, i + batchSize);
 
             for (const tx of chunk) {
-                // DETERSMINISTIC REGEX CLEANING (za_banks_v1.1)
+                // DETERMINISTIC REGEX CLEANING (za_banks_v1.1)
                 const result = BankCleaner.process(tx.description);
-                let finalResult: AIAllocationResult | null = null;
+                let finalResult: SmartAllocationResult | null = null;
                 let matchType: 'exact' | 'alias' | 'fuzzy' | 'manual' | null = null;
                 let allocationSource: string | null = null;
                 let ruleId: string | undefined;
                 let matchedKeyword: string | undefined;
 
-                // PRECEDENCE MATCHING
+                // PRECEDENCE MATCHING (Deterministic logic tree)
                 
                 // TIER 1: History Match (By exact MerchantKey)
                 const histMatch = history.find(h => h.merchantKey === result.merchantKey && h.allocatedTo);
@@ -375,7 +376,7 @@ export async function runAiAccountantAnalysis({
                     merchantKey2: result.merchantKey2,
                     paymentChannel: result.paymentChannel,
                     cleaningVersion: result.cleaningVersion,
-                    aiAllocationResult: finalResult,
+                    smartAllocationResult: finalResult,
                     status: 'ai_review', // Transition to review status
                     allocationSource: allocationSource,
                     matchType: matchType,
@@ -407,13 +408,14 @@ export async function runAiAccountantAnalysis({
         return { success: true, count: moveCount };
 
     } catch (error) {
-        console.error("AI Analysis Job Failed:", error);
+        console.error("Smart Match Job Failed:", error);
         return { success: false, error: "Internal Server Error" };
     }
 }
 
 /**
  * Researches a specific merchant group with AI.
+ * THIS IS THE ONLY PART THAT USES GENAI.
  */
 export async function researchMerchantWithAi({
     clientId,
@@ -439,7 +441,7 @@ export async function researchMerchantWithAi({
 
         const match = allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase())));
         
-        let result: AIAllocationResult;
+        let result: SmartAllocationResult;
         let source: string;
 
         if (match) {
@@ -454,11 +456,13 @@ export async function researchMerchantWithAi({
             };
             source = 'rule';
         } else {
-            result = await suggestTransactionAllocation({
+            // Manual per-merchant research call to LLM
+            const aiResult = await suggestTransactionAllocation({
                 description,
                 chartOfAccounts,
                 isVatRegistered
             });
+            result = aiResult;
             source = 'ai';
         }
 
@@ -469,7 +473,7 @@ export async function researchMerchantWithAi({
         const batch = writeBatch(db);
         snapshot.docs.forEach(d => {
             batch.update(d.ref, {
-                aiAllocationResult: result,
+                smartAllocationResult: result,
                 allocationSource: source,
                 matchedRuleId: result.ruleId || deleteField(),
                 matchedKeyword: result.matchedKeyword || deleteField(),
@@ -581,7 +585,7 @@ export async function resetAiAccountantAnalysis({ clientId, bankAccountId }: { c
                 status: 'new',
                 merchantKey: deleteField(),
                 merchantKey2: deleteField(),
-                aiAllocationResult: deleteField(),
+                smartAllocationResult: deleteField(),
                 allocationSource: deleteField(),
                 matchedRuleId: deleteField(),
                 matchedKeyword: deleteField(),

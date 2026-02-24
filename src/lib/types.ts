@@ -365,7 +365,7 @@ export type Task = {
   dueDay: number;
 };
 
-export type AIAllocationResult = {
+export type SmartAllocationResult = {
   ruleId?: string;
   accountId: string;
   vatType: VatType;
@@ -405,6 +405,7 @@ export type ImportedTransaction = {
     matchedRuleDescription?: string;
     matchedKeyword?: string;
     auditFiles?: { name: string; url: string; }[];
+    smartAllocationResult?: SmartAllocationResult;
 };
 
 export type AllocatedTransaction = {
