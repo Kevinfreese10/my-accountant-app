@@ -1977,12 +1977,12 @@ export default function BankTransactionsPage() {
                                 <Settings className="mr-2 h-4 w-4" /> Manage
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownContent align="end">
+                        <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => setIsCreateAccountOpen(true)}>Create New Bank Account</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setIsEditAccountOpen(true)}>Edit Selected Account</DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => setIsClearAccountAlertOpen(true)} className="text-destructive">Clear Bank Account</DropdownMenuItem>
-                        </DropdownContent>
+                        </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
             </div>
