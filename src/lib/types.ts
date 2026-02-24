@@ -381,28 +381,30 @@ export type ImportedTransaction = {
     date: string;
     reference: string;
     description: string;
-    cleanedDescription?: string;
+    rawDescription: string;
+    cleanDescription: string;
     merchantKey?: string;
+    merchantKey2?: string;
+    cleaningVersion?: string;
     paymentChannel?: "CARD" | "EFT" | "DEBIT_ORDER" | "ATM" | "TRANSFER" | "UNKNOWN";
-    referenceTokens?: string[];
     confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
-    overrideRequired?: boolean;
+    confidenceScore?: number;
     amount: number;
     isExpense: boolean;
     bankAccountId: string;
     status: 'new' | 'allocated' | 'review' | 'reviewed' | 'ai_processing' | 'ai_review';
-    allocatedTo?: { // Optional for imported, required for allocated
+    allocatedTo?: { 
         value: string;
         type: 'account' | 'customer' | 'supplier';
     };
     vatType?: VatType;
-    extractedSupplier?: string;
-    aiAllocationResult?: AIAllocationResult | null;
-    auditFiles?: { name: string; url: string; }[];
     allocationSource?: 'rule' | 'manual' | 'ai' | 'history' | 'global_db';
+    matchType?: 'exact' | 'alias' | 'fuzzy' | 'manual';
+    matchedOn?: string;
     matchedRuleId?: string;
     matchedRuleDescription?: string;
     matchedKeyword?: string;
+    auditFiles?: { name: string; url: string; }[];
 };
 
 export type AllocatedTransaction = {

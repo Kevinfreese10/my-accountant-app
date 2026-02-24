@@ -468,7 +468,12 @@ function GroupTransactionsDialog({ open, onOpenChange, group, onMoveToNew }: {
                             {group.transactions.map(tx => (
                                 <TableRow key={tx.id}>
                                     <TableCell className="text-xs">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                    <TableCell className="text-xs font-medium">{tx.description}</TableCell>
+                                    <TableCell className="text-xs font-medium">
+                                        <div className="flex flex-col">
+                                            <span>{tx.cleanDescription || tx.description}</span>
+                                            {tx.cleanDescription && <span className="text-[9px] text-muted-foreground italic">Raw: {tx.description}</span>}
+                                        </div>
+                                    </TableCell>
                                     <TableCell className="text-right font-mono text-xs">{formatPrice(tx.amount)}</TableCell>
                                     <TableCell className="text-right">
                                         <Button 
@@ -828,8 +833,9 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                     <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                     <TableCell>
                                         <div className="flex flex-col">
-                                            <span className="font-medium">{tx.description}</span>
-                                            {tx.merchantKey && <Badge variant="secondary" className="w-fit mt-1 text-[10px]">{tx.merchantKey}</Badge>}
+                                            <span className="font-medium">{tx.cleanDescription || tx.description}</span>
+                                            {tx.cleanDescription && <span className="text-[9px] text-muted-foreground italic">Raw: {tx.description}</span>}
+                                            {tx.merchantKey && <Badge variant="secondary" className="w-fit mt-1 text-[9px] font-bold">{tx.merchantKey}</Badge>}
                                         </div>
                                     </TableCell>
                                     <TableCell className="font-mono text-xs opacity-70">{tx.reference}</TableCell>
@@ -923,7 +929,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4"/></Button></DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuItem onClick={() => {
-                                                        const keyword = tx.description.split(/\s+/)[0];
+                                                        const keyword = tx.cleanDescription?.split(/\s+/)[0] || tx.description.split(/\s+/)[0];
                                                         setTransactionDescriptionForRule(tx.description);
                                                         setRuleDefaultValues({ description: `Rule for: ${keyword}`, keywords: keyword, accountId: '', vatType: activeSubTab === 'income' ? 'standard_rated_sales' : 'standard_rated_purchases' });
                                                         setIsCreateOpen(true);
@@ -979,7 +985,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
 
             const merchantGroups: { [key: string]: ImportedTransaction[] } = {};
             workflowTxs.forEach(tx => {
-                const key = tx.merchantKey || 'UNKNOWN';
+                const key = tx.merchantKey || tx.cleanDescription || 'UNKNOWN';
                 if (!merchantGroups[key]) merchantGroups[key] = [];
                 merchantGroups[key].push(tx);
             });
@@ -1601,7 +1607,12 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                                 return (
                                 <TableRow key={tx.id} className={cn(edited && "bg-primary/5")}>
                                     <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                    <TableCell>{tx.description}</TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-col">
+                                            <span>{tx.cleanDescription || tx.description}</span>
+                                            {tx.cleanDescription && <span className="text-[9px] text-muted-foreground italic">Raw: {tx.description}</span>}
+                                        </div>
+                                    </TableCell>
                                     <TableCell>
                                         <Popover>
                                             <PopoverTrigger asChild>
