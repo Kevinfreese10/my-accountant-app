@@ -210,7 +210,8 @@ export default function Vat201ReportPage() {
 
         const vatTransactions = transactions.filter(tx => {
             const txDate = tx.date instanceof Date ? tx.date : new Date(tx.date);
-            return txDate >= fromDate && txDate <= toDate && tx.status === 'allocated';
+            // Fix: Include both 'allocated' and 'reviewed' statuses
+            return txDate >= fromDate && txDate <= toDate && (tx.status === 'allocated' || tx.status === 'reviewed');
         });
         
         let totalStandardSales = 0;
