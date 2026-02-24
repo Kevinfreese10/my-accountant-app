@@ -325,7 +325,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem> )} />
                         <FormField control={form.control} name="accountId" render={({ field }) => (
                             <FormItem><FormLabel>Account</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -1021,12 +1021,16 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
 
             setGroups(initialGroups);
             
-            // Update settings for new groups
+            // Update settings for ALL new groups, providing defaults for unmatched ones
             setApprovalSettings((prev: any) => {
                 const newSettings = { ...prev };
                 initialGroups.forEach(g => { 
-                    if (g.suggestion && !newSettings[g.merchantKey]) {
-                        newSettings[g.merchantKey] = { accountId: g.suggestion.accountId, vatType: g.suggestion.vatType, createRule: true }; 
+                    if (!newSettings[g.merchantKey]) {
+                        newSettings[g.merchantKey] = { 
+                            accountId: g.suggestion?.accountId || '', 
+                            vatType: g.suggestion?.vatType || 'no_vat', 
+                            createRule: !g.suggestion // Default to true if manual identified
+                        }; 
                     }
                 });
                 return newSettings;
@@ -1067,8 +1071,8 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 setIsSearchingUser(false);
             }
         };
-        const timer = setTimeout(lookupUser, 500);
-        return () => clearTimeout(timer);
+        const lookupTimer = setTimeout(lookupUser, 500);
+        return () => clearTimeout(lookupTimer);
     }, [queryEmail]);
 
     const handleCombineGroups = async (sourceMerchantKey: string, targetGroup: TransactionGroup) => {
@@ -1248,7 +1252,11 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const handleApproveGroup = async (group: TransactionGroup) => {
         if (!client?.uid) return;
         const settings = approvalSettings[group.merchantKey];
-        if (!settings) return;
+        if (!settings || !settings.accountId) {
+            toast({ title: "Missing Allocation", description: "Please select an account before approving.", variant: "destructive" });
+            return;
+        }
+
         try {
             const batch = writeBatch(db);
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
@@ -1256,7 +1264,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 batch.update(doc(transRef, tx.id), {
                     status: 'reviewed',
                     allocatedTo: { value: settings.accountId, type: 'account' },
-                    vatType: settings.vatType,
+                    vatType: settings.vatType || 'no_vat',
                     allocatedAt: serverTimestamp(),
                     allocationSource: tx.allocationSource || 'ai',
                     matchedRuleId: group.suggestion?.ruleId || deleteField(),
@@ -1267,11 +1275,23 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             updateGlobalMerchantDb({
                 merchantKey: group.merchantKey,
                 accountId: settings.accountId,
-                vatType: settings.vatType
+                vatType: settings.vatType || 'no_vat'
             });
 
-            if (settings.createRule && group.transactions[0].allocationSource === 'ai') {
-                batch.update(doc(db, 'aiAccountantClients', client.uid), { allocationRules: arrayUnion({ id: `rule_${Date.now()}`, description: `Auto-categorization for ${group.merchantKey}`, keywords: [group.merchantKey.toUpperCase()], accountId: settings.accountId, vatType: settings.vatType, type: 'hard', scope: 'client', priority: 99 }) });
+            if (settings.createRule) {
+                const ruleId = `rule_${Math.random().toString(36).substr(2, 9)}`;
+                batch.update(doc(db, 'aiAccountantClients', client.uid), { 
+                    allocationRules: arrayUnion({ 
+                        id: ruleId, 
+                        description: `Auto-categorization for ${group.merchantKey}`, 
+                        keywords: [group.merchantKey.toUpperCase()], 
+                        accountId: settings.accountId, 
+                        vatType: settings.vatType || 'no_vat', 
+                        type: 'hard', 
+                        scope: 'client', 
+                        priority: 99 
+                    }) 
+                });
             }
             await batch.commit();
             toast({ title: "Group Approved" });
@@ -1296,7 +1316,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     batch.update(doc(transRef, tx.id), {
                         status: 'reviewed',
                         allocatedTo: { value: settings.accountId, type: 'account' },
-                        vatType: settings.vatType,
+                        vatType: settings.vatType || 'no_vat',
                         allocatedAt: serverTimestamp(),
                         allocationSource: group.transactions[0].allocationSource,
                         matchedRuleId: group.suggestion?.ruleId || deleteField(),
@@ -1307,7 +1327,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 updateGlobalMerchantDb({
                     merchantKey: group.merchantKey,
                     accountId: settings.accountId,
-                    vatType: settings.vatType
+                    vatType: settings.vatType || 'no_vat'
                 });
             });
             await batch.commit();
