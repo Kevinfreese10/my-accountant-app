@@ -40,7 +40,7 @@ import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionTo
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Progress } from "@/components/progress";
+import { Progress } from "@/components/ui/progress";
 import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
@@ -383,73 +383,6 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
                         <DialogFooter><Button type="submit" disabled={isSaving}>Create Account</Button></DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction, onAction }: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    suggestion: SmartAllocationResult | null;
-    transaction: ImportedTransaction | null;
-    onAction: (mode: 'new' | 'append' | 'allocate') => void;
-}) {
-    if (!suggestion || !transaction) return null;
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-primary" /> 
-                        AI Allocation Suggestion
-                    </DialogTitle>
-                    <DialogDescription className="break-words">
-                        AI Analysis for: <strong>{transaction.description}</strong>
-                    </DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-6 py-4">
-                    <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 overflow-hidden relative">
-                        <div className="flex justify-between items-center mb-3">
-                            <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Confidence Score</span>
-                            <Badge variant={suggestion.confidence > 80 ? 'success' : 'warning'} className="font-mono">
-                                {suggestion.confidence}%
-                            </Badge>
-                        </div>
-                        <p className="text-sm italic text-foreground leading-relaxed">
-                            "{suggestion.summary}"
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-6 px-1">
-                        <div className="space-y-1">
-                            <p className="font-bold text-muted-foreground text-[9px] uppercase tracking-widest">Suggested Account</p>
-                            <p className="font-bold text-sm text-primary">{suggestion.accountId}</p>
-                        </div>
-                        <div className="space-y-1">
-                            <p className="font-bold text-muted-foreground text-[9px] uppercase tracking-widest">VAT Treatment</p>
-                            <p className="font-bold text-sm capitalize">{suggestion.vatType.replace(/_/g, ' ')}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <Separator />
-
-                <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0">
-                    <Button onClick={() => onAction('allocate')} className="w-full bg-primary text-white hover:bg-primary/90 font-bold h-11">
-                        Allocate Only
-                    </Button>
-                    <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" onClick={() => onAction('append')} className="text-xs h-10 px-2 leading-tight">
-                            Add Keyword to Existing Rule
-                        </Button>
-                        <Button variant="outline" onClick={() => onAction('new')} className="text-xs h-10">
-                            Create New Rule
-                        </Button>
-                    </div>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
