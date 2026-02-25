@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -1657,46 +1658,57 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                 </div>
                             </div>
                             
-                            <div className="md:col-span-3 p-4 border-r space-y-4">
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">ALLOCATE TO</Label>
-                                    <Select value={approvalSettings[group.merchantKey]?.accountId || ''} onValueChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], accountId: v}}))}>
-                                        <SelectTrigger className="h-10 text-sm"><SelectValue placeholder="Select account..." /></SelectTrigger>
-                                        <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">VAT</Label>
-                                    <Select value={approvalSettings[group.merchantKey]?.vatType || 'no_vat'} onValueChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], vatType: v}}))}>
-                                        <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
-                                        <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
-                                    </Select>
+                            <div className="md:col-span-4 p-4 border-r space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">ALLOCATE TO</Label>
+                                        <Select value={approvalSettings[group.merchantKey]?.accountId || ''} onValueChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], accountId: v}}))}>
+                                            <SelectTrigger className="h-10 text-[11px] font-bold"><SelectValue placeholder="Account..." /></SelectTrigger>
+                                            <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">VAT</Label>
+                                        <Select value={approvalSettings[group.merchantKey]?.vatType || 'no_vat'} onValueChange={(v) => setApprovalSettings((p: any) => ({...p, [group.merchantKey]: {...p[group.merchantKey], vatType: v}}))}>
+                                            <SelectTrigger className="h-10 text-[11px] font-bold"><SelectValue /></SelectTrigger>
+                                            <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest flex items-center gap-1">
                                         <MessageSquare className="h-3 w-3" /> Client Comment
                                     </Label>
-                                    <div className="flex gap-1">
-                                        <Input 
-                                            className="h-8 text-xs font-bold" 
-                                            placeholder="Explain payment..." 
+                                    <div className="relative">
+                                        <Textarea 
+                                            className="min-h-[100px] text-xs font-bold bg-muted/20 border-muted-foreground/20 resize-none pr-10" 
+                                            placeholder="Explain what this payment was for (e.g. 'Petrol for the trucks'). Khai will use this to suggest an account." 
                                             value={groupComments[group.merchantKey] || ''}
                                             onChange={(e) => setGroupComments((p: any) => ({ ...p, [group.merchantKey]: e.target.value }))}
                                         />
-                                        <Button 
-                                            size="icon" 
-                                            variant="secondary" 
-                                            className="h-8 w-8 shrink-0" 
-                                            onClick={() => handleAnalyzeComment(group)}
-                                            disabled={isAnalyzingComment === group.merchantKey || !groupComments[group.merchantKey]}
-                                        >
-                                            {isAnalyzingComment === group.merchantKey ? <Loader2 className="h-3 w-3 animate-spin"/> : <Sparkles className="h-3 w-3"/>}
-                                        </Button>
+                                        <div className="absolute bottom-2 right-2 flex flex-col gap-1">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button 
+                                                            size="icon" 
+                                                            variant="secondary" 
+                                                            className="h-8 w-8 rounded-full shadow-sm border" 
+                                                            onClick={() => handleAnalyzeComment(group)}
+                                                            disabled={isAnalyzingComment === group.merchantKey || !groupComments[group.merchantKey]}
+                                                        >
+                                                            {isAnalyzingComment === group.merchantKey ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4 text-primary"/>}
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>Analyze Comment with AI</TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="md:col-span-6 p-4 flex flex-col justify-between">
+                            <div className="md:col-span-5 p-4 flex flex-col justify-between">
                                 <div className="p-4 rounded-xl border border-primary/10 bg-primary/5 flex-grow mb-4">
                                     <div className="mb-3 flex justify-between items-center">
                                         {group.suggestion ? (
