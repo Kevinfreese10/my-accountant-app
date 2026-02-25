@@ -19,6 +19,7 @@ import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { generateNextTaskOccurrence } from '@/app/actions';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from "recharts";
 import TaskForm from '@/components/admin/TaskForm';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
@@ -34,6 +35,7 @@ const userColors = [
 ];
 
 const getUserColor = (userId: string) => {
+  if (!userId) return 'bg-gray-200 text-gray-800';
   const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return userColors[hash % userColors.length];
 };
@@ -59,7 +61,7 @@ export default function AdminDashboardPage() {
         });
 
         const adminClientsUnsubscribe = onSnapshot(collection(db, "adminClients"), (snapshot) => {
-            setAdminClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User)));
+            setAdminClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User)));
         });
 
         const tasksUnsubscribe = onSnapshot(query(collection(db, 'tasks'), orderBy('dueDate', 'asc')), (snapshot) => {
@@ -99,9 +101,9 @@ export default function AdminDashboardPage() {
         ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks]);
 
-    // Admin profiles can only assign tasks to users with staff profiles
+    // Admin profiles can assign tasks to users with staff or admin roles
     const assignableStaff = useMemo(() => {
-        return allUsers.filter(u => u.role === 'staff');
+        return allUsers.filter(u => u.role === 'staff' || u.role === 'admin');
     }, [allUsers]);
 
     const staffByDept = useMemo(() => {
