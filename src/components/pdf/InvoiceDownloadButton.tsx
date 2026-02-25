@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -13,17 +12,35 @@ interface InvoiceDownloadButtonProps {
   customer: ClientCustomer | undefined;
 }
 
+/**
+ * Safely converts any unknown error type into a displayable string.
+ * Prevents React Error #31 by ensuring objects/React elements are not returned.
+ */
 function toErrorMessage(x: unknown): string {
-  if (typeof x === "string") return x;
-  if (x instanceof Error) return x.message;
-  if (x && typeof x === "object") {
-    // common API shapes: { message }, { error }, { errors: [...] }
-    const anyX = x as any;
-    if (typeof anyX.message === "string") return anyX.message;
-    if (typeof anyX.error === "string") return anyX.error;
-    try { return JSON.stringify(x); } catch {}
+  try {
+    if (typeof x === "string") return x;
+    if (x instanceof Error) return String(x.message);
+    
+    if (x && typeof x === "object") {
+      const anyX = x as any;
+      
+      // Specifically catch React elements which cause Error #31
+      if (anyX.$$typeof) {
+        return "An internal rendering error occurred.";
+      }
+
+      if (typeof anyX.message === "string") return anyX.message;
+      if (typeof anyX.error === "string") return anyX.error;
+      
+      const stringified = JSON.stringify(x);
+      if (stringified !== '{}' && stringified !== '[]') return stringified;
+    }
+    
+    const fallback = String(x);
+    return fallback !== "[object Object]" ? fallback : "An unexpected error occurred.";
+  } catch {
+    return "Something went wrong while generating the invoice.";
   }
-  return "Something went wrong while generating the invoice.";
 }
 
 export default function InvoiceDownloadButton({ invoice, client, customer }: InvoiceDownloadButtonProps) {
@@ -50,10 +67,11 @@ export default function InvoiceDownloadButton({ invoice, client, customer }: Inv
         let serverError: unknown = "Failed to generate invoice PDF.";
 
         try {
+          // Attempt to parse JSON error first
           const data = await response.json();
           serverError = data?.message ?? data?.error ?? data ?? serverError;
         } catch {
-          // response wasn't JSON
+          // Fallback to text if JSON parsing fails
           try {
             const text = await response.text();
             if (text) serverError = text;
@@ -76,6 +94,7 @@ export default function InvoiceDownloadButton({ invoice, client, customer }: Inv
     } catch (err: any) {
       console.error('Download error:', err);
       
+      // Ensure the message passed to the toast is strictly a string
       const displayMessage = toErrorMessage(err);
 
       toast({
