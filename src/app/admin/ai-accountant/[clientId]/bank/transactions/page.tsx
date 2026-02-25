@@ -358,6 +358,12 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
         resolver: zodResolver(ruleFormSchema),
         defaultValues: { mode: 'new', scope: 'client', ...defaultValues },
     });
+
+    useEffect(() => {
+        if (open) {
+            form.reset({ mode: 'new', scope: 'client', ...defaultValues });
+        }
+    }, [open, defaultValues, form]);
     
     const handleSave = async (values: z.infer<typeof ruleFormSchema>) => {
         if (!client?.uid) return;
@@ -398,16 +404,30 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                 <DialogHeader><DialogTitle>Create Allocation Rule</DialogTitle></DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
-                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Textarea {...field} className="resize-none h-20" /></FormControl></FormItem> )} />
+                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Textarea {...field} className="resize-none h-20" /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="accountId" render={({ field }) => (
                             <FormItem><FormLabel>Account</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value || ""}>
                                     <FormControl><SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl>
                                     <SelectContent>
                                         {client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="vatType" render={({ field }) => (
+                            <FormItem><FormLabel>VAT Treatment</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value || ""}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Select VAT type..." /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        {allVatTypes.map(vt => (
+                                            <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
                             </FormItem>
                         )} />
                         <DialogFooter><Button type="submit" className="w-full">Save Rule</Button></DialogFooter>
