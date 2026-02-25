@@ -533,6 +533,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     const [allocations, setAllocations] = useState<any>({});
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<any>({});
@@ -549,22 +550,41 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     const [sortField, setSortField] = useState<SortField>('description');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
     const baseQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
-        return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
+        
+        let q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
             where('bankAccountId', '==', bankAccountId),
             where('status', 'in', ['new', 'ai_processing']),
-            where('isExpense', '==', activeSubTab === 'expenses'),
-            orderBy(sortField, sortDirection)
+            where('isExpense', '==', activeSubTab === 'expenses')
         );
-    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
+
+        const trimmedSearch = debouncedSearchTerm.trim();
+        if (trimmedSearch) {
+            // Global Search using Firestore prefix matching
+            const term = trimmedSearch.toUpperCase();
+            // Note: Range filters require ordering by the same field
+            return query(q, 
+                where('description', '>=', term),
+                where('description', '<=', term + '\uf8ff'),
+                orderBy('description', 'asc')
+            );
+        }
+
+        return query(q, orderBy(sortField, sortDirection));
+    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection, debouncedSearchTerm]);
 
     const { documents: fetchedTransactions, isLoading, refetch, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
 
-    const transactions = useMemo(() => {
-        if (!searchTerm.trim()) return fetchedTransactions;
-        return fetchedTransactions.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [fetchedTransactions, searchTerm]);
+    // Global search and sorting are now handled entirely by baseQuery
+    const transactions = fetchedTransactions;
 
     React.useImperativeHandle(ref, () => ({ refetch }));
 
@@ -1858,7 +1878,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
     onAccountCreated: () => void; 
 }) => {
     const { toast } = useToast();
-    const [dateRange, setDateRange] = setDateRange(undefined);
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
     const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
