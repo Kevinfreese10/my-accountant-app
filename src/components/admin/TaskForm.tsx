@@ -15,10 +15,9 @@ import { CalendarIcon, MoreHorizontal, Check } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from '@/components/ui/command';
 import { Separator } from '../ui/separator';
 
-const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Annually'];
 
 const formSchema = z.object({
@@ -41,11 +40,9 @@ export default function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, al
       if (task.dueDate instanceof Date) {
           return task.dueDate;
       }
-      // Firestore Timestamps have a toDate() method
       if (typeof (task.dueDate as any).toDate === 'function') {
           return (task.dueDate as any).toDate();
       }
-      // Fallback for string dates
       return new Date(task.dueDate);
     }
 
@@ -80,8 +77,6 @@ export default function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, al
     const getAuthor = (authorId: string): User | undefined => {
         return allStaff.find(u => u.id === authorId);
     }
-    
-    const assignableStaff = allStaff.filter(s => s.role !== 'client');
 
     return (
         <Form {...form}>
@@ -108,7 +103,7 @@ export default function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, al
                                     >
                                     {field.value?.length > 0
                                         ? `${field.value.length} selected`
-                                        : "Select staff or team"}
+                                        : "Select member"}
                                     <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
                                 </FormControl>
@@ -119,12 +114,12 @@ export default function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, al
                                     <CommandList>
                                     <CommandEmpty>No results found.</CommandEmpty>
                                     <CommandGroup heading="Teams">
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax']?.map(s => s.id) || [])}>Accounting and Tax Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.id) || [])}>Administration Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.id) || [])}>CAP Dept</CommandItem>
+                                        {Object.keys(staffByDept).map(dept => (
+                                            <CommandItem key={dept} onSelect={() => field.onChange(staffByDept[dept]?.map(s => s.id) || [])}>{dept} Dept</CommandItem>
+                                        ))}
                                     </CommandGroup>
                                     <CommandGroup heading="Assignable Members">
-                                        {assignableStaff.map((staff) => (
+                                        {allStaff.map((staff) => (
                                         <CommandItem
                                             key={staff.id}
                                             value={staff.name}
@@ -228,8 +223,8 @@ export default function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, al
                                     <CommandInput placeholder="Search..." />
                                     <CommandList>
                                     <CommandEmpty>No results found.</CommandEmpty>
-                                    <CommandGroup heading="Individual Members">
-                                        {assignableStaff.map((staff) => (
+                                    <CommandGroup heading="Members">
+                                        {allStaff.map((staff) => (
                                         <CommandItem
                                             key={staff.id}
                                             value={staff.name}
@@ -296,7 +291,7 @@ export default function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, al
                                 control={form.control} 
                                 name="newComment" 
                                 render={({ field }) => (
-                                <FormItem>
+                                FormItem>
                                     <FormLabel>Add a Comment</FormLabel>
                                     <FormControl><Textarea {...field} placeholder="Post a new comment..." rows={2}/></FormControl>
                                     <FormMessage />

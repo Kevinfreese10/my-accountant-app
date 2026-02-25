@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PlusCircle, Loader2, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Task, User } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -34,13 +34,14 @@ export default function PartnerTasksPage() {
     if (!partnerId) return;
     setIsLoading(true);
     try {
-        // Fetch practice clients from partnerClients collection
+        // Fetch practice clients
         const clientsSnap = await getDocs(query(collection(db, "partnerClients"), where("partnerId", "==", partnerId)));
         setPracticeClients(clientsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as User)));
 
-        // Fetch practice staff (and includes partner themselves)
-        const staffSnap = await getDocs(query(collection(db, "users"), where("partnerId", "==", partnerId)));
+        // Practice tasks can only be assigned to partner staff and partners
+        const staffSnap = await getDocs(query(collection(db, "users"), where("partnerId", "==", partnerId), where("role", "==", "partner_staff")));
         const staff = staffSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        
         const partnerSnap = await getDoc(doc(db, 'users', partnerId));
         if (partnerSnap.exists()) staff.push({ ...partnerSnap.data(), id: partnerSnap.id } as User);
         setPracticeStaff(staff);
@@ -51,7 +52,6 @@ export default function PartnerTasksPage() {
         if (currentUser?.role === 'partner') {
             tasksQ = query(tasksRef, where("partnerId", "==", partnerId), orderBy("dueDate", "asc"));
         } else {
-            // Staff only sees their assigned tasks
             tasksQ = query(tasksRef, where("partnerId", "==", partnerId), where("assignedTo", "array-contains", currentUser?.uid), orderBy("dueDate", "asc"));
         }
         
@@ -115,7 +115,7 @@ export default function PartnerTasksPage() {
   };
 
   const staffByDept = useMemo(() => {
-      return { 'Accounting and Tax': practiceStaff, 'Administration': [], 'CAP': [] };
+      return { 'Practice Team': practiceStaff };
   }, [practiceStaff]);
 
   return (
@@ -169,12 +169,18 @@ export default function PartnerTasksPage() {
                         <p className="text-xs text-muted-foreground truncate max-w-xs">{task.description}</p>
                     </TableCell>
                     <TableCell>
-                        {task.assignedTo.map(id => practiceStaff.find(s => s.id === id)?.name).join(', ')}
+                        <div className="flex items-center gap-1">
+                            {task.assignedTo?.map(uid => (
+                                <Badge key={uid} variant="secondary" className="text-[10px]">
+                                    {practiceStaff.find(s => s.id === uid)?.name || 'Member'}
+                                </Badge>
+                            ))}
+                        </div>
                     </TableCell>
                     <TableCell>
                         {task.dueDate?.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : 'N/A'}
                     </TableCell>
-                    <TableCell><Badge>{task.status}</Badge></TableCell>
+                    <TableCell><Badge variant="outline">{task.status}</Badge></TableCell>
                     <TableCell className="text-right">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>

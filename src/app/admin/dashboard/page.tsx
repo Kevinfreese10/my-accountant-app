@@ -4,45 +4,23 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format, isPast, addDays, isWithinInterval, startOfToday } from 'date-fns';
-import { Task, User, TaskComment, Order } from '@/lib/types';
+import { format, isPast } from 'date-fns';
+import { Task, User, Order } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, Check, Eye, Inbox, Archive, TrendingUp, Wallet2, ClipboardList } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { PlusCircle, CalendarIcon, Loader2, Repeat, Check, Eye, Wallet2, TrendingUp, ClipboardList, Edit } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
-import { Separator } from '@/components/ui/separator';
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where, arrayUnion, Timestamp, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, query, orderBy, where, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { sendEmail } from '@/lib/email';
-import { render } from '@react-email/components';
-import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import TaskCompletedEmail from '@/components/emails/TaskCompletedEmail';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { generateNextTaskOccurrence } from '@/app/actions';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from "recharts";
 import TaskForm from '@/components/admin/TaskForm';
 
 const db = getFirestore(firebaseApp);
-
-const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
 
 const getTaskDate = (task: Task): Date => {
   if (task.dueDate instanceof Date) return task.dueDate;
@@ -63,9 +41,8 @@ const getUserColor = (userId: string) => {
 export default function AdminDashboardPage() {
     const { user } = useAuth();
     const [tasks, setTasks] = useState<Task[]>([]);
-    const [orders, setOrders] = useState<Order[]>([]);
     const [adminClients, setAdminClients] = useState<User[]>([]);
-    const [allStaffAndClients, setAllStaffAndClients] = useState<User[]>([]);
+    const [allUsers, setAllUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -78,7 +55,7 @@ export default function AdminDashboardPage() {
         const usersRef = collection(db, "users");
         getDocs(usersRef).then(usersSnapshot => {
             const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
-            setAllStaffAndClients(fetchedUsers);
+            setAllUsers(fetchedUsers);
         });
 
         const adminClientsUnsubscribe = onSnapshot(collection(db, "adminClients"), (snapshot) => {
@@ -90,14 +67,9 @@ export default function AdminDashboardPage() {
             setIsLoading(false);
         });
 
-        const ordersUnsubscribe = onSnapshot(query(collection(db, 'orders'), orderBy('date', 'desc')), (snapshot) => {
-            setOrders(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Order)));
-        });
-
         return () => {
             adminClientsUnsubscribe();
             tasksUnsubscribe();
-            ordersUnsubscribe();
         };
     }, []);
 
@@ -127,13 +99,18 @@ export default function AdminDashboardPage() {
         ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks]);
 
+    // Admin profiles can only assign tasks to users with staff profiles
+    const assignableStaff = useMemo(() => {
+        return allUsers.filter(u => u.role === 'staff');
+    }, [allUsers]);
+
     const staffByDept = useMemo(() => {
         const result: Record<string, User[]> = {};
         ['Accounting and Tax', 'Administration', 'CAP'].forEach(dept => {
-            result[dept] = allStaffAndClients.filter(u => u.department === dept);
+            result[dept] = assignableStaff.filter(u => u.department === dept);
         });
         return result;
-    }, [allStaffAndClients]);
+    }, [assignableStaff]);
 
     const handleUpdate = async (taskId: string, updates: Partial<Task>) => {
         const originalTask = tasks.find(t => t.id === taskId);
@@ -210,7 +187,7 @@ export default function AdminDashboardPage() {
                             onSubmit={handleFormSubmit}
                             onCancel={() => setIsFormOpen(false)}
                             onCommentSubmit={() => {}}
-                            allStaff={allStaffAndClients}
+                            allStaff={assignableStaff}
                             staffByDept={staffByDept}
                         />
                     </DialogContent>
@@ -272,7 +249,7 @@ export default function AdminDashboardPage() {
                 </div>
             )}
 
-            <WeeklyTaskCalendar tasks={tasks} allStaff={allStaffAndClients} currentUser={user} onTaskUpdate={handleUpdate} onEdit={(t) => { setSelectedTask(t); setIsFormOpen(true); }} />
+            <WeeklyTaskCalendar tasks={tasks} allStaff={assignableStaff} currentUser={user} onTaskUpdate={handleUpdate} onEdit={(t) => { setSelectedTask(t); setIsFormOpen(true); }} />
 
             <div className="space-y-8">
                 <Card>
@@ -326,6 +303,7 @@ export default function AdminDashboardPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Service Task</TableHead>
+                                    <TableHead>Assigned To</TableHead>
                                     <TableHead>Due Date</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
@@ -333,17 +311,59 @@ export default function AdminDashboardPage() {
                             <TableBody>
                                 {roadmapTasks.map(task => (
                                     <TableRow key={task.id}>
-                                        <TableCell className="font-medium">
+                                        <TableCell className="font-medium align-top">
                                             <p className="line-clamp-1">{task.title}</p>
                                             {task.recurrence && <Badge variant="outline" className="text-[9px] h-4 mt-1 font-bold uppercase">{task.recurrence}</Badge>}
                                         </TableCell>
-                                        <TableCell className="text-xs">{format(getTaskDate(task), 'dd/MM/yyyy')}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUpdate(task.id, { status: 'Done' })}><Check className="h-4 w-4 text-green-600" /></Button>
+                                        <TableCell className="align-top">
+                                            <div className="flex items-center -space-x-2">
+                                                {task.assignedTo?.map(uid => {
+                                                    const staff = allUsers.find(u => u.uid === uid);
+                                                    if (!staff) return null;
+                                                    return (
+                                                        <TooltipProvider key={uid}>
+                                                            <Tooltip>
+                                                                <TooltipTrigger>
+                                                                    <div className={cn("h-6 w-6 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-bold", getUserColor(staff.uid))}>
+                                                                        {staff.name.charAt(0)}
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent><p>{staff.name}</p></TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    );
+                                                })}
+                                                {(!task.assignedTo || task.assignedTo.length === 0) && (
+                                                    <span className="text-[10px] text-muted-foreground italic">Unassigned</span>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-xs align-top">
+                                            {format(getTaskDate(task), 'dd/MM/yyyy')}
+                                        </TableCell>
+                                        <TableCell className="text-right align-top">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-8 w-8" 
+                                                    onClick={() => { setSelectedTask(task); setIsFormOpen(true); }}
+                                                >
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-8 w-8" 
+                                                    onClick={() => handleUpdate(task.id, { status: 'Done' })}
+                                                >
+                                                    <Check className="h-4 w-4 text-green-600" />
+                                                </Button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {roadmapTasks.length === 0 && <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground text-xs">No upcoming roadmap tasks.</TableCell></TableRow>}
+                                {roadmapTasks.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs">No upcoming roadmap tasks.</TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </CardContent>
