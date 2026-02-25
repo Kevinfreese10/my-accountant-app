@@ -1,14 +1,14 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format, isPast, addDays, isWithinInterval, startOfToday } from 'date-fns';
 import { Task, User, TaskComment, Order } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, Check, Eye, Inbox, Archive, TrendingUp, Wallet2 } from 'lucide-react';
+import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, Check, Eye, Inbox, Archive, TrendingUp, Wallet2, ClipboardList } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -33,7 +33,7 @@ import { render } from '@react-email/components';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/accordion';
 import TaskCompletedEmail from '@/components/emails/TaskCompletedEmail';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -43,7 +43,6 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTo
 const db = getFirestore(firebaseApp);
 
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
-const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Semi-Annually', 'Annually'];
 
 const getTaskDate = (task: Task): Date => {
   if (task.dueDate instanceof Date) return task.dueDate;
@@ -69,9 +68,7 @@ export default function AdminDashboardPage() {
     const [allStaffAndClients, setAllStaffAndClients] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
-    const [isViewOpen, setIsViewOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-    const [viewingTask, setViewingTask] = useState<Task | null>(null);
     const { toast } = useToast();
     
     const isKev = user?.email === 'kev@thinkestry.co.za';
@@ -106,7 +103,6 @@ export default function AdminDashboardPage() {
 
     const revenueData = useMemo(() => {
         const total = adminClients.reduce((acc, client) => acc + (client.monthlyRetainerFee || 0), 0);
-        // Create chart data: Top 5 clients + others
         const sorted = [...adminClients].sort((a, b) => (b.monthlyRetainerFee || 0) - (a.monthlyRetainerFee || 0));
         const top5 = sorted.slice(0, 5).map(c => ({ name: c.name.substring(0, 10), value: c.monthlyRetainerFee || 0 }));
         const othersValue = sorted.slice(5).reduce((acc, c) => acc + (c.monthlyRetainerFee || 0), 0);
@@ -120,10 +116,16 @@ export default function AdminDashboardPage() {
         return tasks.filter(task => 
             Array.isArray(task.assignedTo) && 
             task.assignedTo.includes(user.id) &&
-            task.status !== 'Done' &&
-            (!task.recurrence || task.recurrence === 'None')
+            task.status !== 'Done'
         ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks, user]);
+
+    const roadmapTasks = useMemo(() => {
+        return tasks.filter(task => 
+            task.createdBy === 'system' && 
+            task.status !== 'Done'
+        ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
+    }, [tasks]);
 
     const handleUpdate = async (taskId: string, updates: Partial<Task>) => {
         const originalTask = tasks.find(t => t.id === taskId);
@@ -205,40 +207,81 @@ export default function AdminDashboardPage() {
 
             <WeeklyTaskCalendar tasks={tasks} allStaff={allStaffAndClients} currentUser={user} onTaskUpdate={handleUpdate} onEdit={(t) => { setSelectedTask(t); setIsFormOpen(true); }} />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>My Tasks</CardTitle>
-                    <CardDescription>Directly assigned to you.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Task</TableHead>
-                                <TableHead>Due Date</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {myTasks.map(task => (
-                                <TableRow key={task.id}>
-                                    <TableCell className="font-medium">
-                                        <p>{task.title}</p>
-                                        <p className="text-xs text-muted-foreground">{task.description}</p>
-                                    </TableCell>
-                                    <TableCell className="text-xs">{format(getTaskDate(task), 'dd/MM/yyyy')}</TableCell>
-                                    <TableCell><Badge variant="secondary">{task.status}</Badge></TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="icon" onClick={() => handleUpdate(task.id, { status: 'Done' })}><Check className="h-4 w-4 text-green-600" /></Button>
-                                    </TableCell>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <ClipboardList className="h-5 w-5 text-primary" />
+                            My Tasks
+                        </CardTitle>
+                        <CardDescription>Directly assigned to you.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Task</TableHead>
+                                    <TableHead>Due Date</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
-                            ))}
-                            {myTasks.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No pending tasks.</TableCell></TableRow>}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                            </TableHeader>
+                            <TableBody>
+                                {myTasks.map(task => (
+                                    <TableRow key={task.id}>
+                                        <TableCell className="font-medium">
+                                            <p className="line-clamp-1">{task.title}</p>
+                                            <p className="text-[10px] text-muted-foreground line-clamp-1">{task.description}</p>
+                                        </TableCell>
+                                        <TableCell className="text-xs">{format(getTaskDate(task), 'dd/MM/yyyy')}</TableCell>
+                                        <TableCell><Badge variant="secondary" className="text-[10px]">{task.status}</Badge></TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUpdate(task.id, { status: 'Done' })}><Check className="h-4 w-4 text-green-600" /></Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {myTasks.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs">No pending assigned tasks.</TableCell></TableRow>}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Repeat className="h-5 w-5 text-primary" />
+                            Compliance Roadmap
+                        </CardTitle>
+                        <CardDescription>Practice-wide automated deadlines.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Service Task</TableHead>
+                                    <TableHead>Due Date</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {roadmapTasks.map(task => (
+                                    <TableRow key={task.id}>
+                                        <TableCell className="font-medium">
+                                            <p className="line-clamp-1">{task.title}</p>
+                                            {task.recurrence && <Badge variant="outline" className="text-[9px] h-4 mt-1 font-bold uppercase">{task.recurrence}</Badge>}
+                                        </TableCell>
+                                        <TableCell className="text-xs">{format(getTaskDate(task), 'dd/MM/yyyy')}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUpdate(task.id, { status: 'Done' })}><Check className="h-4 w-4 text-green-600" /></Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {roadmapTasks.length === 0 && <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground text-xs">No upcoming roadmap tasks.</TableCell></TableRow>}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }
