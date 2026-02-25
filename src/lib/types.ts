@@ -383,6 +383,7 @@ export type ImportedTransaction = {
     description: string;
     rawDescription: string;
     cleanDescription: string;
+    clientComment?: string;
     merchantKey?: string;
     merchantKey2?: string;
     cleaningVersion?: string;

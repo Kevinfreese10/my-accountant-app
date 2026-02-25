@@ -18,6 +18,7 @@ import { AIAnalysisCompleteEmail } from '@/components/emails/AIAnalysisCompleteE
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { BankCleaner } from '@/lib/bank-cleaner';
 import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
+import { analyzeClientComment } from '@/ai/flows/analyze-client-comment';
 
 
 const db = getFirestore(firebaseApp);
@@ -744,6 +745,67 @@ export async function applyRegroups({
         return { success: true };
     } catch (e) {
         console.error("Apply regroups failed:", e);
+        throw e;
+    }
+}
+
+/**
+ * Analyzes a client comment and suggests an allocation.
+ * Permanently saves the comment to the group transactions.
+ */
+export async function analyzeClientCommentAndSuggest({
+    clientId,
+    transactionIds,
+    comment,
+    merchantKey,
+    examples,
+    chartOfAccounts,
+    isVatRegistered
+}: {
+    clientId: string,
+    transactionIds: string[],
+    comment: string,
+    merchantKey: string,
+    examples: string[],
+    chartOfAccounts: string,
+    isVatRegistered: boolean
+}) {
+    try {
+        // 1. Update transactions with the permanent comment
+        const batch = writeBatch(db);
+        const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        transactionIds.forEach(id => {
+            batch.update(doc(transRef, id), { clientComment: comment });
+        });
+        await batch.commit();
+
+        // 2. Call AI flow for suggestion
+        const result = await analyzeClientComment({
+            comment,
+            merchantKey,
+            examples,
+            chartOfAccounts,
+            isVatRegistered
+        });
+
+        // 3. Update transactions with the AI draft result
+        const batch2 = writeBatch(db);
+        transactionIds.forEach(id => {
+            batch2.update(doc(transRef, id), {
+                smartAllocationResult: {
+                    accountId: result.accountId,
+                    vatType: result.vatType,
+                    confidence: result.confidence,
+                    summary: result.reasoning
+                },
+                allocationSource: 'ai'
+            });
+        });
+        await batch2.commit();
+
+        return result;
+    } catch (e) {
+        console.error("Analyze comment failed:", e);
         throw e;
     }
 }

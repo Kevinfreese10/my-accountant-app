@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers, FileSpreadsheet, Save } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers, FileSpreadsheet, Save, MessageSquare } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, SmartAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,11 +36,11 @@ import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups, analyzeClientCommentAndSuggest } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Progress } from "@/components/ui/progress";
+import { Progress } from "@/components/progress";
 import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
@@ -1001,6 +1001,8 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [isReseting, setIsReseting] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [approvalSettings, setApprovalSettings] = useState<any>({});
+    const [groupComments, setGroupComments] = useState<any>({});
+    const [isAnalyzingComment, setIsAnalyzingComment] = useState<string | null>(null);
     const [viewingGroup, setViewingGroup] = useState<TransactionGroup | null>(null);
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
     const [isResearchingId, setIsResearchingId] = useState<string | null>(null);
@@ -1058,6 +1060,17 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     }
                 });
                 return newSettings;
+            });
+
+            // Initialize comments from Firestore
+            setGroupComments((prev: any) => {
+                const newComments = { ...prev };
+                initialGroups.forEach(g => {
+                    if (g.transactions[0].clientComment) {
+                        newComments[g.merchantKey] = g.transactions[0].clientComment;
+                    }
+                });
+                return newComments;
             });
             
             setIsLoading(false);
@@ -1344,6 +1357,43 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         }
     }
 
+    const handleAnalyzeComment = async (group: TransactionGroup) => {
+        const comment = groupComments[group.merchantKey];
+        if (!comment || !client?.uid) {
+            toast({ title: "Comment Required", description: "Please enter a client comment to analyze.", variant: "destructive" });
+            return;
+        }
+
+        setIsAnalyzingComment(group.merchantKey);
+        try {
+            const result = await analyzeClientCommentAndSuggest({
+                clientId: client.uid,
+                transactionIds: group.transactions.map(t => t.id),
+                comment,
+                merchantKey: group.merchantKey,
+                examples: group.transactions.slice(0, 3).map(t => t.description),
+                chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
+                isVatRegistered: !!client.isVatRegistered
+            });
+
+            // Update UI state with the new suggestion
+            setApprovalSettings((prev: any) => ({
+                ...prev,
+                [group.merchantKey]: {
+                    ...prev[group.merchantKey],
+                    accountId: result.accountId,
+                    vatType: result.vatType
+                }
+            }));
+
+            toast({ title: "Comment Analyzed", description: result.reasoning });
+        } catch (e) {
+            toast({ title: "Analysis Failed", variant: "destructive" });
+        } finally {
+            setIsAnalyzingComment(null);
+        }
+    };
+
     const handleDownloadExcel = () => {
         if (!client) return;
         const wb = XLSX.utils.book_new();
@@ -1616,6 +1666,28 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                         <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent>
                                     </Select>
                                 </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest flex items-center gap-1">
+                                        <MessageSquare className="h-3 w-3" /> Client Comment
+                                    </Label>
+                                    <div className="flex gap-1">
+                                        <Input 
+                                            className="h-8 text-xs font-bold" 
+                                            placeholder="Explain payment..." 
+                                            value={groupComments[group.merchantKey] || ''}
+                                            onChange={(e) => setGroupComments((p: any) => ({ ...p, [group.merchantKey]: e.target.value }))}
+                                        />
+                                        <Button 
+                                            size="icon" 
+                                            variant="secondary" 
+                                            className="h-8 w-8 shrink-0" 
+                                            onClick={() => handleAnalyzeComment(group)}
+                                            disabled={isAnalyzingComment === group.merchantKey || !groupComments[group.merchantKey]}
+                                        >
+                                            {isAnalyzingComment === group.merchantKey ? <Loader2 className="h-3 w-3 animate-spin"/> : <Sparkles className="h-3 w-3"/>}
+                                        </Button>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="md:col-span-6 p-4 flex flex-col justify-between">
@@ -1643,7 +1715,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                         )}
                                     </div>
                                     <p className="text-xs italic text-muted-foreground leading-relaxed">
-                                        {group.suggestion ? group.suggestion.summary : "No historical matches or active rules found for this merchant. Use the 'Research with AI' button to perform a deep analysis across our knowledge bases."}
+                                        {group.suggestion ? group.suggestion.summary : "No historical matches or active rules found for this merchant. Use the 'Research with AI' button or enter a 'Client Comment' to perform a deep analysis across our knowledge bases."}
                                     </p>
                                 </div>
                                 
