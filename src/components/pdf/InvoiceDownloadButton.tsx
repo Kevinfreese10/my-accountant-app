@@ -13,6 +13,19 @@ interface InvoiceDownloadButtonProps {
   customer: ClientCustomer | undefined;
 }
 
+function toErrorMessage(x: unknown): string {
+  if (typeof x === "string") return x;
+  if (x instanceof Error) return x.message;
+  if (x && typeof x === "object") {
+    // common API shapes: { message }, { error }, { errors: [...] }
+    const anyX = x as any;
+    if (typeof anyX.message === "string") return anyX.message;
+    if (typeof anyX.error === "string") return anyX.error;
+    try { return JSON.stringify(x); } catch {}
+  }
+  return "Something went wrong while generating the invoice.";
+}
+
 export default function InvoiceDownloadButton({ invoice, client, customer }: InvoiceDownloadButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -34,14 +47,20 @@ export default function InvoiceDownloadButton({ invoice, client, customer }: Inv
       });
 
       if (!response.ok) {
-        let serverError = 'Failed to generate PDF';
+        let serverError: unknown = "Failed to generate invoice PDF.";
+
         try {
-          const errorData = await response.json();
-          serverError = typeof errorData.error === 'string' ? errorData.error : serverError;
-        } catch (parseError) {
-          // If response is not JSON (e.g. HTML error page), use default message
+          const data = await response.json();
+          serverError = data?.message ?? data?.error ?? data ?? serverError;
+        } catch {
+          // response wasn't JSON
+          try {
+            const text = await response.text();
+            if (text) serverError = text;
+          } catch {}
         }
-        throw new Error(serverError);
+
+        throw new Error(toErrorMessage(serverError));
       }
 
       const blob = await response.blob();
@@ -54,16 +73,10 @@ export default function InvoiceDownloadButton({ invoice, client, customer }: Inv
       a.remove();
       window.URL.revokeObjectURL(url);
 
-    } catch (error: any) {
-      console.error('Download error:', error);
+    } catch (err: any) {
+      console.error('Download error:', err);
       
-      // CRITICAL: Ensure description is always a primitive string to avoid React error #31
-      let displayMessage = 'An unexpected error occurred while generating the PDF.';
-      if (error && typeof error.message === 'string') {
-        displayMessage = error.message;
-      } else if (typeof error === 'string') {
-        displayMessage = error;
-      }
+      const displayMessage = toErrorMessage(err);
 
       toast({
         title: 'Download Failed',
