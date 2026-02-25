@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where, arrayUnion, Timestamp, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where, arrayUnion, Timestamp, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -33,12 +33,12 @@ import { render } from '@react-email/components';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/accordion';
 import TaskCompletedEmail from '@/components/emails/TaskCompletedEmail';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { generateNextTaskOccurrence } from '@/app/actions';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from "recharts";
+import TaskForm from '@/components/admin/TaskForm';
 
 const db = getFirestore(firebaseApp);
 
@@ -61,7 +61,7 @@ const getUserColor = (userId: string) => {
 };
 
 export default function AdminDashboardPage() {
-    const { user, updateUser } = useAuth();
+    const { user } = useAuth();
     const [tasks, setTasks] = useState<Task[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
     const [adminClients, setAdminClients] = useState<User[]>([]);
@@ -127,6 +127,14 @@ export default function AdminDashboardPage() {
         ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks]);
 
+    const staffByDept = useMemo(() => {
+        const result: Record<string, User[]> = {};
+        ['Accounting and Tax', 'Administration', 'CAP'].forEach(dept => {
+            result[dept] = allStaffAndClients.filter(u => u.department === dept);
+        });
+        return result;
+    }, [allStaffAndClients]);
+
     const handleUpdate = async (taskId: string, updates: Partial<Task>) => {
         const originalTask = tasks.find(t => t.id === taskId);
         if (!originalTask || !user) return;
@@ -138,6 +146,41 @@ export default function AdminDashboardPage() {
         });
     };
 
+    const handleFormSubmit = async (data: any) => {
+        if (!user) return;
+        setIsLoading(true);
+        
+        const taskData = {
+            ...data,
+            dueDate: Timestamp.fromDate(data.dueDate as Date),
+        };
+
+        try {
+            if (selectedTask?.id) {
+                const taskRef = doc(db, 'tasks', selectedTask.id);
+                await updateDoc(taskRef, { ...taskData });
+                toast({ title: 'Task Updated', description: 'The task details have been saved.' });
+            } else {
+                const newTask: Omit<Task, 'id' | 'priority'> = {
+                    ...taskData,
+                    status: 'To-Do',
+                    createdBy: user.uid, 
+                    createdAt: serverTimestamp(),
+                    comments: [],
+                };
+                await addDoc(collection(db, 'tasks'), newTask);
+                toast({ title: 'Task Created', description: `Task assigned.` });
+            }
+            setIsFormOpen(false);
+            setSelectedTask(null);
+        } catch (error) {
+            console.error("Error saving task:", error);
+            toast({ title: 'Error', description: 'Could not save the task.', variant: 'destructive'});
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
     };
@@ -147,7 +190,31 @@ export default function AdminDashboardPage() {
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-center border-b pb-4">
-                <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-950">Welcome, {user?.name}!</h1>
+                <Dialog open={isFormOpen} onOpenChange={(open) => { setIsFormOpen(open); if (!open) setSelectedTask(null); }}>
+                    <DialogTrigger asChild>
+                        <Button onClick={() => { setSelectedTask(null); setIsFormOpen(true); }}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Create Task
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[700px]">
+                        <DialogHeader>
+                            <DialogTitle>{selectedTask ? 'Edit Task' : 'Create New Task'}</DialogTitle>
+                            <DialogDescription>
+                                {selectedTask ? 'Update the details of this task.' : 'Fill out the form to add a new task for a staff member.'}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <TaskForm 
+                            task={selectedTask || {}} 
+                            onSubmit={handleFormSubmit}
+                            onCancel={() => setIsFormOpen(false)}
+                            onCommentSubmit={() => {}}
+                            allStaff={allStaffAndClients}
+                            staffByDept={staffByDept}
+                        />
+                    </DialogContent>
+                </Dialog>
             </div>
 
             {isKev && (
@@ -207,7 +274,7 @@ export default function AdminDashboardPage() {
 
             <WeeklyTaskCalendar tasks={tasks} allStaff={allStaffAndClients} currentUser={user} onTaskUpdate={handleUpdate} onEdit={(t) => { setSelectedTask(t); setIsFormOpen(true); }} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="space-y-8">
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
