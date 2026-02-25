@@ -74,7 +74,7 @@ export default function PdfToCsvPage() {
   useEffect(() => {
     const fetchClients = async () => {
         const snap = await getDocs(query(collection(db, "aiAccountantClients"), orderBy("name")));
-        setClients(snap.docs.map(d => ({ ...d.data(), id: d.id } as UserType)));
+        setClients(snap.docs.map(d => ({ ...d.data(), id: doc.id } as UserType)));
     };
     fetchClients();
   }, []);
@@ -186,7 +186,7 @@ export default function PdfToCsvPage() {
                 clientId: selectedClient.id,
                 date: new Date(tx.date).toISOString(),
                 reference: `PDF-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                description: tx.description,
+                description: tx.description.toUpperCase(),
                 amount: tx.amount,
                 isExpense: tx.amount < 0,
                 bankAccountId: watchBankAccountId,

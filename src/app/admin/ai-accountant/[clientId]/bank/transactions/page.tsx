@@ -212,7 +212,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                         Object.keys(row).forEach(k => normalizedRow[k.toLowerCase().trim()] = row[k]);
                         return {
                             Date: normalizedRow.date || '',
-                            Description: normalizedRow.description || normalizedRow.desc || '',
+                            Description: (normalizedRow.description || normalizedRow.desc || '').toUpperCase(),
                             Amount: parseFloat(String(normalizedRow.amount || '').replace(/[^\d.-]/g, ''))
                         };
                     }).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
@@ -644,11 +644,13 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         setIsSaving(true);
         try {
             const batch = writeBatch(db);
+            const txCollection = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            
             Object.entries(allocations).forEach(([txId, alloc]: [string, any]) => {
                 const tx = transactions.find(t => t.id === txId);
                 const selectedVat = alloc.vatType || tx?.vatType || 'no_vat';
                 
-                batch.update(doc(db, 'aiAccountantClients', client.uid!, 'transactions', txId), {
+                batch.update(doc(txCollection, txId), {
                     status: 'reviewed',
                     allocatedTo: { value: alloc.value, type: alloc.type },
                     vatType: client.isVatRegistered ? selectedVat : 'no_vat',
