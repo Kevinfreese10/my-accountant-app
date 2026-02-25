@@ -511,7 +511,7 @@ export default function AdminClientsPage() {
       </div>
 
       <Card className="border-2 shadow-sm">
-        <CardHeader className="bg-muted/30 pb-4">
+        <CardHeader className="bg-muted/30 pb-4 border-b">
           <CardTitle className="text-lg">Accounting Clients</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -519,32 +519,36 @@ export default function AdminClientsPage() {
             <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           ) : (
           <Table>
-            <TableHeader className="bg-muted/20">
+            <TableHeader className="bg-muted/10">
               <TableRow>
-                <TableHead className="font-bold text-slate-950">Company</TableHead>
-                <TableHead className="font-bold text-slate-950">Year End</TableHead>
-                <TableHead className="font-bold text-slate-950">Services Enabled</TableHead>
-                <TableHead className="font-bold text-slate-950">Status</TableHead>
-                <TableHead className="text-right font-bold text-slate-950">Actions</TableHead>
+                <TableHead className="font-semibold text-muted-foreground">Company</TableHead>
+                <TableHead className="font-semibold text-muted-foreground">Year End</TableHead>
+                <TableHead className="font-semibold text-muted-foreground">Services Enabled</TableHead>
+                <TableHead className="font-semibold text-muted-foreground">Status</TableHead>
+                <TableHead className="text-right font-semibold text-muted-foreground">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {clients.map(client => (
                 <TableRow key={client.id} className="hover:bg-muted/5 transition-colors">
-                  <TableCell className="font-bold text-slate-950">{client.name}</TableCell>
-                  <TableCell className="font-medium">{formatYearEnd(client.yearEnd)}</TableCell>
+                  <TableCell className="font-medium text-slate-900">{client.name}</TableCell>
+                  <TableCell className="text-sm text-slate-600">{formatYearEnd(client.yearEnd)}</TableCell>
                   <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                          {client.isVatRegistered && <Badge variant="success" className="text-[10px] font-bold">VAT ({client.vatCategory})</Badge>}
-                          {client.submitsEmp201 && <Badge variant="info" className="text-[10px] font-bold">PAYE</Badge>}
-                          {client.preparesPayroll && <Badge variant="secondary" className="text-[10px] font-bold">PAYROLL</Badge>}
-                          {client.preparesManagementAccounts && <Badge variant="outline" className="text-[10px] font-bold">MGMT</Badge>}
-                          {client.submitsProvisionalTax && <Badge variant="secondary" className="text-[10px] font-bold">PROV</Badge>}
-                          {client.submitsIncomeTax && <Badge variant="destructive" className="text-[10px] font-bold">ITR</Badge>}
-                          {client.preparesFinancials && <Badge variant="outline" className="text-[10px] font-bold">AFS</Badge>}
+                      <div className="flex flex-wrap gap-1.5">
+                          {client.isVatRegistered && <Badge variant="secondary" className="text-[10px] font-normal">VAT ({client.vatCategory})</Badge>}
+                          {client.submitsEmp201 && <Badge variant="secondary" className="text-[10px] font-normal">PAYE</Badge>}
+                          {client.preparesPayroll && <Badge variant="secondary" className="text-[10px] font-normal">PAYROLL</Badge>}
+                          {client.preparesManagementAccounts && <Badge variant="secondary" className="text-[10px] font-normal">MGMT</Badge>}
+                          {client.submitsProvisionalTax && <Badge variant="secondary" className="text-[10px] font-normal">PROV</Badge>}
+                          {client.submitsIncomeTax && <Badge variant="secondary" className="text-[10px] font-normal">ITR</Badge>}
+                          {client.preparesFinancials && <Badge variant="secondary" className="text-[10px] font-normal">AFS</Badge>}
                       </div>
                   </TableCell>
-                  <TableCell><Badge variant={client.status === 'Active' ? 'default' : 'secondary'} className="font-bold">{client.status}</Badge></TableCell>
+                  <TableCell>
+                    <Badge variant={client.status === 'Active' ? 'default' : 'secondary'} className="font-medium text-[11px] px-2 py-0.5">
+                        {client.status}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
