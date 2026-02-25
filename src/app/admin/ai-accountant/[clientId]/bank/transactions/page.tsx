@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers, FileSpreadsheet } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers, FileSpreadsheet, Save } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, SmartAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -377,8 +377,8 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
                 <DialogHeader><DialogTitle>Create New Ledger Account</DialogTitle></DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
-                        <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select></FormItem>)} />
                         <DialogFooter><Button type="submit" disabled={isSaving}>Create Account</Button></DialogFooter>
                     </form>
@@ -1056,9 +1056,9 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [isResearchingId, setIsResearchingId] = useState<string | null>(null);
     const [isQueryDialogOpen, setIsQueryDialogOpen] = useState(false);
     const [queryEmail, setQueryEmail] = useState('');
-    const [dragOverKey, setDragOverKey] = useState<string | null>(null);
     const [selectedGroupKeys, setSelectedGroupKeys] = useState<string[]>([]);
     const [onlySelectedGroups, setOnlySelectedGroups] = useState(false);
+    const [isSavingDrafts, setIsSavingDrafts] = useState(false);
     
     // Regroup states
     const [isRegrouping, setIsRegrouping] = useState(false);
@@ -1154,41 +1154,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         const lookupUserTimer = setTimeout(lookupUser, 500);
         return () => clearTimeout(lookupUserTimer);
     }, [queryEmail]);
-
-    const handleCombineGroups = async (sourceMerchantKey: string, targetGroup: TransactionGroup) => {
-        if (!client?.uid || sourceMerchantKey === targetGroup.merchantKey) return;
-        
-        const sourceGroup = groups.find(g => g.merchantKey === sourceMerchantKey);
-        if (!sourceGroup) return;
-
-        // Visual feedback
-        toast({ title: "Combining Groups...", description: `Merging ${sourceMerchantKey} into ${targetGroup.merchantKey}.` });
-
-        try {
-            await combineMerchantGroups({
-                clientId: client.uid,
-                transactionIds: sourceGroup.transactions.map(t => t.id),
-                newMerchantKey: targetGroup.merchantKey,
-                newCleanDescription: targetGroup.transactions[0].cleanDescription
-            });
-            toast({ title: "Groups Combined Successfully" });
-        } catch (error) {
-            toast({ title: "Failed to combine groups", variant: "destructive" });
-        }
-    };
-
-    const handleDragStart = (e: React.DragEvent, merchantKey: string) => {
-        e.dataTransfer.setData("sourceMerchantKey", merchantKey);
-    };
-
-    const handleDrop = (e: React.DragEvent, targetGroup: TransactionGroup) => {
-        e.preventDefault();
-        setDragOverKey(null);
-        const sourceMerchantKey = e.dataTransfer.getData("sourceMerchantKey");
-        if (sourceMerchantKey) {
-            handleCombineGroups(sourceMerchantKey, targetGroup);
-        }
-    };
 
     const handleRegroupRequest = async () => {
         if (!client?.uid || !bankAccountId) return;
@@ -1350,6 +1315,39 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         }
     };
 
+    const handleSaveDrafts = async () => {
+        if (!client?.uid) return;
+        setIsSavingDrafts(true);
+        try {
+            const batch = writeBatch(db);
+            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            
+            workflowTransactions.forEach(tx => {
+                const key = tx.merchantKey || tx.cleanDescription || 'UNKNOWN';
+                const settings = approvalSettings[key];
+                
+                if (settings && settings.accountId) {
+                    batch.update(doc(transRef, tx.id), {
+                        smartAllocationResult: {
+                            accountId: settings.accountId,
+                            vatType: settings.vatType || 'no_vat',
+                            confidence: 100,
+                            summary: "Draft allocation saved by practitioner."
+                        },
+                        allocationSource: 'manual' 
+                    });
+                }
+            });
+            
+            await batch.commit();
+            toast({ title: "Draft Allocations Saved" });
+        } catch (e) {
+            toast({ title: "Save Failed", variant: "destructive" });
+        } finally {
+            setIsSavingDrafts(false);
+        }
+    };
+
     const handleApproveGroup = async (group: TransactionGroup) => {
         if (!client?.uid) return;
         const settings = approvalSettings[group.merchantKey];
@@ -1400,18 +1398,18 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         } catch (e) { toast({ title: "Approval Failed", variant: "destructive" }); }
     };
 
-    const handleApproveAllSmartMatches = async () => {
+    const handleApproveAllWithAllocations = async () => {
         if (!client?.uid) return;
-        const smartGroups = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule' || g.transactions[0].allocationSource === 'global_db'));
-        if (smartGroups.length === 0) {
-            toast({ title: "No Smart Matches found to approve." });
+        const allocatableGroups = groups.filter(g => approvalSettings[g.merchantKey]?.accountId);
+        if (allocatableGroups.length === 0) {
+            toast({ title: "No allocations found to finalize." });
             return;
         }
 
         try {
             const batch = writeBatch(db);
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
-            smartGroups.forEach(group => {
+            allocatableGroups.forEach(group => {
                 const settings = approvalSettings[group.merchantKey];
                 group.transactions.forEach(tx => {
                     batch.update(doc(transRef, tx.id), {
@@ -1419,7 +1417,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         allocatedTo: { value: settings.accountId, type: 'account' },
                         vatType: settings.vatType || 'no_vat',
                         allocatedAt: serverTimestamp(),
-                        allocationSource: group.transactions[0].allocationSource,
+                        allocationSource: tx.allocationSource || 'manual',
                         matchedRuleId: group.suggestion?.ruleId || deleteField(),
                         matchedKeyword: group.suggestion?.matchedKeyword || deleteField()
                     });
@@ -1432,7 +1430,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 });
             });
             await batch.commit();
-            toast({ title: "Approved all smart matches!" });
+            toast({ title: `Approved all ${allocatableGroups.length} groups!` });
         } catch (e) { toast({ title: "Bulk Approval Failed", variant: "destructive" }); }
     }
 
@@ -1524,7 +1522,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
 
     if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>;
 
-    const smartMatchCount = groups.filter(g => g.suggestion && (g.transactions[0].allocationSource === 'history' || g.transactions[0].allocationSource === 'rule' || g.transactions[0].allocationSource === 'global_db')).length;
+    const allocatedCount = groups.filter(g => approvalSettings[g.merchantKey]?.accountId).length;
     const isCurrentlyProcessing = workflowTransactions.some(tx => tx.status === 'ai_processing');
 
     return (
@@ -1678,7 +1676,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border border-dashed gap-4 flex-wrap">
                 <div className="space-y-1">
                     <h3 className="font-bold text-sm">Review Identifiable Merchants</h3>
-                    <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI. Drag and drop groups to merge them.</p>
+                    <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI.</p>
                 </div>
                 <div className="flex gap-2 flex-wrap items-center">
                     <div className="flex items-center space-x-2 mr-4 border-r pr-4 border-muted">
@@ -1709,14 +1707,18 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         {isRechecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4" />}
                         Recheck Rules
                     </Button>
+                    <Button variant="outline" onClick={handleSaveDrafts} disabled={isSavingDrafts || groups.length === 0} className="border-primary/30 text-primary hover:bg-primary/5">
+                        {isSavingDrafts ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
+                        Save Drafts
+                    </Button>
                     {isCurrentlyProcessing && (
                         <Button variant="destructive" onClick={handleResetAnalysis} disabled={isReseting}>
                             {isReseting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <StopCircle className="mr-2 h-4 w-4" />}
                             Stop & Reset
                         </Button>
                     )}
-                    <Button onClick={handleApproveAllSmartMatches} disabled={smartMatchCount === 0} className="bg-green-600 hover:bg-green-700 text-white">
-                        <CheckCircle2 className="mr-2 h-4 w-4" /> Approve {smartMatchCount} Smart Matches
+                    <Button onClick={handleApproveAllWithAllocations} disabled={allocatedCount === 0} className="bg-green-600 hover:bg-green-700 text-white">
+                        <CheckCircle2 className="mr-2 h-4 w-4" /> Approve All with Allocations ({allocatedCount})
                     </Button>
                 </div>
             </div>
@@ -1727,21 +1729,14 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     const sourceLabel = firstTx.allocationSource === 'history' ? 'HISTORY MATCH' : 
                                       firstTx.allocationSource === 'rule' ? 'RULE MATCH' :
                                       firstTx.allocationSource === 'global_db' ? 'SMART DB MATCH' : null;
-                    const isDraggingOver = dragOverKey === group.merchantKey;
                     const isSelected = selectedGroupKeys.includes(group.merchantKey);
                     
                     return (
                     <Card 
                         key={group.merchantKey} 
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, group.merchantKey)}
-                        onDragOver={(e) => { e.preventDefault(); setDragOverKey(group.merchantKey); }}
-                        onDragLeave={() => setDragOverKey(null)}
-                        onDrop={(e) => handleDrop(e, group)}
                         className={cn(
-                            "overflow-hidden border shadow-sm transition-all cursor-move", 
-                            group.status === 'server_researching' && "opacity-75 border-dashed",
-                            isDraggingOver && "border-primary ring-2 ring-primary ring-inset bg-primary/5 scale-[1.01]"
+                            "overflow-hidden border shadow-sm transition-all", 
+                            group.status === 'server_researching' && "opacity-75 border-dashed"
                         )}
                     >
                         <div className="grid grid-cols-1 md:grid-cols-12">
@@ -1752,8 +1747,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                         onCheckedChange={(checked) => setSelectedGroupKeys(p => checked ? [...p, group.merchantKey] : p.filter(k => k !== group.merchantKey))}
                                     />
                                 </div>
-                                <GripVertical className="h-5 w-5 text-muted-foreground/30 mt-1 shrink-0 ml-6" />
-                                <div className="space-y-4 flex-grow overflow-hidden">
+                                <div className="space-y-4 flex-grow overflow-hidden ml-6">
                                     <div>
                                         <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider mb-1">MERCHANT</Badge>
                                         <h4 className="text-xl font-extrabold truncate uppercase leading-tight">{group.merchantKey}</h4>
@@ -1864,7 +1858,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
     onAccountCreated: () => void; 
 }) => {
     const { toast } = useToast();
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const [dateRange, setDateRange] = setDateRange(undefined);
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
     const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
