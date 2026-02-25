@@ -36,7 +36,7 @@ import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, sendAllocationQueryEmail, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -450,75 +450,6 @@ function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction,
                         </Button>
                     </div>
                 </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-interface TransactionGroup {
-    merchantKey: string;
-    transactions: ImportedTransaction[];
-    suggestion: SmartAllocationResult | null;
-    status: 'pending' | 'ready' | 'processing' | 'server_researching';
-}
-
-function GroupTransactionsDialog({ open, onOpenChange, group, onMoveToNew }: { 
-    open: boolean, 
-    onOpenChange: (open: boolean) => void, 
-    group: TransactionGroup | null,
-    onMoveToNew: (txId: string) => Promise<void>
-}) {
-    const [isMoving, setIsMoving] = useState<string | null>(null);
-    if (!group) return null;
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl">
-                <DialogHeader>
-                    <DialogTitle>Transactions for: {group.merchantKey}</DialogTitle>
-                    <DialogDescription>Review individual transactions in this group.</DialogDescription>
-                </DialogHeader>
-                <div className="max-h-[60vh] overflow-y-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {group.transactions.map(tx => (
-                                <TableRow key={tx.id}>
-                                    <TableCell className="text-xs">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                    <TableCell className="text-xs font-medium">
-                                        <div className="flex flex-col">
-                                            <span>{tx.cleanDescription || tx.description}</span>
-                                            {tx.cleanDescription && <span className="text-[9px] text-muted-foreground italic">Raw: {tx.description}</span>}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono text-xs">{formatPrice(tx.amount)}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button 
-                                            variant="ghost" 
-                                            size="sm" 
-                                            className="text-destructive h-7 text-[10px]"
-                                            onClick={() => {
-                                                setIsMoving(tx.id);
-                                                onMoveToNew(tx.id).finally(() => setIsMoving(null));
-                                            }}
-                                            disabled={isMoving === tx.id}
-                                        >
-                                            {isMoving === tx.id ? <Loader2 className="h-3 w-3 animate-spin mr-1"/> : <Undo2 className="h-3 w-3 mr-1"/>}
-                                            Move to New
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
             </DialogContent>
         </Dialog>
     );
@@ -1068,14 +999,11 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [isLoading, setIsLoading] = useState(true);
     const [isRechecking, setIsRechecking] = useState(false);
     const [isReseting, setIsReseting] = useState(false);
-    const [isQueryingClient, setIsQueryingClient] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [approvalSettings, setApprovalSettings] = useState<any>({});
     const [viewingGroup, setViewingGroup] = useState<TransactionGroup | null>(null);
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
     const [isResearchingId, setIsResearchingId] = useState<string | null>(null);
-    const [isQueryDialogOpen, setIsQueryDialogOpen] = useState(false);
-    const [queryEmail, setQueryEmail] = useState('');
     const [selectedGroupKeys, setSelectedGroupKeys] = useState<string[]>([]);
     const [onlySelectedGroups, setOnlySelectedGroups] = useState(false);
     const [isSavingDrafts, setIsSavingDrafts] = useState(false);
@@ -1087,10 +1015,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
     const [isApplyingMerges, setIsApplyingMerges] = useState(false);
     const [selectedMerges, setSelectedMerges] = useState<string[]>([]);
-
-    // User lookup states
-    const [isSearchingUser, setIsSearchingUser] = useState(false);
-    const [foundUser, setFoundUser] = useState<User | null>(null);
 
     // REAL-TIME PROGRESS CALCULATION
     const [workflowTransactions, setWorkflowTransactions] = useState<ImportedTransaction[]>([]);
@@ -1148,32 +1072,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         const percentage = total > 0 ? (processed / total) * 100 : 0;
         return { total, processed, percentage };
     }, [workflowTransactions]);
-
-    // Lookup user by email as accountant types
-    useEffect(() => {
-        const lookupUser = async () => {
-            if (!queryEmail || !queryEmail.includes('@') || queryEmail.length < 5) {
-                setFoundUser(null);
-                return;
-            }
-            setIsSearchingUser(true);
-            try {
-                const q = query(collection(db, 'users'), where('email', '==', queryEmail.trim().toLowerCase()), limit(1));
-                const snap = await getDocs(q);
-                if (!snap.empty) {
-                    setFoundUser({ ...snap.docs[0].data(), id: snap.docs[0].id } as User);
-                } else {
-                    setFoundUser(null);
-                }
-            } catch (e) {
-                console.error("User lookup failed", e);
-            } finally {
-                setIsSearchingUser(false);
-            }
-        };
-        const lookupUserTimer = setTimeout(lookupUser, 500);
-        return () => clearTimeout(lookupUserTimer);
-    }, [queryEmail]);
 
     const handleRegroupRequest = async () => {
         if (!client?.uid || !bankAccountId) return;
@@ -1296,42 +1194,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             toast({ title: "Reset Failed", variant: "destructive" });
         } finally {
             setIsReseting(false);
-        }
-    };
-
-    const handleQueryClient = async () => {
-        if (!client?.uid || !queryEmail) return;
-        setIsQueryingClient(true);
-        try {
-            const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
-            // Include 'new' and 'ai_review' items in the count sent to the client
-            const q = query(transRef, where('bankAccountId', '==', bankAccountId), where('status', 'in', ['new', 'ai_review']));
-            const snapshot = await getDocs(q);
-            
-            if (snapshot.empty) {
-                toast({ title: "No transactions to query", description: "All items are currently allocated." });
-                return;
-            }
-
-            // LINK: If user exists, ensure they have shared access to this client profile
-            if (foundUser && foundUser.id) {
-                const clientDocRef = doc(db, 'aiAccountantClients', client.uid);
-                await updateDoc(clientDocRef, {
-                    sharedWith: arrayUnion(foundUser.id)
-                });
-            }
-
-            await sendAllocationQueryEmail({ 
-                clientId: client.uid, 
-                clientEmail: queryEmail,
-                unallocatedCount: snapshot.size 
-            });
-            toast({ title: "Query Sent", description: `The client has been notified at ${queryEmail}.` });
-            setIsQueryDialogOpen(false);
-        } catch (error) {
-            toast({ title: "Failed to send query", variant: "destructive" });
-        } finally {
-            setIsQueryingClient(false);
         }
     };
 
@@ -1620,57 +1482,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={isQueryDialogOpen} onOpenChange={setIsQueryDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Query Client</DialogTitle>
-                        <DialogDescription>
-                            Send a secure chat link to the client to clarify these transactions.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label>Client Email</Label>
-                            <div className="relative">
-                                <Input 
-                                    type="email" 
-                                    value={queryEmail} 
-                                    onChange={(e) => setQueryEmail(e.target.value)}
-                                    placeholder="Enter client's email..."
-                                    className={cn(foundUser && "border-green-500 focus-visible:ring-green-500")}
-                                />
-                                {isSearchingUser && <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />}
-                            </div>
-                            {foundUser ? (
-                                <div className="flex items-center gap-2 text-xs text-green-600 font-bold bg-green-50 p-2 rounded border border-green-100 animate-in fade-in">
-                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                    User found: {foundUser.name}. Sending will link their profile to this client.
-                                </div>
-                            ) : queryEmail && !isSearchingUser && queryEmail.includes('@') && (
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 p-2 rounded border animate-in fade-in">
-                                    <AlertCircle className="h-3.5 w-3.5" />
-                                    No user found with this email. An invite will still be sent.
-                                </div>
-                            )}
-                        </div>
-                        <Alert>
-                            <Info className="h-4 w-4" />
-                            <AlertTitle>Conversational Chat</AlertTitle>
-                            <AlertDescription className="text-xs">
-                                The client will be asked about transactions one-by-one by Khai (AI Assistant) and their responses will automatically allocate the items.
-                            </AlertDescription>
-                        </Alert>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setIsQueryDialogOpen(false)}>Cancel</Button>
-                        <Button onClick={handleQueryClient} disabled={isQueryingClient || !queryEmail}>
-                            {isQueryingClient ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />}
-                            Send Query Email
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
             {isCurrentlyProcessing && (
                 <Card className="border-primary bg-primary/5 shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-300">
                     <CardHeader className="py-3 px-4 border-b border-primary/10">
@@ -1718,10 +1529,6 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     <Button variant="outline" onClick={handleAiSmartGroup} disabled={isAiRegrouping || groups.length < 2} className="border-primary/30 text-primary hover:bg-primary/5">
                         {isAiRegrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                         AI Smart Group
-                    </Button>
-                    <Button variant="outline" onClick={() => setIsQueryDialogOpen(true)} disabled={groups.length === 0}>
-                        <MessageSquareQuote className="mr-2 h-4 w-4" />
-                        Query Client
                     </Button>
                     <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking || groups.length === 0}>
                         {isRechecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4" />}
@@ -2389,4 +2196,73 @@ export default function BankTransactionsPage() {
             </div>
         </div>
     );
+}
+
+function GroupTransactionsDialog({ open, onOpenChange, group, onMoveToNew }: { 
+    open: boolean, 
+    onOpenChange: (open: boolean) => void, 
+    group: TransactionGroup | null,
+    onMoveToNew: (txId: string) => Promise<void>
+}) {
+    const [isMoving, setIsMoving] = useState<string | null>(null);
+    if (!group) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Transactions for: {group.merchantKey}</DialogTitle>
+                    <DialogDescription>Review individual transactions in this group.</DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[60vh] overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {group.transactions.map(tx => (
+                                <TableRow key={tx.id}>
+                                    <TableCell className="text-xs">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                    <TableCell className="text-xs font-medium">
+                                        <div className="flex flex-col">
+                                            <span>{tx.cleanDescription || tx.description}</span>
+                                            {tx.cleanDescription && <span className="text-[9px] text-muted-foreground italic">Raw: {tx.description}</span>}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono text-xs">{formatPrice(tx.amount)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="text-destructive h-7 text-[10px]"
+                                            onClick={() => {
+                                                setIsMoving(tx.id);
+                                                onMoveToNew(tx.id).finally(() => setIsMoving(null));
+                                            }}
+                                            disabled={isMoving === tx.id}
+                                        >
+                                            {isMoving === tx.id ? <Loader2 className="h-3 w-3 animate-spin mr-1"/> : <Undo2 className="h-3 w-3 mr-1"/>}
+                                            Move to New
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+interface TransactionGroup {
+    merchantKey: string;
+    transactions: ImportedTransaction[];
+    suggestion: SmartAllocationResult | null;
+    status: 'pending' | 'ready' | 'processing' | 'server_researching';
 }

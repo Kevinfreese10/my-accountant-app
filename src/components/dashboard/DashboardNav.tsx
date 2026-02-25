@@ -23,7 +23,6 @@ import {
   Wrench,
   PanelLeft,
   ChevronDown,
-  MessageSquareQuote,
 } from 'lucide-react';
 
 import {
@@ -66,14 +65,12 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const navItems = [
      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
      { href: '/dashboard/orders', label: 'My Orders', icon: ShieldCheck, roles: ['client', 'ai_accountant'] },
-     { href: `/dashboard/ai-accountant/${user.uid}/chat`, label: 'Transaction Chat', icon: MessageSquareQuote, roles: ['client', 'admin', 'staff'] },
      { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
   ];
 
   const adminNavItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
-    { href: `/dashboard/ai-accountant/${user.uid}/chat`, label: 'Transaction Chat', icon: MessageSquareQuote, roles: ['admin', 'staff'] },
     { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
@@ -84,7 +81,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const aiAccountantNavItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ai_accountant'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['ai_accountant'] },
-    { href: `/dashboard/ai-accountant/${user.uid}/chat`, label: 'Transaction Chat', icon: MessageSquareQuote, roles: ['ai_accountant'] },
   ];
   
   const settingsNavItems = [
@@ -108,7 +104,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['partner', 'partner_staff'] },
     { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['partner', 'partner_staff'] },
     { href: '/partner/outsourced-orders', label: 'Outsourced Orders', icon: FileText, roles: ['partner', 'partner_staff'] },
-    { href: `/dashboard/ai-accountant/${user.uid}/chat`, label: 'Transaction Chat', icon: MessageSquareQuote, roles: ['partner', 'partner_staff'] },
     { href: '/partner/clients', label: 'Manage Clients', icon: BookUser, roles: ['partner', 'partner_staff'] },
     { href: '/partner/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['partner', 'partner_staff'] },
     { href: '/partner/staff', label: 'Manage Staff', icon: Users, roles: ['partner'] },
@@ -158,7 +153,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         
         {(hasAIAccountantAccess && (user.role === 'client')) && (
              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`) && !pathname.includes('/chat')} tooltip="AI Accountant">
+                <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`)} tooltip="AI Accountant">
                     <Link href={`${basePath}/ai-accountant/clients`}>
                         <BrainCircuit />
                         <span>AI Accountant</span>

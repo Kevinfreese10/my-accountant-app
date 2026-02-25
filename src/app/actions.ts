@@ -15,7 +15,6 @@ import { AIAccountantInviteEmail } from '@/components/emails/AIAccountantInviteE
 import { NewNoteNotificationEmail } from '@/components/emails/NewNoteNotificationEmail';
 import { OutstandingDocumentsEmail } from '@/components/emails/OutstandingDocumentsEmail';
 import { AIAnalysisCompleteEmail } from '@/components/emails/AIAnalysisCompleteEmail';
-import { AllocationQueryEmail } from '@/components/emails/AllocationQueryEmail';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { BankCleaner } from '@/lib/bank-cleaner';
 import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
@@ -493,82 +492,6 @@ export async function researchMerchantWithAi({
     } catch (error) {
         console.error("Single merchant research failed:", error);
         throw error;
-    }
-}
-
-/**
- * Sends an email to the client asking them to clarify unallocated transactions.
- */
-export async function sendAllocationQueryEmail({ clientId, clientEmail, unallocatedCount }: { clientId: string, clientEmail: string, unallocatedCount: number }) {
-    try {
-        const clientRef = doc(db, 'aiAccountantClients', clientId);
-        const clientSnap = await getDoc(clientRef);
-        if (!clientSnap.exists()) throw new Error("Client not found.");
-        const client = clientSnap.data() as User;
-
-        const chatUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/ai-accountant/${clientId}/chat`;
-
-        const emailHtml = render(
-            React.createElement(AllocationQueryEmail, {
-                clientName: client.companyName || client.name,
-                unallocatedCount,
-                chatUrl
-            })
-        );
-
-        await sendEmail({
-            to: clientEmail,
-            subject: `Action Required: Clarification needed for ${unallocatedCount} transactions`,
-            html: emailHtml,
-        });
-
-        // Log the query in Firestore for the client to see in their chat
-        const queriesRef = collection(db, 'aiAccountantClients', clientId, 'allocationQueries');
-        await setDoc(doc(queriesRef), {
-            emailSentTo: clientEmail,
-            unallocatedCount,
-            sentAt: serverTimestamp(),
-            status: 'pending'
-        });
-
-        return { success: true };
-    } catch (error) {
-        console.error("Failed to send allocation query email:", error);
-        throw error;
-    }
-}
-
-/**
- * Finalizes an allocation from the AI Chat.
- */
-export async function finalizeChatAllocation({
-    clientId,
-    transactionId,
-    accountId,
-    vatType,
-    explanation
-}: {
-    clientId: string,
-    transactionId: string,
-    accountId: string,
-    vatType: string,
-    explanation: string
-}) {
-    try {
-        const txRef = doc(db, 'aiAccountantClients', clientId, 'transactions', transactionId);
-        await updateDoc(txRef, {
-            status: 'reviewed',
-            allocatedTo: { value: accountId, type: 'account' },
-            vatType: vatType as VatType,
-            allocatedAt: serverTimestamp(),
-            allocationSource: 'ai',
-            chatExplanation: explanation,
-            confidence: 100
-        });
-        return { success: true };
-    } catch (e) {
-        console.error("Chat allocation failed:", e);
-        throw e;
     }
 }
 
