@@ -35,7 +35,6 @@ import { DateRange } from "react-day-picker";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
 import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups, analyzeClientCommentAndSuggest } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -400,7 +399,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem> )} />
                         <FormField control={form.control} name="accountId" render={({ field }) => (
                             <FormItem><FormLabel>Account</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -1681,7 +1680,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                     </Label>
                                     <div className="relative">
                                         <Textarea 
-                                            className="min-h-[100px] text-xs font-bold bg-muted/20 border-muted-foreground/20 resize-none pr-10" 
+                                            className="min-h-[100px] text-xs font-bold bg-white border-muted-foreground/20 resize-none pr-10" 
                                             placeholder="Explain what this payment was for (e.g. 'Petrol for the trucks'). Khai will use this to suggest an account." 
                                             value={groupComments[group.merchantKey] || ''}
                                             onChange={(e) => setGroupComments((p: any) => ({ ...p, [group.merchantKey]: e.target.value }))}
