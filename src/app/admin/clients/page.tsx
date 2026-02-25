@@ -37,6 +37,7 @@ const clientFormSchema = z.object({
   name: z.string().min(2, 'Company name is required.'),
   status: z.enum(['Active', 'Inactive', 'Archived']).default('Active'),
   yearEnd: z.string().min(1, 'Financial year end is required.'),
+  monthlyRetainerFee: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
   // Automation settings
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(['A', 'B', 'C']).optional().nullable(),
@@ -60,6 +61,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
             name: client?.name || '',
             status: (client?.status as any) || 'Active',
             yearEnd: client?.yearEnd || 'February',
+            monthlyRetainerFee: client?.monthlyRetainerFee || 0,
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || null,
             submitsEmp201: client?.submitsEmp201 || false,
@@ -86,6 +88,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                         <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{['Active', 'Inactive', 'Archived'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></FormItem>)} />
                         <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></FormItem>)} />
                     </div>
+                    <FormField control={form.control} name="monthlyRetainerFee" render={({ field }) => ( <FormItem><FormLabel>Monthly Retainer Fee (R)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
                 
                 <Separator />

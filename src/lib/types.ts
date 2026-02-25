@@ -305,6 +305,7 @@ export type User = {
   savedReports?: SavedReport[];
   landingPage?: PartnerLandingPageConfig;
   archivedNotificationsClient?: string[];
+  monthlyRetainerFee?: number;
 };
 
 export type ClientCustomer = {
