@@ -109,6 +109,79 @@ function RuleViewDialog({ open, onOpenChange, rule, matchedKeyword }: { open: bo
     );
 }
 
+function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction, onAction }: { 
+    open: boolean, 
+    onOpenChange: (open: boolean) => void, 
+    suggestion: SmartAllocationResult | null, 
+    transaction: ImportedTransaction | null,
+    onAction: (mode: 'new' | 'append' | 'allocate') => void 
+}) {
+    if (!suggestion || !transaction) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        AI Research Result
+                    </DialogTitle>
+                    <DialogDescription>
+                        Analysis for: <strong>{transaction.description}</strong>
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                    <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <Badge className={cn(suggestion.confidence > 80 ? "bg-green-600" : "bg-yellow-500")}>
+                                {suggestion.confidence}% Confidence
+                            </Badge>
+                            <span className="text-[10px] font-bold uppercase text-muted-foreground">AI Intelligence Layer</span>
+                        </div>
+                        <p className="text-sm italic text-muted-foreground leading-relaxed">
+                            "{suggestion.summary}"
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Suggested Account</p>
+                            <p className="text-sm font-semibold">{suggestion.accountId}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Suggested VAT</p>
+                            <p className="text-sm font-semibold capitalize">{suggestion.vatType.replace(/_/g, ' ')}</p>
+                        </div>
+                    </div>
+
+                    {suggestion.suggestedKeyword && (
+                        <div className="space-y-2">
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Suggested Rule Keyword</p>
+                            <Badge variant="outline" className="text-sm font-bold border-primary/30 text-primary uppercase">
+                                {suggestion.suggestedKeyword}
+                            </Badge>
+                        </div>
+                    )}
+                </div>
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                    <div className="grid grid-cols-2 gap-2 w-full">
+                        <Button variant="outline" onClick={() => onAction('new')} className="w-full">
+                            Create Rule
+                        </Button>
+                        <Button variant="outline" onClick={() => onAction('append')} className="w-full">
+                            Add to Existing
+                        </Button>
+                    </div>
+                    <Button onClick={() => onAction('allocate')} className="w-full bg-green-600 hover:bg-green-700 text-white">
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Apply Allocation Only
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete }: { client: User | null, bankAccountId: string, currentBalance: number, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
