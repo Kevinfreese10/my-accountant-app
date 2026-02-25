@@ -3,323 +3,27 @@ import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Repeat, Check, Tag } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Task, User, TaskComment } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Loader2, MessageSquare } from 'lucide-react';
-import { Calendar } from '@/components/ui/calendar';
-import { format, isPast } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { Separator } from '@/components/ui/separator';
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, arrayUnion, Timestamp, writeBatch, where } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, arrayUnion, Timestamp, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { sendEmail } from '@/lib/email';
-import { render } from '@react-email/components';
-import NewTaskEmail from '@/components/emails/NewTaskEmail';
+import TaskForm from '@/components/admin/TaskForm';
 import { generateNextTaskOccurrence } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
 
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
-
-const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
-const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Semi-Annually', 'Annually'];
-
-function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffByDept }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onCommentSubmit: (taskId: string, commentText: string) => void, allStaff: User[], staffByDept: Record<string, User[]> }) {
-    const { user } = useAuth();
-    const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
-        defaultValues: {
-            id: task?.id || '',
-            title: task?.title || '',
-            description: task?.description || '',
-            assignedTo: task?.assignedTo || [],
-            tags: task?.tags || [],
-            dueDate: task?.dueDate ? task.dueDate.toDate() : new Date(),
-            recurrence: task?.recurrence || 'None',
-            orderId: task?.orderId || '',
-            newComment: '',
-        },
-    });
-
-    const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        onSubmit(values);
-    };
-
-    const handleCommentSubmit = () => {
-        if (!task || !task.id) return;
-        const commentText = form.getValues('newComment');
-        if (commentText) {
-            onCommentSubmit(task.id, commentText);
-            form.setValue('newComment', '');
-        }
-    }
-    
-    const getAuthor = (authorId: string): User | undefined => {
-        return allStaff.find(u => u.id === authorId);
-    }
-    
-    const assignableStaff = allStaff.filter(s => s.role !== 'client');
-
-    return (
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="assignedTo"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Assign To</FormLabel>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <FormControl>
-                                    <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    className={cn(
-                                        "w-full justify-between",
-                                        !field.value?.length && "text-muted-foreground"
-                                    )}
-                                    >
-                                    {field.value?.length > 0
-                                        ? `${field.value.length} selected`
-                                        : "Select staff or team"}
-                                    <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                <Command>
-                                    <CommandInput placeholder="Search..." />
-                                    <CommandList>
-                                    <CommandEmpty>No results found.</CommandEmpty>
-                                    <CommandGroup heading="Teams">
-                                        <CommandItem onSelect={() => field.onChange(['all'])}>All Staff</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax']?.map(s => s.id) || [])}>Accounting and Tax Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.id) || [])}>Administration Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.id) || [])}>CAP Dept</CommandItem>
-                                    </CommandGroup>
-                                    <CommandGroup heading="Team Members">
-                                        {assignableStaff.map((staff) => (
-                                        <CommandItem
-                                            key={staff.id}
-                                            value={staff.name}
-                                            onSelect={() => {
-                                            const selection = new Set(field.value);
-                                            if (selection.has(staff.id)) {
-                                                selection.delete(staff.id);
-                                            } else {
-                                                selection.add(staff.id);
-                                            }
-                                            field.onChange(Array.from(selection));
-                                            }}
-                                        >
-                                            <div
-                                            className={cn(
-                                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                field.value?.includes(staff.id)
-                                                ? "bg-primary text-primary-foreground"
-                                                : "opacity-50 [&_svg]:invisible"
-                                            )}
-                                            >
-                                            <Check className={cn("h-4 w-4")} />
-                                            </div>
-                                            <span className="flex-grow">{staff.name}</span>
-                                            <span className="text-xs text-muted-foreground font-mono">{staff.uid}</span>
-                                        </CommandItem>
-                                        ))}
-                                    </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                                </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                     <FormField
-                        control={form.control}
-                        name="dueDate"
-                        render={({ field }) => (
-                            <FormItem className="flex flex-col pt-2">
-                            <FormLabel className="mb-1">Due Date</FormLabel>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <FormControl>
-                                    <Button
-                                    variant={"outline"}
-                                    className={cn(
-                                        "w-full pl-3 text-left font-normal",
-                                        !field.value && "text-muted-foreground"
-                                    )}
-                                    >
-                                    {field.value ? (
-                                        format(field.value, "dd/MM/yyyy")
-                                    ) : (
-                                        <span>Pick a date</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                    </Button>
-                                </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                    mode="single"
-                                    selected={field.value}
-                                    onSelect={field.onChange}
-                                    initialFocus
-                                />
-                                </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                </div>
-                 <FormField
-                        control={form.control}
-                        name="tags"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Tag Staff (Optional)</FormLabel>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <FormControl>
-                                    <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    className={cn(
-                                        "w-full justify-between",
-                                        !field.value?.length && "text-muted-foreground"
-                                    )}
-                                    >
-                                    {field.value?.length > 0
-                                        ? `${field.value.length} tagged`
-                                        : "Select staff to tag..."}
-                                    <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                <Command>
-                                    <CommandInput placeholder="Search..." />
-                                    <CommandList>
-                                    <CommandEmpty>No results found.</CommandEmpty>
-                                    <CommandGroup heading="Team Members">
-                                        {assignableStaff.map((staff) => (
-                                        <CommandItem
-                                            key={staff.id}
-                                            value={staff.name}
-                                            onSelect={() => {
-                                            const selection = new Set(field.value);
-                                            if (selection.has(staff.id)) {
-                                                selection.delete(staff.id);
-                                            } else {
-                                                selection.add(staff.id);
-                                            }
-                                            field.onChange(Array.from(selection));
-                                            }}
-                                        >
-                                            <div
-                                            className={cn(
-                                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                field.value?.includes(staff.id)
-                                                ? "bg-primary text-primary-foreground"
-                                                : "opacity-50 [&_svg]:invisible"
-                                            )}
-                                            >
-                                            <Check className={cn("h-4 w-4")} />
-                                            </div>
-                                            <span className="flex-grow">{staff.name}</span>
-                                            <span className="text-xs text-muted-foreground font-mono">{staff.uid}</span>
-                                        </CommandItem>
-                                        ))}
-                                    </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                                </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                 <FormField control={form.control} name="orderId" render={({ field }) => (<FormItem><FormLabel>Related Order ID (Optional)</FormLabel><FormControl><Input {...field} placeholder="e.g. ORD-12345" /></FormControl><FormMessage /></FormItem>)} />
-                 <FormField control={form.control} name="recurrence" render={({ field }) => (<FormItem><FormLabel>Recurrence</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select recurrence..." /></SelectTrigger></FormControl><SelectContent>{taskRecurrences.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                {task && (
-                    <>
-                        <Separator />
-                        <div className="space-y-4">
-                            <h3 className="text-sm font-medium text-foreground">Comments</h3>
-                            <div className="space-y-4 max-h-40 overflow-y-auto pr-2">
-                                {task.comments && task.comments.length > 0 ? task.comments.slice().reverse().map((comment, index) => {
-                                    const author = getAuthor(comment.authorId);
-                                    const date = comment.date?.toDate ? comment.date.toDate() : new Date(comment.date);
-                                    return (
-                                    <div key={index} className="flex items-start gap-3">
-                                        <div className="bg-muted p-3 rounded-lg w-full">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <p className="text-xs font-semibold">{author?.name}</p>
-                                                <p className="text-xs text-muted-foreground">{format(date, 'dd/MM/yyyy, HH:mm')}</p>
-                                            </div>
-                                            <p className="text-sm">{comment.text}</p>
-                                        </div>
-                                    </div>
-                                )}) : <p className="text-xs text-muted-foreground text-center py-4">No comments posted yet.</p>}
-                            </div>
-                            <FormField 
-                                control={form.control} 
-                                name="newComment" 
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Add a Comment</FormLabel>
-                                    <FormControl><Textarea {...field} placeholder="Post a new comment..." rows={2}/></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}/>
-                            <Button type="button" size="sm" onClick={handleCommentSubmit}>Post Comment</Button>
-                        </div>
-                    </>
-                )}
-
-                <div className="flex justify-end gap-2 pt-4">
-                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button type="submit">Save Task</Button>
-                </div>
-            </form>
-        </Form>
-    )
-}
-
-const formSchema = z.object({
-  id: z.string().optional(),
-  title: z.string().min(5, 'Title is required.'),
-  description: z.string().min(10, 'Description is required.'),
-  assignedTo: z.array(z.string()).min(1, 'Please assign a staff member.'),
-  tags: z.array(z.string()).optional(),
-  dueDate: z.date({ required_error: 'A due date is required.'}),
-  recurrence: z.enum(taskRecurrences).optional(),
-  orderId: z.string().optional(),
-  newComment: z.string().optional(),
-});
 
 const userColors = [
   'bg-red-200 text-red-800',
@@ -355,7 +59,7 @@ export default function AdminTasksPage() {
         const fetchedTasks = tasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
         setTasks(fetchedTasks);
 
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin', 'ai_accountant', 'cap_staff', 'cap_supervisor', 'partner', 'partner_staff']));
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const staffSnapshot = await getDocs(staffQuery);
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
         setAllStaff(fetchedStaff);
@@ -424,7 +128,7 @@ export default function AdminTasksPage() {
             title: 'Task Deleted',
             description: 'The task has been successfully removed.',
             variant: 'destructive',
-        })
+        });
     } catch (error) {
         console.error("Error deleting task:", error);
         toast({ title: 'Error', description: 'Could not delete task.', variant: 'destructive'});
@@ -458,7 +162,7 @@ export default function AdminTasksPage() {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority' | 'createdAt'>) => {
+  const handleFormSubmit = async (data: any) => {
     if (!user) return;
     setIsLoading(true);
     
@@ -477,10 +181,13 @@ export default function AdminTasksPage() {
                 ...taskData,
                 status: 'To-Do',
                 createdBy: user.uid, 
-                createdAt: Timestamp.now(),
+                createdAt: serverTimestamp(),
                 comments: [],
+                priority: 'Medium',
+                dueMonthOffset: 0,
+                dueDay: 1,
             };
-            const docRef = await addDoc(collection(db, 'tasks'), newTask);
+            await addDoc(collection(db, 'tasks'), newTask);
             toast({ title: 'Task Created', description: `Task assigned.` });
         }
         fetchTasks();
@@ -516,36 +223,18 @@ export default function AdminTasksPage() {
              setSelectedTask({ ...selectedTask, comments: updatedComments });
         }
        
-        setTasks(prevTasks => prevTasks.map(t => {
-            if (t.id === taskId) {
-                const existingComments = t.comments?.map(c => c.date.toDate ? c : {...c, date: new Date(c.date)}) || [];
-                return {...t, comments: [...existingComments, newCommentForState]};
-            }
-            return t;
-        }));
-
+        fetchTasks();
         toast({ title: 'Comment Posted', description: 'Your comment has been added.' });
     } catch (error) {
         console.error("Error posting comment:", error);
         toast({ title: 'Error', description: 'Could not post comment.', variant: 'destructive' });
     }
-}
+  };
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
     return allStaff.find(u => u.id === userId);
-  }
-
-    const getStatusVariant = (status: Task['status']) => {
-        switch (status) {
-            case 'Done': return 'success';
-            case 'In Progress': return 'info';
-            case 'To-Do': return 'info';
-            case 'Review': return 'warning';
-            default: return 'secondary';
-        }
-    };
-    
+  };
 
   return (
     <div className="space-y-8">
@@ -562,7 +251,7 @@ export default function AdminTasksPage() {
                 <DialogHeader>
                     <DialogTitle>{selectedTask ? 'Edit Task' : 'Create New Task'}</DialogTitle>
                     <DialogDescription>
-                        {selectedTask ? 'Update the details of this task.' : 'Fill out the form to add a new task for a staff member.'}
+                        {selectedTask ? 'Update the details of this task.' : 'Fill out the form to add a new task.'}
                     </DialogDescription>
                 </DialogHeader>
                 <TaskForm 
@@ -582,7 +271,7 @@ export default function AdminTasksPage() {
             <div>
               <CardTitle>All Tasks</CardTitle>
               <CardDescription>
-                {user?.role === 'staff' ? 'Showing all tasks assigned to you.' : 'View, edit, and delete all tasks in the system.'}
+                View, edit, and delete all tasks in the system.
               </CardDescription>
             </div>
             <div className="w-full sm:w-auto">
@@ -612,42 +301,24 @@ export default function AdminTasksPage() {
               <TableRow>
                 <TableHead>Task</TableHead>
                 <TableHead>Assigned To</TableHead>
-                <TableHead>Tags</TableHead>
                 <TableHead>Dates</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Related Order</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredTasks.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No tasks to display.</TableCell>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">No tasks to display.</TableCell>
                 </TableRow>
               ) : (
                 filteredTasks.map(task => {
-                    const lastComment = task.comments && task.comments.length > 0 ? task.comments[task.comments.length - 1] : null;
-                    const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                     const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
-                    const tags = Array.isArray(task.tags) ? task.tags : [];
-                    const canDelete = user?.id === task.createdBy;
                     return (
                     <TableRow key={task.id}>
                     <TableCell className="font-medium max-w-xs align-top">
-                        <div className="flex items-center gap-2">
-                            {task.recurrence && task.recurrence !== 'None' && <Repeat className="h-4 w-4 text-muted-foreground" title={`Repeats ${task.recurrence}`} />}
-                            <p className="font-semibold truncate">{task.title}</p>
-                        </div>
+                        <p className="font-semibold truncate">{task.title}</p>
                         <p className="text-xs text-muted-foreground truncate">{task.description}</p>
-                        {lastComment && commentAuthor && (
-                            <div className="mt-2 flex items-start gap-2 border-l-2 border-primary/50 pl-2">
-                                <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                <div className="text-xs">
-                                    <span className="font-semibold">{commentAuthor.name}:</span>
-                                    <span className="text-muted-foreground ml-1">"{lastComment.text}"</span>
-                                </div>
-                            </div>
-                        )}
                     </TableCell>
                     <TableCell className="align-top">
                          <div className="flex items-center -space-x-2">
@@ -661,91 +332,33 @@ export default function AdminTasksPage() {
                                                 <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.id))}>{assignee.name.charAt(0)}</span>
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                                <p>{assignee.name.split(' ')[0]}</p>
+                                                <p>{assignee.name}</p>
                                             </TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>
                                 );
                             })}
-                                {assignees.length > 3 && (
-                                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold border-2 border-background">
-                                    +{assignees.length - 3}
-                                </div>
-                            )}
-                        </div>
-                    </TableCell>
-                    <TableCell className="align-top">
-                        <div className="flex items-center -space-x-2">
-                            {tags.slice(0, 3).map(userId => {
-                                const taggedUser = getAssignee(userId);
-                                if (!taggedUser) return null;
-                                return (
-                                        <TooltipProvider key={userId}>
-                                        <Tooltip>
-                                            <TooltipTrigger>
-                                                <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs", getUserColor(taggedUser.id))}>{taggedUser.name.charAt(0)}</span>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>Tagged: {taggedUser.name.split(' ')[0]}</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                );
-                            })}
-                                {tags.length > 3 && (
-                                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold border-2 border-background opacity-70">
-                                    +{tags.length - 3}
-                                </div>
-                            )}
                         </div>
                     </TableCell>
                     <TableCell className="align-top text-xs">
                         <div className="flex flex-col">
                             <span className="font-semibold">Due: {task.dueDate?.toDate ? format(task.dueDate.toDate(), 'dd/MM/yyyy') : 'N/A'}</span>
-                            <span className="text-muted-foreground">Created: {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd/MM/yyyy') : 'N/A'}</span>
                         </div>
                     </TableCell>
                     <TableCell className="align-top">
-                        <Badge variant={getStatusVariant(task.status)}>
-                            {task.status}
-                        </Badge>
-                    </TableCell>
-                    <TableCell className="align-top">
-                        {task.orderId ? (
-                            <Button variant="link" asChild className="p-0 h-auto text-xs">
-                                <Link href={`/admin/orders/${task.orderId}`}>{task.orderId}</Link>
-                            </Button>
-                        ) : <span className="text-muted-foreground text-xs">N/A</span>}
+                        <Badge variant="secondary">{task.status}</Badge>
                     </TableCell>
                     <TableCell className="text-right align-top">
                         <AlertDialog>
                             <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                < MoreHorizontal className="h-4 w-4" />
-                                </Button>
+                                <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => handleEdit(task)}>
-                                    Edit / View Comments
-                                </DropdownMenuItem>
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Change Status</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                    {taskStatuses.map(status => (
-                                        <DropdownMenuItem key={status} onClick={() => handleUpdateStatus(task.id, status)} disabled={task.status === status}>
-                                            Mark as {status}
-                                        </DropdownMenuItem>
-                                    ))}
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
+                                <DropdownMenuItem onClick={() => handleEdit(task)}>Edit</DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem className="text-destructive" disabled={!canDelete}>
-                                        Delete
-                                    </DropdownMenuItem>
+                                    <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
                                 </AlertDialogTrigger>
                             </DropdownMenuContent>
                             </DropdownMenu>
@@ -753,15 +366,12 @@ export default function AdminTasksPage() {
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                    This action cannot be undone. This will permanently delete the task:
-                                    <span className="font-semibold"> {task.title}</span>.
+                                    Permanently delete task: <span className="font-semibold"> {task.title}</span>?
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDelete(task.id)}>
-                                        Continue
-                                    </AlertDialogAction>
+                                    <AlertDialogAction onClick={() => handleDelete(task.id)}>Delete</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
