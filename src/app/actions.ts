@@ -18,6 +18,7 @@ import { AIAnalysisCompleteEmail } from '@/components/emails/AIAnalysisCompleteE
 import { AllocationQueryEmail } from '@/components/emails/AllocationQueryEmail';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { BankCleaner } from '@/lib/bank-cleaner';
+import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
 
 
 const db = getFirestore(firebaseApp);
@@ -707,6 +708,80 @@ export async function proposeRegroups({
 }
 
 /**
+ * Analyzes unallocated merchant groups using AI for semantic similarities.
+ */
+export async function proposeAiRegroups({ 
+    clientId, 
+    bankAccountId,
+    selectedMerchantKeys
+}: { 
+    clientId: string, 
+    bankAccountId: string,
+    selectedMerchantKeys?: string[]
+}) {
+    try {
+        const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        const q = query(
+            transRef, 
+            where('bankAccountId', '==', bankAccountId), 
+            where('status', '==', 'ai_review')
+        );
+        const snapshot = await getDocs(q);
+        const transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
+
+        // 1. Build initial groups
+        const merchantGroups: { [key: string]: ImportedTransaction[] } = {};
+        transactions.forEach(tx => {
+            const key = tx.merchantKey || 'UNKNOWN';
+            if (!merchantGroups[key]) merchantGroups[key] = [];
+            merchantGroups[key].push(tx);
+        });
+
+        let groupKeys = Object.keys(merchantGroups).filter(k => k !== 'UNKNOWN');
+        
+        // Filter if requested
+        if (selectedMerchantKeys && selectedMerchantKeys.length > 0) {
+            groupKeys = groupKeys.filter(k => selectedMerchantKeys.includes(k));
+        }
+
+        if (groupKeys.length < 2) return [];
+
+        // 2. Call AI flow
+        const aiInput = groupKeys.map(key => ({
+            key,
+            example: merchantGroups[key][0].description,
+            count: merchantGroups[key].length
+        }));
+
+        const result = await aiSmartRegroup({ groups: aiInput });
+
+        // 3. Map AI proposals back to UI structure
+        return result.proposals.map(p => {
+            const fromGroup = merchantGroups[p.fromKey];
+            const toGroup = merchantGroups[p.toKey];
+            
+            return {
+                fromKey: p.fromKey,
+                toKey: p.toKey,
+                score: p.confidence,
+                reason: p.reasoning,
+                fromImpact: fromGroup?.length || 0,
+                toImpact: toGroup?.length || 0,
+                fromExamples: fromGroup?.slice(0, 3).map(tx => tx.description) || [],
+                toExamples: toGroup?.slice(0, 3).map(tx => tx.description) || [],
+                fromTxIds: fromGroup?.map(tx => tx.id) || [],
+                toTxIds: toGroup?.map(tx => tx.id) || [],
+                confidence: p.confidence >= 90 ? 'High' : 'Medium'
+            };
+        });
+
+    } catch (e) {
+        console.error("AI Regroup failed:", e);
+        throw e;
+    }
+}
+
+/**
  * Applies approved regroups permanently.
  */
 export async function applyRegroups({
@@ -739,7 +814,7 @@ export async function applyRegroups({
             userId,
             timestamp: serverTimestamp(),
             merges: merges.map(m => ({ from: m.fromKey, to: m.toKey, count: m.fromTxIds.length })),
-            algorithmVersion: 'za_banks_v1.2'
+            algorithmVersion: 'za_banks_v1.4'
         });
 
         await batch.commit();

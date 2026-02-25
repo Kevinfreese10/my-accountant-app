@@ -3,13 +3,14 @@
  * Implements regex-first deterministic cleaning and similarity scoring.
  */
 
-const CLEANING_VERSION = 'za_banks_v1.3';
+const CLEANING_VERSION = 'za_banks_v1.4';
 
 const STOPWORDS = new Set([
     'PTY', 'LTD', 'CC', 'INC', 'CO', 'SA', 'RSA', 'SOUTH', 'AFRICA',
     'THE', 'AND', 'OF', 'FOR', 'ON', 'IN', 'AT', 'WITH', 'BY', 'AN', 'A',
     'ONLINE', 'PAYMENT', 'TRANSFER', 'ACCOUNT', 'EFT', 'MOBILE', 'APP',
-    'BANKING', 'PURCHASE', 'CREDIT', 'DEBIT', 'CARD', 'PURCH'
+    'BANKING', 'PURCHASE', 'CREDIT', 'DEBIT', 'CARD', 'PURCH',
+    'TRADING', 'SERVICES', 'ENTERPRISE', 'PROPERTIES', 'HOLDINGS', 'GROUP', 'STORE', 'SHOP', 'N'
 ]);
 
 const SIMILARITY_STOPWORDS = new Set([
@@ -108,7 +109,7 @@ export class BankCleaner {
             .replace(/[^A-Z0-9 ]+/g, ' ')
             .split(' ')
             .filter(token => token.length >= 2 && !STOPWORDS.has(token))
-            .slice(0, 5)
+            .slice(0, 2) // Enforce 2 word limit for merchant names
             .join(' ')
             .trim();
     }

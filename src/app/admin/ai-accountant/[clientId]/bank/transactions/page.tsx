@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -37,7 +36,7 @@ import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, sendAllocationQueryEmail, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, sendAllocationQueryEmail, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -1058,9 +1057,12 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [isQueryDialogOpen, setIsQueryDialogOpen] = useState(false);
     const [queryEmail, setQueryEmail] = useState('');
     const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+    const [selectedGroupKeys, setSelectedGroupKeys] = useState<string[]>([]);
+    const [onlySelectedGroups, setOnlySelectedGroups] = useState(false);
     
     // Regroup states
     const [isRegrouping, setIsRegrouping] = useState(false);
+    const [isAiRegrouping, setIsAiRegrouping] = useState(false);
     const [proposedMerges, setProposedMerges] = useState<any[]>([]);
     const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
     const [isApplyingMerges, setIsApplyingMerges] = useState(false);
@@ -1200,6 +1202,27 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             toast({ title: "Regroup Failed", variant: "destructive" });
         } finally {
             setIsRegrouping(false);
+        }
+    };
+
+    const handleAiSmartGroup = async () => {
+        if (!client?.uid || !bankAccountId) return;
+        setIsAiRegrouping(true);
+        toast({ title: "Deep Search Started", description: "AI is analyzing merchant semantic relationships..." });
+        
+        try {
+            const proposals = await proposeAiRegroups({ 
+                clientId: client.uid, 
+                bankAccountId,
+                selectedMerchantKeys: onlySelectedGroups ? selectedGroupKeys : undefined
+            });
+            setProposedMerges(proposals);
+            setSelectedMerges(proposals.map(p => `${p.fromKey}::${p.toKey}`));
+            setIsMergeDialogOpen(true);
+        } catch (e) {
+            toast({ title: "AI Deep Search Failed", variant: "destructive" });
+        } finally {
+            setIsAiRegrouping(false);
         }
     };
 
@@ -1657,13 +1680,26 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     <h3 className="font-bold text-sm">Review Identifiable Merchants</h3>
                     <p className="text-xs text-muted-foreground">Approve matched transactions or research unknown ones with AI. Drag and drop groups to merge them.</p>
                 </div>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 flex-wrap items-center">
+                    <div className="flex items-center space-x-2 mr-4 border-r pr-4 border-muted">
+                        <Checkbox 
+                            id="only-selected" 
+                            checked={onlySelectedGroups} 
+                            onCheckedChange={(v) => setOnlySelectedGroups(!!v)} 
+                        />
+                        <Label htmlFor="only-selected" className="text-xs font-medium cursor-pointer">Analyze selected only</Label>
+                    </div>
+                    
                     <Button variant="outline" onClick={handleDownloadExcel} disabled={groups.length === 0}>
                         <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel
                     </Button>
                     <Button variant="outline" onClick={handleRegroupRequest} disabled={isRegrouping || groups.length < 2}>
                         {isRegrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Layers className="mr-2 h-4 w-4" />}
                         Smart Regroup
+                    </Button>
+                    <Button variant="outline" onClick={handleAiSmartGroup} disabled={isAiRegrouping || groups.length < 2} className="border-primary/30 text-primary hover:bg-primary/5">
+                        {isAiRegrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                        AI Smart Group
                     </Button>
                     <Button variant="outline" onClick={() => setIsQueryDialogOpen(true)} disabled={groups.length === 0}>
                         <MessageSquareQuote className="mr-2 h-4 w-4" />
@@ -1680,7 +1716,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         </Button>
                     )}
                     <Button onClick={handleApproveAllSmartMatches} disabled={smartMatchCount === 0} className="bg-green-600 hover:bg-green-700 text-white">
-                        <CheckCheck className="mr-2 h-4 w-4" /> Approve {smartMatchCount} Smart Matches
+                        <CheckCircle2 className="mr-2 h-4 w-4" /> Approve {smartMatchCount} Smart Matches
                     </Button>
                 </div>
             </div>
@@ -1692,6 +1728,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                       firstTx.allocationSource === 'rule' ? 'RULE MATCH' :
                                       firstTx.allocationSource === 'global_db' ? 'SMART DB MATCH' : null;
                     const isDraggingOver = dragOverKey === group.merchantKey;
+                    const isSelected = selectedGroupKeys.includes(group.merchantKey);
                     
                     return (
                     <Card 
@@ -1708,8 +1745,14 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         )}
                     >
                         <div className="grid grid-cols-1 md:grid-cols-12">
-                            <div className="md:col-span-3 p-4 border-r border-b md:border-b-0 bg-muted/10 flex items-start gap-3">
-                                <GripVertical className="h-5 w-5 text-muted-foreground/30 mt-1 shrink-0" />
+                            <div className="md:col-span-3 p-4 border-r border-b md:border-b-0 bg-muted/10 flex items-start gap-3 relative">
+                                <div className="absolute top-2 left-2">
+                                    <Checkbox 
+                                        checked={isSelected}
+                                        onCheckedChange={(checked) => setSelectedGroupKeys(p => checked ? [...p, group.merchantKey] : p.filter(k => k !== group.merchantKey))}
+                                    />
+                                </div>
+                                <GripVertical className="h-5 w-5 text-muted-foreground/30 mt-1 shrink-0 ml-6" />
                                 <div className="space-y-4 flex-grow overflow-hidden">
                                     <div>
                                         <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider mb-1">MERCHANT</Badge>

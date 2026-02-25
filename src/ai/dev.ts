@@ -15,3 +15,4 @@ export * from '@/ai/flows/proofread-note';
 export * from '@/ai/flows/analyze-blog-post-seo';
 export * from '@/ai/flows/optimize-allocation-rule';
 export * from '@/ai/flows/client-allocation-chat';
+export * from '@/ai/flows/ai-smart-regroup';
