@@ -352,7 +352,8 @@ export type Task = {
   dueDate: any;
   priority: 'High' | 'Medium' | 'Low';
   status: 'To-Do' | 'In Progress' | 'Review' | 'Done';
-  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly' | 'Bi-Monthly' | 'Annually';
+  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly' | 'Bi-Monthly' | 'Semi-Annually' | 'Annually';
+  type?: string;
   orderId?: string;
   clientId?: string;
   clientSource?: 'admin' | 'partner' | 'ai_accountant' | 'system';

@@ -37,6 +37,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import TaskCompletedEmail from '@/components/emails/TaskCompletedEmail';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { generateNextTaskOccurrence } from '@/app/actions';
 
 
 const db = getFirestore(firebaseApp);
@@ -44,20 +45,7 @@ const db = getFirestore(firebaseApp);
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
-const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Annually'];
-
-const formSchema = z.object({
-  id: z.string().optional(),
-  title: z.string().min(5, 'Title is required.'),
-  description: z.string().min(10, 'Description is required.'),
-  assignedTo: z.array(z.string()).min(1, 'Please assign a staff member.'),
-  tags: z.array(z.string()).optional(),
-  dueDate: z.date({ required_error: 'A due date is required.'}),
-  dueTime: z.string().optional(),
-  recurrence: z.enum(taskRecurrences).optional(),
-  orderId: z.string().optional(),
-  newComment: z.string().optional(),
-});
+const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Semi-Annually', 'Annually'];
 
 function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffByDept }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onCommentSubmit: (taskId: string, commentText: string) => void, allStaff: User[], staffByDept: Record<string, User[]> }) {
     const { user } = useAuth();
@@ -362,6 +350,19 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
         </Form>
     )
 }
+
+const formSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().min(5, 'Title is required.'),
+  description: z.string().min(10, 'Description is required.'),
+  assignedTo: z.array(z.string()).min(1, 'Please assign a staff member.'),
+  tags: z.array(z.string()).optional(),
+  dueDate: z.date({ required_error: 'A due date is required.'}),
+  dueTime: z.string().optional(),
+  recurrence: z.enum(taskRecurrences).optional(),
+  orderId: z.string().optional(),
+  newComment: z.string().optional(),
+});
 
 const TaskViewDialog = ({ task, allStaff, open, onOpenChange }: { task: Task | null; allStaff: User[]; open: boolean; onOpenChange: (open: boolean) => void }) => {
     const getAuthor = (authorId: string): User | undefined => {
@@ -927,7 +928,7 @@ export default function AdminDashboardPage() {
                     }
         
                     if (originalTask.recurrence && originalTask.recurrence !== 'None') {
-                        createNextRecurrence(originalTask);
+                        generateNextTaskOccurrence(originalTask.id);
                     }
                     toast({ title: 'Task Completed!' });
                 } else {
@@ -939,39 +940,6 @@ export default function AdminDashboardPage() {
                     path: taskRef.path,
                     operation: 'update',
                     requestResourceData: updates,
-                } satisfies SecurityRuleContext);
-                errorEmitter.emit('permission-error', permissionError);
-            });
-    };
-
-    const createNextRecurrence = async (completedTask: Task) => {
-        if (!completedTask.recurrence || completedTask.recurrence === 'None') return;
-
-        let nextDueDate: Date;
-        const currentDueDate = getTaskDate(completedTask);
-
-        switch (completedTask.recurrence) {
-            case 'Monthly': nextDueDate = addMonths(currentDueDate, 1); break;
-            case 'Bi-Monthly': nextDueDate = addMonths(currentDueDate, 2); break;
-            case 'Annually': nextDueDate = addYears(currentDueDate, 1); break;
-            default: return;
-        }
-        
-        const { id, ...restOfTask } = completedTask;
-        const newTaskData = {
-            ...restOfTask,
-            dueDate: Timestamp.fromDate(nextDueDate),
-            status: 'To-Do' as const,
-            createdAt: Timestamp.now(),
-            comments: [],
-        };
-        
-        addDoc(collection(db, 'tasks'), newTaskData)
-            .catch(async (error) => {
-                const permissionError = new FirestorePermissionError({
-                    path: 'tasks',
-                    operation: 'create',
-                    requestResourceData: newTaskData,
                 } satisfies SecurityRuleContext);
                 errorEmitter.emit('permission-error', permissionError);
             });

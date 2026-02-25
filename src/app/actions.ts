@@ -1,6 +1,6 @@
 'use server';
 
-import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
@@ -8,7 +8,7 @@ import { render } from '@react-email/components';
 import React from 'react';
 import { DocumentRequestEmail } from '@/components/emails/DocumentRequestEmail';
 import { NewTaskEmail } from '@/components/emails/NewTaskEmail';
-import { format } from 'date-fns';
+import { format, addDays, addMonths, addYears, isSameDay } from 'date-fns';
 import { ClientDocumentUploadEmail } from '@/components/emails/ClientDocumentUploadEmail';
 import { DocumentReviewEmail } from '@/components/emails/DocumentReviewEmail';
 import { AIAccountantInviteEmail } from '@/components/emails/AIAccountantInviteEmail';
@@ -808,4 +808,63 @@ export async function analyzeClientCommentAndSuggest({
         console.error("Analyze comment failed:", e);
         throw e;
     }
+}
+
+/**
+ * Generates the next occurrence of a recurring task.
+ */
+export async function generateNextTaskOccurrence(taskId: string) {
+    const taskRef = doc(db, 'tasks', taskId);
+    const taskSnap = await getDoc(taskRef);
+    if (!taskSnap.exists()) return;
+    const task = taskSnap.data() as Task;
+
+    if (!task.recurrence || task.recurrence === 'None') return;
+
+    let nextDueDate: Date;
+    const currentDueDate = task.dueDate.toDate ? task.dueDate.toDate() : new Date(task.dueDate);
+
+    switch (task.recurrence) {
+        case 'Daily': nextDueDate = addDays(currentDueDate, 1); break;
+        case 'Weekly': nextDueDate = addDays(currentDueDate, 7); break;
+        case 'Monthly': nextDueDate = addMonths(currentDueDate, 1); break;
+        case 'Bi-Monthly': nextDueDate = addMonths(currentDueDate, 2); break;
+        case 'Semi-Annually': nextDueDate = addMonths(currentDueDate, 6); break;
+        case 'Annually': nextDueDate = addYears(currentDueDate, 1); break;
+        default: return;
+    }
+
+    const { id, ...rest } = task;
+    
+    // Update Title if it's a system-generated compliance task
+    let newTitle = task.title;
+    if (task.createdBy === 'system' && task.type) {
+        const clientNameMatch = task.title.match(/ for (.*)$/);
+        const clientName = clientNameMatch ? clientNameMatch[1] : "";
+        
+        if (task.type === 'EMP201' || task.type === 'VAT201') {
+            const nextPeriod = addMonths(nextDueDate, -1);
+            newTitle = `${task.type} Submission - ${format(nextPeriod, 'MMMM yyyy')} for ${clientName}`;
+        } else if (task.type === 'AFS') {
+            newTitle = task.title.replace(/\d{4}/, (match) => (parseInt(match) + 1).toString());
+        } else if (task.type === 'IRP6') {
+            const periodMatch = task.title.match(/Period (\d)/);
+            if (periodMatch) {
+                const currentPeriod = parseInt(periodMatch[1]);
+                const nextPeriod = currentPeriod === 1 ? 2 : 1;
+                newTitle = task.title.replace(/Period \d/, `Period ${nextPeriod}`);
+            }
+        }
+    }
+
+    const newTaskData = {
+        ...rest,
+        title: newTitle,
+        dueDate: Timestamp.fromDate(nextDueDate),
+        status: 'To-Do' as const,
+        createdAt: serverTimestamp(),
+        comments: [],
+    };
+
+    await addDoc(collection(db, 'tasks'), newTaskData);
 }

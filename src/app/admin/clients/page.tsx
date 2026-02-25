@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, addMonths, setDate, setHours, setMinutes, setSeconds, startOfMonth, startOfToday } from 'date-fns';
+import { format, addMonths, setDate, setHours, setMinutes, setSeconds, startOfMonth, startOfToday, isSameDay } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -80,7 +80,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                 
                 <div className="space-y-4">
                     <h3 className="text-sm font-bold uppercase tracking-wider text-primary">Task Automation</h3>
-                    <p className="text-xs text-muted-foreground">Select the services to generate a 12-month compliance roadmap.</p>
+                    <p className="text-xs text-muted-foreground">Select the services to generate the next upcoming compliance task.</p>
                     
                     <div className="space-y-3">
                         <FormField
@@ -134,7 +134,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
 
                 <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button type="submit">Save & Generate Roadmap</Button>
+                    <Button type="submit">Save & Update Roadmap</Button>
                 </div>
             </form>
         </Form>
@@ -232,46 +232,57 @@ export default function AdminClientsPage() {
         const oldTasksSnap = await getDocs(oldTasksQuery);
         oldTasksSnap.forEach(d => batch.delete(d.ref));
 
-        // 3. Generate new tasks for next 12 months
+        // 3. Generate new tasks (ONE per service) for next upcoming deadline
         const tasksToCreate: any[] = [];
         const today = startOfToday();
 
-        // Helper to normalize task due date (Time: 09:00 AM)
         const getDueDate = (date: Date, day: number) => {
             return Timestamp.fromDate(setSeconds(setMinutes(setHours(setDate(date, day), 9), 0), 0));
         };
 
         // Monthly PAYE (EMP201)
         if (values.submitsEmp201) {
-            for (let i = 1; i <= 12; i++) {
+            let found = false;
+            for (let i = -1; i < 12 && !found; i++) {
                 const periodDate = addMonths(today, i);
-                tasksToCreate.push({
-                    title: `EMP201 Submission - ${format(periodDate, 'MMMM yyyy')} for ${values.name}`,
-                    description: `Submit monthly EMP201 return to SARS for ${values.name}. Due on the 5th of the following month.`,
-                    dueDate: getDueDate(addMonths(periodDate, 1), 5),
-                    type: 'EMP201'
-                });
+                const dueDate = getDueDate(addMonths(periodDate, 1), 5);
+                if (dueDate.toDate() >= today) {
+                    tasksToCreate.push({
+                        title: `EMP201 Submission - ${format(periodDate, 'MMMM yyyy')} for ${values.name}`,
+                        description: `Submit monthly EMP201 return to SARS for ${values.name}. Due on the 5th of the following month.`,
+                        dueDate: dueDate,
+                        type: 'EMP201',
+                        recurrence: 'Monthly'
+                    });
+                    found = true;
+                }
             }
         }
 
         // VAT (VAT201)
         if (values.isVatRegistered && values.vatCategory) {
-            for (let i = 1; i <= 12; i++) {
+            let found = false;
+            for (let i = -1; i < 12 && !found; i++) {
                 const periodDate = addMonths(today, i);
-                const monthNum = periodDate.getMonth() + 1; // 1-12
+                const monthNum = periodDate.getMonth() + 1;
                 
                 let isDue = false;
                 if (values.vatCategory === 'C') isDue = true;
-                else if (values.vatCategory === 'A' && monthNum % 2 !== 0) isDue = true; // Odd
-                else if (values.vatCategory === 'B' && monthNum % 2 === 0) isDue = true; // Even
+                else if (values.vatCategory === 'A' && monthNum % 2 !== 0) isDue = true;
+                else if (values.vatCategory === 'B' && monthNum % 2 === 0) isDue = true;
 
                 if (isDue) {
-                    tasksToCreate.push({
-                        title: `VAT201 Submission - ${format(periodDate, 'MMMM yyyy')} for ${values.name}`,
-                        description: `Submit VAT201 return to SARS for ${values.name}. Due on the 25th of the following month.`,
-                        dueDate: getDueDate(addMonths(periodDate, 1), 25),
-                        type: 'VAT201'
-                    });
+                    const dueDate = getDueDate(addMonths(periodDate, 1), 25);
+                    if (dueDate.toDate() >= today) {
+                        tasksToCreate.push({
+                            title: `VAT201 Submission - ${format(periodDate, 'MMMM yyyy')} for ${values.name}`,
+                            description: `Submit VAT201 return to SARS for ${values.name}. Due on the 25th of the following month.`,
+                            dueDate: dueDate,
+                            type: 'VAT201',
+                            recurrence: values.vatCategory === 'C' ? 'Monthly' : 'Bi-Monthly'
+                        });
+                        found = true;
+                    }
                 }
             }
         }
@@ -280,13 +291,19 @@ export default function AdminClientsPage() {
         if (values.preparesFinancials) {
             const yeMonthIndex = months.indexOf(values.yearEnd);
             let yeDate = new Date(today.getFullYear(), yeMonthIndex, 28);
-            if (yeDate < today) yeDate = new Date(today.getFullYear() + 1, yeMonthIndex, 28);
+            let dueDate = getDueDate(addMonths(yeDate, 3), 25);
+            
+            if (dueDate.toDate() < today) {
+                yeDate = addMonths(yeDate, 12);
+                dueDate = getDueDate(addMonths(yeDate, 3), 25);
+            }
 
             tasksToCreate.push({
                 title: `Annual Financial Statements for ${values.name} (${values.yearEnd} YE)`,
                 description: `Prepare and finalize annual financial statements for the ${values.yearEnd} year end.`,
-                dueDate: getDueDate(addMonths(yeDate, 3), 25),
-                type: 'AFS'
+                dueDate: dueDate,
+                type: 'AFS',
+                recurrence: 'Annually'
             });
         }
 
@@ -296,16 +313,19 @@ export default function AdminClientsPage() {
             let firstPeriod = new Date(today.getFullYear(), yeMonthIndex - 6, 25);
             let secondPeriod = new Date(today.getFullYear(), yeMonthIndex, 25);
             
-            [firstPeriod, secondPeriod].forEach((d, idx) => {
-                let targetDate = d;
-                if (targetDate < today) targetDate = addMonths(targetDate, 12);
+            const dates = [firstPeriod, secondPeriod, addMonths(firstPeriod, 12), addMonths(secondPeriod, 12)];
+            const nextDate = dates.map(d => getDueDate(d, 25)).filter(d => d.toDate() >= today).sort((a,b) => a.toDate().getTime() - b.toDate().getTime())[0];
+
+            if (nextDate) {
+                const isFirst = isSameDay(nextDate.toDate(), getDueDate(firstPeriod, 25).toDate()) || isSameDay(nextDate.toDate(), getDueDate(addMonths(firstPeriod, 12), 25).toDate());
                 tasksToCreate.push({
-                    title: `Provisional Tax (IRP6) - Period ${idx + 1} for ${values.name}`,
-                    description: `Submit ${idx + 1}st period provisional tax return for ${values.name}.`,
-                    dueDate: Timestamp.fromDate(targetDate),
-                    type: 'IRP6'
+                    title: `Provisional Tax (IRP6) - Period ${isFirst ? 1 : 2} for ${values.name}`,
+                    description: `Submit ${isFirst ? 1 : 2}st period provisional tax return for ${values.name}.`,
+                    dueDate: nextDate,
+                    type: 'IRP6',
+                    recurrence: 'Semi-Annually'
                 });
-            });
+            }
         }
 
         // Commit tasks to batch
@@ -317,7 +337,7 @@ export default function AdminClientsPage() {
                 clientSource: 'admin',
                 status: 'To-Do',
                 priority: 'Medium',
-                assignedTo: [], // Unallocated as requested
+                assignedTo: [], 
                 createdBy: 'system',
                 createdAt: serverTimestamp(),
                 comments: []
@@ -325,12 +345,12 @@ export default function AdminClientsPage() {
         });
 
         await batch.commit();
-        toast({ title: 'Client Saved', description: `Roadmap generated with ${tasksToCreate.length} automated tasks.` });
+        toast({ title: 'Client Saved', description: `Roadmap updated with upcoming automated tasks.` });
         fetchClients();
         setIsFormOpen(false);
     } catch (error) {
         console.error(error);
-        toast({ title: 'Error', description: 'Failed to process automation roadmap.', variant: 'destructive'});
+        toast({ title: 'Error', description: 'Failed to update automation roadmap.', variant: 'destructive'});
     } finally {
         setIsLoading(false);
     }
@@ -367,7 +387,7 @@ export default function AdminClientsPage() {
            <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>{selectedClient ? 'Update Client' : 'Setup New Client'}</DialogTitle>
-                    <DialogDescription>Setting service toggles will automatically generate a 12-month compliance roadmap.</DialogDescription>
+                    <DialogDescription>Setting service toggles will automatically generate the next upcoming compliance task.</DialogDescription>
                 </DialogHeader>
                 <ClientForm 
                     client={selectedClient} 

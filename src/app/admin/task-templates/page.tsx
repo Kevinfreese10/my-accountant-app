@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -25,7 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const db = getFirestore(firebaseApp);
 
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
-const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Annually'];
+const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Semi-Annually', 'Annually'];
 const triggerFields = [
     'preparesFinancials', 
     'requiresManagementAccounts', 
@@ -78,7 +77,7 @@ function TemplateForm({ template, onSubmit, onCancel }: { template: Task | null;
                 <FormField control={form.control} name="title" render={({ field }) => ( <FormItem><FormLabel>Template Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                 <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem> )} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="department" render={({ field }) => ( <FormItem><FormLabel>Department</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="department" render={({ field }) => ( <FormItem><FormLabel>Department</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a department" /></SelectTrigger></FormControl><SelectContent>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
                     <FormField control={form.control} name="priority" render={({ field }) => ( <FormItem><FormLabel>Priority</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{['High', 'Medium', 'Low'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
                 </div>
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

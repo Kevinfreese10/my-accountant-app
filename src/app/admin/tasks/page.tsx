@@ -32,25 +32,14 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
+import { generateNextTaskOccurrence } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
 
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
-const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly'];
-
-const formSchema = z.object({
-  id: z.string().optional(),
-  title: z.string().min(5, 'Title is required.'),
-  description: z.string().min(10, 'Description is required.'),
-  assignedTo: z.array(z.string()).min(1, 'Please assign a staff member.'),
-  tags: z.array(z.string()).optional(),
-  dueDate: z.date({ required_error: 'A due date is required.'}),
-  recurrence: z.enum(taskRecurrences).optional(),
-  orderId: z.string().optional(),
-  newComment: z.string().optional(),
-});
+const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Semi-Annually', 'Annually'];
 
 function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffByDept }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onCommentSubmit: (taskId: string, commentText: string) => void, allStaff: User[], staffByDept: Record<string, User[]> }) {
     const { user } = useAuth();
@@ -320,6 +309,18 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     )
 }
 
+const formSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().min(5, 'Title is required.'),
+  description: z.string().min(10, 'Description is required.'),
+  assignedTo: z.array(z.string()).min(1, 'Please assign a staff member.'),
+  tags: z.array(z.string()).optional(),
+  dueDate: z.date({ required_error: 'A due date is required.'}),
+  recurrence: z.enum(taskRecurrences).optional(),
+  orderId: z.string().optional(),
+  newComment: z.string().optional(),
+});
+
 const userColors = [
   'bg-red-200 text-red-800',
   'bg-blue-200 text-blue-800',
@@ -332,7 +333,6 @@ const userColors = [
 ];
 
 const getUserColor = (userId: string) => {
-  // Simple hash function to get a consistent color for a user
   const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return userColors[hash % userColors.length];
 };
@@ -437,6 +437,10 @@ export default function AdminTasksPage() {
         await updateDoc(taskRef, { status });
         
         if (status === 'Done') {
+            const task = tasks.find(t => t.id === taskId);
+            if (task?.recurrence && task.recurrence !== 'None') {
+                await generateNextTaskOccurrence(taskId);
+            }
             toast({
                 title: 'Task Completed!',
                 description: 'The task has been successfully marked as complete.',
@@ -472,7 +476,7 @@ export default function AdminTasksPage() {
             const newTask: Omit<Task, 'id' | 'priority'> = {
                 ...taskData,
                 status: 'To-Do',
-                createdBy: user.uid, // Use uid for consistency
+                createdBy: user.uid, 
                 createdAt: Timestamp.now(),
                 comments: [],
             };
@@ -719,7 +723,7 @@ export default function AdminTasksPage() {
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0">
                                 <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
+                                < MoreHorizontal className="h-4 w-4" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
