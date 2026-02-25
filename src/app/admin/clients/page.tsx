@@ -166,6 +166,38 @@ export default function AdminClientsPage() {
     fetchClients();
   }, []);
 
+  const formatYearEnd = (yearEnd: any): string => {
+    if (!yearEnd) return 'N/A';
+    if (typeof yearEnd === 'string') return yearEnd;
+    
+    // Handle Firestore Timestamp
+    if (yearEnd && typeof yearEnd.toDate === 'function') {
+      try {
+        return format(yearEnd.toDate(), 'MMMM');
+      } catch (e) {
+        return 'Invalid Date';
+      }
+    }
+    
+    // Handle POJO from Firestore serverless functions or serialization
+    if (yearEnd && typeof yearEnd.seconds === 'number') {
+      try {
+        return format(new Date(yearEnd.seconds * 1000), 'MMMM');
+      } catch (e) {
+        return 'Invalid Date';
+      }
+    }
+
+    try {
+        const d = new Date(yearEnd);
+        if (!isNaN(d.getTime())) {
+             return format(d, 'MMMM');
+        }
+    } catch (e) {}
+    
+    return 'N/A';
+  };
+
   const handleFormSubmit = async (values: ClientFormValues) => {
     if (!currentUser) return;
     setIsLoading(true);
@@ -363,7 +395,7 @@ export default function AdminClientsPage() {
               {clients.map(client => (
                 <TableRow key={client.id} className="hover:bg-muted/5 transition-colors">
                   <TableCell className="font-bold text-slate-950">{client.name}</TableCell>
-                  <TableCell className="font-medium">{client.yearEnd}</TableCell>
+                  <TableCell className="font-medium">{formatYearEnd(client.yearEnd)}</TableCell>
                   <TableCell>
                       <div className="flex flex-wrap gap-1">
                           {client.isVatRegistered && <Badge variant="success" className="text-[10px] font-bold">VAT ({client.vatCategory})</Badge>}
