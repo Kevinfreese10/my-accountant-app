@@ -498,7 +498,7 @@ export default function AdminClientsPage() {
            </DialogTrigger>
            <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>{selectedClient ? 'Update Client' : 'Setup New Client'}</DialogTitle>
+                    <DialogTitle>{selectedTask?.id ? 'Update Client' : 'Setup New Client'}</DialogTitle>
                     <DialogDescription>Setting service toggles will automatically generate the next upcoming compliance task.</DialogDescription>
                 </DialogHeader>
                 <ClientForm 
@@ -535,13 +535,41 @@ export default function AdminClientsPage() {
                   <TableCell className="text-sm text-slate-600">{formatYearEnd(client.yearEnd)}</TableCell>
                   <TableCell>
                       <div className="flex flex-wrap gap-1.5">
-                          {client.isVatRegistered && <Badge variant="secondary" className="text-[10px] font-normal">VAT ({client.vatCategory})</Badge>}
-                          {client.submitsEmp201 && <Badge variant="secondary" className="text-[10px] font-normal">PAYE</Badge>}
-                          {client.preparesPayroll && <Badge variant="secondary" className="text-[10px] font-normal">PAYROLL</Badge>}
-                          {client.preparesManagementAccounts && <Badge variant="secondary" className="text-[10px] font-normal">MGMT</Badge>}
-                          {client.submitsProvisionalTax && <Badge variant="secondary" className="text-[10px] font-normal">PROV</Badge>}
-                          {client.submitsIncomeTax && <Badge variant="secondary" className="text-[10px] font-normal">ITR</Badge>}
-                          {client.preparesFinancials && <Badge variant="secondary" className="text-[10px] font-normal">AFS</Badge>}
+                          {client.isVatRegistered && (
+                              <Badge variant="outline" className="text-[9px] font-semibold bg-blue-50 text-blue-700 border-blue-200 uppercase tracking-tight">
+                                  VAT ({client.vatCategory})
+                              </Badge>
+                          )}
+                          {client.submitsEmp201 && (
+                              <Badge variant="outline" className="text-[9px] font-semibold bg-green-50 text-green-700 border-green-200 uppercase tracking-tight">
+                                  PAYE
+                              </Badge>
+                          )}
+                          {client.preparesPayroll && (
+                              <Badge variant="outline" className="text-[9px] font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 uppercase tracking-tight">
+                                  Payroll
+                              </Badge>
+                          )}
+                          {client.preparesManagementAccounts && (
+                              <Badge variant="outline" className="text-[9px] font-semibold bg-amber-50 text-amber-700 border-amber-200 uppercase tracking-tight">
+                                  Mgmt
+                              </Badge>
+                          )}
+                          {client.submitsProvisionalTax && (
+                              <Badge variant="outline" className="text-[9px] font-semibold bg-purple-50 text-purple-700 border-purple-200 uppercase tracking-tight">
+                                  Prov
+                              </Badge>
+                          )}
+                          {client.submitsIncomeTax && (
+                              <Badge variant="outline" className="text-[9px] font-semibold bg-rose-50 text-rose-700 border-rose-200 uppercase tracking-tight">
+                                  ITR
+                              </Badge>
+                          )}
+                          {client.preparesFinancials && (
+                              <Badge variant="outline" className="text-[9px] font-semibold bg-slate-50 text-slate-700 border-slate-200 uppercase tracking-tight">
+                                  AFS
+                              </Badge>
+                          )}
                       </div>
                   </TableCell>
                   <TableCell>
