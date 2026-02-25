@@ -8,7 +8,7 @@ import { format, isPast, addDays, isWithinInterval, startOfToday } from 'date-fn
 import { Task, User, TaskComment, Order } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, Check, Eye, Inbox, Archive, TrendingUp, DollarSign } from 'lucide-react';
+import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, Check, Eye, Inbox, Archive, TrendingUp, Wallet2 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -144,43 +144,47 @@ export default function AdminDashboardPage() {
 
     return (
         <div className="space-y-8">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center border-b pb-4">
                 <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
             </div>
 
             {isKev && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card className="md:col-span-1 bg-primary text-primary-foreground">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <Card className="md:col-span-1 border-primary/20 shadow-md">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium uppercase tracking-wider opacity-80">Recurring Monthly Income</CardTitle>
+                            <div className="flex items-center gap-2">
+                                <Wallet2 className="h-4 w-4 text-primary" />
+                                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Monthly Retainer Revenue</CardTitle>
+                            </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-4xl font-bold flex items-center gap-2">
-                                <DollarSign className="h-8 w-8" />
+                            <div className="text-4xl font-extrabold text-primary tabular-nums tracking-tight">
                                 {formatPrice(revenueData.total)}
                             </div>
-                            <p className="text-xs mt-2 opacity-70">Estimated from {adminClients.length} active client retainers.</p>
+                            <p className="text-[10px] font-medium mt-2 text-muted-foreground uppercase tracking-wide">
+                                Estimated from {adminClients.length} active client retainers
+                            </p>
                         </CardContent>
                     </Card>
-                    <Card className="md:col-span-2">
+                    <Card className="md:col-span-2 border-primary/10 shadow-sm">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                <TrendingUp className="h-4 w-4 text-primary" />
+                            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                <TrendingUp className="h-4 w-4 text-green-600" />
                                 Revenue Distribution (Top Clients)
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="h-[150px]">
+                        <CardContent className="h-[120px] pt-4">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={revenueData.chartData}>
-                                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                                    <XAxis dataKey="name" fontSize={9} tickLine={false} axisLine={false} />
                                     <YAxis hide />
                                     <RechartsTooltip 
                                         content={({ active, payload }) => {
                                             if (active && payload && payload.length) {
                                                 return (
-                                                    <div className="bg-background border rounded-lg p-2 shadow-sm text-xs">
-                                                        <p className="font-bold">{payload[0].payload.name}</p>
-                                                        <p className="text-primary">{formatPrice(payload[0].value as number)}</p>
+                                                    <div className="bg-background border rounded-lg p-2 shadow-lg text-xs">
+                                                        <p className="font-bold border-b pb-1 mb-1">{payload[0].payload.name}</p>
+                                                        <p className="text-primary font-mono">{formatPrice(payload[0].value as number)}</p>
                                                     </div>
                                                 );
                                             }
@@ -189,7 +193,7 @@ export default function AdminDashboardPage() {
                                     />
                                     <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                                         {revenueData.chartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={`hsl(var(--primary) / ${1 - (index * 0.15)})`} />
+                                            <Cell key={`cell-${index}`} fill={`hsl(var(--primary) / ${1 - (index * 0.12)})`} />
                                         ))}
                                     </Bar>
                                 </BarChart>
