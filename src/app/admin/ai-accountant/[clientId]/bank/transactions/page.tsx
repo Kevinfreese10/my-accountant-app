@@ -356,7 +356,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
     const { toast } = useToast();
     const form = useForm<z.infer<typeof ruleFormSchema>>({
         resolver: zodResolver(ruleFormSchema),
-        defaultValues: { mode: 'new', ...defaultValues },
+        defaultValues: { mode: 'new', scope: 'client', ...defaultValues },
     });
     
     const handleSave = async (values: z.infer<typeof ruleFormSchema>) => {
@@ -378,13 +378,13 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                     keywords: keywordsArray,
                     accountId: values.accountId || '',
                     vatType: values.vatType || 'no_vat',
-                    type: 'hard',
-                    scope: values.scope,
+                    type: 'hard' as const,
+                    scope: 'client' as const,
                     priority: 99,
                 };
                 await updateDoc(doc(db, 'aiAccountantClients', client.uid), { allocationRules: arrayUnion(newRule) });
             }
-            toast({ title: 'Rule Saved' });
+            toast({ title: 'Practice Rule Saved' });
             onRuleCreated();
             onOpenChange(false);
         } catch(e) {
@@ -394,21 +394,23 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader><DialogTitle>Create Allocation Rule</DialogTitle></DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem> )} />
+                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Textarea {...field} className="resize-none h-20" /></FormControl></FormItem> )} />
                         <FormField control={form.control} name="accountId" render={({ field }) => (
                             <FormItem><FormLabel>Account</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl><SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl>
-                                    <SelectContent>{client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent>
+                                    <SelectContent>
+                                        {client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                                    </SelectContent>
                                 </Select>
                             </FormItem>
                         )} />
-                        <DialogFooter><Button type="submit">Save Rule</Button></DialogFooter>
+                        <DialogFooter><Button type="submit" className="w-full">Save Rule</Button></DialogFooter>
                     </form>
                 </Form>
             </DialogContent>
@@ -505,9 +507,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
 
         const trimmedSearch = debouncedSearchTerm.trim();
         if (trimmedSearch) {
-            // Global Search using Firestore prefix matching
             const term = trimmedSearch.toUpperCase();
-            // Note: Range filters require ordering by the same field
             return query(q, 
                 where('description', '>=', term),
                 where('description', '<=', term + '\uf8ff'),
@@ -520,7 +520,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
 
     const { documents: fetchedTransactions, isLoading, refetch, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
 
-    // Global search and sorting are now handled entirely by baseQuery
     const transactions = fetchedTransactions;
 
     React.useImperativeHandle(ref, () => ({ refetch }));
