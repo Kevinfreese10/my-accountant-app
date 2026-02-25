@@ -198,6 +198,11 @@ export default function AdminClientsPage() {
     return 'N/A';
   };
 
+  const handleEdit = (client: User) => {
+    setSelectedClient(client);
+    setIsFormOpen(true);
+  };
+
   const handleFormSubmit = async (values: ClientFormValues) => {
     if (!currentUser) return;
     setIsLoading(true);
