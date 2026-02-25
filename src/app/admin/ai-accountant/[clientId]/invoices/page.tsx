@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -433,6 +434,12 @@ export default function InvoicesPage() {
                                                 <TableCell>{format(invoice.dueDate, "dd/MM/yyyy")}</TableCell>
                                                 <TableCell className="text-right">{formatPrice(invoice.total)}</TableCell>
                                                 <TableCell className="text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <InvoiceDownloadButton
+                                                            invoice={invoice}
+                                                            client={client}
+                                                            customer={customers.find(c => c.id === invoice.customerId)}
+                                                        />
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
                                                                 <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
@@ -440,7 +447,7 @@ export default function InvoicesPage() {
                                                             <DropdownMenuContent>
                                                                 <DialogTrigger asChild>
                                                                     <DropdownMenuItem onSelect={() => setViewingInvoice(invoice)}>
-                                                                        <Eye className="mr-2 h-4 w-4" />View
+                                                                        <Eye className="mr-2 h-4 w-4" />View Preview
                                                                     </DropdownMenuItem>
                                                                 </DialogTrigger>
                                                                 <DropdownMenuItem><Copy className="mr-2 h-4 w-4" />Duplicate</DropdownMenuItem>
@@ -448,6 +455,7 @@ export default function InvoicesPage() {
                                                                 <DropdownMenuItem><Mail className="mr-2 h-4 w-4" />Email to Client</DropdownMenuItem>
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
                                         ))

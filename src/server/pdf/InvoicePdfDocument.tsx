@@ -39,19 +39,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#000',
+    marginBottom: 4,
   },
   invoiceTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#999',
+    color: '#ccc',
     marginBottom: 10,
   },
   address: {
     fontSize: 9,
     color: '#555',
+    lineHeight: 1.4,
   },
   billTo: {
-    marginTop: 20,
+    marginTop: 30,
+    marginBottom: 30,
+  },
+  billToLabel: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#777',
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
   billToName: {
     fontSize: 12,
@@ -61,25 +71,30 @@ const styles = StyleSheet.create({
   table: {
     width: '100%',
     marginTop: 20,
-    border: '1px solid #eee',
+    borderWidth: 1,
+    borderColor: '#eee',
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#f3f3f3',
-    borderBottom: '1px solid #eee',
+    backgroundColor: '#f8f8f8',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
   tableHeaderCell: {
     padding: 8,
     fontWeight: 'bold',
-    fontSize: 9,
+    fontSize: 8,
     textTransform: 'uppercase',
+    color: '#666',
   },
   tableRow: {
     flexDirection: 'row',
-    borderBottom: '1px solid #eee',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
   tableCell: {
     padding: 8,
+    fontSize: 9,
   },
   tableCellDescription: {
     width: '45%',
@@ -102,16 +117,16 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   totalsContainer: {
-    width: '45%',
-    spaceY: 2,
+    width: '40%',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 3,
+    paddingVertical: 4,
   },
   totalLabel: {
     fontSize: 10,
+    color: '#666',
   },
   totalValue: {
     fontSize: 10,
@@ -122,7 +137,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 8,
     marginTop: 4,
-    borderTop: '1px solid #ccc',
+    borderTopWidth: 1,
+    borderTopColor: '#333',
   },
   grandTotalLabel: {
     fontSize: 12,
@@ -140,7 +156,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 8,
     color: '#999',
-    borderTop: '1px solid #eee',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
     paddingTop: 10,
   },
   pageNumber: {
@@ -153,31 +170,55 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   logo: {
-    width: 150,
-    height: 60,
+    width: 120,
+    height: 50,
     marginBottom: 10,
+    objectFit: 'contain',
   },
   bankingDetails: {
-    marginTop: 30,
-    border: '1px solid #eee',
-    padding: 10,
-    borderRadius: 5,
+    marginTop: 40,
+    borderWidth: 1,
+    borderColor: '#eee',
+    padding: 12,
+    borderRadius: 4,
+    backgroundColor: '#fafafa',
   },
   bankingTitle: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: 'bold',
-    marginBottom: 5,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    color: '#555',
   },
   bankingRow: {
     flexDirection: 'row',
     marginBottom: 3,
   },
   bankingLabel: {
-    width: '40%',
-    fontWeight: 'bold',
+    width: '35%',
+    fontSize: 8,
+    color: '#777',
   },
   bankingValue: {
-    width: '60%',
+    width: '65%',
+    fontSize: 8,
+    fontWeight: 'bold',
+  },
+  notesSection: {
+    marginTop: 20,
+  },
+  notesLabel: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: '#777',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  notesText: {
+    fontSize: 9,
+    fontStyle: 'italic',
+    color: '#555',
+    lineHeight: 1.4,
   },
 });
 
@@ -213,7 +254,7 @@ const renderAddress = (address: any) => {
             {address.street && <Text>{address.street}</Text>}
             {address.suburb && <Text>{address.suburb}</Text>}
             {address.city && <Text>{address.city}</Text>}
-            {address.country && <Text>{address.country}</Text>}
+            {address.province && <Text>{address.province}</Text>}
             {address.zip && <Text>{address.zip}</Text>}
         </View>
     );
@@ -223,7 +264,7 @@ export function InvoicePdfDocument({ invoice, client, customer }: { invoice: Inv
   const hasBankingDetails = !!(client.bankingDetails && client.bankingDetails.bankName && client.bankingDetails.accountHolder && client.bankingDetails.accountNumber);
 
   return (
-    <Document>
+    <Document title={`Invoice-${invoice.id}`}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View style={styles.companyDetails}>
@@ -234,15 +275,25 @@ export function InvoicePdfDocument({ invoice, client, customer }: { invoice: Inv
           </View>
           <View style={styles.invoiceDetails}>
             <Text style={styles.invoiceTitle}>TAX INVOICE</Text>
-            <View>
-              <Text>Invoice Number: {invoice.id}</Text>
-              <Text>Date: {safeFormatDate(invoice.invoiceDate)}</Text>
-              <Text>Due Date: {safeFormatDate(invoice.dueDate)}</Text>
+            <View style={{ gap: 4 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10 }}>
+                <Text style={{ color: '#777' }}>Invoice #:</Text>
+                <Text style={{ fontWeight: 'bold' }}>{invoice.id}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10 }}>
+                <Text style={{ color: '#777' }}>Date:</Text>
+                <Text>{safeFormatDate(invoice.invoiceDate)}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10 }}>
+                <Text style={{ color: '#777' }}>Due Date:</Text>
+                <Text>{safeFormatDate(invoice.dueDate)}</Text>
+              </View>
             </View>
           </View>
         </View>
 
         <View style={styles.billTo}>
+            <Text style={styles.billToLabel}>Bill To:</Text>
             <Text style={styles.billToName}>{customer.name}</Text>
             {renderAddress(customer.address)}
             {customer.vatNumber && <Text style={styles.address}>VAT Reg: {customer.vatNumber}</Text>}
@@ -252,17 +303,20 @@ export function InvoicePdfDocument({ invoice, client, customer }: { invoice: Inv
           <View style={styles.tableHeader} fixed>
             <Text style={[styles.tableHeaderCell, styles.tableCellDescription]}>Description</Text>
             <Text style={[styles.tableHeaderCell, styles.tableCellQty]}>Qty</Text>
-            <Text style={[styles.tableHeaderCell, styles.tableCellRate]}>Rate</Text>
-            <Text style={[styles.tableHeaderCell, styles.tableCellAmount]}>Amount</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableCellRate]}>Rate (Excl)</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableCellAmount]}>Total (Incl)</Text>
           </View>
           {invoice.lineItems.map((item, index) => {
-             const lineTotal = (item.rate || 0) * (item.quantity || 1);
+             const isStandardRate = item.vatType === 'standard_rated_sales';
+             const lineExcl = (item.rate || 0) * (item.quantity || 1);
+             const lineVat = isStandardRate ? lineExcl * 0.15 : 0;
+             const lineIncl = lineExcl + lineVat;
             return (
               <View key={index} style={styles.tableRow} wrap={false}>
                 <Text style={[styles.tableCell, styles.tableCellDescription]}>{item.description}</Text>
                 <Text style={[styles.tableCell, styles.tableCellQty]}>{item.quantity}</Text>
                 <Text style={[styles.tableCell, styles.tableCellRate]}>{formatPrice(item.rate)}</Text>
-                <Text style={[styles.tableCell, styles.tableCellAmount]}>{formatPrice(lineTotal)}</Text>
+                <Text style={[styles.tableCell, styles.tableCellAmount, { fontWeight: 'bold' }]}>{formatPrice(lineIncl)}</Text>
               </View>
             )
           })}
@@ -271,7 +325,7 @@ export function InvoicePdfDocument({ invoice, client, customer }: { invoice: Inv
         <View style={styles.totals}>
             <View style={styles.totalsContainer}>
                 <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Subtotal</Text>
+                    <Text style={styles.totalLabel}>Subtotal (Excl)</Text>
                     <Text style={styles.totalValue}>{formatPrice(invoice.subtotal)}</Text>
                 </View>
                 <View style={styles.totalRow}>
@@ -279,23 +333,40 @@ export function InvoicePdfDocument({ invoice, client, customer }: { invoice: Inv
                     <Text style={styles.totalValue}>{formatPrice(invoice.vat)}</Text>
                 </View>
                 <View style={styles.grandTotalRow}>
-                    <Text style={styles.grandTotalLabel}>Total Due</Text>
+                    <Text style={styles.grandTotalLabel}>Grand Total</Text>
                     <Text style={styles.grandTotalValue}>{formatPrice(invoice.total)}</Text>
                 </View>
             </View>
         </View>
 
         {hasBankingDetails && (
-            <View style={styles.bankingDetails}>
+            <View style={styles.bankingDetails} wrap={false}>
                 <Text style={styles.bankingTitle}>Banking Details</Text>
-                <View style={styles.bankingRow}><Text style={styles.bankingLabel}>Account Holder:</Text><Text style={styles.bankingValue}>{client.bankingDetails!.accountHolder}</Text></View>
-                <View style={styles.bankingRow}><Text style={styles.bankingLabel}>Bank:</Text><Text style={styles.bankingValue}>{client.bankingDetails!.bankName}</Text></View>
-                <View style={styles.bankingRow}><Text style={styles.bankingLabel}>Account Number:</Text><Text style={styles.bankingValue}>{client.bankingDetails!.accountNumber}</Text></View>
-                <View style={styles.bankingRow}><Text style={styles.bankingLabel}>Branch Code:</Text><Text style={styles.bankingValue}>{client.bankingDetails!.branchCode}</Text></View>
+                <View style={styles.bankingRow}>
+                    <Text style={styles.bankingLabel}>Bank Name:</Text>
+                    <Text style={styles.bankingValue}>{client.bankingDetails!.bankName}</Text>
+                </View>
+                <View style={styles.bankingRow}>
+                    <Text style={styles.bankingLabel}>Account Holder:</Text>
+                    <Text style={styles.bankingValue}>{client.bankingDetails!.accountHolder}</Text>
+                </View>
+                <View style={styles.bankingRow}>
+                    <Text style={styles.bankingLabel}>Account Number:</Text>
+                    <Text style={styles.bankingValue}>{client.bankingDetails!.accountNumber}</Text>
+                </View>
+                <View style={styles.bankingRow}>
+                    <Text style={styles.bankingLabel}>Branch Code:</Text>
+                    <Text style={styles.bankingValue}>{client.bankingDetails!.branchCode}</Text>
+                </View>
             </View>
         )}
 
-        {invoice.notes && <Text style={{ marginTop: 20, fontSize: 9, fontStyle: 'italic' }}>Notes: {invoice.notes}</Text>}
+        {invoice.notes && (
+            <View style={styles.notesSection} wrap={false}>
+                <Text style={styles.notesLabel}>Notes / Instructions:</Text>
+                <Text style={styles.notesText}>{invoice.notes}</Text>
+            </View>
+        )}
 
         <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
         <View style={styles.footer} fixed>

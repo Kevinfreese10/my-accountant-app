@@ -13,7 +13,7 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
     
     const getVatAmount = (lineItem: { rate: number, quantity: number, vatType: string }) => {
         if (lineItem.vatType === 'standard_rated_sales') {
-            return (item.rate * item.quantity) * 0.15;
+            return (lineItem.rate * lineItem.quantity) * 0.15;
         }
         return 0;
     };
@@ -41,14 +41,14 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                 {address.street && <p>{address.street}</p>}
                 {address.suburb && <p>{address.suburb}</p>}
                 {address.city && <p>{address.city}</p>}
-                {address.country && <p>{address.country}</p>}
+                {address.province && <p>{address.province}</p>}
                 {address.zip && <p>{address.zip}</p>}
             </div>
         )
     };
 
     return (
-        <div ref={ref} className="p-8 bg-white text-gray-800">
+        <div ref={ref} className="p-8 bg-white text-gray-800 rounded-lg shadow-inner border max-h-[80vh] overflow-y-auto">
             <header className="flex justify-between items-start mb-10">
                 {/* Left Column */}
                 <div className="w-1/2 space-y-6">
@@ -76,25 +76,25 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                     <h2 className="text-4xl font-extrabold uppercase text-gray-400">Tax Invoice</h2>
                      <div className="grid grid-cols-[auto_1fr] gap-x-4 text-sm justify-end">
                         <span className="font-semibold text-gray-600 text-right">Invoice Number:</span>
-                        <span className="text-left">{invoice.id}</span>
+                        <span className="text-left ml-2">{invoice.id}</span>
                         <span className="font-semibold text-gray-600 text-right">Date:</span>
-                        <span className="text-left">{format(invoice.invoiceDate, 'dd/MM/yyyy')}</span>
+                        <span className="text-left ml-2">{format(invoice.invoiceDate, 'dd/MM/yyyy')}</span>
                         <span className="font-semibold text-gray-600 text-right">Due Date:</span>
-                        <span className="text-left">{format(invoice.dueDate, 'dd/MM/yyyy')}</span>
+                        <span className="text-left ml-2">{format(invoice.dueDate, 'dd/MM/yyyy')}</span>
                     </div>
 
                     {hasBankingDetails && (
                         <div className="border-t pt-4 mt-4 space-y-1">
                             <p className="text-sm font-semibold text-gray-600 text-right">Banking Details:</p>
-                             <div className="grid grid-cols-[auto_1fr] text-sm justify-end">
-                                <span className="font-medium text-gray-600 text-right">Account Holder:</span>
-                                <span className="text-left ml-4">{client.bankingDetails?.accountHolder}</span>
+                             <div className="grid grid-cols-[auto_1fr] text-sm justify-end gap-x-2">
                                 <span className="font-medium text-gray-600 text-right">Bank:</span>
-                                <span className="text-left ml-4">{client.bankingDetails?.bankName}</span>
-                                <span className="font-medium text-gray-600 text-right">Account:</span>
-                                <span className="text-left ml-4">{client.bankingDetails?.accountNumber}</span>
+                                <span className="text-left">{client.bankingDetails?.bankName}</span>
+                                <span className="font-medium text-gray-600 text-right">Account Holder:</span>
+                                <span className="text-left">{client.bankingDetails?.accountHolder}</span>
+                                <span className="font-medium text-gray-600 text-right">Account Number:</span>
+                                <span className="text-left">{client.bankingDetails?.accountNumber}</span>
                                 <span className="font-medium text-gray-600 text-right">Branch Code:</span>
-                                <span className="text-left ml-4">{client.bankingDetails?.branchCode}</span>
+                                <span className="text-left">{client.bankingDetails?.branchCode}</span>
                             </div>
                         </div>
                     )}
@@ -102,14 +102,14 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
             </header>
 
             <section className="mb-10">
-                <table className="w-full text-left">
+                <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-gray-100 text-gray-600 uppercase text-sm">
-                            <th className="p-3">Description</th>
-                            <th className="p-3 text-center">Qty</th>
-                            <th className="p-3 text-right">Amount Excluding VAT</th>
-                            <th className="p-3 text-right">VAT Amount</th>
-                            <th className="p-3 text-right">Total Including VAT</th>
+                        <tr className="bg-gray-100 text-gray-600 uppercase text-[10px]">
+                            <th className="p-3 border">Description</th>
+                            <th className="p-3 text-center border">Qty</th>
+                            <th className="p-3 text-right border">Rate (Excl)</th>
+                            <th className="p-3 text-right border">VAT</th>
+                            <th className="p-3 text-right border">Total (Incl)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -117,12 +117,12 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
                             const vatAmount = getVatAmount(item);
                             const totalAmount = (item.rate * item.quantity) + vatAmount;
                             return (
-                                <tr key={index} className="border-b border-gray-200">
-                                    <td className="p-3">{item.description}</td>
-                                    <td className="p-3 text-center">{item.quantity}</td>
-                                    <td className="p-3 text-right">{formatPrice(item.rate * item.quantity)}</td>
-                                    <td className="p-3 text-right">{formatPrice(vatAmount)}</td>
-                                    <td className="p-3 text-right font-semibold">{formatPrice(totalAmount)}</td>
+                                <tr key={index} className="border-b border-gray-200 text-xs">
+                                    <td className="p-3 border">{item.description}</td>
+                                    <td className="p-3 text-center border">{item.quantity}</td>
+                                    <td className="p-3 text-right border font-mono">{formatPrice(item.rate)}</td>
+                                    <td className="p-3 text-right border font-mono">{formatPrice(vatAmount)}</td>
+                                    <td className="p-3 text-right border font-semibold font-mono">{formatPrice(totalAmount)}</td>
                                 </tr>
                             )
                         })}
@@ -131,31 +131,31 @@ const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, clie
             </section>
 
             <section className="flex justify-end mb-10">
-                <div className="w-full max-w-sm space-y-3">
-                    <div className="flex justify-between text-gray-600">
-                        <span>Subtotal</span>
-                        <span>{formatPrice(invoice.subtotal)}</span>
+                <div className="w-full max-w-sm space-y-2">
+                    <div className="flex justify-between text-gray-600 text-sm">
+                        <span>Subtotal (Excl)</span>
+                        <span className="font-mono">{formatPrice(invoice.subtotal)}</span>
                     </div>
-                    <div className="flex justify-between text-gray-600">
-                        <span>VAT (15%)</span>
-                        <span>{formatPrice(invoice.vat)}</span>
+                    <div className="flex justify-between text-gray-600 text-sm">
+                        <span>Total VAT (15%)</span>
+                        <span className="font-mono">{formatPrice(invoice.vat)}</span>
                     </div>
                     <div className="flex justify-between text-xl font-bold text-gray-900 border-t pt-3 mt-3">
-                        <span>Total Due</span>
-                        <span>{formatPrice(invoice.total)}</span>
+                        <span>Grand Total</span>
+                        <span className="font-mono">{formatPrice(invoice.total)}</span>
                     </div>
                 </div>
             </section>
 
             {invoice.notes && (
-                <section className="mb-10">
-                    <h3 className="font-semibold text-gray-700 mb-2">Notes</h3>
-                    <p className="text-sm text-gray-600 italic">{invoice.notes}</p>
+                <section className="mb-10 p-4 bg-gray-50 rounded border border-dashed">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Internal Notes / Payment Instructions</h3>
+                    <p className="text-sm text-gray-600 italic whitespace-pre-wrap">{invoice.notes}</p>
                 </section>
             )}
 
-            <footer className="text-center text-sm text-gray-500 border-t pt-6">
-                <p>Thank you for your business!</p>
+            <footer className="text-center text-[10px] text-gray-400 border-t pt-6">
+                <p>Generated by My Accountant AI Engine. Thank you for your business!</p>
             </footer>
         </div>
     );
