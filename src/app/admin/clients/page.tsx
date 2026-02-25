@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, addMonths, setDate, setHours, setMinutes, setSeconds, startOfMonth, startOfToday, isSameDay } from 'date-fns';
+import { format, addMonths, setDate, setHours, setMinutes, setSeconds, startOfMonth, startOfToday, isSameDay, addYears, lastDayOfMonth } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,8 +41,13 @@ const clientFormSchema = z.object({
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(['A', 'B', 'C']).optional().nullable(),
   submitsEmp201: z.boolean().default(false),
+  preparesPayroll: z.boolean().default(false),
+  payrollDay: z.preprocess(val => Number(val), z.number().min(1).max(31)).optional(),
   submitsProvisionalTax: z.boolean().default(false),
   preparesFinancials: z.boolean().default(false),
+  preparesManagementAccounts: z.boolean().default(false),
+  managementAccountsDay: z.preprocess(val => Number(val), z.number().min(1).max(31)).optional(),
+  submitsIncomeTax: z.boolean().default(false),
 });
 
 type ClientFormValues = z.infer<typeof clientFormSchema>;
@@ -58,12 +63,19 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || null,
             submitsEmp201: client?.submitsEmp201 || false,
+            preparesPayroll: client?.preparesPayroll || false,
+            payrollDay: client?.payrollDay || 25,
             submitsProvisionalTax: client?.submitsProvisionalTax || false,
             preparesFinancials: client?.preparesFinancials || false,
+            preparesManagementAccounts: client?.preparesManagementAccounts || false,
+            managementAccountsDay: client?.managementAccountsDay || 10,
+            submitsIncomeTax: client?.submitsIncomeTax || false,
         },
     });
 
     const isVatRegistered = form.watch('isVatRegistered');
+    const preparesPayroll = form.watch('preparesPayroll');
+    const preparesManagementAccounts = form.watch('preparesManagementAccounts');
 
     return (
         <Form {...form}>
@@ -79,8 +91,8 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                 <Separator />
                 
                 <div className="space-y-4">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-primary">Task Automation</h3>
-                    <p className="text-xs text-muted-foreground">Select the services to generate the next upcoming compliance task.</p>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-primary">Compliance Roadmap Automation</h3>
+                    <p className="text-xs text-muted-foreground">The system will automatically generate the next upcoming task for each enabled service.</p>
                     
                     <div className="space-y-3">
                         <FormField
@@ -111,14 +123,60 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
 
                         <FormField control={form.control} name="submitsEmp201" render={({ field }) => ( 
                             <FormItem className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-                                <div className="space-y-0.5"><FormLabel className="text-sm">Monthly Payroll (EMP201)</FormLabel></div>
+                                <div className="space-y-0.5"><FormLabel className="text-sm">Monthly PAYE (EMP201)</FormLabel></div>
                                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                             </FormItem>
                         )} />
 
+                        <FormField control={form.control} name="preparesPayroll" render={({ field }) => ( 
+                            <FormItem className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5"><FormLabel className="text-sm">Monthly Payroll Preparation</FormLabel></div>
+                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            </FormItem>
+                        )} />
+                        {preparesPayroll && (
+                            <div className="pl-4 animate-in fade-in slide-in-from-top-2">
+                                <FormField control={form.control} name="payrollDay" render={({ field }) => ( 
+                                    <FormItem>
+                                        <FormLabel className="text-xs">Payroll Day of Month</FormLabel>
+                                        <FormControl><Input type="number" min="1" max="31" {...field} className="h-8 text-xs w-24" /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                            </div>
+                        )}
+
+                        <FormField control={form.control} name="preparesManagementAccounts" render={({ field }) => ( 
+                            <FormItem className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5"><FormLabel className="text-sm">Monthly Management Accounts</FormLabel></div>
+                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            </FormItem>
+                        )} />
+                        {preparesManagementAccounts && (
+                            <div className="pl-4 animate-in fade-in slide-in-from-top-2">
+                                <FormField control={form.control} name="managementAccountsDay" render={({ field }) => ( 
+                                    <FormItem>
+                                        <FormLabel className="text-xs">Reporting Day of Month</FormLabel>
+                                        <FormControl><Input type="number" min="1" max="31" {...field} className="h-8 text-xs w-24" /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                            </div>
+                        )}
+
                         <FormField control={form.control} name="submitsProvisionalTax" render={({ field }) => ( 
                             <FormItem className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
                                 <div className="space-y-0.5"><FormLabel className="text-sm">Provisional Tax (IRP6)</FormLabel></div>
+                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            </FormItem>
+                        )} />
+
+                        <FormField control={form.control} name="submitsIncomeTax" render={({ field }) => ( 
+                            <FormItem className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5">
+                                    <FormLabel className="text-sm">Annual Income Tax Return (ITR14)</FormLabel>
+                                    <p className="text-[10px] text-muted-foreground">Due 12 months after Financial Year End.</p>
+                                </div>
                                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                             </FormItem>
                         )} />
@@ -170,7 +228,6 @@ export default function AdminClientsPage() {
     if (!yearEnd) return 'N/A';
     if (typeof yearEnd === 'string') return yearEnd;
     
-    // Handle Firestore Timestamp
     if (yearEnd && typeof yearEnd.toDate === 'function') {
       try {
         return format(yearEnd.toDate(), 'MMMM');
@@ -179,7 +236,6 @@ export default function AdminClientsPage() {
       }
     }
     
-    // Handle POJO from Firestore serverless functions or serialization
     if (yearEnd && typeof yearEnd.seconds === 'number') {
       try {
         return format(new Date(yearEnd.seconds * 1000), 'MMMM');
@@ -211,7 +267,6 @@ export default function AdminClientsPage() {
         const batch = writeBatch(db);
         let clientId = values.id;
 
-        // 1. Save or Update Client Document
         const clientData = {
             ...values,
             companyName: values.name,
@@ -227,12 +282,10 @@ export default function AdminClientsPage() {
             batch.update(doc(db, "adminClients", clientId), clientData);
         }
 
-        // 2. Clear existing system tasks for this client to prevent duplicates
         const oldTasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId), where('createdBy', '==', 'system'));
         const oldTasksSnap = await getDocs(oldTasksQuery);
         oldTasksSnap.forEach(d => batch.delete(d.ref));
 
-        // 3. Generate new tasks (ONE per service) for next upcoming deadline
         const tasksToCreate: any[] = [];
         const today = startOfToday();
 
@@ -252,6 +305,45 @@ export default function AdminClientsPage() {
                         description: `Submit monthly EMP201 return to SARS for ${values.name}. Due on the 5th of the following month.`,
                         dueDate: dueDate,
                         type: 'EMP201',
+                        recurrence: 'Monthly'
+                    });
+                    found = true;
+                }
+            }
+        }
+
+        // Monthly Payroll
+        if (values.preparesPayroll && values.payrollDay) {
+            let found = false;
+            for (let i = 0; i < 12 && !found; i++) {
+                const periodDate = addMonths(today, i);
+                const dueDate = getDueDate(periodDate, values.payrollDay);
+                if (dueDate.toDate() >= today) {
+                    tasksToCreate.push({
+                        title: `Payroll Preparation - ${format(periodDate, 'MMMM yyyy')} for ${values.name}`,
+                        description: `Prepare and issue payslips for ${values.name} for the period of ${format(periodDate, 'MMMM yyyy')}.`,
+                        dueDate: dueDate,
+                        type: 'PAYROLL',
+                        recurrence: 'Monthly'
+                    });
+                    found = true;
+                }
+            }
+        }
+
+        // Monthly Management Accounts
+        if (values.preparesManagementAccounts && values.managementAccountsDay) {
+            let found = false;
+            for (let i = 0; i < 12 && !found; i++) {
+                const periodDate = addMonths(today, i);
+                // Due date is usually in the FOLLOWING month for the previous period
+                const dueDate = getDueDate(addMonths(periodDate, 1), values.managementAccountsDay);
+                if (dueDate.toDate() >= today) {
+                    tasksToCreate.push({
+                        title: `Management Accounts - ${format(periodDate, 'MMMM yyyy')} for ${values.name}`,
+                        description: `Prepare and issue monthly management reports for ${values.name} for the ${format(periodDate, 'MMMM yyyy')} period.`,
+                        dueDate: dueDate,
+                        type: 'MGMT',
                         recurrence: 'Monthly'
                     });
                     found = true;
@@ -307,6 +399,27 @@ export default function AdminClientsPage() {
             });
         }
 
+        // Annual Income Tax Return (ITR14)
+        if (values.submitsIncomeTax) {
+            const yeMonthIndex = months.indexOf(values.yearEnd);
+            let yeDate = new Date(today.getFullYear(), yeMonthIndex, 28);
+            // Due 12 months after FYE (usually last day of that month)
+            let dueDate = getDueDate(addYears(yeDate, 1), 28);
+            
+            if (dueDate.toDate() < today) {
+                yeDate = addMonths(yeDate, 12);
+                dueDate = getDueDate(addYears(yeDate, 1), 28);
+            }
+
+            tasksToCreate.push({
+                title: `Income Tax Return (ITR14) for ${values.name} (${values.yearEnd} YE)`,
+                description: `Submit annual income tax return for ${values.name}. Due 12 months after the financial year end.`,
+                dueDate: dueDate,
+                type: 'ITR',
+                recurrence: 'Annually'
+            });
+        }
+
         // Provisional Tax
         if (values.submitsProvisionalTax) {
             const yeMonthIndex = months.indexOf(values.yearEnd);
@@ -328,7 +441,6 @@ export default function AdminClientsPage() {
             }
         }
 
-        // Commit tasks to batch
         tasksToCreate.forEach(t => {
             const taskRef = doc(collection(db, 'tasks'));
             batch.set(taskRef, {
@@ -425,7 +537,10 @@ export default function AdminClientsPage() {
                       <div className="flex flex-wrap gap-1">
                           {client.isVatRegistered && <Badge variant="success" className="text-[10px] font-bold">VAT ({client.vatCategory})</Badge>}
                           {client.submitsEmp201 && <Badge variant="info" className="text-[10px] font-bold">PAYE</Badge>}
+                          {client.preparesPayroll && <Badge variant="secondary" className="text-[10px] font-bold">PAYROLL</Badge>}
+                          {client.preparesManagementAccounts && <Badge variant="outline" className="text-[10px] font-bold">MGMT</Badge>}
                           {client.submitsProvisionalTax && <Badge variant="secondary" className="text-[10px] font-bold">PROV</Badge>}
+                          {client.submitsIncomeTax && <Badge variant="destructive" className="text-[10px] font-bold">ITR</Badge>}
                           {client.preparesFinancials && <Badge variant="outline" className="text-[10px] font-bold">AFS</Badge>}
                       </div>
                   </TableCell>

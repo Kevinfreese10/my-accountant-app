@@ -277,10 +277,13 @@ export type User = {
   preparesFinancials?: boolean;
   requiresManagementAccounts?: boolean;
   managementAccountsFrequency?: 'Monthly' | 'Quarterly' | 'Bi-Annually' | 'Annually';
+  preparesManagementAccounts?: boolean;
+  managementAccountsDay?: number;
   isVatRegistered?: boolean;
   vatNumber?: string;
   vatCategory?: 'A' | 'B' | 'C';
   preparesPayroll?: boolean;
+  payrollDay?: number;
   payrollDueDate?: any;
   submitsEmp201?: boolean;
   submitsEmp501?: boolean;

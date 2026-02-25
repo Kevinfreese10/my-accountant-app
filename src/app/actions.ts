@@ -842,10 +842,12 @@ export async function generateNextTaskOccurrence(taskId: string) {
         const clientNameMatch = task.title.match(/ for (.*)$/);
         const clientName = clientNameMatch ? clientNameMatch[1] : "";
         
-        if (task.type === 'EMP201' || task.type === 'VAT201') {
-            const nextPeriod = addMonths(nextDueDate, -1);
+        if (task.type === 'EMP201' || task.type === 'VAT201' || task.type === 'PAYROLL' || task.type === 'MGMT') {
+            const nextPeriod = addMonths(nextDueDate, task.type === 'MGMT' ? -1 : 0);
             newTitle = `${task.type} Submission - ${format(nextPeriod, 'MMMM yyyy')} for ${clientName}`;
-        } else if (task.type === 'AFS') {
+            if (task.type === 'PAYROLL') newTitle = `Payroll Preparation - ${format(nextPeriod, 'MMMM yyyy')} for ${clientName}`;
+            if (task.type === 'MGMT') newTitle = `Management Accounts - ${format(nextPeriod, 'MMMM yyyy')} for ${clientName}`;
+        } else if (task.type === 'AFS' || task.type === 'ITR') {
             newTitle = task.title.replace(/\d{4}/, (match) => (parseInt(match) + 1).toString());
         } else if (task.type === 'IRP6') {
             const periodMatch = task.title.match(/Period (\d)/);
