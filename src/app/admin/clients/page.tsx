@@ -498,7 +498,7 @@ export default function AdminClientsPage() {
            </DialogTrigger>
            <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>{selectedTask?.id ? 'Update Client' : 'Setup New Client'}</DialogTitle>
+                    <DialogTitle>{selectedClient?.id ? 'Update Client' : 'Setup New Client'}</DialogTitle>
                     <DialogDescription>Setting service toggles will automatically generate the next upcoming compliance task.</DialogDescription>
                 </DialogHeader>
                 <ClientForm 
