@@ -199,8 +199,8 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
             <div 
                 className={cn(
                     "relative h-[200px] lg:h-[350px] rounded-2xl overflow-hidden flex items-center p-8 md:p-12",
-                    servicesHeroLayout === 'split-left' ? 'text-left justify-start' : 
-                    servicesHeroLayout === 'split-right' ? 'text-right justify-end' : 'text-center justify-center'
+                    servicesHeroLayout === 'split-left' ? 'justify-start' : 
+                    servicesHeroLayout === 'split-right' ? 'justify-end' : 'justify-center'
                 )}
                 style={{ 
                     backgroundImage: `url("${lp.servicesHeroImageUrl}")`,
@@ -213,8 +213,10 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                     style={{ backgroundColor: `rgba(0,0,0,${(lp.servicesHeroOverlayOpacity || 0) / 100})` }}
                 />
                 <div className={cn(
-                    "relative z-10 space-y-4 max-w-2xl",
-                    servicesHeroLayout === 'background' && 'w-full'
+                    "relative z-10 space-y-4",
+                    servicesHeroLayout === 'split-left' ? 'text-left' : 
+                    servicesHeroLayout === 'split-right' ? 'text-right' : 'text-center',
+                    servicesHeroLayout === 'background' ? 'max-w-4xl w-full' : 'max-w-2xl'
                 )}>
                     <h2 className="text-3xl md:text-5xl font-bold text-white">Accounting & Tax Solutions</h2>
                     <p className="text-white/90">Comprehensive professional services for individuals and SMEs.</p>
