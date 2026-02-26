@@ -8,17 +8,19 @@ import { format, isPast } from 'date-fns';
 import { Task, User, Order } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, CalendarIcon, Loader2, Repeat, Check, Eye, ClipboardList, Edit } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Loader2, Repeat, Check, Eye, ClipboardList, Edit, CheckSquare, X } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, query, orderBy, where, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, query, orderBy, where, onSnapshot, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { generateNextTaskOccurrence } from '@/app/actions';
 import TaskForm from '@/components/admin/TaskForm';
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const db = getFirestore(firebaseApp);
 
@@ -46,6 +48,7 @@ export default function AdminDashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [selectedRoadmapIds, setSelectedRoadmapIds] = useState<string[]>([]);
     const { toast } = useToast();
     
     useEffect(() => {
@@ -82,7 +85,6 @@ export default function AdminDashboardPage() {
         ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks]);
 
-    // Admin profiles can assign tasks to users with staff or admin roles
     const assignableStaff = useMemo(() => {
         return allUsers.filter(u => u.role === 'staff' || u.role === 'admin');
     }, [allUsers]);
@@ -104,6 +106,32 @@ export default function AdminDashboardPage() {
             }
             toast({ title: 'Task Updated' });
         });
+    };
+
+    const handleBulkAssign = async (staffId: string) => {
+        if (selectedRoadmapIds.length === 0) return;
+        
+        setIsLoading(true);
+        const batch = writeBatch(db);
+        
+        selectedRoadmapIds.forEach(taskId => {
+            const taskRef = doc(db, 'tasks', taskId);
+            batch.update(taskRef, { assignedTo: [staffId] });
+        });
+
+        try {
+            await batch.commit();
+            toast({ 
+                title: 'Bulk Assignment Complete', 
+                description: `Assigned ${selectedRoadmapIds.length} tasks successfully.` 
+            });
+            setSelectedRoadmapIds([]);
+        } catch (e) {
+            console.error(e);
+            toast({ title: 'Bulk Update Failed', variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleFormSubmit = async (data: any) => {
@@ -141,7 +169,7 @@ export default function AdminDashboardPage() {
         }
     };
 
-    if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin" /></div>;
+    if (isLoading && tasks.length === 0) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin" /></div>;
 
     return (
         <div className="space-y-8">
@@ -216,16 +244,56 @@ export default function AdminDashboardPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Repeat className="h-5 w-5 text-primary" />
-                            Compliance Roadmap
-                        </CardTitle>
-                        <CardDescription>Practice-wide automated deadlines.</CardDescription>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Repeat className="h-5 w-5 text-primary" />
+                                    Compliance Roadmap
+                                </CardTitle>
+                                <CardDescription>Practice-wide automated deadlines.</CardDescription>
+                            </div>
+                            {selectedRoadmapIds.length > 0 && (
+                                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+                                    <Badge variant="secondary" className="px-3 h-8 gap-2">
+                                        {selectedRoadmapIds.length} selected
+                                        <X 
+                                            className="h-3 w-3 cursor-pointer hover:text-destructive" 
+                                            onClick={() => setSelectedRoadmapIds([])}
+                                        />
+                                    </Badge>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button size="sm" className="h-8 gap-2">
+                                                <CheckSquare className="h-4 w-4" />
+                                                Bulk Assign To...
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-56">
+                                            <DropdownMenuLabel>Select Staff Member</DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
+                                            <ScrollArea className="h-64">
+                                                {assignableStaff.map(staff => (
+                                                    <DropdownMenuItem key={staff.id} onSelect={() => handleBulkAssign(staff.id)}>
+                                                        {staff.name}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </ScrollArea>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            )}
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead className="w-12">
+                                        <Checkbox 
+                                            checked={roadmapTasks.length > 0 && selectedRoadmapIds.length === roadmapTasks.length}
+                                            onCheckedChange={(checked) => setSelectedRoadmapIds(checked ? roadmapTasks.map(t => t.id) : [])}
+                                        />
+                                    </TableHead>
                                     <TableHead>Service Task</TableHead>
                                     <TableHead>Assigned To</TableHead>
                                     <TableHead>Due Date</TableHead>
@@ -234,7 +302,13 @@ export default function AdminDashboardPage() {
                             </TableHeader>
                             <TableBody>
                                 {roadmapTasks.map(task => (
-                                    <TableRow key={task.id}>
+                                    <TableRow key={task.id} className={cn(selectedRoadmapIds.includes(task.id) && "bg-primary/5")}>
+                                        <TableCell>
+                                            <Checkbox 
+                                                checked={selectedRoadmapIds.includes(task.id)}
+                                                onCheckedChange={(checked) => setSelectedRoadmapIds(prev => checked ? [...prev, task.id] : prev.filter(id => id !== task.id))}
+                                            />
+                                        </TableCell>
                                         <TableCell className="font-medium align-top">
                                             <p className="line-clamp-1">{task.title}</p>
                                             {task.recurrence && <Badge variant="outline" className="text-[9px] h-4 mt-1 font-bold uppercase">{task.recurrence}</Badge>}
@@ -287,7 +361,7 @@ export default function AdminDashboardPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {roadmapTasks.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs">No upcoming roadmap tasks.</TableCell></TableRow>}
+                                {roadmapTasks.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">No upcoming roadmap tasks.</TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </CardContent>
