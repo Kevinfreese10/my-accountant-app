@@ -222,6 +222,8 @@ export type PartnerLandingPageConfig = {
   refundPolicy?: string;
   popiaPolicy?: string;
   termsAndConditions?: string;
+  heroTitleColor?: string;
+  heroSubtitleColor?: string;
 };
 
 export type User = {

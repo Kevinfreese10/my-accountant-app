@@ -73,6 +73,8 @@ const formSchema = z.object({
     refundPolicy: z.string().optional(),
     popiaPolicy: z.string().optional(),
     termsAndConditions: z.string().optional(),
+    heroTitleColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
+    heroSubtitleColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
   })
 });
 
@@ -179,6 +181,8 @@ export default function PartnerProfile() {
         refundPolicy: user?.landingPage?.refundPolicy || '',
         popiaPolicy: user?.landingPage?.popiaPolicy || '',
         termsAndConditions: user?.landingPage?.termsAndConditions || '',
+        heroTitleColor: user?.landingPage?.heroTitleColor || '#111827',
+        heroSubtitleColor: user?.landingPage?.heroSubtitleColor || '#4b5563',
       }
     },
   });
@@ -464,28 +468,37 @@ export default function PartnerProfile() {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-6">
-                                <FormField
-                                    control={form.control}
-                                    name="landingPage.heroTitle"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs">Hero Title</FormLabel>
-                                            <FormControl><Input {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="landingPage.heroSubtitle"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs">Hero Subtitle</FormLabel>
-                                            <FormControl><Textarea {...field} rows={2} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <div className="space-y-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.heroTitle"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Hero Title</FormLabel>
+                                                <FormControl><Input {...field} /></FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <ColorField name="landingPage.heroTitleColor" label="Hero Title Color" />
+                                </div>
+
+                                <Separator />
+
+                                <div className="space-y-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.heroSubtitle"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Hero Subtitle</FormLabel>
+                                                <FormControl><Textarea {...field} rows={2} /></FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <ColorField name="landingPage.heroSubtitleColor" label="Hero Subtitle Color" />
+                                </div>
                                 
                                 <Separator />
                                 

@@ -127,13 +127,17 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
           <div className="space-y-6">
             <h1 
                 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight"
-                style={{ color: heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit' }}
+                style={{ 
+                    color: lp?.heroTitleColor || (heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit') 
+                }}
             >
               {lp?.heroTitle}
             </h1>
             <p 
                 className="text-xl opacity-90 leading-relaxed"
-                style={{ color: heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit' }}
+                style={{ 
+                    color: lp?.heroSubtitleColor || (heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit') 
+                }}
             >
               {lp?.heroSubtitle}
             </p>
