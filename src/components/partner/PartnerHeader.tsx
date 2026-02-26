@@ -9,12 +9,13 @@ import Image from 'next/image';
 export default function PartnerHeader({ partner }: { partner: User }) {
   const lp = partner.landingPage;
   const logoHeight = lp?.logoHeight || 40;
+  const showLogo = lp?.showLogo !== false; // Default to true if undefined
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm h-16 flex items-center">
       <div className="container mx-auto flex items-center justify-between px-4">
         <Link href={`/p/${lp?.slug}`} className="flex items-center gap-3">
-          {lp?.logoUrl ? (
+          {showLogo && lp?.logoUrl ? (
             <div 
                 className="relative" 
                 style={{ 

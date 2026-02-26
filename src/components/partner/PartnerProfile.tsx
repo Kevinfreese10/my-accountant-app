@@ -65,6 +65,7 @@ const formSchema = z.object({
     textColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     cardBackgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     cardBorderColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
+    showLogo: z.boolean().default(true),
     logoUrl: z.string().url().optional().or(z.literal('')),
     logoHeight: z.preprocess(val => Number(val) || 40, z.number().min(20).max(120)),
     heroImageUrl: z.string().url().optional().or(z.literal('')),
@@ -174,6 +175,7 @@ export default function PartnerProfile() {
         textColor: user?.landingPage?.textColor || '#111827',
         cardBackgroundColor: user?.landingPage?.cardBackgroundColor || '#ffffff',
         cardBorderColor: user?.landingPage?.cardBorderColor || '#e5e7eb',
+        showLogo: user?.landingPage?.showLogo !== undefined ? user?.landingPage?.showLogo : true,
         logoUrl: user?.landingPage?.logoUrl || '',
         logoHeight: user?.landingPage?.logoHeight || 40,
         heroImageUrl: user?.landingPage?.heroImageUrl || '',
@@ -526,7 +528,24 @@ export default function PartnerProfile() {
                                 
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Practice Logo</FormLabel>
+                                        <div className="space-y-0.5">
+                                            <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Practice Logo</FormLabel>
+                                            <FormField
+                                                control={form.control}
+                                                name="landingPage.showLogo"
+                                                render={({ field }) => (
+                                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                                        <FormControl>
+                                                            <Switch
+                                                                checked={field.value}
+                                                                onCheckedChange={field.onChange}
+                                                            />
+                                                        </FormControl>
+                                                        <span className="text-[10px] text-muted-foreground uppercase font-bold">Show Logo</span>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </div>
                                         <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingLogo}>
                                             <label className="cursor-pointer">
                                                 {isUploadingLogo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}

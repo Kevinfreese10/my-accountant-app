@@ -207,13 +207,14 @@ export type PartnerLandingPageConfig = {
   heroTitle: string;
   heroSubtitle: string;
   aboutUs: string;
-  themePreset?: 'custom' | 'my_accountant' | 'futuristic';
+  themePreset?: 'custom' | 'my_accountant' | 'futuristic' | 'tech_blue';
   primaryColor: string;
   secondaryColor?: string;
   backgroundColor?: string;
   textColor?: string;
   cardBackgroundColor?: string;
   cardBorderColor?: string;
+  showLogo?: boolean;
   logoUrl?: string;
   logoHeight?: number;
   heroImageUrl?: string;
