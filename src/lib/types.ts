@@ -219,6 +219,7 @@ export type PartnerLandingPageConfig = {
   heroImageUrl?: string;
   heroOverlayOpacity?: number;
   heroLayout?: 'centered' | 'split-left' | 'split-right' | 'background';
+  heroTextPosition?: 'inside' | 'below';
   refundPolicy?: string;
   popiaPolicy?: string;
   termsAndConditions?: string;

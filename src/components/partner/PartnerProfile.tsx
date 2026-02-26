@@ -70,6 +70,7 @@ const formSchema = z.object({
     heroImageUrl: z.string().url().optional().or(z.literal('')),
     heroOverlayOpacity: z.preprocess(val => Number(val) || 0, z.number().min(0).max(100)),
     heroLayout: z.enum(['centered', 'split-left', 'split-right', 'background']).default('centered'),
+    heroTextPosition: z.enum(['inside', 'below']).default('inside'),
     refundPolicy: z.string().optional(),
     popiaPolicy: z.string().optional(),
     termsAndConditions: z.string().optional(),
@@ -178,6 +179,7 @@ export default function PartnerProfile() {
         heroImageUrl: user?.landingPage?.heroImageUrl || '',
         heroOverlayOpacity: user?.landingPage?.heroOverlayOpacity || 0,
         heroLayout: user?.landingPage?.heroLayout || 'centered',
+        heroTextPosition: user?.landingPage?.heroTextPosition || 'inside',
         refundPolicy: user?.landingPage?.refundPolicy || '',
         popiaPolicy: user?.landingPage?.popiaPolicy || '',
         termsAndConditions: user?.landingPage?.termsAndConditions || '',
@@ -500,6 +502,26 @@ export default function PartnerProfile() {
                                     <ColorField name="landingPage.heroSubtitleColor" label="Hero Subtitle Color" />
                                 </div>
                                 
+                                <Separator />
+
+                                <FormField
+                                    control={form.control}
+                                    name="landingPage.heroTextPosition"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Text Position</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="inside">Inside Image (Overlay)</SelectItem>
+                                                    <SelectItem value="below">Below Image</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormDescription className="text-[10px]">Choose if title and subtitle appear over the image or underneath it.</FormDescription>
+                                        </FormItem>
+                                    )}
+                                />
+
                                 <Separator />
                                 
                                 <div className="space-y-4">

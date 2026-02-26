@@ -86,6 +86,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
   const heroImage = lp?.heroImageUrl;
   const overlayOpacity = (lp?.heroOverlayOpacity || 0) / 100;
   const heroLayout = lp?.heroLayout || 'centered';
+  const textPosition = lp?.heroTextPosition || 'inside';
 
   const categorizedServices = categories
     .map(category => ({
@@ -94,17 +95,61 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
     }))
     .filter(c => c.data.length > 0);
 
+  const HeroContent = () => (
+    <div className={cn(
+        "container mx-auto px-4 relative z-10",
+        heroLayout === 'split-left' && 'lg:mr-auto lg:ml-0 lg:max-w-xl',
+        heroLayout === 'split-right' && 'lg:ml-auto lg:mr-0 lg:max-w-xl',
+        heroLayout === 'background' && 'max-w-4xl mx-auto'
+    )}>
+      <div className="space-y-6">
+        <h1 
+            className="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight"
+            style={{ 
+                color: lp?.heroTitleColor || (textPosition === 'inside' && heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit') 
+            }}
+        >
+          {lp?.heroTitle}
+        </h1>
+        <p 
+            className="text-xl opacity-90 leading-relaxed"
+            style={{ 
+                color: lp?.heroSubtitleColor || (textPosition === 'inside' && heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit') 
+            }}
+        >
+          {lp?.heroSubtitle}
+        </p>
+      </div>
+      <div className={cn(
+          "flex gap-4 mt-8",
+          heroLayout === 'centered' || heroLayout === 'background' ? 'justify-center' : 
+          heroLayout === 'split-left' ? 'justify-start' : 'justify-end'
+      )}>
+        <Button size="lg" className="partner-btn" asChild>
+          <Link href="#products">View Our Services</Link>
+        </Button>
+        <Button size="lg" variant="outline" className={cn(
+            "partner-border",
+            textPosition === 'inside' && heroImage && overlayOpacity > 0.3 ? "bg-white/10 text-white hover:bg-white/20" : "partner-text"
+        )} asChild>
+          <Link href="#about">About Our Practice</Link>
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-24 pb-24">
       {/* Hero Section */}
       <section 
         className={cn(
-            "relative py-20 lg:py-32 overflow-hidden flex items-center",
+            "relative overflow-hidden flex items-center",
+            textPosition === 'inside' ? "py-20 lg:py-32" : "h-[300px] lg:h-[450px]",
             heroLayout === 'split-left' ? 'text-left' : heroLayout === 'split-right' ? 'text-right' : 'text-center'
         )}
         style={{ 
             backgroundColor: lp?.secondaryColor || 'rgba(0,0,0,0.03)',
-            minHeight: heroImage ? '500px' : 'auto',
+            minHeight: textPosition === 'inside' ? (heroImage ? '500px' : 'auto') : 'auto',
             backgroundImage: heroImage ? `url("${heroImage}")` : 'none',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -118,47 +163,21 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
             />
         )}
 
-        <div className={cn(
-            "container mx-auto px-4 relative z-10",
-            heroLayout === 'split-left' && 'lg:mr-auto lg:ml-0 lg:max-w-xl',
-            heroLayout === 'split-right' && 'lg:ml-auto lg:mr-0 lg:max-w-xl',
-            heroLayout === 'background' && 'max-w-4xl mx-auto'
-        )}>
-          <div className="space-y-6">
-            <h1 
-                className="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight"
-                style={{ 
-                    color: lp?.heroTitleColor || (heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit') 
-                }}
-            >
-              {lp?.heroTitle}
-            </h1>
-            <p 
-                className="text-xl opacity-90 leading-relaxed"
-                style={{ 
-                    color: lp?.heroSubtitleColor || (heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit') 
-                }}
-            >
-              {lp?.heroSubtitle}
-            </p>
-          </div>
-          <div className={cn(
-              "flex gap-4 mt-8",
-              heroLayout === 'centered' || heroLayout === 'background' ? 'justify-center' : 
-              heroLayout === 'split-left' ? 'justify-start' : 'justify-end'
-          )}>
-            <Button size="lg" className="partner-btn" asChild>
-              <Link href="#products">View Our Services</Link>
-            </Button>
-            <Button size="lg" variant="outline" className={cn(
-                "partner-border",
-                heroImage && overlayOpacity > 0.3 ? "bg-white/10 text-white hover:bg-white/20" : "partner-text"
-            )} asChild>
-              <Link href="#about">About Our Practice</Link>
-            </Button>
-          </div>
-        </div>
+        {textPosition === 'inside' && <HeroContent />}
       </section>
+
+      {/* Text Below Hero Image */}
+      {textPosition === 'below' && (
+          <section className={cn(
+              "container mx-auto px-4 -mt-12 lg:-mt-16",
+              heroLayout === 'centered' || heroLayout === 'background' ? 'text-center' : 
+              heroLayout === 'split-left' ? 'text-left' : 'text-right'
+          )}>
+              <div className="bg-background p-8 md:p-12 rounded-2xl shadow-xl border border-border/50">
+                <HeroContent />
+              </div>
+          </section>
+      )}
 
       <div className="container mx-auto px-4">
         <TrustIndexWidget />
