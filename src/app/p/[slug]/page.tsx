@@ -194,42 +194,45 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
       </section>
 
       {/* Services Grid */}
-      <section id="products" className="container mx-auto px-4 scroll-m-24 space-y-16">
+      <section id="products" className="scroll-m-24 space-y-16">
         {lp?.servicesHeroImageUrl ? (
-            <div 
-                className={cn(
-                    "relative h-[200px] lg:h-[350px] rounded-2xl overflow-hidden flex items-center p-8 md:p-12",
-                    servicesHeroLayout === 'split-left' ? 'justify-start' : 
-                    servicesHeroLayout === 'split-right' ? 'justify-end' : 'justify-center'
-                )}
-                style={{ 
-                    backgroundImage: `url("${lp.servicesHeroImageUrl}")`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center'
-                }}
-            >
+            <div className={cn(servicesHeroLayout === 'background' ? "w-full" : "container mx-auto px-4")}>
                 <div 
-                    className="absolute inset-0" 
-                    style={{ backgroundColor: `rgba(0,0,0,${(lp.servicesHeroOverlayOpacity || 0) / 100})` }}
-                />
-                <div className={cn(
-                    "relative z-10 space-y-4",
-                    servicesHeroLayout === 'split-left' ? 'text-left' : 
-                    servicesHeroLayout === 'split-right' ? 'text-right' : 'text-center',
-                    servicesHeroLayout === 'background' ? 'max-w-4xl w-full' : 'max-w-2xl'
-                )}>
-                    <h2 className="text-3xl md:text-5xl font-bold text-white">Accounting & Tax Solutions</h2>
-                    <p className="text-white/90">Comprehensive professional services for individuals and SMEs.</p>
+                    className={cn(
+                        "relative overflow-hidden flex items-center p-8 md:p-12",
+                        servicesHeroLayout === 'background' ? "min-h-[300px] lg:min-h-[400px]" : "rounded-2xl h-[200px] lg:h-[350px]",
+                        servicesHeroLayout === 'split-left' ? 'justify-start' : 
+                        servicesHeroLayout === 'split-right' ? 'justify-end' : 'justify-center'
+                    )}
+                    style={{ 
+                        backgroundImage: `url("${lp.servicesHeroImageUrl}")`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
+                    }}
+                >
+                    <div 
+                        className="absolute inset-0" 
+                        style={{ backgroundColor: `rgba(0,0,0,${(lp.servicesHeroOverlayOpacity || 0) / 100})` }}
+                    />
+                    <div className={cn(
+                        "relative z-10 space-y-4",
+                        servicesHeroLayout === 'split-left' ? 'text-left' : 
+                        servicesHeroLayout === 'split-right' ? 'text-right' : 'text-center',
+                        servicesHeroLayout === 'background' ? 'max-w-4xl w-full mx-auto px-4' : 'max-w-2xl'
+                    )}>
+                        <h2 className="text-3xl md:text-5xl font-bold text-white">Accounting & Tax Solutions</h2>
+                        <p className="text-white/90">Comprehensive professional services for individuals and SMEs.</p>
+                    </div>
                 </div>
             </div>
         ) : (
-            <div className="text-center space-y-4">
+            <div className="container mx-auto px-4 text-center space-y-4">
               <h2 className="text-3xl font-bold">Accounting & Tax Solutions</h2>
               <p className="opacity-70">Comprehensive professional services for individuals and SMEs.</p>
             </div>
         )}
 
-        <div className="space-y-20">
+        <div className="container mx-auto px-4 space-y-20">
             {categorizedServices.map((category) => (
                 <div key={category.id} className="space-y-8">
                     <div className="flex items-center gap-4">
