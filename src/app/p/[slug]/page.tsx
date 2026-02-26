@@ -95,9 +95,9 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
     }))
     .filter(c => c.data.length > 0);
 
-  const HeroContent = () => (
+  const HeroContent = ({ isOverlay = true }: { isOverlay?: boolean }) => (
     <div className={cn(
-        "container mx-auto px-4 relative z-10",
+        isOverlay && "container mx-auto px-4 relative z-10",
         heroLayout === 'split-left' && 'lg:mr-auto lg:ml-0 lg:max-w-xl',
         heroLayout === 'split-right' && 'lg:ml-auto lg:mr-0 lg:max-w-xl',
         heroLayout === 'background' && 'max-w-4xl mx-auto'
@@ -106,7 +106,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
         <h1 
             className="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight"
             style={{ 
-                color: lp?.heroTitleColor || (textPosition === 'inside' && heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit') 
+                color: isOverlay ? (lp?.heroTitleColor || (heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit')) : lp?.heroTitleColor || 'inherit'
             }}
         >
           {lp?.heroTitle}
@@ -114,7 +114,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
         <p 
             className="text-xl opacity-90 leading-relaxed"
             style={{ 
-                color: lp?.heroSubtitleColor || (textPosition === 'inside' && heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit') 
+                color: isOverlay ? (lp?.heroSubtitleColor || (heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit')) : lp?.heroSubtitleColor || 'inherit'
             }}
         >
           {lp?.heroSubtitle}
@@ -130,7 +130,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
         </Button>
         <Button size="lg" variant="outline" className={cn(
             "partner-border",
-            textPosition === 'inside' && heroImage && overlayOpacity > 0.3 ? "bg-white/10 text-white hover:bg-white/20" : "partner-text"
+            isOverlay && heroImage && overlayOpacity > 0.3 ? "bg-white/10 text-white hover:bg-white/20" : "partner-text"
         )} asChild>
           <Link href="#about">About Our Practice</Link>
         </Button>
@@ -163,7 +163,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
             />
         )}
 
-        {textPosition === 'inside' && <HeroContent />}
+        {textPosition === 'inside' && <HeroContent isOverlay={true} />}
       </section>
 
       {/* Text Below Hero Image */}
@@ -173,8 +173,8 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
               heroLayout === 'centered' || heroLayout === 'background' ? 'text-center' : 
               heroLayout === 'split-left' ? 'text-left' : 'text-right'
           )}>
-              <div className="bg-background p-8 md:p-12 rounded-2xl shadow-xl border border-border/50">
-                <HeroContent />
+              <div className="bg-background p-8 md:p-12 rounded-2xl">
+                <HeroContent isOverlay={false} />
               </div>
           </section>
       )}
