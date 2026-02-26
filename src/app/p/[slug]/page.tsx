@@ -169,9 +169,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
       {/* Text Below Hero Image */}
       {textPosition === 'below' && (
           <section className={cn(
-              "container mx-auto px-4 -mt-12 lg:-mt-16",
-              heroLayout === 'centered' || heroLayout === 'background' ? 'text-center' : 
-              heroLayout === 'split-left' ? 'text-left' : 'text-right'
+              "container mx-auto px-4 -mt-12 lg:-mt-16 text-center"
           )}>
               <div className="bg-background p-8 md:p-12 rounded-2xl">
                 <HeroContent isOverlay={false} />
@@ -196,10 +194,30 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
 
       {/* Services Grid */}
       <section id="products" className="container mx-auto px-4 scroll-m-24 space-y-16">
-        <div className="text-center space-y-4">
-          <h2 className="text-3xl font-bold">Accounting & Tax Solutions</h2>
-          <p className="opacity-70">Comprehensive professional services for individuals and SMEs.</p>
-        </div>
+        {lp?.servicesHeroImageUrl ? (
+            <div 
+                className="relative h-[200px] lg:h-[350px] rounded-2xl overflow-hidden flex items-center justify-center text-center"
+                style={{ 
+                    backgroundImage: `url("${lp.servicesHeroImageUrl}")`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                }}
+            >
+                <div 
+                    className="absolute inset-0" 
+                    style={{ backgroundColor: `rgba(0,0,0,${(lp.servicesHeroOverlayOpacity || 0) / 100})` }}
+                />
+                <div className="relative z-10 space-y-4 px-6">
+                    <h2 className="text-3xl md:text-5xl font-bold text-white">Accounting & Tax Solutions</h2>
+                    <p className="text-white/90 max-w-2xl mx-auto">Comprehensive professional services for individuals and SMEs.</p>
+                </div>
+            </div>
+        ) : (
+            <div className="text-center space-y-4">
+              <h2 className="text-3xl font-bold">Accounting & Tax Solutions</h2>
+              <p className="opacity-70">Comprehensive professional services for individuals and SMEs.</p>
+            </div>
+        )}
 
         <div className="space-y-20">
             {categorizedServices.map((category) => (

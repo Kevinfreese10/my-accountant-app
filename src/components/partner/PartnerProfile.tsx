@@ -66,6 +66,7 @@ const formSchema = z.object({
     cardBackgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     cardBorderColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     showLogo: z.boolean().default(true),
+    hideHeaderBranding: z.boolean().default(false),
     logoUrl: z.string().url().optional().or(z.literal('')),
     logoHeight: z.preprocess(val => Number(val) || 40, z.number().min(20).max(120)),
     heroImageUrl: z.string().url().optional().or(z.literal('')),
@@ -77,6 +78,8 @@ const formSchema = z.object({
     termsAndConditions: z.string().optional(),
     heroTitleColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     heroSubtitleColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
+    servicesHeroImageUrl: z.string().url().optional().or(z.literal('')),
+    servicesHeroOverlayOpacity: z.preprocess(val => Number(val) || 0, z.number().min(0).max(100)),
   })
 });
 
@@ -134,6 +137,7 @@ export default function PartnerProfile() {
   const [isTestingSmtp, setIsTestingSmtp] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingHero, setIsUploadingHero] = useState(false);
+  const [isUploadingServicesHero, setIsUploadingServicesHero] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -176,6 +180,7 @@ export default function PartnerProfile() {
         cardBackgroundColor: user?.landingPage?.cardBackgroundColor || '#ffffff',
         cardBorderColor: user?.landingPage?.cardBorderColor || '#e5e7eb',
         showLogo: user?.landingPage?.showLogo !== undefined ? user?.landingPage?.showLogo : true,
+        hideHeaderBranding: user?.landingPage?.hideHeaderBranding || false,
         logoUrl: user?.landingPage?.logoUrl || '',
         logoHeight: user?.landingPage?.logoHeight || 40,
         heroImageUrl: user?.landingPage?.heroImageUrl || '',
@@ -187,6 +192,8 @@ export default function PartnerProfile() {
         termsAndConditions: user?.landingPage?.termsAndConditions || '',
         heroTitleColor: user?.landingPage?.heroTitleColor || '#111827',
         heroSubtitleColor: user?.landingPage?.heroSubtitleColor || '#4b5563',
+        servicesHeroImageUrl: user?.landingPage?.servicesHeroImageUrl || '',
+        servicesHeroOverlayOpacity: user?.landingPage?.servicesHeroOverlayOpacity || 0,
       }
     },
   });
@@ -212,10 +219,11 @@ export default function PartnerProfile() {
       }
   };
 
-  const handleFileUpload = async (file: File, type: 'logo' | 'hero') => {
+  const handleFileUpload = async (file: File, type: 'logo' | 'hero' | 'servicesHero') => {
       if (!user) return;
-      const isLogo = type === 'logo';
-      if (isLogo) setIsUploadingLogo(true); else setIsUploadingHero(true);
+      if (type === 'logo') setIsUploadingLogo(true); 
+      else if (type === 'hero') setIsUploadingHero(true);
+      else setIsUploadingServicesHero(true);
 
       try {
           const path = `partners/${user.uid}/${type}/${Date.now()}-${file.name}`;
@@ -223,17 +231,21 @@ export default function PartnerProfile() {
           await uploadBytes(storageRef, file);
           const url = await getDownloadURL(storageRef);
           
-          if (isLogo) {
+          if (type === 'logo') {
               setValue('landingPage.logoUrl', url, { shouldDirty: true });
-          } else {
+          } else if (type === 'hero') {
               setValue('landingPage.heroImageUrl', url, { shouldDirty: true });
+          } else {
+              setValue('landingPage.servicesHeroImageUrl', url, { shouldDirty: true });
           }
           toast({ title: 'Upload Successful' });
       } catch (e) {
           console.error(e);
           toast({ title: 'Upload Failed', variant: 'destructive' });
       } finally {
-          if (isLogo) setIsUploadingLogo(false); else setIsUploadingHero(false);
+          if (type === 'logo') setIsUploadingLogo(false); 
+          else if (type === 'hero') setIsUploadingHero(false);
+          else setIsUploadingServicesHero(false);
       }
   }
 
@@ -530,21 +542,38 @@ export default function PartnerProfile() {
                                     <div className="flex items-center justify-between">
                                         <div className="space-y-0.5">
                                             <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Practice Logo</FormLabel>
-                                            <FormField
-                                                control={form.control}
-                                                name="landingPage.showLogo"
-                                                render={({ field }) => (
-                                                    <FormItem className="flex items-center space-x-2 space-y-0">
-                                                        <FormControl>
-                                                            <Switch
-                                                                checked={field.value}
-                                                                onCheckedChange={field.onChange}
-                                                            />
-                                                        </FormControl>
-                                                        <span className="text-[10px] text-muted-foreground uppercase font-bold">Show Logo</span>
-                                                    </FormItem>
-                                                )}
-                                            />
+                                            <div className="flex flex-col gap-2">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="landingPage.showLogo"
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex items-center space-x-2 space-y-0">
+                                                            <FormControl>
+                                                                <Switch
+                                                                    checked={field.value}
+                                                                    onCheckedChange={field.onChange}
+                                                                />
+                                                            </FormControl>
+                                                            <span className="text-[10px] text-muted-foreground uppercase font-bold">Show Logo Image</span>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="landingPage.hideHeaderBranding"
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex items-center space-x-2 space-y-0">
+                                                            <FormControl>
+                                                                <Switch
+                                                                    checked={field.value}
+                                                                    onCheckedChange={field.onChange}
+                                                                />
+                                                            </FormControl>
+                                                            <span className="text-[10px] text-destructive uppercase font-bold">Hide All Header Branding</span>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
                                         </div>
                                         <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingLogo}>
                                             <label className="cursor-pointer">
@@ -651,6 +680,52 @@ export default function PartnerProfile() {
                                             )}
                                         />
                                     </div>
+                                </div>
+
+                                <Separator />
+
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Services Section Hero</FormLabel>
+                                        <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingServicesHero}>
+                                            <label className="cursor-pointer">
+                                                {isUploadingServicesHero ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
+                                                Upload Banner
+                                                <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'servicesHero')} />
+                                            </label>
+                                        </Button>
+                                    </div>
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.servicesHeroImageUrl"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormControl><Input {...field} placeholder="https://..." className="text-xs h-8" /></FormControl>
+                                                <FormDescription className="text-[9px]">Banner image displayed above the services grid.</FormDescription>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.servicesHeroOverlayOpacity"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <FormLabel className="text-[10px]">Overlay Opacity</FormLabel>
+                                                    <span className="text-[10px] font-bold text-primary">{field.value}%</span>
+                                                </div>
+                                                <FormControl>
+                                                    <Slider 
+                                                        min={0} 
+                                                        max={90} 
+                                                        step={5} 
+                                                        value={[field.value]} 
+                                                        onValueChange={(v) => field.onChange(v[0])} 
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
                                 </div>
 
                                 <Separator />

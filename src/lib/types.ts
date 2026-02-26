@@ -215,6 +215,7 @@ export type PartnerLandingPageConfig = {
   cardBackgroundColor?: string;
   cardBorderColor?: string;
   showLogo?: boolean;
+  hideHeaderBranding?: boolean;
   logoUrl?: string;
   logoHeight?: number;
   heroImageUrl?: string;
@@ -226,6 +227,8 @@ export type PartnerLandingPageConfig = {
   termsAndConditions?: string;
   heroTitleColor?: string;
   heroSubtitleColor?: string;
+  servicesHeroImageUrl?: string;
+  servicesHeroOverlayOpacity?: number;
 };
 
 export type User = {

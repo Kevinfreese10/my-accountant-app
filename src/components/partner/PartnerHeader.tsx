@@ -9,33 +9,38 @@ import Image from 'next/image';
 export default function PartnerHeader({ partner }: { partner: User }) {
   const lp = partner.landingPage;
   const logoHeight = lp?.logoHeight || 40;
-  const showLogo = lp?.showLogo !== false; // Default to true if undefined
+  const showLogo = lp?.showLogo !== false;
+  const hideBranding = lp?.hideHeaderBranding === true;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm h-16 flex items-center">
       <div className="container mx-auto flex items-center justify-between px-4">
-        <Link href={`/p/${lp?.slug}`} className="flex items-center gap-3">
-          {showLogo && lp?.logoUrl ? (
-            <div 
-                className="relative" 
-                style={{ 
-                    height: `${logoHeight}px`,
-                    width: `${logoHeight * 3}px` // Aspect ratio estimate
-                }}
-            >
-              <Image 
-                src={lp.logoUrl} 
-                alt={partner.companyName || partner.name} 
-                fill 
-                className="object-contain object-left"
-              />
-            </div>
-          ) : (
-            <span className="text-xl font-bold" style={{ color: lp?.primaryColor || 'inherit' }}>
-              {partner.companyName || partner.name}
-            </span>
-          )}
-        </Link>
+        {!hideBranding ? (
+          <Link href={`/p/${lp?.slug}`} className="flex items-center gap-3">
+            {showLogo && lp?.logoUrl ? (
+              <div 
+                  className="relative" 
+                  style={{ 
+                      height: `${logoHeight}px`,
+                      width: `${logoHeight * 3}px`
+                  }}
+              >
+                <Image 
+                  src={lp.logoUrl} 
+                  alt={partner.companyName || partner.name} 
+                  fill 
+                  className="object-contain object-left"
+                />
+              </div>
+            ) : (
+              <span className="text-xl font-bold" style={{ color: lp?.primaryColor || 'inherit' }}>
+                {partner.companyName || partner.name}
+              </span>
+            )}
+          </Link>
+        ) : (
+          <div /> // Spacer if branding is hidden
+        )}
 
         <div className="flex items-center gap-4">
           <Button variant="ghost" asChild className="hidden sm:inline-flex">
