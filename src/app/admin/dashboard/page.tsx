@@ -8,7 +8,7 @@ import { format, isPast } from 'date-fns';
 import { Task, User, Order } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, CalendarIcon, Loader2, Repeat, Check, Eye, Wallet2, TrendingUp, ClipboardList, Edit } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Loader2, Repeat, Check, Eye, ClipboardList, Edit } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -17,7 +17,6 @@ import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { generateNextTaskOccurrence } from '@/app/actions';
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from "recharts";
 import TaskForm from '@/components/admin/TaskForm';
 import { cn } from '@/lib/utils';
 
@@ -43,15 +42,12 @@ const getUserColor = (userId: string) => {
 export default function AdminDashboardPage() {
     const { user } = useAuth();
     const [tasks, setTasks] = useState<Task[]>([]);
-    const [adminClients, setAdminClients] = useState<User[]>([]);
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const { toast } = useToast();
     
-    const isKev = user?.email === 'kev@thinkestry.co.za';
-
     useEffect(() => {
         setIsLoading(true);
         const usersRef = collection(db, "users");
@@ -60,30 +56,15 @@ export default function AdminDashboardPage() {
             setAllUsers(fetchedUsers);
         });
 
-        const adminClientsUnsubscribe = onSnapshot(collection(db, "adminClients"), (snapshot) => {
-            setAdminClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User)));
-        });
-
         const tasksUnsubscribe = onSnapshot(query(collection(db, 'tasks'), orderBy('dueDate', 'asc')), (snapshot) => {
             setTasks(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task)));
             setIsLoading(false);
         });
 
         return () => {
-            adminClientsUnsubscribe();
             tasksUnsubscribe();
         };
     }, []);
-
-    const revenueData = useMemo(() => {
-        const total = adminClients.reduce((acc, client) => acc + (client.monthlyRetainerFee || 0), 0);
-        const sorted = [...adminClients].sort((a, b) => (b.monthlyRetainerFee || 0) - (a.monthlyRetainerFee || 0));
-        const top5 = sorted.slice(0, 5).map(c => ({ name: c.name.substring(0, 10), value: c.monthlyRetainerFee || 0 }));
-        const othersValue = sorted.slice(5).reduce((acc, c) => acc + (c.monthlyRetainerFee || 0), 0);
-        if (othersValue > 0) top5.push({ name: 'Others', value: othersValue });
-        
-        return { total, chartData: top5 };
-    }, [adminClients]);
 
     const myTasks = useMemo(() => {
         if (!user) return [];
@@ -160,10 +141,6 @@ export default function AdminDashboardPage() {
         }
     };
 
-    const formatPrice = (price: number) => {
-        return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
-    };
-
     if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin" /></div>;
 
     return (
@@ -195,61 +172,6 @@ export default function AdminDashboardPage() {
                     </DialogContent>
                 </Dialog>
             </div>
-
-            {isKev && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                    <Card className="md:col-span-1 border-primary/20 shadow-md">
-                        <CardHeader className="pb-2">
-                            <div className="flex items-center gap-2">
-                                <Wallet2 className="h-4 w-4 text-primary" />
-                                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Monthly Retainer Revenue</CardTitle>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-4xl font-extrabold text-primary tabular-nums tracking-tight">
-                                {formatPrice(revenueData.total)}
-                            </div>
-                            <p className="text-[10px] font-medium mt-2 text-muted-foreground uppercase tracking-wide">
-                                Estimated from {adminClients.length} active client retainers
-                            </p>
-                        </CardContent>
-                    </Card>
-                    <Card className="md:col-span-2 border-primary/10 shadow-sm">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                <TrendingUp className="h-4 w-4 text-green-600" />
-                                Revenue Distribution (Top Clients)
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="h-[120px] pt-4">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={revenueData.chartData}>
-                                    <XAxis dataKey="name" fontSize={9} tickLine={false} axisLine={false} />
-                                    <YAxis hide />
-                                    <RechartsTooltip 
-                                        content={({ active, payload }) => {
-                                            if (active && payload && payload.length) {
-                                                return (
-                                                    <div className="bg-background border rounded-lg p-2 shadow-lg text-xs">
-                                                        <p className="font-bold border-b pb-1 mb-1">{payload[0].payload.name}</p>
-                                                        <p className="text-primary font-mono">{formatPrice(payload[0].value as number)}</p>
-                                                    </div>
-                                                );
-                                            }
-                                            return null;
-                                        }}
-                                    />
-                                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                        {revenueData.chartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={`hsl(var(--primary) / ${1 - (index * 0.12)})`} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
 
             <WeeklyTaskCalendar tasks={tasks} allStaff={assignableStaff} currentUser={user} onTaskUpdate={handleUpdate} onEdit={(t) => { setSelectedTask(t); setIsFormOpen(true); }} />
 
