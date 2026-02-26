@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
+export const dynamic = 'force-dynamic';
+
 type Category = { 
     id: string; 
     name: string; 
@@ -103,7 +105,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
         style={{ 
             backgroundColor: lp?.secondaryColor || 'rgba(0,0,0,0.03)',
             minHeight: heroImage ? '500px' : 'auto',
-            backgroundImage: heroImage ? `url(${heroImage})` : 'none',
+            backgroundImage: heroImage ? `url("${heroImage}")` : 'none',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
         }}

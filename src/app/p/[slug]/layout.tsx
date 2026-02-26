@@ -8,6 +8,8 @@ import { Metadata } from 'next';
 
 const db = getFirestore(firebaseApp);
 
+export const dynamic = 'force-dynamic';
+
 async function getPartnerBySlug(slug: string): Promise<User | null> {
   const q = query(
     collection(db, "users"), 
