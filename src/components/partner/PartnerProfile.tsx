@@ -80,6 +80,7 @@ const formSchema = z.object({
     heroSubtitleColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     servicesHeroImageUrl: z.string().url().optional().or(z.literal('')),
     servicesHeroOverlayOpacity: z.preprocess(val => Number(val) || 0, z.number().min(0).max(100)),
+    servicesHeroLayout: z.enum(['centered', 'split-left', 'split-right', 'background']).default('centered'),
   })
 });
 
@@ -194,6 +195,7 @@ export default function PartnerProfile() {
         heroSubtitleColor: user?.landingPage?.heroSubtitleColor || '#4b5563',
         servicesHeroImageUrl: user?.landingPage?.servicesHeroImageUrl || '',
         servicesHeroOverlayOpacity: user?.landingPage?.servicesHeroOverlayOpacity || 0,
+        servicesHeroLayout: user?.landingPage?.servicesHeroLayout || 'centered',
       }
     },
   });
@@ -408,7 +410,7 @@ export default function PartnerProfile() {
                 <CardFooter className="bg-muted/50 justify-between py-3">
                     <p className="text-[10px] text-muted-foreground italic">Required for white-label notifications.</p>
                     <Button type="button" variant="outline" size="sm" onClick={handleTestSmtp} disabled={isTestingSmtp}>
-                        {isTestingSmtp && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                        {isTestingSmtp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Send Test Email
                     </Button>
                 </CardFooter>
@@ -705,27 +707,47 @@ export default function PartnerProfile() {
                                             </FormItem>
                                         )}
                                     />
-                                    <FormField
-                                        control={form.control}
-                                        name="landingPage.servicesHeroOverlayOpacity"
-                                        render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <div className="flex justify-between items-center">
-                                                    <FormLabel className="text-[10px]">Overlay Opacity</FormLabel>
-                                                    <span className="text-[10px] font-bold text-primary">{field.value}%</span>
-                                                </div>
-                                                <FormControl>
-                                                    <Slider 
-                                                        min={0} 
-                                                        max={90} 
-                                                        step={5} 
-                                                        value={[field.value]} 
-                                                        onValueChange={(v) => field.onChange(v[0])} 
-                                                    />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="landingPage.servicesHeroLayout"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-[10px]">Layout Style</FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                        <FormControl><SelectTrigger className="h-8 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="centered">Centered</SelectItem>
+                                                            <SelectItem value="split-left">Left Align</SelectItem>
+                                                            <SelectItem value="split-right">Right Align</SelectItem>
+                                                            <SelectItem value="background">Full Background</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="landingPage.servicesHeroOverlayOpacity"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <div className="flex justify-between items-center">
+                                                        <FormLabel className="text-[10px]">Overlay Opacity</FormLabel>
+                                                        <span className="text-[10px] font-bold text-primary">{field.value}%</span>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Slider 
+                                                            min={0} 
+                                                            max={90} 
+                                                            step={5} 
+                                                            value={[field.value]} 
+                                                            onValueChange={(v) => field.onChange(v[0])} 
+                                                        />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
                                 </div>
 
                                 <Separator />

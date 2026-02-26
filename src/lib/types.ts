@@ -229,6 +229,7 @@ export type PartnerLandingPageConfig = {
   heroSubtitleColor?: string;
   servicesHeroImageUrl?: string;
   servicesHeroOverlayOpacity?: number;
+  servicesHeroLayout?: 'centered' | 'split-left' | 'split-right' | 'background';
 };
 
 export type User = {

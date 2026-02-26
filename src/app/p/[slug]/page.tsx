@@ -87,6 +87,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
   const overlayOpacity = (lp?.heroOverlayOpacity || 0) / 100;
   const heroLayout = lp?.heroLayout || 'centered';
   const textPosition = lp?.heroTextPosition || 'inside';
+  const servicesHeroLayout = lp?.servicesHeroLayout || 'centered';
 
   const categorizedServices = categories
     .map(category => ({
@@ -196,7 +197,11 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
       <section id="products" className="container mx-auto px-4 scroll-m-24 space-y-16">
         {lp?.servicesHeroImageUrl ? (
             <div 
-                className="relative h-[200px] lg:h-[350px] rounded-2xl overflow-hidden flex items-center justify-center text-center"
+                className={cn(
+                    "relative h-[200px] lg:h-[350px] rounded-2xl overflow-hidden flex items-center p-8 md:p-12",
+                    servicesHeroLayout === 'split-left' ? 'text-left justify-start' : 
+                    servicesHeroLayout === 'split-right' ? 'text-right justify-end' : 'text-center justify-center'
+                )}
                 style={{ 
                     backgroundImage: `url("${lp.servicesHeroImageUrl}")`,
                     backgroundSize: 'cover',
@@ -207,9 +212,12 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                     className="absolute inset-0" 
                     style={{ backgroundColor: `rgba(0,0,0,${(lp.servicesHeroOverlayOpacity || 0) / 100})` }}
                 />
-                <div className="relative z-10 space-y-4 px-6">
+                <div className={cn(
+                    "relative z-10 space-y-4 max-w-2xl",
+                    servicesHeroLayout === 'background' && 'w-full'
+                )}>
                     <h2 className="text-3xl md:text-5xl font-bold text-white">Accounting & Tax Solutions</h2>
-                    <p className="text-white/90 max-w-2xl mx-auto">Comprehensive professional services for individuals and SMEs.</p>
+                    <p className="text-white/90">Comprehensive professional services for individuals and SMEs.</p>
                 </div>
             </div>
         ) : (
