@@ -1,4 +1,3 @@
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -12,9 +11,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck, Mail } from 'lucide-react';
+import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck, Mail, Upload, Image as ImageIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
@@ -22,8 +22,10 @@ import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
+import { Slider } from '../ui/slider';
 
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 const formSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
@@ -64,6 +66,10 @@ const formSchema = z.object({
     cardBackgroundColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     cardBorderColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     logoUrl: z.string().url().optional().or(z.literal('')),
+    logoHeight: z.preprocess(val => Number(val) || 40, z.number().min(20).max(120)),
+    heroImageUrl: z.string().url().optional().or(z.literal('')),
+    heroOverlayOpacity: z.preprocess(val => Number(val) || 0, z.number().min(0).max(100)),
+    heroLayout: z.enum(['centered', 'split-left', 'split-right', 'background']).default('centered'),
     refundPolicy: z.string().optional(),
     popiaPolicy: z.string().optional(),
     termsAndConditions: z.string().optional(),
@@ -122,6 +128,8 @@ export default function PartnerProfile() {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingHero, setIsUploadingHero] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -164,6 +172,10 @@ export default function PartnerProfile() {
         cardBackgroundColor: user?.landingPage?.cardBackgroundColor || '#ffffff',
         cardBorderColor: user?.landingPage?.cardBorderColor || '#e5e7eb',
         logoUrl: user?.landingPage?.logoUrl || '',
+        logoHeight: user?.landingPage?.logoHeight || 40,
+        heroImageUrl: user?.landingPage?.heroImageUrl || '',
+        heroOverlayOpacity: user?.landingPage?.heroOverlayOpacity || 0,
+        heroLayout: user?.landingPage?.heroLayout || 'centered',
         refundPolicy: user?.landingPage?.refundPolicy || '',
         popiaPolicy: user?.landingPage?.popiaPolicy || '',
         termsAndConditions: user?.landingPage?.termsAndConditions || '',
@@ -191,6 +203,31 @@ export default function PartnerProfile() {
           setValue('landingPage.themePreset', 'custom');
       }
   };
+
+  const handleFileUpload = async (file: File, type: 'logo' | 'hero') => {
+      if (!user) return;
+      const isLogo = type === 'logo';
+      if (isLogo) setIsUploadingLogo(true); else setIsUploadingHero(true);
+
+      try {
+          const path = `partners/${user.uid}/${type}/${Date.now()}-${file.name}`;
+          const storageRef = ref(storage, path);
+          await uploadBytes(storageRef, file);
+          const url = await getDownloadURL(storageRef);
+          
+          if (isLogo) {
+              setValue('landingPage.logoUrl', url, { shouldDirty: true });
+          } else {
+              setValue('landingPage.heroImageUrl', url, { shouldDirty: true });
+          }
+          toast({ title: 'Upload Successful' });
+      } catch (e) {
+          console.error(e);
+          toast({ title: 'Upload Failed', variant: 'destructive' });
+      } finally {
+          if (isLogo) setIsUploadingLogo(false); else setIsUploadingHero(false);
+      }
+  }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) return;
@@ -423,10 +460,10 @@ export default function PartnerProfile() {
                         <Card>
                             <CardHeader>
                                 <CardTitle className="text-sm flex items-center gap-2">
-                                    <Layout className="h-4 w-4" /> Content
+                                    <Layout className="h-4 w-4" /> Content & Images
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-4">
+                            <CardContent className="space-y-6">
                                 <FormField
                                     control={form.control}
                                     name="landingPage.heroTitle"
@@ -449,6 +486,121 @@ export default function PartnerProfile() {
                                         </FormItem>
                                     )}
                                 />
+                                
+                                <Separator />
+                                
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Practice Logo</FormLabel>
+                                        <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingLogo}>
+                                            <label className="cursor-pointer">
+                                                {isUploadingLogo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
+                                                Upload Logo
+                                                <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'logo')} />
+                                            </label>
+                                        </Button>
+                                    </div>
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.logoUrl"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormControl><Input {...field} placeholder="https://..." className="text-xs h-8" /></FormControl>
+                                                <FormDescription className="text-[9px]">URL to your logo (PNG/SVG recommended).</FormDescription>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.logoHeight"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-3">
+                                                <div className="flex justify-between items-center">
+                                                    <FormLabel className="text-xs">Logo Height (px)</FormLabel>
+                                                    <span className="text-[10px] font-bold text-primary">{field.value}px</span>
+                                                </div>
+                                                <FormControl>
+                                                    <Slider 
+                                                        min={20} 
+                                                        max={120} 
+                                                        step={5} 
+                                                        value={[field.value]} 
+                                                        onValueChange={(v) => field.onChange(v[0])} 
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <Separator />
+
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Hero Background Image</FormLabel>
+                                        <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingHero}>
+                                            <label className="cursor-pointer">
+                                                {isUploadingHero ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
+                                                Upload Hero
+                                                <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'hero')} />
+                                            </label>
+                                        </Button>
+                                    </div>
+                                    <FormField
+                                        control={form.control}
+                                        name="landingPage.heroImageUrl"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormControl><Input {...field} placeholder="https://..." className="text-xs h-8" /></FormControl>
+                                                <FormDescription className="text-[9px]">URL to a background image for the hero section.</FormDescription>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="landingPage.heroLayout"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-[10px]">Layout Style</FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                        <FormControl><SelectTrigger className="h-8 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="centered">Centered</SelectItem>
+                                                            <SelectItem value="split-left">Left Align</SelectItem>
+                                                            <SelectItem value="split-right">Right Align</SelectItem>
+                                                            <SelectItem value="background">Full Background</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="landingPage.heroOverlayOpacity"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <div className="flex justify-between items-center">
+                                                        <FormLabel className="text-[10px]">Overlay Opacity</FormLabel>
+                                                        <span className="text-[10px] font-bold text-primary">{field.value}%</span>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Slider 
+                                                            min={0} 
+                                                            max={90} 
+                                                            step={5} 
+                                                            value={[field.value]} 
+                                                            onValueChange={(v) => field.onChange(v[0])} 
+                                                        />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </div>
+
+                                <Separator />
+
                                 <FormField
                                     control={form.control}
                                     name="landingPage.aboutUs"
@@ -460,19 +612,8 @@ export default function PartnerProfile() {
                                         </FormItem>
                                     )}
                                 />
-                                <FormField
-                                    control={form.control}
-                                    name="landingPage.logoUrl"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs">Logo URL</FormLabel>
-                                            <FormControl><Input {...field} placeholder="https://..." /></FormControl>
-                                            <FormDescription className="text-[10px]">Your company logo (PNG/SVG recommended).</FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <Separator className="my-2" />
+                                
+                                <Separator />
                                 <h4 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
                                     <ShieldCheck className="h-3 w-3" /> Legal Documents
                                 </h4>
@@ -560,7 +701,10 @@ export default function PartnerProfile() {
         <Separator />
 
         <div className="space-y-4">
-            <h3 className="text-lg font-medium">AI Configuration</h3>
+            <h3 className="text-lg font-medium flex items-center gap-2">
+                <BrainCircuit className="h-5 w-5 text-primary" />
+                AI Configuration
+            </h3>
             <Card className="border-primary/20 bg-primary/5">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
@@ -35,7 +36,6 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
     uid: doc.id,
   } as any;
 
-  // Serialize any potential timestamps to strings for Client Component transport
   if (data.createdAt instanceof Timestamp) {
     serializedPartner.createdAt = data.createdAt.toDate().toISOString();
   }
@@ -81,6 +81,9 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
   ]);
 
   const lp = partner.landingPage;
+  const heroImage = lp?.heroImageUrl;
+  const overlayOpacity = (lp?.heroOverlayOpacity || 0) / 100;
+  const heroLayout = lp?.heroLayout || 'centered';
 
   const categorizedServices = categories
     .map(category => ({
@@ -92,21 +95,59 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
   return (
     <div className="space-y-24 pb-24">
       {/* Hero Section */}
-      <section className="relative py-20 lg:py-32" style={{ backgroundColor: lp?.secondaryColor || 'rgba(0,0,0,0.03)' }}>
-        <div className="container mx-auto px-4 text-center space-y-8">
-          <div className="max-w-3xl mx-auto space-y-6">
-            <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight">
+      <section 
+        className={cn(
+            "relative py-20 lg:py-32 overflow-hidden flex items-center",
+            heroLayout === 'split-left' ? 'text-left' : heroLayout === 'split-right' ? 'text-right' : 'text-center'
+        )}
+        style={{ 
+            backgroundColor: lp?.secondaryColor || 'rgba(0,0,0,0.03)',
+            minHeight: heroImage ? '500px' : 'auto',
+            backgroundImage: heroImage ? `url(${heroImage})` : 'none',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+        }}
+      >
+        {/* Overlay */}
+        {heroImage && (
+            <div 
+                className="absolute inset-0 z-0" 
+                style={{ backgroundColor: `rgba(0,0,0,${overlayOpacity})` }}
+            />
+        )}
+
+        <div className={cn(
+            "container mx-auto px-4 relative z-10",
+            heroLayout === 'split-left' && 'lg:mr-auto lg:ml-0 lg:max-w-xl',
+            heroLayout === 'split-right' && 'lg:ml-auto lg:mr-0 lg:max-w-xl',
+            heroLayout === 'background' && 'max-w-4xl mx-auto'
+        )}>
+          <div className="space-y-6">
+            <h1 
+                className="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight"
+                style={{ color: heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit' }}
+            >
               {lp?.heroTitle}
             </h1>
-            <p className="text-xl opacity-80 leading-relaxed">
+            <p 
+                className="text-xl opacity-90 leading-relaxed"
+                style={{ color: heroImage && overlayOpacity > 0.3 ? '#ffffff' : 'inherit' }}
+            >
               {lp?.heroSubtitle}
             </p>
           </div>
-          <div className="flex justify-center gap-4">
+          <div className={cn(
+              "flex gap-4 mt-8",
+              heroLayout === 'centered' || heroLayout === 'background' ? 'justify-center' : 
+              heroLayout === 'split-left' ? 'justify-start' : 'justify-end'
+          )}>
             <Button size="lg" className="partner-btn" asChild>
               <Link href="#products">View Our Services</Link>
             </Button>
-            <Button size="lg" variant="outline" className="partner-border partner-text" asChild>
+            <Button size="lg" variant="outline" className={cn(
+                "partner-border",
+                heroImage && overlayOpacity > 0.3 ? "bg-white/10 text-white hover:bg-white/20" : "partner-text"
+            )} asChild>
               <Link href="#about">About Our Practice</Link>
             </Button>
           </div>

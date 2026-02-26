@@ -215,6 +215,10 @@ export type PartnerLandingPageConfig = {
   cardBackgroundColor?: string;
   cardBorderColor?: string;
   logoUrl?: string;
+  logoHeight?: number;
+  heroImageUrl?: string;
+  heroOverlayOpacity?: number;
+  heroLayout?: 'centered' | 'split-left' | 'split-right' | 'background';
   refundPolicy?: string;
   popiaPolicy?: string;
   termsAndConditions?: string;
