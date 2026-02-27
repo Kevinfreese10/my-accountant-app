@@ -25,6 +25,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 const db = getFirestore(firebaseApp);
 
@@ -55,6 +57,7 @@ export default function PdfToCsvPage() {
   const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
   const [currentAccountData, setCurrentAccountData] = useState<{ balance: number, lastTxDate: string | null }>({ balance: 0, lastTxDate: null });
   const [existingTransactions, setExistingTransactions] = useState<ImportedTransaction[]>([]);
+  const [createOpeningBalance, setCreateOpeningBalance] = useState(false);
   
   const [extractedTransactions, setExtractedTransactions] = useState<Transaction[]>([]);
   const [statementMeta, setStatementMeta] = useState<ExtractStatementPeriodOutput | null>(null);
@@ -74,7 +77,7 @@ export default function PdfToCsvPage() {
   useEffect(() => {
     const fetchClients = async () => {
         const snap = await getDocs(query(collection(db, "aiAccountantClients"), orderBy("name")));
-        setClients(snap.docs.map(d => ({ ...d.data(), id: d.id } as UserType)));
+        setClients(snap.docs.map(d => ({ ...d.data(), id: d.id, uid: d.id } as UserType)));
     };
     fetchClients();
   }, []);
@@ -87,6 +90,7 @@ export default function PdfToCsvPage() {
             setBankAccounts(client.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('8400-')) || []);
         }
     }
+    setCreateOpeningBalance(false);
   }, [watchClientId, clients]);
 
   useEffect(() => {
@@ -108,6 +112,7 @@ export default function PdfToCsvPage() {
         });
     };
     fetchAccountStats();
+    setCreateOpeningBalance(false);
   }, [watchClientId, watchBankAccountId]);
 
   const sortedDates = useMemo(() => {
@@ -126,12 +131,13 @@ export default function PdfToCsvPage() {
   const calculatedRecon = useMemo(() => {
     if (!statementMeta) return null;
     const importTotal = filteredTransactions.reduce((s, t) => s + t.amount, 0);
-    const projectedBalance = currentAccountData.balance + importTotal;
+    const startingBalance = createOpeningBalance ? statementMeta.openingBalance : currentAccountData.balance;
+    const projectedBalance = startingBalance + importTotal;
     const diff = Math.abs(projectedBalance - statementMeta.closingBalance);
     const isMatched = diff < 0.01;
 
     return { importTotal, projectedBalance, diff, isMatched };
-  }, [statementMeta, filteredTransactions, currentAccountData.balance]);
+  }, [statementMeta, filteredTransactions, currentAccountData.balance, createOpeningBalance]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const file = values.statement[0];
@@ -178,6 +184,25 @@ export default function PdfToCsvPage() {
 
         const batch = writeBatch(db);
         let matchCount = 0;
+
+        // Create opening balance transaction if requested
+        if (createOpeningBalance && statementMeta) {
+            const openBalRef = doc(collection(db, 'aiAccountantClients', selectedClient.id, 'transactions'));
+            batch.set(openBalRef, {
+                clientId: selectedClient.id,
+                date: new Date(statementMeta.startDate).toISOString(),
+                reference: `OPEN-BAL-${Date.now()}`,
+                description: "OPENING BALANCE",
+                amount: statementMeta.openingBalance,
+                isExpense: statementMeta.openingBalance < 0,
+                bankAccountId: watchBankAccountId,
+                status: 'allocated',
+                allocatedTo: { value: '9500-002', type: 'account' },
+                vatType: 'no_vat',
+                allocatedAt: serverTimestamp(),
+                allocationSource: 'manual'
+            });
+        }
 
         filteredTransactions.forEach(tx => {
             const match = allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase())));
@@ -368,6 +393,9 @@ export default function PdfToCsvPage() {
                                 <div className="p-4 rounded-xl border bg-muted/20 space-y-2">
                                     <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Calculated Recon</p>
                                     <div className="flex justify-between text-xs"><span>Account Current Bal:</span><span>{formatPrice(currentAccountData.balance)}</span></div>
+                                    {createOpeningBalance && (
+                                        <div className="flex justify-between text-xs text-blue-600 font-semibold"><span>Initial Opening Bal:</span><span>{formatPrice(statementMeta?.openingBalance || 0)}</span></div>
+                                    )}
                                     <div className="flex justify-between text-xs"><span>Import Items Total:</span><span className={calculatedRecon?.importTotal! < 0 ? "text-destructive" : "text-green-600"}>{formatPrice(calculatedRecon?.importTotal || 0)}</span></div>
                                     <Separator />
                                     <div className="flex justify-between text-sm font-bold pt-1"><span>Projected GL Bal:</span><span>{formatPrice(calculatedRecon?.projectedBalance || 0)}</span></div>
@@ -389,6 +417,23 @@ export default function PdfToCsvPage() {
                                     )}
                                 </div>
                             </div>
+
+                            {currentAccountData.balance === 0 && statementMeta && statementMeta.openingBalance !== 0 && (
+                                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-start gap-3">
+                                    <Checkbox 
+                                        id="create-opening" 
+                                        checked={createOpeningBalance} 
+                                        onCheckedChange={(v) => setCreateOpeningBalance(!!v)} 
+                                        className="mt-1"
+                                    />
+                                    <div className="space-y-1">
+                                        <Label htmlFor="create-opening" className="text-sm font-bold text-yellow-800">Create Opening Balance Transaction?</Label>
+                                        <p className="text-xs text-yellow-700 leading-relaxed">
+                                            The current bank account balance is zero. Create a transaction for <strong>{formatPrice(statementMeta.openingBalance)}</strong> to match the statement opening balance? This will be posted to the Opening Balance account (9500-002).
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                         <CardFooter className="flex justify-end gap-2 border-t pt-4">
                             <Button variant="ghost" onClick={() => setExtractedTransactions([])}>Clear & Restart</Button>
