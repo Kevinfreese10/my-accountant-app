@@ -22,7 +22,7 @@ import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
@@ -74,7 +74,7 @@ export default function PdfToCsvPage() {
   useEffect(() => {
     const fetchClients = async () => {
         const snap = await getDocs(query(collection(db, "aiAccountantClients"), orderBy("name")));
-        setClients(snap.docs.map(d => ({ ...d.data(), id: doc.id } as UserType)));
+        setClients(snap.docs.map(d => ({ ...d.data(), id: d.id } as UserType)));
     };
     fetchClients();
   }, []);
