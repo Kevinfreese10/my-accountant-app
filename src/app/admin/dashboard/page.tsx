@@ -8,7 +8,7 @@ import { format, isPast } from 'date-fns';
 import { Task, User, Order } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, CalendarIcon, Loader2, Repeat, Check, Eye, ClipboardList, Edit, CheckSquare, X } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Loader2, Repeat, Check, Eye, ClipboardList, Edit, CheckSquare, X, Filter } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +21,7 @@ import TaskForm from '@/components/admin/TaskForm';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const db = getFirestore(firebaseApp);
 
@@ -41,6 +42,16 @@ const getUserColor = (userId: string) => {
   return userColors[hash % userColors.length];
 };
 
+const taskTypeLabels: Record<string, string> = {
+    'VAT201': 'VAT Submission (VAT201)',
+    'EMP201': 'Monthly PAYE (EMP201)',
+    'PAYROLL': 'Payroll Preparation',
+    'MGMT': 'Management Accounts',
+    'AFS': 'Annual Financial Statements',
+    'ITR': 'Income Tax Return (ITR14)',
+    'IRP6': 'Provisional Tax (IRP6)',
+};
+
 export default function AdminDashboardPage() {
     const { user } = useAuth();
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -49,6 +60,7 @@ export default function AdminDashboardPage() {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [selectedRoadmapIds, setSelectedRoadmapIds] = useState<string[]>([]);
+    const [taskTypeFilter, setTaskTypeFilter] = useState('all');
     const { toast } = useToast();
     
     useEffect(() => {
@@ -79,10 +91,26 @@ export default function AdminDashboardPage() {
     }, [tasks, user]);
 
     const roadmapTasks = useMemo(() => {
-        return tasks.filter(task => 
+        let filtered = tasks.filter(task => 
             task.createdBy === 'system' && 
             task.status !== 'Done'
-        ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
+        );
+
+        if (taskTypeFilter !== 'all') {
+            filtered = filtered.filter(task => task.type === taskTypeFilter);
+        }
+
+        return filtered.sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
+    }, [tasks, taskTypeFilter]);
+
+    const availableTaskTypes = useMemo(() => {
+        const types = new Set<string>();
+        tasks.forEach(t => {
+            if (t.createdBy === 'system' && t.type) {
+                types.add(t.type);
+            }
+        });
+        return Array.from(types).sort();
     }, [tasks]);
 
     const assignableStaff = useMemo(() => {
@@ -244,7 +272,7 @@ export default function AdminDashboardPage() {
 
                 <Card>
                     <CardHeader>
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                             <div>
                                 <CardTitle className="flex items-center gap-2">
                                     <Repeat className="h-5 w-5 text-primary" />
@@ -252,36 +280,53 @@ export default function AdminDashboardPage() {
                                 </CardTitle>
                                 <CardDescription>Practice-wide automated deadlines.</CardDescription>
                             </div>
-                            {selectedRoadmapIds.length > 0 && (
-                                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
-                                    <Badge variant="secondary" className="px-3 h-8 gap-2">
-                                        {selectedRoadmapIds.length} selected
-                                        <X 
-                                            className="h-3 w-3 cursor-pointer hover:text-destructive" 
-                                            onClick={() => setSelectedRoadmapIds([])}
-                                        />
-                                    </Badge>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button size="sm" className="h-8 gap-2">
-                                                <CheckSquare className="h-4 w-4" />
-                                                Bulk Assign To...
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-56">
-                                            <DropdownMenuLabel>Select Staff Member</DropdownMenuLabel>
-                                            <DropdownMenuSeparator />
-                                            <ScrollArea className="h-64">
-                                                {assignableStaff.map(staff => (
-                                                    <DropdownMenuItem key={staff.id} onSelect={() => handleBulkAssign(staff.id)}>
-                                                        {staff.name}
-                                                    </DropdownMenuItem>
-                                                ))}
-                                            </ScrollArea>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Filter className="h-4 w-4 text-muted-foreground" />
+                                    <Select value={taskTypeFilter} onValueChange={(val) => { setTaskTypeFilter(val); setSelectedRoadmapIds([]); }}>
+                                        <SelectTrigger className="w-[200px] h-9 text-xs">
+                                            <SelectValue placeholder="Filter by service..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Services</SelectItem>
+                                            {availableTaskTypes.map(type => (
+                                                <SelectItem key={type} value={type}>{taskTypeLabels[type] || type}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                            )}
+
+                                {selectedRoadmapIds.length > 0 && (
+                                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+                                        <Badge variant="secondary" className="px-3 h-9 gap-2">
+                                            {selectedRoadmapIds.length} selected
+                                            <X 
+                                                className="h-3 w-3 cursor-pointer hover:text-destructive" 
+                                                onClick={() => setSelectedRoadmapIds([])}
+                                            />
+                                        </Badge>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button size="sm" className="h-9 gap-2">
+                                                    <CheckSquare className="h-4 w-4" />
+                                                    Bulk Assign To...
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-56">
+                                                <DropdownMenuLabel>Select Staff Member</DropdownMenuLabel>
+                                                <DropdownMenuSeparator />
+                                                <ScrollArea className="h-64">
+                                                    {assignableStaff.map(staff => (
+                                                        <DropdownMenuItem key={staff.id} onSelect={() => handleBulkAssign(staff.id)}>
+                                                            {staff.name}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </ScrollArea>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -311,7 +356,10 @@ export default function AdminDashboardPage() {
                                         </TableCell>
                                         <TableCell className="font-medium align-top">
                                             <p className="line-clamp-1">{task.title}</p>
-                                            {task.recurrence && <Badge variant="outline" className="text-[9px] h-4 mt-1 font-bold uppercase">{task.recurrence}</Badge>}
+                                            <div className="flex gap-1.5 mt-1">
+                                                {task.recurrence && <Badge variant="outline" className="text-[9px] h-4 font-bold uppercase">{task.recurrence}</Badge>}
+                                                {task.type && <Badge variant="secondary" className="text-[9px] h-4 font-bold uppercase">{task.type}</Badge>}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="align-top">
                                             <div className="flex items-center -space-x-2">
@@ -361,7 +409,7 @@ export default function AdminDashboardPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {roadmapTasks.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">No upcoming roadmap tasks.</TableCell></TableRow>}
+                                {roadmapTasks.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-12 text-muted-foreground font-medium">No tasks found for the selected filter.</TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </CardContent>
