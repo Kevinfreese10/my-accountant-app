@@ -130,11 +130,21 @@ export default function PdfToCsvPage() {
     return extractedTransactions.filter(tx => tx.date >= startDate && tx.date <= endDate);
   }, [extractedTransactions, sortedDates, dateRange]);
 
+  const incomeTransactions = useMemo(() => {
+    return filteredTransactions.filter(tx => tx.amount > 0);
+  }, [filteredTransactions]);
+
+  const expenseTransactions = useMemo(() => {
+    return filteredTransactions.filter(tx => tx.amount < 0);
+  }, [filteredTransactions]);
+
+  const incomeTotal = useMemo(() => incomeTransactions.reduce((s, t) => s + t.amount, 0), [incomeTransactions]);
+  const expenseTotal = useMemo(() => expenseTransactions.reduce((s, t) => s + t.amount, 0), [expenseTransactions]);
+
   const calculatedRecon = useMemo(() => {
     if (!statementMeta) return null;
     const importTotal = filteredTransactions.reduce((s, t) => s + t.amount, 0);
     const startingBalance = createOpeningBalance ? statementMeta.openingBalance : currentAccountData.balance;
-    // FORMULA UPDATE: Initial Opening Bal - Import Items Total = Projected GL Bal
     const projectedBalance = startingBalance - importTotal;
     const diff = Math.abs(projectedBalance - statementMeta.closingBalance);
     const isMatched = diff < 0.01;
@@ -509,43 +519,83 @@ export default function PdfToCsvPage() {
                     </Card>
 
                     <Card>
-                        <CardHeader className="py-4 flex flex-row items-center justify-between">
+                        <CardHeader className="py-4 flex flex-row items-center justify-between border-b">
                             <CardTitle className="text-md">Transaction Preview</CardTitle>
                             <Button variant="outline" size="sm" onClick={handleDownloadPreviewExcel}>
                                 <FileSpreadsheet className="h-4 w-4 mr-2" /> Download Excel
                             </Button>
                         </CardHeader>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                        <TableHead className="w-24"></TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredTransactions.map((tx, idx) => {
-                                        const potentialDup = isDuplicate(tx);
-                                        return (
-                                            <TableRow key={idx} className={cn(potentialDup && "bg-destructive/5")}>
-                                                <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                                <TableCell>
-                                                    <p className="text-xs font-medium">{tx.description}</p>
-                                                    {potentialDup && <p className="text-[10px] text-destructive flex items-center gap-1 mt-0.5"><AlertTriangle className="h-3 w-3" /> Potential Duplicate (Exists in DB)</p>}
-                                                </TableCell>
-                                                <TableCell className={cn("text-right font-mono text-xs", tx.amount < 0 ? "text-destructive" : "text-green-600")}>{formatPrice(tx.amount)}</TableCell>
-                                                <TableCell className="text-center">
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setExtractedTransactions(prev => prev.filter((_, i) => i !== idx))}>
-                                                        <Trash className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </TableCell>
+                        <CardContent className="p-0 pt-4 space-y-8">
+                            {createOpeningBalance && statementMeta && (
+                                <div className="px-4 pb-4">
+                                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Adjustments</h4>
+                                    <div className="p-3 bg-primary/5 border rounded-lg flex justify-between items-center text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <Badge variant="outline" className="text-[10px] font-bold uppercase border-primary/30 text-primary">System</Badge>
+                                            <span className="font-semibold">{statementMeta.openingBalance < 0 ? "OPENING BALANCE (OVERDRAFT)" : "OPENING BALANCE"}</span>
+                                        </div>
+                                        <span className={cn("font-mono font-bold", statementMeta.openingBalance < 0 ? "text-destructive" : "text-green-600")}>
+                                            {formatPrice(statementMeta.openingBalance)}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="px-4">
+                                <h4 className="text-sm font-bold text-green-600 flex items-center justify-between mb-2">
+                                    <span>Income / Receipts ({incomeTransactions.length})</span>
+                                    <span className="font-mono">{formatPrice(incomeTotal)}</span>
+                                </h4>
+                                <div className="border rounded-md overflow-hidden bg-white">
+                                    <Table>
+                                        <TableHeader className="bg-muted/30">
+                                            <TableRow>
+                                                <TableHead className="text-xs">Date</TableHead>
+                                                <TableHead className="text-xs">Description</TableHead>
+                                                <TableHead className="text-right text-xs">Amount</TableHead>
                                             </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {incomeTransactions.map((tx, idx) => (
+                                                <TableRow key={`inc-${idx}`} className={cn(isDuplicate(tx) && "bg-destructive/5")}>
+                                                    <TableCell className="text-[10px] py-2">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                                    <TableCell className="text-[10px] py-2 font-medium">{tx.description}</TableCell>
+                                                    <TableCell className="text-right font-mono text-[10px] py-2 text-green-600">{formatPrice(tx.amount)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                            {incomeTransactions.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-xs text-muted-foreground py-8">No income detected.</TableCell></TableRow>}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+
+                            <div className="px-4 pb-6">
+                                <h4 className="text-sm font-bold text-destructive flex items-center justify-between mb-2">
+                                    <span>Expenses / Payments ({expenseTransactions.length})</span>
+                                    <span className="font-mono">{formatPrice(expenseTotal)}</span>
+                                </h4>
+                                <div className="border rounded-md overflow-hidden bg-white">
+                                    <Table>
+                                        <TableHeader className="bg-muted/30">
+                                            <TableRow>
+                                                <TableHead className="text-xs">Date</TableHead>
+                                                <TableHead className="text-xs">Description</TableHead>
+                                                <TableHead className="text-right text-xs">Amount</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {expenseTransactions.map((tx, idx) => (
+                                                <TableRow key={`exp-${idx}`} className={cn(isDuplicate(tx) && "bg-destructive/5")}>
+                                                    <TableCell className="text-[10px] py-2">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                                    <TableCell className="text-[10px] py-2 font-medium">{tx.description}</TableCell>
+                                                    <TableCell className="text-right font-mono text-[10px] py-2 text-destructive">{formatPrice(tx.amount)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                            {expenseTransactions.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-xs text-muted-foreground py-8">No expenses detected.</TableCell></TableRow>}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
