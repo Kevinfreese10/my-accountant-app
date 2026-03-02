@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Download, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Search, ArrowRight, User, Banknote, Calendar as CalendarIcon, CheckCheck, ChevronsUpDown, Info, RotateCcw, Trash } from 'lucide-react';
+import { Loader2, Download, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Search, ArrowRight, User, Banknote, Calendar as CalendarIcon, CheckCheck, ChevronsUpDown, Info, RotateCcw, Trash, FileSpreadsheet } from 'lucide-react';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { extractStatementPeriod, ExtractStatementPeriodOutput } from '@/ai/flows/extract-statement-period';
 import { getFirestore, collection, getDocs, doc, query, where, getDoc, writeBatch, serverTimestamp, orderBy, limit } from 'firebase/firestore';
@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
 
@@ -43,10 +44,11 @@ type Transaction = {
 };
 
 const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
+    const formatted = new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
-    }).format(price);
+    }).format(Math.abs(price));
+    return price < 0 ? `-${formatted}` : formatted;
 };
 
 export default function PdfToCsvPage() {
@@ -132,7 +134,8 @@ export default function PdfToCsvPage() {
     if (!statementMeta) return null;
     const importTotal = filteredTransactions.reduce((s, t) => s + t.amount, 0);
     const startingBalance = createOpeningBalance ? statementMeta.openingBalance : currentAccountData.balance;
-    const projectedBalance = startingBalance + importTotal;
+    // FORMULA UPDATE: Initial Opening Bal - Import Items Total = Projected GL Bal
+    const projectedBalance = startingBalance - importTotal;
     const diff = Math.abs(projectedBalance - statementMeta.closingBalance);
     const isMatched = diff < 0.01;
 
@@ -185,14 +188,14 @@ export default function PdfToCsvPage() {
         const batch = writeBatch(db);
         let matchCount = 0;
 
-        // Create opening balance transaction if requested
         if (createOpeningBalance && statementMeta) {
             const openBalRef = doc(collection(db, 'aiAccountantClients', selectedClient.id, 'transactions'));
+            const isOverdraft = statementMeta.openingBalance < 0;
             batch.set(openBalRef, {
                 clientId: selectedClient.id,
                 date: new Date(statementMeta.startDate).toISOString(),
                 reference: `OPEN-BAL-${Date.now()}`,
-                description: "OPENING BALANCE",
+                description: isOverdraft ? "OPENING BALANCE (OVERDRAFT)" : "OPENING BALANCE",
                 amount: statementMeta.openingBalance,
                 isExpense: statementMeta.openingBalance < 0,
                 bankAccountId: watchBankAccountId,
@@ -253,6 +256,22 @@ export default function PdfToCsvPage() {
     );
   };
 
+  const handleDownloadPreviewExcel = () => {
+    if (filteredTransactions.length === 0) return;
+    
+    const data = filteredTransactions.map(tx => ({
+        'Date': tx.date,
+        'Description': tx.description,
+        'Amount': tx.amount,
+        'Status': isDuplicate(tx) ? 'Potential Duplicate' : 'New'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Statement Transactions");
+    XLSX.writeFile(wb, "Extracted_Transactions.xlsx");
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -302,7 +321,7 @@ export default function PdfToCsvPage() {
                                 <div className="bg-muted/50 p-3 rounded-lg text-xs space-y-1 animate-in fade-in">
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Current Balance:</span>
-                                        <span className="font-bold">{formatPrice(currentAccountData.balance)}</span>
+                                        <span className={cn("font-bold", currentAccountData.balance < 0 ? "text-destructive" : "text-green-600")}>{formatPrice(currentAccountData.balance)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Last Imported:</span>
@@ -345,14 +364,49 @@ export default function PdfToCsvPage() {
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
                             <Info className="h-4 w-4 text-primary" />
-                            Statement Details
+                            Statement Header Stats
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="text-xs space-y-2">
+                    <CardContent className="text-xs space-y-4">
                         <div className="flex justify-between"><span>Period:</span><span className="font-bold">{format(parseISO(statementMeta.startDate), 'dd MMM')} - {format(parseISO(statementMeta.endDate), 'dd MMM yyyy')}</span></div>
-                        <div className="flex justify-between"><span>Opening Bal:</span><span className="font-mono">{formatPrice(statementMeta.openingBalance)}</span></div>
-                        <div className="flex justify-between border-t pt-2 mt-2"><span>Closing Bal:</span><span className="font-mono font-bold text-primary">{formatPrice(statementMeta.closingBalance)}</span></div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] uppercase text-muted-foreground">Opening Balance</Label>
+                            <Input 
+                                type="number" 
+                                step="0.01" 
+                                value={statementMeta.openingBalance} 
+                                onChange={(e) => setStatementMeta(p => p ? {...p, openingBalance: parseFloat(e.target.value) || 0} : null)}
+                                className={cn("h-8 text-xs font-mono font-bold", statementMeta.openingBalance < 0 && "text-destructive border-destructive/30")}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] uppercase text-muted-foreground">Closing Balance</Label>
+                            <Input 
+                                type="number" 
+                                step="0.01" 
+                                value={statementMeta.closingBalance} 
+                                onChange={(e) => setStatementMeta(p => p ? {...p, closingBalance: parseFloat(e.target.value) || 0} : null)}
+                                className={cn("h-8 text-xs font-mono font-bold", statementMeta.closingBalance < 0 && "text-destructive border-destructive/30")}
+                            />
+                        </div>
+                        <div className="flex justify-between items-center bg-background p-2 rounded border">
+                            <span className="text-[10px] font-bold uppercase text-muted-foreground">Net Movement:</span>
+                            <span className={cn("font-mono font-bold", (statementMeta.closingBalance - statementMeta.openingBalance) < 0 ? "text-destructive" : "text-green-600")}>
+                                {formatPrice(statementMeta.closingBalance - statementMeta.openingBalance)}
+                            </span>
+                        </div>
                     </CardContent>
+                    <CardFooter className="pt-0 pb-4">
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="w-full text-[10px] h-7 font-bold uppercase" 
+                            onClick={form.handleSubmit(onSubmit)}
+                            disabled={isExtracting}
+                        >
+                            <RotateCcw className="h-3 w-3 mr-1" /> Recalculate with AI
+                        </Button>
+                    </CardFooter>
                 </Card>
             )}
         </div>
@@ -392,13 +446,23 @@ export default function PdfToCsvPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="p-4 rounded-xl border bg-muted/20 space-y-2">
                                     <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Calculated Recon</p>
-                                    <div className="flex justify-between text-xs"><span>Account Current Bal:</span><span>{formatPrice(currentAccountData.balance)}</span></div>
-                                    {createOpeningBalance && (
-                                        <div className="flex justify-between text-xs text-blue-600 font-semibold"><span>Initial Opening Bal:</span><span>{formatPrice(statementMeta?.openingBalance || 0)}</span></div>
-                                    )}
-                                    <div className="flex justify-between text-xs"><span>Import Items Total:</span><span className={calculatedRecon?.importTotal! < 0 ? "text-destructive" : "text-green-600"}>{formatPrice(calculatedRecon?.importTotal || 0)}</span></div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-muted-foreground">Starting Reference:</span>
+                                        <span className={cn("font-bold", (createOpeningBalance ? statementMeta?.openingBalance! : currentAccountData.balance) < 0 ? "text-destructive" : "text-green-600")}>
+                                            {formatPrice(createOpeningBalance ? statementMeta?.openingBalance! : currentAccountData.balance)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-muted-foreground">Import Items Total:</span>
+                                        <span className={calculatedRecon?.importTotal! < 0 ? "text-destructive" : "text-green-600"}>{formatPrice(calculatedRecon?.importTotal || 0)}</span>
+                                    </div>
                                     <Separator />
-                                    <div className="flex justify-between text-sm font-bold pt-1"><span>Projected GL Bal:</span><span>{formatPrice(calculatedRecon?.projectedBalance || 0)}</span></div>
+                                    <div className="flex justify-between text-sm font-bold pt-1">
+                                        <span>Projected GL Bal:</span>
+                                        <span className={cn(calculatedRecon?.projectedBalance! < 0 ? "text-destructive" : "text-green-600")}>
+                                            {formatPrice(calculatedRecon?.projectedBalance || 0)}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div className={cn("p-4 rounded-xl border flex flex-col justify-center items-center text-center space-y-2 transition-colors", calculatedRecon?.isMatched ? "bg-green-50 border-green-200" : "bg-destructive/5 border-destructive/20")}>
@@ -406,7 +470,7 @@ export default function PdfToCsvPage() {
                                         <>
                                             <CheckCircle2 className="h-8 w-8 text-green-600" />
                                             <p className="text-sm font-bold text-green-800">Perfect Match!</p>
-                                            <p className="text-[10px] text-green-700">Calculated balance matches the statement closing balance.</p>
+                                            <p className="text-[10px] text-green-700">Projected balance matches the statement closing balance.</p>
                                         </>
                                     ) : (
                                         <>
@@ -445,8 +509,11 @@ export default function PdfToCsvPage() {
                     </Card>
 
                     <Card>
-                        <CardHeader className="py-4">
+                        <CardHeader className="py-4 flex flex-row items-center justify-between">
                             <CardTitle className="text-md">Transaction Preview</CardTitle>
+                            <Button variant="outline" size="sm" onClick={handleDownloadPreviewExcel}>
+                                <FileSpreadsheet className="h-4 w-4 mr-2" /> Download Excel
+                            </Button>
                         </CardHeader>
                         <CardContent className="p-0">
                             <Table>
@@ -468,7 +535,7 @@ export default function PdfToCsvPage() {
                                                     <p className="text-xs font-medium">{tx.description}</p>
                                                     {potentialDup && <p className="text-[10px] text-destructive flex items-center gap-1 mt-0.5"><AlertTriangle className="h-3 w-3" /> Potential Duplicate (Exists in DB)</p>}
                                                 </TableCell>
-                                                <TableCell className="text-right font-mono text-xs">{formatPrice(tx.amount)}</TableCell>
+                                                <TableCell className={cn("text-right font-mono text-xs", tx.amount < 0 ? "text-destructive" : "text-green-600")}>{formatPrice(tx.amount)}</TableCell>
                                                 <TableCell className="text-center">
                                                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setExtractedTransactions(prev => prev.filter((_, i) => i !== idx))}>
                                                         <Trash className="h-3.5 w-3.5" />
