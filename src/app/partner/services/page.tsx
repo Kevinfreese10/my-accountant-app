@@ -108,7 +108,7 @@ function EditServiceDialog({
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4 py-4">
+                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto p-1 pr-4">
                         <FormField control={form.control} name="title" render={({ field }) => ( <FormItem><FormLabel>Display Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <div className="grid grid-cols-2 gap-4">
                             <FormField control={form.control} name="price" render={({ field }) => ( <FormItem><FormLabel>Public Selling Price (R)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -123,10 +123,10 @@ function EditServiceDialog({
                             <FormField control={form.control} name="metaDescription" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Meta Description</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem> )} />
                         </div>
 
-                        <DialogFooter className="flex justify-between items-center pt-4">
+                        <DialogFooter className="flex justify-between items-center pt-4 sticky bottom-0 bg-background pb-2 border-t mt-4">
                             {override && (
                                 <Button type="button" variant="outline" onClick={handleReset} className="text-destructive border-destructive/20 hover:bg-destructive/10">
-                                    <RotateCcw className="mr-2 h-4 w-4" /> Reset to Global Default
+                                    <RotateCcw className="mr-2 h-4 w-4" /> Reset to Default
                                 </Button>
                             )}
                             <Button type="submit" disabled={isSaving}>
