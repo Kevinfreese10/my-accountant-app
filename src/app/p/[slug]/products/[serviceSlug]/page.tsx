@@ -1,4 +1,3 @@
-
 import { getFirestore, collection, query, where, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service, Order } from '@/lib/types';
@@ -10,6 +9,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import ServiceCheckoutForm from '@/components/checkout/ServiceCheckoutForm';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Metadata } from 'next';
 
 const db = getFirestore(firebaseApp);
 
@@ -44,7 +44,6 @@ async function getService(slug: string): Promise<Service | null> {
     const doc = snapshot.docs[0];
     const data = doc.data();
     
-    // Convert Firestore Timestamp to a serializable format (ISO string)
     const serviceData = {
         id: doc.id,
         ...data,
@@ -61,6 +60,31 @@ async function getPartnerOverride(partnerId: string, serviceId: string): Promise
     const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', serviceId);
     const snap = await getDoc(overrideRef);
     return snap.exists() ? snap.data() : null;
+}
+
+export async function generateMetadata({ params }: { params: { slug: string, serviceSlug: string } }): Promise<Metadata> {
+  const [partner, rawService] = await Promise.all([
+    getPartnerBySlug(params.slug),
+    getService(params.serviceSlug)
+  ]);
+
+  if (!partner || !rawService) return { title: 'Product Not Found' };
+
+  const override = await getPartnerOverride(partner.id, rawService.id);
+  
+  // Use branded AI title if available, fallback to template
+  const title = override?.metaTitle || `${override?.title || rawService.title} | ${partner.companyName || partner.name}`;
+  const description = override?.metaDescription || override?.description || rawService.metaDescription || rawService.description;
+
+  return {
+    title,
+    description,
+    openGraph: {
+        title,
+        description,
+        images: [rawService.imageUrl],
+    }
+  };
 }
 
 const formatPrice = (price: number) => {
@@ -85,8 +109,10 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
   const lp = partner.landingPage;
   const override = await getPartnerOverride(partner.id, rawService.id);
 
+  // Merge override but prioritize AI branded content
   const service = override ? {
       ...rawService,
+      ...override,
       title: override.title || rawService.title,
       price: override.price ?? rawService.price,
       description: override.description || rawService.description,
@@ -123,7 +149,7 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
           <div className="prose prose-blue max-w-none partner-text-main">
             <h2 className="text-xl font-semibold">Service Description</h2>
             <Separator className="my-4 opacity-20" />
-            <p className="opacity-80 leading-relaxed text-lg">
+            <p className="opacity-80 leading-relaxed text-lg whitespace-pre-wrap">
               {service.longDescription}
             </p>
           </div>

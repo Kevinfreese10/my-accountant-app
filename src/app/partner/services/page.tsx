@@ -1,11 +1,10 @@
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search, Edit3, RotateCcw, Save } from 'lucide-react';
+import { Loader2, Search, Edit3, RotateCcw, Save, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { getFirestore, collection, query, orderBy, getDocs, doc, setDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -17,6 +16,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
+import { brandService } from '@/ai/flows/brand-service';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 
 const db = getFirestore(firebaseApp);
 
@@ -26,6 +28,9 @@ const overrideSchema = z.object({
   description: z.string().min(10, "Short description is required"),
   longDescription: z.string().min(20, "Long description is required"),
   turnaroundTime: z.string().min(1, "Turnaround time is required"),
+  metaTitle: z.string().optional(),
+  metaDescription: z.string().optional(),
+  metaKeywords: z.array(z.string()).optional(),
 });
 
 function EditServiceDialog({ 
@@ -51,6 +56,9 @@ function EditServiceDialog({
             description: override?.description || service.description,
             longDescription: override?.longDescription || service.longDescription,
             turnaroundTime: override?.turnaroundTime || service.turnaroundTime,
+            metaTitle: override?.metaTitle || '',
+            metaDescription: override?.metaDescription || '',
+            metaKeywords: override?.metaKeywords || [],
         },
     });
 
@@ -87,7 +95,7 @@ function EditServiceDialog({
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 gap-2">
+                <Button variant="ghost" size="sm" className="h-8 gap-2 font-bold">
                     <Edit3 className="h-4 w-4" /> Edit Details
                 </Button>
             </DialogTrigger>
@@ -109,6 +117,12 @@ function EditServiceDialog({
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Short Description</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="longDescription" render={({ field }) => ( <FormItem><FormLabel>Full Description</FormLabel><FormControl><Textarea {...field} rows={5} /></FormControl><FormMessage /></FormItem> )} />
                         
+                        <div className="pt-4 space-y-4">
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-primary">SEO Metadata</h4>
+                            <FormField control={form.control} name="metaTitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Branded Meta Title</FormLabel><FormControl><Input {...field} placeholder="Catchy Title | Practice Name" /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="metaDescription" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Meta Description</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem> )} />
+                        </div>
+
                         <DialogFooter className="flex justify-between items-center pt-4">
                             {override && (
                                 <Button type="button" variant="outline" onClick={handleReset} className="text-destructive border-destructive/20 hover:bg-destructive/10">
@@ -133,6 +147,8 @@ export default function PartnerServicesPage() {
   const [overrides, setOverrides] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isBulkBranding, setIsBulkBranding] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<Record<string, 'pending' | 'processing' | 'done' | 'error'>>({});
   const { toast } = useToast();
 
   const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
@@ -167,6 +183,53 @@ export default function PartnerServicesPage() {
     return () => unsubscribe();
   }, [partnerId]);
 
+  const handleBulkBrand = async () => {
+    if (!user?.geminiApiKey || !partnerId) {
+        toast({ title: "API Key Required", description: "Please configure your Gemini API Key in your profile settings.", variant: "destructive" });
+        return;
+    }
+
+    setIsBulkBranding(true);
+    const initialStatus: Record<string, any> = {};
+    services.forEach(s => initialStatus[s.id] = 'pending');
+    setBulkStatus(initialStatus);
+
+    try {
+        for (const service of services) {
+            setBulkStatus(prev => ({ ...prev, [service.id]: 'processing' }));
+            
+            try {
+                const branded = await brandService({
+                    service,
+                    partnerName: user.companyName || user.name,
+                    apiKey: user.geminiApiKey
+                });
+
+                const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
+                const currentOverride = overrides[service.id];
+                
+                await setDoc(overrideRef, {
+                    ...branded,
+                    // Preserve price and turnaround if they already exist, otherwise use global
+                    price: currentOverride?.price ?? service.price,
+                    turnaroundTime: currentOverride?.turnaroundTime ?? service.turnaroundTime
+                }, { merge: true });
+
+                setBulkStatus(prev => ({ ...prev, [service.id]: 'done' }));
+            } catch (err) {
+                console.error(`Branding failed for ${service.title}:`, err);
+                setBulkStatus(prev => ({ ...prev, [service.id]: 'error' }));
+            }
+        }
+        toast({ title: "Bulk Branding Complete", description: "All services have been updated with your practice branding and SEO metadata." });
+    } catch (e) {
+        console.error(e);
+        toast({ title: "Bulk Process Failed", variant: "destructive" });
+    } finally {
+        setIsBulkBranding(false);
+    }
+  };
+
   const filteredServices = useMemo(() => {
     if (!searchTerm) return services;
     return services.filter(service =>
@@ -178,20 +241,54 @@ export default function PartnerServicesPage() {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
-      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(price);
   };
 
+  const bulkProgress = useMemo(() => {
+      const total = services.length;
+      if (total === 0) return 0;
+      const completed = Object.values(bulkStatus).filter(s => s === 'done' || s === 'error').length;
+      return (completed / total) * 100;
+  }, [bulkStatus, services]);
+
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">Our Services</h1>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h1 className="text-3xl font-bold tracking-tight">Our Services</h1>
+        <div className="flex gap-2 w-full md:w-auto">
+            <Button 
+                variant="outline" 
+                onClick={handleBulkBrand} 
+                disabled={isBulkBranding || !user?.geminiApiKey}
+                className="font-bold border-primary/20 hover:bg-primary/5 text-primary w-full md:w-auto"
+            >
+                {isBulkBranding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                Bulk Brand with AI
+            </Button>
+        </div>
+      </div>
+
+      {isBulkBranding && (
+          <Card className="border-primary bg-primary/5 animate-in fade-in slide-in-from-top-2">
+              <CardContent className="p-4 space-y-3">
+                  <div className="flex justify-between items-center text-sm font-bold text-primary">
+                      <span>Branding Practice Catalog...</span>
+                      <span>{Math.round(bulkProgress)}%</span>
+                  </div>
+                  <Progress value={bulkProgress} className="h-2" />
+                  <p className="text-[10px] text-muted-foreground italic">Iterating through services and applying your practice branding to titles, descriptions, and SEO metadata using your Gemini API key.</p>
+              </CardContent>
+          </Card>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <CardTitle>Service & Price List</CardTitle>
-              <CardDescription>View global products and customize pricing for your practice.</CardDescription>
+              <CardDescription>View global products and customize branding/pricing for your public landing page.</CardDescription>
             </div>
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -214,9 +311,9 @@ export default function PartnerServicesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead>Branding</TableHead>
                 <TableHead>Cost to You</TableHead>
-                <TableHead>Public Price (On Your Page)</TableHead>
+                <TableHead>Public Price</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -226,21 +323,32 @@ export default function PartnerServicesPage() {
                   const override = overrides[service.id];
                   const displayPrice = override?.price ?? service.price;
                   const displayTitle = override?.title ?? service.title;
+                  const brandingStatus = bulkStatus[service.id];
 
                   return (
                   <TableRow key={service.id}>
                     <TableCell className="font-medium">
                         <div className="flex flex-col">
-                            <span>{displayTitle}</span>
-                            {override?.title && <span className="text-[10px] text-muted-foreground italic">Orig: {service.title}</span>}
+                            <span className="font-bold">{displayTitle}</span>
+                            <span className="text-[10px] text-muted-foreground line-clamp-1">{override?.description || service.description}</span>
                         </div>
                     </TableCell>
-                    <TableCell>{service.category}</TableCell>
-                    <TableCell className="opacity-70">{formatPrice(service.resellerPrice || service.price)}</TableCell>
+                    <TableCell>
+                        {brandingStatus === 'processing' ? (
+                            <Badge variant="outline" className="animate-pulse h-5 text-[10px]"><Loader2 className="h-2 w-2 mr-1 animate-spin"/> Processing</Badge>
+                        ) : brandingStatus === 'done' || override?.metaTitle ? (
+                            <Badge variant="success" className="bg-green-100 text-green-800 border-green-200 h-5 text-[10px]">Branded</Badge>
+                        ) : brandingStatus === 'error' ? (
+                            <Badge variant="destructive" className="h-5 text-[10px]">Error</Badge>
+                        ) : (
+                            <Badge variant="secondary" className="opacity-50 h-5 text-[10px]">Default</Badge>
+                        )}
+                    </TableCell>
+                    <TableCell className="opacity-70 text-xs">{formatPrice(service.resellerPrice || service.price)}</TableCell>
                     <TableCell>
                         <div className="flex items-center gap-2">
                             <span className="font-bold text-primary">{formatPrice(displayPrice)}</span>
-                            {override?.price !== undefined && <Badge variant="outline" className="text-[9px] h-4">Custom</Badge>}
+                            {override?.price !== undefined && override?.price !== service.price && <Badge variant="outline" className="text-[9px] h-4">Markup</Badge>}
                         </div>
                     </TableCell>
                     <TableCell className="text-right">
