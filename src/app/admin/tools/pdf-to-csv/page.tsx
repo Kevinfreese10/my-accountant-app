@@ -145,7 +145,7 @@ export default function PdfToCsvPage() {
     if (!statementMeta) return null;
     const importTotal = filteredTransactions.reduce((s, t) => s + t.amount, 0);
     const startingBalance = createOpeningBalance ? statementMeta.openingBalance : currentAccountData.balance;
-    const projectedBalance = startingBalance - importTotal;
+    const projectedBalance = startingBalance + importTotal;
     const diff = Math.abs(projectedBalance - statementMeta.closingBalance);
     const isMatched = diff < 0.01;
 
@@ -521,7 +521,7 @@ export default function PdfToCsvPage() {
                     <Card>
                         <CardHeader className="py-4 flex flex-row items-center justify-between border-b">
                             <CardTitle className="text-md">Transaction Preview</CardTitle>
-                            <Button variant="outline" size="sm" onClick={handleDownloadPreviewExcel}>
+                            <Button variant="outline" size="sm" onClick={handleDownloadPreviewExcel} disabled={filteredTransactions.length === 0}>
                                 <FileSpreadsheet className="h-4 w-4 mr-2" /> Download Excel
                             </Button>
                         </CardHeader>
