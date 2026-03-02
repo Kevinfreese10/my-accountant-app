@@ -1,3 +1,4 @@
+
 import { getFirestore, collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service } from '@/lib/types';
@@ -58,6 +59,14 @@ async function getServices(): Promise<Service[]> {
   });
 }
 
+async function getPartnerOverrides(partnerId: string): Promise<Record<string, any>> {
+    const overridesRef = collection(db, 'users', partnerId, 'serviceOverrides');
+    const snap = await getDocs(overridesRef);
+    const overrides: Record<string, any> = {};
+    snap.docs.forEach(doc => overrides[doc.id] = doc.data());
+    return overrides;
+}
+
 async function getCategories(): Promise<Category[]> {
     const q = query(collection(db, "categories"), orderBy("order"));
     const snapshot = await getDocs(q);
@@ -77,9 +86,10 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
   const partner = await getPartnerBySlug(params.slug);
   if (!partner) return null;
 
-  const [services, categories] = await Promise.all([
+  const [globalServices, categories, overrides] = await Promise.all([
     getServices(),
-    getCategories()
+    getCategories(),
+    getPartnerOverrides(partner.id)
   ]);
 
   const lp = partner.landingPage;
@@ -88,6 +98,19 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
   const heroLayout = lp?.heroLayout || 'centered';
   const textPosition = lp?.heroTextPosition || 'inside';
   const servicesHeroLayout = lp?.servicesHeroLayout || 'centered';
+
+  const services = globalServices.map(s => {
+      const override = overrides[s.id];
+      if (!override) return s;
+      return {
+          ...s,
+          title: override.title || s.title,
+          price: override.price ?? s.price,
+          description: override.description || s.description,
+          longDescription: override.longDescription || s.longDescription,
+          turnaroundTime: override.turnaroundTime || s.turnaroundTime,
+      };
+  });
 
   const categorizedServices = categories
     .map(category => ({

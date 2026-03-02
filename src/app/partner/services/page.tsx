@@ -5,45 +5,170 @@ import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import ServicePreview from '@/components/admin/ServicePreview';
-import { getFirestore, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { Loader2, Search, Edit3, RotateCcw, Save } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { getFirestore, collection, query, orderBy, getDocs, doc, setDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import { useAuth } from '@/contexts/AuthContext';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Textarea } from '@/components/ui/textarea';
 
 const db = getFirestore(firebaseApp);
 
+const overrideSchema = z.object({
+  title: z.string().min(3, "Title is required"),
+  price: z.preprocess(val => Number(val), z.number().min(0, "Price must be positive")),
+  description: z.string().min(10, "Short description is required"),
+  longDescription: z.string().min(20, "Long description is required"),
+  turnaroundTime: z.string().min(1, "Turnaround time is required"),
+});
+
+function EditServiceDialog({ 
+    service, 
+    override, 
+    partnerId, 
+    onSuccess 
+}: { 
+    service: Service, 
+    override: any, 
+    partnerId: string,
+    onSuccess: () => void 
+}) {
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+
+    const form = useForm<z.infer<typeof overrideSchema>>({
+        resolver: zodResolver(overrideSchema),
+        defaultValues: {
+            title: override?.title || service.title,
+            price: override?.price ?? service.price,
+            description: override?.description || service.description,
+            longDescription: override?.longDescription || service.longDescription,
+            turnaroundTime: override?.turnaroundTime || service.turnaroundTime,
+        },
+    });
+
+    const handleSave = async (values: z.infer<typeof overrideSchema>) => {
+        setIsSaving(true);
+        try {
+            const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
+            await setDoc(overrideRef, values);
+            toast({ title: "Service Updated", description: "Changes will reflect on your public landing page." });
+            onSuccess();
+            setIsOpen(false);
+        } catch (e) {
+            toast({ title: "Error", description: "Failed to save overrides.", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleReset = async () => {
+        setIsSaving(true);
+        try {
+            const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
+            await deleteDoc(overrideRef);
+            toast({ title: "Reset Successful", description: "Reverted to global default settings." });
+            onSuccess();
+            setIsOpen(false);
+        } catch (e) {
+            toast({ title: "Error", description: "Failed to reset.", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 gap-2">
+                    <Edit3 className="h-4 w-4" /> Edit Details
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Edit Service Details</DialogTitle>
+                    <DialogDescription>
+                        Customize how this service appears on your public practice landing page. 
+                        Cost to you: <strong>{new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(service.resellerPrice || service.price)}</strong>
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4 py-4">
+                        <FormField control={form.control} name="title" render={({ field }) => ( <FormItem><FormLabel>Display Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField control={form.control} name="price" render={({ field }) => ( <FormItem><FormLabel>Public Selling Price (R)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                            <FormField control={form.control} name="turnaroundTime" render={({ field }) => ( <FormItem><FormLabel>Turnaround Time</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        </div>
+                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Short Description</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="longDescription" render={({ field }) => ( <FormItem><FormLabel>Full Description</FormLabel><FormControl><Textarea {...field} rows={5} /></FormControl><FormMessage /></FormItem> )} />
+                        
+                        <DialogFooter className="flex justify-between items-center pt-4">
+                            {override && (
+                                <Button type="button" variant="outline" onClick={handleReset} className="text-destructive border-destructive/20 hover:bg-destructive/10">
+                                    <RotateCcw className="mr-2 h-4 w-4" /> Reset to Global Default
+                                </Button>
+                            )}
+                            <Button type="submit" disabled={isSaving}>
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                Save Customizations
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function PartnerServicesPage() {
+  const { user } = useAuth();
   const [services, setServices] = useState<Service[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [viewingService, setViewingService] = useState<Service | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
+  const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
+
+  const fetchServices = async () => {
+    setIsLoading(true);
+    try {
+        const q = query(collection(db, "services"), orderBy("title"));
+        const querySnapshot = await getDocs(q);
+        const fetchedServices = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
+        setServices(fetchedServices);
+    } catch (error) {
+        console.error("Error fetching services:", error);
+        toast({ title: "Error", description: "Could not load products.", variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchServices = async () => {
-        setIsLoading(true);
-        try {
-            const q = query(collection(db, "services"), orderBy("title"));
-            const querySnapshot = await getDocs(q);
-            const fetchedServices = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
-            setServices(fetchedServices);
-        } catch (error) {
-            console.error("Error fetching services:", error);
-            toast({ title: "Error", description: "Could not load products.", variant: "destructive" });
-        } finally {
-            setIsLoading(false);
-        }
-    };
     fetchServices();
   }, [toast]);
 
+  useEffect(() => {
+    if (!partnerId) return;
+    const overridesRef = collection(db, 'users', partnerId, 'serviceOverrides');
+    const unsubscribe = onSnapshot(overridesRef, (snap) => {
+        const data: Record<string, any> = {};
+        snap.docs.forEach(doc => data[doc.id] = doc.data());
+        setOverrides(data);
+    });
+    return () => unsubscribe();
+  }, [partnerId]);
+
   const filteredServices = useMemo(() => {
-    if (!searchTerm) {
-      return services;
-    }
+    if (!searchTerm) return services;
     return services.filter(service =>
       service.title.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -66,7 +191,7 @@ export default function PartnerServicesPage() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <CardTitle>Service & Price List</CardTitle>
-              <CardDescription>A complete list of all services available for you to partner with us on.</CardDescription>
+              <CardDescription>View global products and customize pricing for your practice.</CardDescription>
             </div>
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -90,39 +215,48 @@ export default function PartnerServicesPage() {
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
-                <TableHead>Public Price</TableHead>
-                <TableHead>Your Price</TableHead>
+                <TableHead>Cost to You</TableHead>
+                <TableHead>Public Price (On Your Page)</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredServices.length > 0 ? (
-                filteredServices.map(service => (
+                filteredServices.map(service => {
+                  const override = overrides[service.id];
+                  const displayPrice = override?.price ?? service.price;
+                  const displayTitle = override?.title ?? service.title;
+
+                  return (
                   <TableRow key={service.id}>
-                    <TableCell className="font-medium">{service.title}</TableCell>
+                    <TableCell className="font-medium">
+                        <div className="flex flex-col">
+                            <span>{displayTitle}</span>
+                            {override?.title && <span className="text-[10px] text-muted-foreground italic">Orig: {service.title}</span>}
+                        </div>
+                    </TableCell>
                     <TableCell>{service.category}</TableCell>
-                    <TableCell>{formatPrice(service.price)}</TableCell>
-                    <TableCell className="font-semibold">{service.resellerPrice ? formatPrice(service.resellerPrice) : 'N/A'}</TableCell>
+                    <TableCell className="opacity-70">{formatPrice(service.resellerPrice || service.price)}</TableCell>
+                    <TableCell>
+                        <div className="flex items-center gap-2">
+                            <span className="font-bold text-primary">{formatPrice(displayPrice)}</span>
+                            {override?.price !== undefined && <Badge variant="outline" className="text-[9px] h-4">Custom</Badge>}
+                        </div>
+                    </TableCell>
                     <TableCell className="text-right">
-                      <Dialog onOpenChange={(isOpen) => !isOpen && setViewingService(null)}>
-                          <DialogTrigger asChild>
-                              <Button variant="ghost" size="sm" onClick={() => setViewingService(service)}>
-                                  View Details
-                              </Button>
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-2xl">
-                            <DialogHeader>
-                                <DialogTitle>Product Preview</DialogTitle>
-                                <DialogDescription>
-                                    This is how your clients will see the product on the public-facing site.
-                                </DialogDescription>
-                            </DialogHeader>
-                            {viewingService && <ServicePreview service={viewingService} />}
-                        </DialogContent>
-                      </Dialog>
+                      <div className="flex justify-end gap-2">
+                        {partnerId && (
+                            <EditServiceDialog 
+                                service={service} 
+                                override={override} 
+                                partnerId={partnerId} 
+                                onSuccess={() => {}} 
+                            />
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
-                ))
+                )})
               ) : (
                  <TableRow>
                     <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">

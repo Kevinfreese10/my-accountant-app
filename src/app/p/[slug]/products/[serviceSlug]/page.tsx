@@ -1,3 +1,4 @@
+
 import { getFirestore, collection, query, where, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service, Order } from '@/lib/types';
@@ -56,6 +57,12 @@ async function getService(slug: string): Promise<Service | null> {
     return serviceData as Service;
 }
 
+async function getPartnerOverride(partnerId: string, serviceId: string): Promise<any | null> {
+    const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', serviceId);
+    const snap = await getDoc(overrideRef);
+    return snap.exists() ? snap.data() : null;
+}
+
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
@@ -66,16 +73,26 @@ const formatPrice = (price: number) => {
 };
 
 export default async function PartnerProductDetailPage({ params }: { params: { slug: string, serviceSlug: string } }) {
-  const [partner, service] = await Promise.all([
+  const [partner, rawService] = await Promise.all([
     getPartnerBySlug(params.slug),
     getService(params.serviceSlug)
   ]);
 
-  if (!partner || !service) {
+  if (!partner || !rawService) {
     notFound();
   }
 
   const lp = partner.landingPage;
+  const override = await getPartnerOverride(partner.id, rawService.id);
+
+  const service = override ? {
+      ...rawService,
+      title: override.title || rawService.title,
+      price: override.price ?? rawService.price,
+      description: override.description || rawService.description,
+      longDescription: override.longDescription || rawService.longDescription,
+      turnaroundTime: override.turnaroundTime || rawService.turnaroundTime,
+  } : rawService;
 
   return (
     <div className="container mx-auto px-4 py-12">
