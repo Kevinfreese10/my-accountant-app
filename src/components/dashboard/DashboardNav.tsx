@@ -23,6 +23,7 @@ import {
   Wrench,
   PanelLeft,
   ChevronDown,
+  FileUser,
 } from 'lucide-react';
 
 import {
@@ -71,6 +72,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const adminNavItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
+    { href: '/admin/cv-leads', label: 'CV Leads', icon: FileUser, roles: ['admin'] },
     { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
@@ -209,20 +211,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
                     </SidebarMenuButton>
                 </CollapsibleTrigger>
                 </SidebarMenuItem>
-                <CollapsibleContent asChild>
-                <SidebarMenu className="pl-4">
-                    {visibleSettingsNavItems.map(item => (
-                    <SidebarMenuItem key={item.label}>
-                        <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label} className="h-8">
-                        <Link href={item.href}>
-                            <item.icon />
-                            <span>{item.label}</span>
-                        </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    ))}
-                </SidebarMenu>
-                </CollapsibleContent>
             </Collapsible>
         )}
       </SidebarMenu>
