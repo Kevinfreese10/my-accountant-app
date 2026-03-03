@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
@@ -9,13 +8,14 @@ import { Form } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useBlog } from '@/contexts/BlogContext';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Sparkles, Loader2, Save } from 'lucide-react';
+import { Sparkles, Loader2, Save, CheckCircle2 } from 'lucide-react';
 import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Service } from '@/lib/types';
 import SeoPageForm from '@/components/admin/SeoPageForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
