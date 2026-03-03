@@ -12,6 +12,9 @@ export default function PartnerHeader({ partner }: { partner: User }) {
   const showLogo = lp?.showLogo !== false;
   const hideBranding = lp?.hideHeaderBranding === true;
 
+  const btnBg = lp?.buttonColor || lp?.primaryColor || undefined;
+  const btnText = lp?.buttonTextColor || undefined;
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm h-16 flex items-center">
       <div className="container mx-auto flex items-center justify-between px-4">
@@ -49,7 +52,7 @@ export default function PartnerHeader({ partner }: { partner: User }) {
           <Button variant="ghost" asChild className="hidden sm:inline-flex">
             <Link href={`/p/${lp?.slug}#products`}>Services</Link>
           </Button>
-          <Button asChild style={{ backgroundColor: lp?.primaryColor || undefined }}>
+          <Button asChild style={{ backgroundColor: btnBg, color: btnText }}>
             <Link href="/login">
               <LogIn className="mr-2 h-4 w-4" /> Portal Login
             </Link>

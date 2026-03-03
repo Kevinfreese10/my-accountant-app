@@ -73,10 +73,12 @@ export default async function PartnerLandingLayout({
           --partner-text: ${lp?.textColor || '#111827'};
           --partner-card-bg: ${lp?.cardBackgroundColor || '#ffffff'};
           --partner-card-border: ${lp?.cardBorderColor || '#e5e7eb'};
+          --partner-btn-bg: ${lp?.buttonColor || lp?.primaryColor || '#214392'};
+          --partner-btn-text: ${lp?.buttonTextColor || '#ffffff'};
         }
         .partner-btn {
-          background-color: var(--partner-primary) !important;
-          color: white !important;
+          background-color: var(--partner-btn-bg) !important;
+          color: var(--partner-btn-text) !important;
         }
         .partner-btn-secondary {
           background-color: var(--partner-secondary) !important;
