@@ -20,6 +20,7 @@ import { brandService } from '@/ai/flows/brand-service';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
