@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, Sparkles, AlertTriangle, CheckCircle2, ArrowRight, Download, Mail, Info } from 'lucide-react';
+import { Loader2, FileText, Sparkles, AlertTriangle, CheckCircle2, ArrowRight, Download, Mail, Info, Search, Target, Zap } from 'lucide-react';
 import { checkCV, CVAnalysisOutput } from '@/ai/flows/check-cv-flow';
 import { Progress } from '@/components/ui/progress';
 import { saveCvLead } from '@/app/actions';
@@ -23,6 +23,8 @@ import { Badge } from '@/components/ui/badge';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import Link from 'next/link';
 import { Service } from '@/lib/types';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 const storage = getStorage(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -31,7 +33,7 @@ const formSchema = z.object({
   cvFile: z.custom<FileList>().refine((files) => files && files.length > 0, 'A CV file is required (PDF).'),
   targetRole: z.string().min(2, 'Please enter a target role.'),
   jobDescription: z.string().optional(),
-  email: z.string().email('Please enter a valid email.').optional().or(z.literal('')),
+  email: z.string().email('Please enter a valid email address.'),
   consentStorage: z.boolean().default(false),
 });
 
@@ -93,22 +95,20 @@ export default function CVCheckerPage() {
         setResult(analysis);
 
         // Lead capture logic
-        if (values.email || values.consentStorage) {
-          let cvUrl = '';
-          if (values.consentStorage) {
-            const fileRef = ref(storage, `cv-leads/${Date.now()}-${file.name}`);
-            await uploadBytes(fileRef, file);
-            cvUrl = await getDownloadURL(fileRef);
-          }
-
-          await saveCvLead({
-            email: values.email,
-            role: values.targetRole,
-            score: analysis.scores.overallScore,
-            analysis: analysis,
-            cvUrl: cvUrl || undefined,
-          });
+        let cvUrl = '';
+        if (values.consentStorage) {
+          const fileRef = ref(storage, `cv-leads/${Date.now()}-${file.name}`);
+          await uploadBytes(fileRef, file);
+          cvUrl = await getDownloadURL(fileRef);
         }
+
+        await saveCvLead({
+          email: values.email,
+          role: values.targetRole,
+          score: analysis.scores.overallScore,
+          analysis: analysis,
+          cvUrl: cvUrl || undefined,
+        });
 
         toast({ title: 'Analysis Complete!', description: 'Your CV has been scored and improved.' });
       } catch (error) {
@@ -135,13 +135,33 @@ export default function CVCheckerPage() {
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl space-y-12">
-      <section className="text-center space-y-4">
-        <h1 className="text-4xl font-extrabold tracking-tight md:text-6xl text-foreground">
-          Free AI <span className="text-gradient">#CV-Checker</span>
-        </h1>
-        <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Get an instant ATS compatibility score and professional achievement-based rewrites in seconds.
-        </p>
+      <section className="text-center space-y-6 max-w-3xl mx-auto">
+        <div className="space-y-2">
+            <h1 className="text-4xl font-extrabold tracking-tight md:text-6xl text-foreground">
+            Free AI <span className="text-gradient">#CV-Checker</span>
+            </h1>
+            <p className="text-lg text-muted-foreground">
+            Our advanced AI tool analyzes your CV against recruitment benchmarks and specific job requirements to help you land your next role.
+            </p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+            <div className="flex flex-col gap-2 p-4 rounded-xl border bg-muted/20">
+                <Search className="h-6 w-6 text-primary" />
+                <h3 className="font-bold text-sm uppercase tracking-tight">ATS Optimization</h3>
+                <p className="text-xs text-muted-foreground">Checks if your CV is formatted correctly for Applicant Tracking Systems.</p>
+            </div>
+            <div className="flex flex-col gap-2 p-4 rounded-xl border bg-muted/20">
+                <Target className="h-6 w-6 text-primary" />
+                <h3 className="font-bold text-sm uppercase tracking-tight">Role-Fit Analysis</h3>
+                <p className="text-xs text-muted-foreground">Matches your experience against the target job title or description.</p>
+            </div>
+            <div className="flex flex-col gap-2 p-4 rounded-xl border bg-muted/20">
+                <Zap className="h-6 w-6 text-primary" />
+                <h3 className="font-bold text-sm uppercase tracking-tight">Smart Rewrites</h3>
+                <p className="text-xs text-muted-foreground">Provides achievement-based bullet points to improve your impact.</p>
+            </div>
+        </div>
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -149,8 +169,8 @@ export default function CVCheckerPage() {
         <div className="lg:col-span-5">
           <Card className="border-2 shadow-lg">
             <CardHeader>
-              <CardTitle>CV Details</CardTitle>
-              <CardDescription>Upload your PDF and tell us what role you're after.</CardDescription>
+              <CardTitle>CV Analysis Details</CardTitle>
+              <CardDescription>Upload your PDF and enter your target role to begin.</CardDescription>
             </CardHeader>
             <CardContent>
               <Form {...form}>
@@ -160,7 +180,7 @@ export default function CVCheckerPage() {
                     name="cvFile"
                     render={({ field: { onChange, value, ...rest } }) => (
                       <FormItem>
-                        <FormLabel>CV (PDF format)</FormLabel>
+                        <FormLabel>Upload CV (PDF only)</FormLabel>
                         <FormControl>
                           <Input
                             type="file"
@@ -192,7 +212,7 @@ export default function CVCheckerPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Job Description (Optional)</FormLabel>
-                        <FormControl><Textarea placeholder="Paste the JD here for a deeper role-fit analysis..." rows={4} {...field} /></FormControl>
+                        <FormControl><Textarea placeholder="Paste the full job description here for a deeper role-fit analysis..." rows={4} {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -206,9 +226,9 @@ export default function CVCheckerPage() {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email (Optional)</FormLabel>
-                          <FormControl><Input placeholder="To receive the full report + free template" {...field} /></FormControl>
-                          <FormDescription className="text-[10px]">We'll send you the improved bullets and professional summary.</FormDescription>
+                          <FormLabel>Email Address</FormLabel>
+                          <FormControl><Input placeholder="e.g. name@example.com" {...field} /></FormControl>
+                          <FormDescription className="text-[10px]">We'll use this to securely save your analysis and improved bullets.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -234,7 +254,7 @@ export default function CVCheckerPage() {
 
                   <Button type="submit" className="w-full h-12 font-bold text-lg" disabled={isAnalyzing}>
                     {isAnalyzing ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
-                    {isAnalyzing ? 'Analyzing CV...' : 'Check My CV Now'}
+                    {isAnalyzing ? 'Analyzing CV...' : 'Analyze My CV'}
                   </Button>
                 </form>
               </Form>
