@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
 const navLinks = [
@@ -34,8 +34,11 @@ const Header = () => {
   const { itemCount } = useCart();
   const { user, logout, isAuthenticated } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
+  const isAuthPage = pathname === '/login' || pathname === '/signup';
+
   const handleLogout = () => {
     logout();
     router.push('/');
@@ -48,14 +51,16 @@ const Header = () => {
           <Link href="/" className="text-2xl font-bold text-gradient">
             My Accountant
           </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium lg:flex">
-            {navLinks.map(link => (
-              <Link key={link.href} href={link.href} className="text-foreground/80 transition-colors hover:text-foreground flex items-center gap-1.5">
-                {link.icon && <link.icon className="h-4 w-4" />}
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          {!isAuthPage && (
+            <nav className="hidden items-center gap-6 text-sm font-medium lg:flex">
+              {navLinks.map(link => (
+                <Link key={link.href} href={link.href} className="text-foreground/80 transition-colors hover:text-foreground flex items-center gap-1.5">
+                  {link.icon && <link.icon className="h-4 w-4" />}
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+          )}
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
@@ -96,7 +101,7 @@ const Header = () => {
                   <Link href="/" className="text-2xl font-bold text-primary" onClick={() => setMobileMenuOpen(false)}>
                     My Accountant
                   </Link>
-                   {navLinks.map(link => (
+                   {!isAuthPage && navLinks.map(link => (
                     <Link key={link.href} href={link.href} className="text-lg font-medium text-foreground/80 transition-colors hover:text-foreground flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
                       {link.icon && <link.icon className="h-5 w-5" />}
                       {link.label}

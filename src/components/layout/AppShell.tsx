@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +16,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
     setMounted(true);
   }, []);
 
+  const isAuthPage = pathname === '/login' || pathname === '/signup';
+  
   const isDashboardPage = pathname ? (
     pathname.startsWith('/admin') ||
     pathname.startsWith('/dashboard') ||
@@ -24,19 +25,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
     pathname.startsWith('/p/')
   ) : false;
 
-  // Use a 'mounted' check to prevent hydration mismatch for components 
-  // that depend on browser-only state like window.location or dynamic imports with ssr: false
-  const shouldShowHeaderFooter = mounted && !isDashboardPage;
+  // Use a 'mounted' check to prevent hydration mismatch
+  const shouldShowHeader = mounted && (!isDashboardPage || isAuthPage);
+  const shouldShowFooter = mounted && !isDashboardPage && !isAuthPage;
 
   return (
     <div className="flex min-h-screen flex-col">
-      {shouldShowHeaderFooter && <Header />}
+      {shouldShowHeader && <Header />}
       <main className="flex-grow bg-background">{children}</main>
-      {shouldShowHeaderFooter && (
-        <>
-          <Footer />
-        </>
-      )}
+      {shouldShowFooter && <Footer />}
     </div>
   );
 }
