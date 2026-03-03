@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles, Globe, HeartHandshake, Percent, ClipboardList, TrendingUp, ExternalLink, AlertCircle, Zap, ShieldAlert, BarChart3 } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles, Globe, HeartHandshake, Percent, ClipboardList, TrendingUp, ExternalLink, AlertCircle, Zap, ShieldAlert, BarChart3, LayoutDashboard, LifeBuoy } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import dynamic from 'next/dynamic';
@@ -73,9 +73,34 @@ export default function BecomeAPartnerPage() {
         description: 'Get 25% off My Accountant service fees (excl. 3rd party costs). Enjoy high margins while offering competitive pricing.',
     },
     {
-        icon: <HeartHandshake className="h-6 w-6 text-primary" />,
-        title: 'White-Label Outsourcing',
-        description: 'Our back-office fulfills orders under your brand. All client communication uses your identity and SMTP server.',
+        icon: <LayoutDashboard className="h-6 w-6 text-primary" />,
+        title: 'Reseller Dashboard',
+        description: 'Access your dedicated reseller dashboard to create and manage client orders, track progress in real time, and outsource orders directly through a secure platform.',
+    },
+    {
+        icon: <Users className="h-6 w-6 text-primary" />,
+        title: 'Outsourcing Opportunities',
+        description: 'Join a growing pool of bookkeepers and accountants who share work through the BEI network. Take on client work from other members and refer clients.',
+    },
+    {
+        icon: <ShieldCheck className="h-6 w-6 text-primary" />,
+        title: 'Seamless Outsourcing (White-Label Model)',
+        description: 'We communicate with you — you communicate with your client. Deliverables are sent to you, ensuring you remain the sole point of contact.',
+    },
+    {
+        icon: <GraduationCap className="h-6 w-6 text-primary" />,
+        title: 'Mentorship & Training',
+        description: 'Get practical guidance from experienced accountants. Join monthly training webinars and Q&A sessions to help you price, sell, and manage effectively.',
+    },
+    {
+        icon: <FileText className="h-6 w-6 text-primary" />,
+        title: 'Document Templates & Compliance Tools',
+        description: 'Save time with professional templates for engagement letters, employment contracts, pricing schedules, and POPIA compliance documents.',
+    },
+    {
+        icon: <LifeBuoy className="h-6 w-6 text-primary" />,
+        title: 'Technical & Partner Support',
+        description: 'Our technical team ensures your dashboard runs smoothly. You\'ll have access to support whenever you need help with your account or system setup.',
     },
     {
         icon: <ClipboardList className="h-6 w-6 text-primary" />,
@@ -83,19 +108,9 @@ export default function BecomeAPartnerPage() {
         description: 'Automated task creation based on client needs (VAT, PAYE, etc.). Never miss a SARS or CIPC deadline again.',
     },
     {
-        icon: <Users className="h-6 w-6 text-primary" />,
-        title: 'Staff Management Module',
-        description: 'Assign tasks to your team, track progress, and manage internal workflows through a dedicated practice portal.',
-    },
-    {
         icon: <TrendingUp className="h-6 w-6 text-primary" />,
         title: 'Flexible Pricing Control',
         description: 'Edit your own selling prices on your landing page. Our wholesale costs remain fixed, giving you full control over profit.',
-    },
-    {
-        icon: <Globe className="h-6 w-6 text-primary" />,
-        title: 'Custom Landing Page',
-        description: 'Get a professional, white-labeled landing page to showcase your services. Fully customizable colors and logo.',
     },
   ];
 
@@ -232,7 +247,7 @@ export default function BecomeAPartnerPage() {
       </section>
       
       {/* Key Benefits Grid */}
-      <section id="benefits" className="bg-white py-24 border-t border-b">
+      <section id="benefits" className="bg-white py-24 border-t border-b scroll-m-20">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16">
                 <h2 className="text-4xl font-bold tracking-tight">Key Benefits of Joining</h2>
