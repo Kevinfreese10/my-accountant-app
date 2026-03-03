@@ -5,7 +5,6 @@
  * - checkCV - A function that analyzes a CV PDF and returns scores and suggestions.
  */
 
-import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const CVAnalysisInputSchema = z.object({
@@ -40,21 +39,30 @@ const CVAnalysisOutputSchema = z.object({
 });
 export type CVAnalysisOutput = z.infer<typeof CVAnalysisOutputSchema>;
 
-export async function checkCV(input: CVAnalysisInput): Promise<CVAnalysisOutput> {
-  return checkCVFlow(input);
-}
+const CV_CHECKER_API_KEY = 'AIzaSyAjAteC-Sf0wcL4_9P9LOsi7-T3EpbQZjY';
 
-const prompt = ai.definePrompt({
-  name: 'checkCVPrompt',
-  input: { schema: CVAnalysisInputSchema },
-  output: { schema: CVAnalysisOutputSchema },
-  prompt: `You are an expert Executive Recruiter and ATS (Applicant Tracking System) specialist. 
+/**
+ * Analyzes a CV PDF and returns scores and suggestions.
+ * Uses a dedicated API key for CV checker operations.
+ */
+export async function checkCV(input: CVAnalysisInput): Promise<CVAnalysisOutput> {
+  const { genkit } = await import('genkit');
+  const { googleAI } = await import('@genkit-ai/google-genai');
+  
+  const ai = genkit({
+    plugins: [googleAI({ apiKey: CV_CHECKER_API_KEY })],
+  });
+
+  const { output } = await ai.generate({
+    model: 'googleai/gemini-1.5-flash',
+    output: { schema: CVAnalysisOutputSchema },
+    prompt: [
+      { text: `You are an expert Executive Recruiter and ATS (Applicant Tracking System) specialist. 
   Your goal is to evaluate the provided CV and provide a score out of 100 based on standard recruitment benchmarks.
 
   **CONTEXT:**
-  - **Target Role:** {{{targetRole}}}
-  - **Job Description:** {{{jobDescription}}}
-  - **Document:** {{media url=cvBase64}}
+  - **Target Role:** ${input.targetRole || 'Generic Role'}
+  - **Job Description:** ${input.jobDescription || 'None provided'}
 
   **SCORING LOGIC:**
   1. **ATS Readiness**: How well will parsing software read this? (Use of headers, standard fonts, keyword density).
@@ -72,17 +80,14 @@ const prompt = ai.definePrompt({
   - Improved Summary: Write a punchy, 3-sentence summary that highlights their value for the specific role.
   - Bullet Rewrites: Pick the 3 weakest or most "duty-heavy" bullets and rewrite them to be "result-heavy".
 
-  Return your analysis as structured JSON.`,
-});
+  Return your analysis as structured JSON.` },
+      { media: { url: input.cvBase64, contentType: 'application/pdf' } }
+    ],
+  });
 
-const checkCVFlow = ai.defineFlow(
-  {
-    name: 'checkCVFlow',
-    inputSchema: CVAnalysisInputSchema,
-    outputSchema: CVAnalysisOutputSchema,
-  },
-  async (input) => {
-    const { output } = await prompt(input);
-    return output!;
+  if (!output) {
+    throw new Error('The AI failed to generate a CV analysis report. Please ensure the file is a valid PDF and try again.');
   }
-);
+
+  return output;
+}
