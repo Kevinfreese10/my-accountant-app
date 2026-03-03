@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, BotMessageSquare, LifeBuoy, GraduationCap, CheckCircle2, ArrowRight, Wallet2 } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import dynamic from 'next/dynamic';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWidget'), {
   ssr: false,
@@ -20,23 +21,19 @@ const FaqSection = () => {
     },
     {
         question: "What does it cost to join?",
-        answer: "Joining requires a R5000 setup fee (Incl. VAT). This entire amount is immediately converted into R5000 credits in your practice wallet.\n\nYou can use these credits towards monthly AI Accountant subscriptions or paying for outsourced services. There are no hidden monthly fees — you only top up your credits when needed."
+        answer: "Joining requires a R5000 setup fee (Incl. VAT). This is not a 'lost' fee — the entire amount is immediately converted into R5000 credits in your practice wallet.\n\nYou can use these credits towards monthly AI Accountant subscriptions for your clients or paying for outsourced compliance services. There are no hidden monthly admin fees."
     },
     {
         question: "How does the credit system work?",
-        answer: "Your initial R5000 setup fee provides you with R5000 in starting credits. When you outsource a service or activate an AI Accountant subscription, the cost is deducted from your balance. Once your credits are finished, you can top up your wallet with any custom amount to keep your services active."
+        answer: "Think of it like a prepaid mobile account. Your initial R5000 setup fee provides you with R5000 in starting credits. When you outsource a service or activate an AI Accountant subscription, the cost is deducted from your balance. Once your credits are finished, you can top up your wallet with any custom amount to keep your services active."
     },
     {
         question: "How does outsourcing work?",
-        answer: "We communicate with you — you communicate with your client. All updates, queries, and deliverables are sent directly to you, ensuring that you remain the sole point of contact with your client. Your clients never know the service has been outsourced, ensuring total confidentiality and trust."
-    },
-    {
-        question: "How It Works",
-        answer: "Joining is simple and straightforward. Follow these steps to start growing your practice:\n\n1. Apply Online & Pay Setup Fee\n2. Access Your Dashboard with R5000 Credits\n3. Outsource or Accept Work\n4. Learn & Grow",
+        answer: "We communicate with you — you communicate with your client. All updates, queries, and deliverables are sent directly to you, ensuring that you remain the sole point of contact. Your clients never know the service has been outsourced, ensuring total confidentiality and trust."
     },
     {
         question: "Do I need to be a registered accountant?",
-        answer: "No. Everyone is welcome — including business owners who do not work in the accounting or tax space but would like to offer these services to their clients.\n\nHowever, to qualify for opportunities where My Accountant outsources work to you, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA. This ensures we maintain consistent quality and professional standards across all client work."
+        answer: "No. Everyone is welcome — including business owners who do not work in the accounting or tax space but would like to offer these services to their clients.\n\nHowever, to qualify for opportunities where My Accountant outsources work back to you, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA. This ensures we maintain consistent quality and professional standards across all network work."
     },
     {
         question: "How do I get support?",
@@ -45,15 +42,15 @@ const FaqSection = () => {
   ];
 
   return (
-      <section className="container mx-auto px-4 max-w-4xl">
+      <section className="container mx-auto px-4 max-w-4xl py-12">
          <div className="text-center mb-12">
             <h2 className="text-3xl font-bold">Frequently Asked Questions</h2>
         </div>
          <Accordion type="single" collapsible className="w-full">
             {faqs.map((faq, index) => (
               <AccordionItem key={index} value={`item-${index}`}>
-                <AccordionTrigger>{faq.question}</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line">{faq.answer}</AccordionContent>
+                <AccordionTrigger className="text-left font-semibold">{faq.question}</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line text-muted-foreground leading-relaxed">{faq.answer}</AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
@@ -110,17 +107,17 @@ export default function BecomeAPartnerPage() {
     {
         icon: <Users className="h-6 w-6 text-primary" />,
         title: 'Reseller Dashboard',
-        description: 'Access your dedicated reseller dashboard to create and manage client orders, track progress in real time, and outsource orders directly to My Accountant through a secure platform.',
+        description: 'Access your dedicated reseller dashboard to create and manage client orders, track progress in real time, and outsource orders directly to My Accountant.',
     },
     {
-        icon: <ArrowRight className="h-6 w-6 text-primary" />,
-        title: 'Outsourcing Opportunities',
-        description: 'Join a growing pool of bookkeepers and accountants who share work through the BEI network. Get access to new outsourcing projects and earn more.',
+        icon: <Sparkles className="h-6 w-6 text-primary" />,
+        title: 'AI Branding Tool',
+        description: 'Use our AI engine to automatically re-brand all 50+ My Accountant services with your own practice identity and custom pricing in seconds.',
     },
     {
         icon: <UserCheck className="h-6 w-6 text-primary" />,
         title: 'Seamless White-Labeling',
-        description: 'We communicate with you — you communicate with your client. All deliverables are sent directly to you, ensuring you remain the sole point of contact.',
+        description: 'We communicate with you — you communicate with your client. All deliverables are sent directly to you, preserving your brand authority.',
     },
     {
         icon: <GraduationCap className="h-6 w-6 text-primary" />,
@@ -136,72 +133,103 @@ export default function BecomeAPartnerPage() {
 
   return (
     <div className="space-y-16 pb-16">
-      <section className="bg-background border-b">
-        <div className="container mx-auto px-4 py-16 text-center">
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
+      <section className="bg-background border-b relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
+            <div className="absolute top-10 left-10"><Bot size={120} /></div>
+            <div className="absolute bottom-10 right-10"><Wallet size={120} /></div>
+        </div>
+        <div className="container mx-auto px-4 py-20 text-center relative z-10">
+            <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl">
                 Bookkeeper <span className="text-gradient">#Empowerment</span> Initiative
             </h1>
-            <h2 className="mt-4 text-2xl md:text-3xl font-semibold">Empower Your Accounting Practice in South Africa</h2>
-            <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
-                Partner with My Accountant – R5000 Setup fee (returned as R5000 credits). Grow Smarter, Earn More, Work Freely.
+            <h2 className="mt-6 text-2xl md:text-3xl font-bold text-slate-800">Scale Your Practice with AI and Expert Back-Office Support</h2>
+            <p className="mt-6 text-xl text-muted-foreground max-w-3xl mx-auto font-medium">
+                Join the BEI network. R5000 Setup fee (fully returned as R5000 practice credits). 
+                No fixed monthly fees. Grow at your own pace.
             </p>
-            <Button asChild size="lg" className="mt-8">
-            <Link href="/partner-signup">Join the Initiative & Get R5000 Credits</Link>
-            </Button>
+            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Button asChild size="lg" className="h-14 px-8 text-lg font-bold shadow-xl hover:scale-105 transition-transform">
+                    <Link href="/partner-signup">Join the Initiative & Get R5000 Credits</Link>
+                </Button>
+                <Button asChild variant="outline" size="lg" className="h-14 px-8 text-lg border-2">
+                    <Link href="/login">Partner Portal Login</Link>
+                </Button>
+            </div>
         </div>
       </section>
 
-      <TrustIndexWidget />
+      <div className="container mx-auto px-4">
+        <TrustIndexWidget />
+      </div>
 
       <section className="container mx-auto px-4">
-        <div className="max-w-4xl mx-auto text-center space-y-4">
-            <h2 className="text-3xl font-bold">About the Initiative</h2>
-            <p className="text-muted-foreground text-lg">
-                The Bookkeeper Empowerment Initiative by My Accountant was created to empower small and growing bookkeepers across South Africa. We know what it’s like to start out — you have the skills, but limited clients, tools, and support. 
-            </p>
-             <p className="text-muted-foreground text-lg">
-                That's why we've introduced our <strong>Credit-Based Growth Model</strong>. Your R5000 setup fee is immediately loaded into your Practice Wallet as R5000 in credits. Use these credits to outsource work, manage subscriptions, and scale your firm at your own pace.
-            </p>
+        <div className="max-w-4xl mx-auto">
+            <div className="bg-primary/5 border-2 border-primary/10 rounded-3xl p-8 md:p-12 shadow-inner">
+                <div className="flex flex-col md:flex-row gap-8 items-center">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border text-center min-w-[240px]">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Setup Fee</p>
+                        <p className="text-4xl font-black text-primary">R5,000</p>
+                        <Separator className="my-4" />
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Practice Credits</p>
+                        <p className="text-4xl font-black text-green-600">R5,000</p>
+                    </div>
+                    <div className="space-y-4 text-center md:text-left">
+                        <h2 className="text-3xl font-black italic uppercase tracking-tighter">The Credit-Based Growth Model</h2>
+                        <p className="text-lg text-muted-foreground leading-relaxed font-medium">
+                            We don't charge you to join — we help you fund your growth. Your R5000 setup fee is immediately loaded into your <strong>Practice Wallet</strong> as credits. 
+                        </p>
+                        <p className="text-lg text-muted-foreground leading-relaxed font-medium">
+                            Use these credits to pay for AI Accountant subscriptions for your clients or to outsource complex compliance work to our team. It's your money, working for your practice.
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
       </section>
       
       <section className="container mx-auto px-4">
         <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold">The Challenges We’re Solving</h2>
+            <h2 className="text-3xl font-bold tracking-tight">The Challenges We Solve</h2>
+            <p className="text-muted-foreground mt-2">Why 150+ practitioners have joined the BEI network.</p>
         </div>
-        <div className="space-y-8 max-w-4xl mx-auto">
+        <div className="space-y-12 max-w-4xl mx-auto">
             {challenges.map((challenge, index) => (
-                <div key={challenge.title} className="space-y-3">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-primary/10 rounded-full h-12 w-12 flex items-center justify-center flex-shrink-0">
-                            <challenge.icon className="h-6 w-6 text-primary" />
+                <div key={challenge.title} className="group">
+                    <div className="flex items-center gap-6">
+                        <div className="bg-primary/10 rounded-2xl h-16 w-16 flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors duration-300">
+                            <challenge.icon className="h-8 w-8 text-primary group-hover:text-white" />
                         </div>
-                        <div>
-                            <h3 className="text-xl font-bold">{challenge.title}</h3>
-                            <p className="text-muted-foreground">{challenge.description}</p>
+                        <div className="space-y-1">
+                            <h3 className="text-2xl font-bold tracking-tight">{challenge.title}</h3>
+                            <p className="text-muted-foreground font-medium">{challenge.description}</p>
                         </div>
                     </div>
-                    <div className="flex items-start gap-4 pl-16">
-                        <CheckCircle2 className="h-5 w-5 text-green-500 mt-1 flex-shrink-0"/>
-                        <p className="font-medium">{challenge.solution}</p>
+                    <div className="mt-4 ml-20 bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg">
+                        <div className="flex gap-3">
+                            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0"/>
+                            <p className="font-bold text-green-900 text-sm">{challenge.solution}</p>
+                        </div>
                     </div>
                 </div>
             ))}
         </div>
       </section>
       
-      <section className="bg-muted/30 py-16">
+      <section className="bg-slate-900 py-24 text-white">
         <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Key Benefits of Joining</h2>
+            <div className="text-center mb-16">
+                <h2 className="text-4xl font-bold tracking-tight">Why Partner With Us?</h2>
+                <p className="text-slate-400 mt-4 max-w-2xl mx-auto">Everything you need to run a modern, automated accounting firm.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {benefits.map(benefit => (
-                <div key={benefit.title} className="flex items-start gap-4 bg-background p-6 rounded-lg border shadow-sm">
-                    <div className="mt-1">{benefit.icon}</div>
+                <div key={benefit.title} className="flex flex-col gap-4 p-8 bg-slate-800/50 rounded-2xl border border-slate-700 hover:border-primary/50 transition-colors">
+                    <div className="h-12 w-12 rounded-lg bg-primary/20 flex items-center justify-center">
+                        {benefit.icon}
+                    </div>
                     <div>
-                        <h3 className="text-lg font-semibold">{benefit.title}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">{benefit.description}</p>
+                        <h3 className="text-xl font-bold">{benefit.title}</h3>
+                        <p className="text-slate-400 mt-2 text-sm leading-relaxed">{benefit.description}</p>
                     </div>
                 </div>
                 ))}
@@ -211,18 +239,24 @@ export default function BecomeAPartnerPage() {
 
       <DynamicFaqSection />
       
-      <section className="container mx-auto px-4">
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button asChild size="lg">
-                <Link href="/partner-signup">Sign Up & Claim R5000 Credits</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-                <Link href="/login">Access Portal</Link>
-            </Button>
+      <section className="container mx-auto px-4 text-center">
+        <div className="max-w-2xl mx-auto space-y-8">
+            <h2 className="text-4xl font-bold tracking-tight">Ready to Empower Your Practice?</h2>
+            <p className="text-xl text-muted-foreground">
+                Join the Bookkeeper Empowerment Initiative today and claim your R5000 in starting credits.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Button asChild size="lg" className="h-14 px-10 text-lg font-bold">
+                    <Link href="/partner-signup">Sign Up & Claim Credits</Link>
+                </Button>
+                <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg border-2">
+                    <Link href="/contact">Speak to a Consultant</Link>
+                </Button>
+            </div>
         </div>
       </section>
 
-      <section id="ai-assistant" className="container mx-auto px-4 scroll-m-20">
+      <section id="ai-assistant" className="container mx-auto px-4 scroll-m-20 border-t pt-16">
         <WebsiteAIWidget />
       </section>
     </div>
