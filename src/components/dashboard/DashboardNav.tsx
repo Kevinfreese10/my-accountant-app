@@ -37,6 +37,9 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,7 +53,22 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const router = useRouter();
   const { logout } = useAuth();
   const { state, toggleSidebar } = useSidebar();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/staff'));
+  const [isSettingsOpen, setIsSettingsOpen] = useState(
+    pathname.startsWith('/admin/settings') || 
+    pathname.startsWith('/admin/users') || 
+    pathname.startsWith('/admin/profile') || 
+    pathname.startsWith('/admin/tasks') ||
+    pathname.startsWith('/admin/task-templates') ||
+    pathname.startsWith('/admin/categories') ||
+    pathname.startsWith('/admin/blog') ||
+    pathname.startsWith('/admin/staff') ||
+    pathname.startsWith('/admin/discounts') ||
+    pathname.startsWith('/admin/knowledge-base') ||
+    pathname.startsWith('/admin/media') ||
+    pathname.startsWith('/admin/seo') ||
+    pathname.includes('/ai-accountant/allocation-rules') ||
+    pathname.includes('/ai-accountant/chart-of-accounts')
+  );
 
   const handleLogout = () => {
     logout();
@@ -201,7 +219,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
         
         {(user.role === 'admin' || user.role === 'staff') && (
-            <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+            <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen} className="group/collapsible">
                 <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
                     <SidebarMenuButton isActive={pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/profile')} tooltip="Settings">
@@ -210,6 +228,20 @@ export default function DashboardNav({ user }: { user: UserType }) {
                     <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
                     </SidebarMenuButton>
                 </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    {visibleSettingsNavItems.map((item) => (
+                      <SidebarMenuSubItem key={item.label}>
+                        <SidebarMenuSubButton asChild isActive={pathname === item.href}>
+                          <Link href={item.href}>
+                            <item.icon className="h-4 w-4 mr-2" />
+                            <span>{item.label}</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ))}
+                  </SidebarMenuSub>
+                </CollapsibleContent>
                 </SidebarMenuItem>
             </Collapsible>
         )}
