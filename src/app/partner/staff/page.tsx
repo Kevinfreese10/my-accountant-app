@@ -36,7 +36,8 @@ const staffSchema = z.object({
   department: z.string().optional(),
 });
 
-const STAFF_MONTHLY_FEE = 50;
+const BASE_STAFF_FEE = 45;
+const FREE_STAFF_LIMIT = 3; // First 3 additional staff are free
 
 function StaffForm({ 
     staffMember, 
@@ -45,7 +46,8 @@ function StaffForm({
     isLoading, 
     canAfford, 
     proRata, 
-    departments 
+    departments,
+    isExtraChargeable
 }: { 
     staffMember: User | null, 
     onSubmit: (values: any) => void, 
@@ -53,7 +55,8 @@ function StaffForm({
     isLoading: boolean,
     canAfford: boolean,
     proRata: number,
-    departments: string[]
+    departments: string[],
+    isExtraChargeable: boolean
 }) {
     const form = useForm<z.infer<typeof staffSchema>>({
         resolver: zodResolver(staffSchema),
@@ -89,23 +92,32 @@ function StaffForm({
                     <>
                     <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem> )} />
                     
-                    <div className="p-4 bg-primary/5 rounded-lg border border-primary/10 space-y-2 text-sm mt-4">
-                        <h4 className="font-bold text-primary text-xs uppercase tracking-wider mb-3">Billing Summary</h4>
-                        <div className="flex justify-between items-center text-xs">
-                            <span className="text-muted-foreground">Pro-rata billing (Today):</span>
-                            <span className="font-semibold text-destructive">R{proRata.toFixed(2)}</span>
+                    {isExtraChargeable ? (
+                        <div className="p-4 bg-primary/5 rounded-lg border border-primary/10 space-y-2 text-sm mt-4">
+                            <h4 className="font-bold text-primary text-xs uppercase tracking-wider mb-3">Billing Summary (4th+ Staff Member)</h4>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-muted-foreground">Pro-rata billing (Today):</span>
+                                <span className="font-semibold text-destructive">R{proRata.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-muted-foreground">Monthly recurrence:</span>
+                                <span className="font-semibold">R{BASE_STAFF_FEE.toFixed(2)}</span>
+                            </div>
                         </div>
-                        <div className="flex justify-between items-center text-xs">
-                            <span className="text-muted-foreground">Monthly recurrence:</span>
-                            <span className="font-semibold">R{STAFF_MONTHLY_FEE.toFixed(2)}</span>
+                    ) : (
+                        <div className="p-4 bg-green-50 rounded-lg border border-green-100 space-y-1 text-xs mt-4">
+                            <p className="font-bold text-green-800 flex items-center gap-2">
+                                <CheckCircle2 className="h-3 w-3" /> Included in Subscription
+                            </p>
+                            <p className="text-green-700">This member is one of your 3 free additional users. No extra charges apply.</p>
                         </div>
-                    </div>
+                    )}
                     </>
                 )}
 
                 <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button type="submit" disabled={isLoading || (!staffMember && !canAfford)}>
+                    <Button type="submit" disabled={isLoading || (!staffMember && isExtraChargeable && !canAfford)}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {staffMember ? 'Update Staff' : 'Confirm & Create Member'}
                     </Button>
@@ -123,7 +135,7 @@ export default function PartnerStaffPage() {
   const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
   const [newDeptName, setNewDeptName] = useState('');
   const { toast } = useToast();
-  const { user: currentUser, login } = useAuth();
+  const { user: currentUser } = useAuth();
   
   const partnerId = currentUser?.role === 'partner' ? currentUser.uid : currentUser?.partnerId;
   const partnerDepartments = currentUser?.departments || ['General'];
@@ -159,9 +171,11 @@ export default function PartnerStaffPage() {
     const now = new Date();
     const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const remainingDays = lastDayOfMonth - now.getDate() + 1;
-    return parseFloat(((remainingDays / lastDayOfMonth) * STAFF_MONTHLY_FEE).toFixed(2));
+    return parseFloat(((remainingDays / lastDayOfMonth) * BASE_STAFF_FEE).toFixed(2));
   };
 
+  const additionalStaffCount = staff.filter(s => s.role === 'partner_staff').length;
+  const isExtraChargeable = additionalStaffCount >= FREE_STAFF_LIMIT;
   const proRataAmount = calculateProRata();
   const canAffordStaff = (currentUser?.creditBalance || 0) >= proRataAmount;
 
@@ -174,7 +188,7 @@ export default function PartnerStaffPage() {
             await updateDoc(doc(db, "users", values.id), { name: values.name, department: values.department });
             toast({ title: 'Staff Member Updated' });
         } else {
-            if (!canAffordStaff) {
+            if (isExtraChargeable && !canAffordStaff) {
                 toast({ title: 'Insufficient Credits', description: `Need R${proRataAmount} in wallet.`, variant: 'destructive' });
                 return;
             }
@@ -194,14 +208,16 @@ export default function PartnerStaffPage() {
                 createdAt: serverTimestamp(),
             });
 
-            const partnerRef = doc(db, 'users', partnerId);
-            await updateDoc(partnerRef, {
-                creditBalance: increment(-proRataAmount),
-                'subscription.monthlyTotal': increment(STAFF_MONTHLY_FEE),
-                'subscription.subscriptionStatus': 'active',
-            });
-
-            toast({ title: 'Staff Member Added', description: `R${proRataAmount} pro-rata fee applied.` });
+            if (isExtraChargeable) {
+                const partnerRef = doc(db, 'users', partnerId);
+                await updateDoc(partnerRef, {
+                    creditBalance: increment(-proRataAmount),
+                    'subscription.monthlyTotal': increment(BASE_STAFF_FEE),
+                });
+                toast({ title: 'Staff Member Added', description: `R${proRataAmount} pro-rata fee applied.` });
+            } else {
+                toast({ title: 'Staff Member Added', description: 'Free staff slot utilized.' });
+            }
         }
         fetchStaff();
         setIsFormOpen(false);
@@ -243,10 +259,15 @@ export default function PartnerStaffPage() {
     try {
         if (!partnerId) return;
         await deleteDoc(doc(db, "users", staffMember.id));
-        const partnerRef = doc(db, 'users', partnerId);
-        await updateDoc(partnerRef, {
-            'subscription.monthlyTotal': increment(-STAFF_MONTHLY_FEE)
-        });
+        
+        // If we were charging for this member, reduce the monthly total
+        if (staff.length > FREE_STAFF_LIMIT + 1) {
+            const partnerRef = doc(db, 'users', partnerId);
+            await updateDoc(partnerRef, {
+                'subscription.monthlyTotal': increment(-BASE_STAFF_FEE)
+            });
+        }
+        
         fetchStaff();
         toast({ title: 'Staff Member Removed', variant: 'destructive' });
     } catch (error) {
@@ -259,19 +280,19 @@ export default function PartnerStaffPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
             <h1 className="text-3xl font-bold tracking-tight">Practice Team</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage staff access and organizational structure.</p>
+            <p className="text-sm text-muted-foreground mt-1">Manage staff access and practice structure.</p>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
             <Dialog open={isDeptDialogOpen} onOpenChange={setIsDeptDialogOpen}>
                 <DialogTrigger asChild>
                     <Button variant="outline" className="gap-2">
-                        <Tags className="h-4 w-4" /> Manage Departments
+                        <Tags className="h-4 w-4" /> Departments
                     </Button>
                 </DialogTrigger>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Departments</DialogTitle>
-                        <DialogDescription>Define your internal team categories.</DialogDescription>
+                        <DialogTitle>Practice Departments</DialogTitle>
+                        <DialogDescription>Categorize your team for better organization.</DialogDescription>
                     </DialogHeader>
                     <div className="py-4 space-y-4">
                         <div className="flex gap-2">
@@ -314,6 +335,7 @@ export default function PartnerStaffPage() {
                         canAfford={canAffordStaff}
                         proRata={proRataAmount}
                         departments={partnerDepartments}
+                        isExtraChargeable={isExtraChargeable}
                     />
                 </DialogContent>
             </Dialog>
@@ -323,7 +345,9 @@ export default function PartnerStaffPage() {
       <Card>
         <CardHeader>
           <CardTitle>Team Members</CardTitle>
-          <CardDescription>Practice login accounts and their assigned departments.</CardDescription>
+          <CardDescription>
+              First 3 additional users are free. Your practice has used <strong>{additionalStaffCount} of 3</strong> free slots.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading && staff.length === 0 ? (
@@ -358,7 +382,7 @@ export default function PartnerStaffPage() {
                     </TableCell>
                     <TableCell>
                         <Badge variant={member.role === 'partner' ? 'default' : 'secondary'} className="capitalize text-[10px]">
-                            {member.role === 'partner' ? 'Practice Owner' : 'Staff'}
+                            {member.role === 'partner' ? 'Owner' : 'Staff'}
                         </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -372,7 +396,7 @@ export default function PartnerStaffPage() {
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Remove Staff Member?</AlertDialogTitle>
-                                            <AlertDialogDescription>Permanently delete access for {member.name}. Subscription billing will stop immediately.</AlertDialogDescription>
+                                            <AlertDialogDescription>Permanently delete access for {member.name}. Any recurring billing for this member will stop.</AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>

@@ -29,28 +29,33 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const performBillingCheck = async () => {
-        if (!user || user.role !== 'partner' || !user.subscription?.monthlyTotal) {
+        if (!user || user.role !== 'partner') {
             setIsBillingCheck(false);
             return;
         }
 
+        // Default base subscription is R499 if not set
+        const BASE_SUB = 499;
+        const currentMonthlyTotal = user.subscription?.monthlyTotal || BASE_SUB;
+
         const now = new Date();
-        const lastBillingDate = user.subscription.lastBillingDate?.toDate ? user.subscription.lastBillingDate.toDate() : new Date(0);
+        const lastBillingDate = user.subscription?.lastBillingDate?.toDate ? user.subscription.lastBillingDate.toDate() : new Date(0);
         
         // Billing check: Is it a new month since the last deduction?
-        const isNewMonth = now.getMonth() !== lastBillingDate.getMonth() || now.getFullYear() !== lastBillingDate.getFullYear();
-        const isFirstOfMonth = now.getDate() >= 1; // Basic trigger for simplicity
+        // We trigger deduction if more than 28 days have passed since last billing
+        const daysSinceLastBilling = (now.getTime() - lastBillingDate.getTime()) / (1000 * 60 * 60 * 24);
+        const isNewBillingPeriod = daysSinceLastBilling > 28;
 
-        if (isNewMonth && isFirstOfMonth) {
-            const totalDue = user.subscription.monthlyTotal;
+        if (isNewBillingPeriod) {
             const partnerRef = doc(db, 'users', user.uid);
 
-            if ((user.creditBalance || 0) >= totalDue) {
+            if ((user.creditBalance || 0) >= currentMonthlyTotal) {
                 try {
                     await updateDoc(partnerRef, {
-                        creditBalance: increment(-totalDue),
+                        creditBalance: increment(-currentMonthlyTotal),
                         'subscription.lastBillingDate': serverTimestamp(),
-                        'subscription.subscriptionStatus': 'active'
+                        'subscription.subscriptionStatus': 'active',
+                        'subscription.monthlyTotal': currentMonthlyTotal // Ensure it's initialized
                     });
                     console.log('Automated monthly billing successful.');
                 } catch (e) {
@@ -88,6 +93,7 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
   }
 
   const isLapsed = user?.subscription?.subscriptionStatus === 'lapsed';
+  const monthlyTotal = user?.subscription?.monthlyTotal || 499;
 
   return (
     <ProtectedRoute>
@@ -112,9 +118,9 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
                   {isLapsed && (
                       <Alert variant="destructive" className="mb-8 border-2 shadow-lg animate-in fade-in zoom-in-95">
                           <AlertCircle className="h-5 w-5" />
-                          <AlertTitle className="font-bold">Subscription Action Required</AlertTitle>
+                          <AlertTitle className="font-bold">Practice Subscription Lapsed</AlertTitle>
                           <AlertDescription className="space-y-4">
-                              <p>Your practice wallet has insufficient credits to cover your monthly subscription of <strong>R{user?.subscription?.monthlyTotal}</strong>. Services have been temporarily restricted.</p>
+                              <p>Your practice wallet has insufficient credits to cover your monthly subscription of <strong>R{monthlyTotal}</strong>. This fee covers your hosting, support, and included staff users. Please top up your wallet to resume service.</p>
                               <Button asChild variant="outline" className="border-destructive text-destructive hover:bg-destructive hover:text-white font-bold">
                                   <Link href="/partner/dashboard">
                                       <Wallet2 className="mr-2 h-4 w-4"/>

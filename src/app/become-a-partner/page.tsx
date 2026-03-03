@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles, Globe, HeartHandshake } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import dynamic from 'next/dynamic';
@@ -21,23 +21,23 @@ const FaqSection = () => {
     },
     {
         question: "What does it cost to join?",
-        answer: "Joining requires a R5000 setup fee (Incl. VAT). This is not a 'lost' fee — the entire amount is immediately converted into R5000 credits in your practice wallet.\n\nYou can use these credits towards monthly AI Accountant subscriptions for your clients or paying for outsourced compliance services. There are no hidden monthly admin fees."
+        answer: "Joining requires a R5000 setup fee (Incl. VAT). This is not a 'lost' fee — the entire amount is immediately converted into R5000 credits in your practice wallet.\n\nFrom these credits, a monthly subscription of R499 is deducted for app hosting, AI tools, and priority support."
+    },
+    {
+        question: "How does the staff billing work?",
+        answer: "Every practice gets 3 free additional staff user accounts (4 total users including the owner). Any staff members added beyond this limit cost only R45 per month."
     },
     {
         question: "How does the credit system work?",
-        answer: "Think of it like a prepaid mobile account. Your initial R5000 setup fee provides you with R5000 in starting credits. When you outsource a service or activate an AI Accountant subscription, the cost is deducted from your balance. Once your credits are finished, you can top up your wallet with any custom amount to keep your services active."
+        answer: "Think of it like a prepaid mobile account. Your initial R5000 setup fee provides you with R5000 in starting credits. Your monthly subscription (R499) and any outsourced services are deducted from this balance. Once your credits are finished, you can top up your wallet to keep your services active."
     },
     {
-        question: "How does outsourcing work?",
-        answer: "We communicate with you — you communicate with your client. All updates, queries, and deliverables are sent directly to you, ensuring that you remain the sole point of contact. Your clients never know the service has been outsourced, ensuring total confidentiality and trust."
+        question: "How does the landing page work?",
+        answer: "Included in your setup is a fully customizable, white-labeled landing page. You can choose your colors, upload your logo, and use our AI to re-brand our 50+ services as your own. Your clients see your brand, while we provide the back-office engine."
     },
     {
         question: "Do I need to be a registered accountant?",
-        answer: "No. Everyone is welcome — including business owners who do not work in the accounting or tax space but would like to offer these services to their clients.\n\nHowever, to qualify for opportunities where My Accountant outsources work back to you, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA. This ensures we maintain consistent quality and professional standards across all network work."
-    },
-    {
-        question: "How do I get support?",
-        answer: "You’ll have access to a dedicated partner support team, mentorship network, and helpdesk through your dashboard."
+        answer: "No. Everyone is welcome. However, to receive outsourced work from My Accountant, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA."
     }
   ];
 
@@ -101,33 +101,33 @@ export default function BecomeAPartnerPage() {
   const benefits = [
     {
         icon: <Wallet2 className="h-6 w-6 text-primary" />,
-        title: 'Credit-Based Model',
-        description: 'Your R5000 setup fee is returned to you as R5000 in credits. Use these to pay for services as you grow, with no fixed monthly overheads.',
+        title: 'Credit-Based Growth',
+        description: 'Your R5000 setup fee is returned as credits. We deduct your R499/month hosting fee from this balance, keeping your cash flow free.',
     },
     {
         icon: <Users className="h-6 w-6 text-primary" />,
-        title: 'Reseller Dashboard',
-        description: 'Access your dedicated reseller dashboard to create and manage client orders, track progress in real time, and outsource orders directly to My Accountant.',
+        title: '3 Free Staff Users',
+        description: 'Grow your team without the cost. Your first 3 additional staff members are free, with extras at only R45/month.',
+    },
+    {
+        icon: <Globe className="h-6 w-6 text-primary" />,
+        title: 'Custom Landing Page',
+        description: 'Get a professional, white-labeled landing page to showcase your services. See an example at myacc.co.za/p/interscope',
     },
     {
         icon: <Sparkles className="h-6 w-6 text-primary" />,
         title: 'AI Branding Tool',
-        description: 'Use our AI engine to automatically re-brand all 50+ My Accountant services with your own practice identity and custom pricing in seconds.',
+        description: 'Use our AI engine to automatically re-brand all 50+ My Accountant services with your own practice identity in seconds.',
     },
     {
-        icon: <UserCheck className="h-6 w-6 text-primary" />,
+        icon: <HeartHandshake className="h-6 w-6 text-primary" />,
         title: 'Seamless White-Labeling',
-        description: 'We communicate with you — you communicate with your client. All deliverables are sent directly to you, preserving your brand authority.',
-    },
-    {
-        icon: <GraduationCap className="h-6 w-6 text-primary" />,
-        title: 'Mentorship & Training',
-        description: 'Get practical guidance from experienced accountants. Join monthly training webinars and Q&A sessions to grow your capabilities.',
+        description: 'We act as your back-office. All client deliverables are sent directly to you, preserving your brand authority.',
     },
     {
         icon: <FileText className="h-6 w-6 text-primary" />,
-        title: 'Compliance Tools',
-        description: 'Save time with professional templates for engagement letters, contracts, and onboarding forms, all available in your dashboard.',
+        title: 'Compliance Resources',
+        description: 'Save time with professional templates for engagement letters and onboarding forms available in your dashboard.',
     },
   ];
 
@@ -144,15 +144,15 @@ export default function BecomeAPartnerPage() {
             </h1>
             <h2 className="mt-6 text-2xl md:text-3xl font-bold text-slate-800">Scale Your Practice with AI and Expert Back-Office Support</h2>
             <p className="mt-6 text-xl text-muted-foreground max-w-3xl mx-auto font-medium">
-                Join the BEI network. R5000 Setup fee (fully returned as R5000 practice credits). 
-                No fixed monthly fees. Grow at your own pace.
+                Join the BEI network. R5000 Setup fee (fully returned as practice credits). 
+                R499/month hosting & support. 3 Free Staff Members included.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button asChild size="lg" className="h-14 px-8 text-lg font-bold shadow-xl hover:scale-105 transition-transform">
                     <Link href="/partner-signup">Join the Initiative & Get R5000 Credits</Link>
                 </Button>
                 <Button asChild variant="outline" size="lg" className="h-14 px-8 text-lg border-2">
-                    <Link href="/login">Partner Portal Login</Link>
+                    <Link href="/p/interscope" target="_blank">View Example Page <ExternalLink className="ml-2 h-4 w-4" /></Link>
                 </Button>
             </div>
         </div>
@@ -167,19 +167,19 @@ export default function BecomeAPartnerPage() {
             <div className="bg-primary/5 border-2 border-primary/10 rounded-3xl p-8 md:p-12 shadow-inner">
                 <div className="flex flex-col md:flex-row gap-8 items-center">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border text-center min-w-[240px]">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Setup Fee</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Practice Setup</p>
                         <p className="text-4xl font-black text-primary">R5,000</p>
                         <Separator className="my-4" />
                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Practice Credits</p>
                         <p className="text-4xl font-black text-green-600">R5,000</p>
                     </div>
                     <div className="space-y-4 text-center md:text-left">
-                        <h2 className="text-3xl font-black italic uppercase tracking-tighter">The Credit-Based Growth Model</h2>
+                        <h2 className="text-3xl font-black italic uppercase tracking-tighter">Your Money, Working for Your Growth</h2>
                         <p className="text-lg text-muted-foreground leading-relaxed font-medium">
-                            We don't charge you to join — we help you fund your growth. Your R5000 setup fee is immediately loaded into your <strong>Practice Wallet</strong> as credits. 
+                            Your R5000 setup fee is immediately loaded into your <strong>Practice Wallet</strong> as credits. 
                         </p>
                         <p className="text-lg text-muted-foreground leading-relaxed font-medium">
-                            Use these credits to pay for AI Accountant subscriptions for your clients or to outsource complex compliance work to our team. It's your money, working for your practice.
+                            We deduct your monthly subscription (R499) and any outsourced work from this balance. It covers your hosting, AI tools, and gives you a professional headstart.
                         </p>
                     </div>
                 </div>
@@ -215,16 +215,16 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
       
-      <section className="bg-background py-24">
+      <section className="bg-background py-24 border-t border-b">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-                <h2 className="text-4xl font-bold tracking-tight">Why Partner With Us?</h2>
-                <p className="text-muted-foreground mt-4 max-w-2xl mx-auto">Everything you need to run a modern, automated accounting firm.</p>
+                <h2 className="text-4xl font-bold tracking-tight">Everything You Need to Scale</h2>
+                <p className="text-muted-foreground mt-4 max-w-2xl mx-auto">A modern back-office engine for your accounting firm.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {benefits.map(benefit => (
-                <div key={benefit.title} className="flex flex-col gap-4 p-8 bg-card rounded-2xl border border-border hover:border-primary/50 transition-colors shadow-sm">
-                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                <div key={benefit.title} className="flex flex-col gap-4 p-8 bg-white rounded-2xl border border-border hover:border-primary/50 transition-colors shadow-sm">
+                    <div className="h-12 w-12 rounded-lg bg-primary/5 flex items-center justify-center">
                         {benefit.icon}
                     </div>
                     <div>
@@ -262,3 +262,5 @@ export default function BecomeAPartnerPage() {
     </div>
   );
 }
+
+import { ExternalLink } from 'lucide-react';

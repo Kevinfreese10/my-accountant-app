@@ -153,7 +153,7 @@ export default function PartnerSignupForm() {
         m_payment_id: order.id,
         amount: order.total.toFixed(2),
         item_name: `Partner Setup Fee & R5000 Credits`,
-        item_description: `Initial setup fee for the My Accountant Partner Program. R5000 will be added to your practice credits upon successful payment.`,
+        item_description: `Initial setup fee for the My Accountant Partner Program. R5000 will be added to your practice credits. A monthly R499 subscription will be deducted from this balance.`,
     };
 
     for (const key in data) {
@@ -196,11 +196,16 @@ export default function PartnerSignupForm() {
             id: authUid,
             uid: authUid,
             role: 'partner',
-            status: 'Pending Setup Payment', // Mark as pending until R5000 is paid
+            status: 'Pending Setup Payment',
             creditBalance: 0,
             createdAt: serverTimestamp(),
             cvUrl: cvUrl,
             certificateUrl: certificateUrl,
+            subscription: {
+                monthlyTotal: 499,
+                subscriptionStatus: 'active',
+                lastBillingDate: serverTimestamp(),
+            }
         });
 
         // Create the setup order
@@ -392,20 +397,28 @@ export default function PartnerSignupForm() {
 
         <Separator />
 
-        <div className="bg-primary/5 p-6 rounded-lg border border-primary/20 space-y-4">
+        <div className="bg-primary/5 p-6 rounded-lg border border-primary/10 space-y-4">
             <h3 className="text-lg font-bold flex items-center gap-2">
                 <Wallet2 className="h-5 w-5 text-primary" />
-                Step 3: Setup & Credits
+                Step 3: Setup, Credits & Subscription
             </h3>
             <p className="text-sm">
-                To activate your partner account, a <strong>R5000 (Incl. VAT)</strong> setup fee is required.
+                To activate your account, a <strong>R5000 (Incl. VAT)</strong> setup fee is required.
             </p>
-            <div className="bg-white p-4 rounded border flex justify-between items-center">
-                <span className="font-semibold">Setup Fee Total:</span>
-                <span className="text-xl font-bold text-primary">R5,000.00</span>
+            <div className="bg-white p-4 rounded border space-y-2">
+                <div className="flex justify-between items-center">
+                    <span className="font-semibold">Setup Fee Total:</span>
+                    <span className="text-xl font-bold text-primary">R5,000.00</span>
+                </div>
+                <Separator />
+                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                    <span>Monthly Subscription (App Hosting & Support):</span>
+                    <span>R499.00 / month</span>
+                </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-                * This R5000 will be loaded as credits into your practice wallet and can be used to pay for any services or subscriptions.
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+                * The R5000 will be loaded as credits into your practice wallet. Your monthly R499 subscription and any outsourced work will be deducted from this balance.
+                <br/>* Includes 3 free staff user accounts (4 total users).
             </p>
         </div>
 
@@ -419,7 +432,7 @@ export default function PartnerSignupForm() {
                 </FormControl>
                 <div className="space-y-1 leading-none">
                     <FormLabel>
-                        I agree to the <Link href="/terms" className="underline" target="_blank">terms and conditions</Link> and understand that the R5000 setup fee is mandatory for account activation.
+                        I agree to the <Link href="/terms" className="underline" target="_blank">terms and conditions</Link> and understand that the R5000 setup fee is required for account activation.
                     </FormLabel>
                     <FormMessage />
                 </div>
