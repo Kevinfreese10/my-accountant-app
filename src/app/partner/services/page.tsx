@@ -4,7 +4,7 @@ import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search, Edit3, RotateCcw, Save, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Search, Edit3, RotateCcw, Save, Sparkles, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { getFirestore, collection, query, orderBy, getDocs, doc, setDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { brandService } from '@/ai/flows/brand-service';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
@@ -148,7 +149,7 @@ export default function PartnerServicesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isBulkBranding, setIsBulkBranding] = useState(false);
-  const [bulkStatus, setBulkStatus] = useState<Record<string, 'pending' | 'processing' | 'done' | 'error'>>({});
+  const [bulkStatus, setBulkStatus] = useState<Record<string, 'pending' | 'processing' | 'done' | 'error' | 'rate_limited'>>({});
   const { toast } = useToast();
 
   const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
@@ -194,39 +195,54 @@ export default function PartnerServicesPage() {
     services.forEach(s => initialStatus[s.id] = 'pending');
     setBulkStatus(initialStatus);
 
+    const processService = async (service: Service, retryCount = 0): Promise<boolean> => {
+        setBulkStatus(prev => ({ ...prev, [service.id]: 'processing' }));
+        
+        try {
+            const branded = await brandService({
+                service: {
+                    title: service.title,
+                    description: service.description,
+                    longDescription: service.longDescription,
+                },
+                partnerName: user.companyName || user.name,
+                apiKey: user.geminiApiKey!
+            });
+
+            const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
+            const currentOverride = overrides[service.id];
+            
+            await setDoc(overrideRef, {
+                ...branded,
+                price: currentOverride?.price ?? service.price,
+                turnaroundTime: currentOverride?.turnaroundTime ?? service.turnaroundTime
+            }, { merge: true });
+
+            setBulkStatus(prev => ({ ...prev, [service.id]: 'done' }));
+            return true;
+        } catch (err: any) {
+            console.error(`Branding failed for ${service.title}:`, err);
+            
+            // Handle Rate Limiting (429)
+            if (err.message?.includes('429') && retryCount < 1) {
+                setBulkStatus(prev => ({ ...prev, [service.id]: 'rate_limited' }));
+                // Wait 30 seconds before retrying
+                await new Promise(resolve => setTimeout(resolve, 30000));
+                return processService(service, retryCount + 1);
+            }
+
+            setBulkStatus(prev => ({ ...prev, [service.id]: 'error' }));
+            return false;
+        }
+    };
+
     try {
         for (const service of services) {
-            setBulkStatus(prev => ({ ...prev, [service.id]: 'processing' }));
-            
-            try {
-                // Ensure we only pass a plain object with strings to the Server Function
-                const branded = await brandService({
-                    service: {
-                        title: service.title,
-                        description: service.description,
-                        longDescription: service.longDescription,
-                    },
-                    partnerName: user.companyName || user.name,
-                    apiKey: user.geminiApiKey
-                });
-
-                const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
-                const currentOverride = overrides[service.id];
-                
-                await setDoc(overrideRef, {
-                    ...branded,
-                    // Preserve price and turnaround if they already exist, otherwise use global
-                    price: currentOverride?.price ?? service.price,
-                    turnaroundTime: currentOverride?.turnaroundTime ?? service.turnaroundTime
-                }, { merge: true });
-
-                setBulkStatus(prev => ({ ...prev, [service.id]: 'done' }));
-            } catch (err) {
-                console.error(`Branding failed for ${service.title}:`, err);
-                setBulkStatus(prev => ({ ...prev, [service.id]: 'error' }));
-            }
+            await processService(service);
+            // Throttling: Add a 3-second delay between successful requests to stay under Free Tier limits (RPM)
+            await new Promise(resolve => setTimeout(resolve, 3000));
         }
-        toast({ title: "Bulk Branding Complete", description: "All services have been updated with your practice branding and SEO metadata." });
+        toast({ title: "Bulk Branding Complete", description: "All services have been updated with your practice branding." });
     } catch (e) {
         console.error(e);
         toast({ title: "Bulk Process Failed", variant: "destructive" });
@@ -267,7 +283,7 @@ export default function PartnerServicesPage() {
                 variant="outline" 
                 onClick={handleBulkBrand} 
                 disabled={isBulkBranding || !user?.geminiApiKey}
-                className="font-bold border-primary/20 hover:bg-primary/5 text-primary w-full md:w-auto"
+                className="font-bold border-primary/20 hover:bg-primary/5 text-primary w-full md:w-auto shadow-sm"
             >
                 {isBulkBranding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                 Bulk Brand with AI
@@ -276,14 +292,23 @@ export default function PartnerServicesPage() {
       </div>
 
       {isBulkBranding && (
-          <Card className="border-primary bg-primary/5 animate-in fade-in slide-in-from-top-2">
+          <Card className="border-primary bg-primary/5 animate-in fade-in slide-in-from-top-2 shadow-inner">
               <CardContent className="p-4 space-y-3">
                   <div className="flex justify-between items-center text-sm font-bold text-primary">
-                      <span>Branding Practice Catalog...</span>
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Branding Practice Catalog...
+                      </span>
                       <span>{Math.round(bulkProgress)}%</span>
                   </div>
                   <Progress value={bulkProgress} className="h-2" />
-                  <p className="text-[10px] text-muted-foreground italic">Iterating through services and applying your practice branding to titles, descriptions, and SEO metadata using your Gemini API key.</p>
+                  <div className="flex gap-2 items-start">
+                    <Clock className="h-3 w-3 mt-0.5 text-muted-foreground" />
+                    <p className="text-[10px] text-muted-foreground leading-snug">
+                        AI Throttling Active: Applying a 3-second delay between items to manage your API quota. 
+                        <strong> If you hit a 429 error</strong>, the system will pause for 30 seconds before retrying.
+                    </p>
+                  </div>
               </CardContent>
           </Card>
       )}
@@ -316,7 +341,7 @@ export default function PartnerServicesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
-                <TableHead>Branding</TableHead>
+                <TableHead>Branding Status</TableHead>
                 <TableHead>Cost to You</TableHead>
                 <TableHead>Public Price</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -331,7 +356,7 @@ export default function PartnerServicesPage() {
                   const brandingStatus = bulkStatus[service.id];
 
                   return (
-                  <TableRow key={service.id}>
+                  <TableRow key={service.id} className={cn(brandingStatus === 'rate_limited' && "bg-yellow-50/50")}>
                     <TableCell className="font-medium">
                         <div className="flex flex-col">
                             <span className="font-bold">{displayTitle}</span>
@@ -341,6 +366,8 @@ export default function PartnerServicesPage() {
                     <TableCell>
                         {brandingStatus === 'processing' ? (
                             <Badge variant="outline" className="animate-pulse h-5 text-[10px]"><Loader2 className="h-2 w-2 mr-1 animate-spin"/> Processing</Badge>
+                        ) : brandingStatus === 'rate_limited' ? (
+                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200 h-5 text-[10px] font-bold"><Clock className="h-2 w-2 mr-1"/> Rate Limited - Retrying...</Badge>
                         ) : brandingStatus === 'done' || override?.metaTitle ? (
                             <Badge variant="success" className="bg-green-100 text-green-800 border-green-200 h-5 text-[10px]">Branded</Badge>
                         ) : brandingStatus === 'error' ? (

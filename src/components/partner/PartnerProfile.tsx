@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck, Mail, Upload, Image as ImageIcon } from 'lucide-react';
+import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck, Mail, Upload, Image as ImageIcon, Info, ExternalLinkIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { cn } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
 import { Slider } from '../ui/slider';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -854,9 +855,9 @@ export default function PartnerProfile() {
         <div className="space-y-4">
             <h3 className="text-lg font-medium flex items-center gap-2">
                 <BrainCircuit className="h-5 w-5 text-primary" />
-                AI Configuration
+                AI Configuration & Quotas
             </h3>
-            <Card className="border-primary/20 bg-primary/5">
+            <Card className="border-primary/20 bg-primary/5 shadow-sm">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
                         <BrainCircuit className="h-4 w-4 text-primary"/>
@@ -866,7 +867,7 @@ export default function PartnerProfile() {
                         Provide your own Google Gemini API key to enable AI-powered features for your client dashboard.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-6">
                     <FormField 
                         control={form.control} 
                         name="geminiApiKey" 
@@ -888,6 +889,27 @@ export default function PartnerProfile() {
                             </FormItem>
                         )} 
                     />
+
+                    <Alert className="bg-white border-primary/10">
+                        <Info className="h-4 w-4 text-primary" />
+                        <AlertTitle className="text-xs font-bold">Understanding API Quotas</AlertTitle>
+                        <AlertDescription className="text-[10px] space-y-2 leading-relaxed">
+                            <p>Google Gemini API has usage limits depending on your plan. The <strong>Free Tier</strong> typically allows up to 15 requests per minute.</p>
+                            <p>If you encounter a <strong>"429 Too Many Requests"</strong> error, it means you've reached your temporary limit. Our system automatically retries after a short delay to help you finish bulk tasks.</p>
+                            <div className="pt-2 flex gap-2">
+                                <Button variant="outline" size="xs" className="h-6 text-[9px]" asChild>
+                                    <a href="https://ai.google.dev/gemini-api/docs/rate-limits" target="_blank">
+                                        View Limits <ExternalLinkIcon className="ml-1 h-2 w-2"/>
+                                    </a>
+                                </Button>
+                                <Button variant="outline" size="xs" className="h-6 text-[9px]" asChild>
+                                    <a href="https://aistudio.google.com/app/plan_and_billing" target="_blank">
+                                        Usage Dashboard <ExternalLinkIcon className="ml-1 h-2 w-2"/>
+                                    </a>
+                                </Button>
+                            </div>
+                        </AlertDescription>
+                    </Alert>
                 </CardContent>
             </Card>
         </div>
@@ -916,9 +938,9 @@ export default function PartnerProfile() {
         
         <Separator />
         
-        <Button type="submit" disabled={isSaving}>
+        <Button type="submit" disabled={isSaving} className="w-full h-12 text-lg font-bold">
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Changes
+            Save Profile Settings
         </Button>
       </form>
     </Form>
