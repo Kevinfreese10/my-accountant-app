@@ -9,7 +9,7 @@ import { Form } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useBlog } from '@/contexts/BlogContext';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, Save } from 'lucide-react';
 import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -33,7 +33,6 @@ const formSchema = z.object({
 
 type SeoFormValues = z.infer<typeof formSchema>;
 
-
 export default function SeoManagementPage() {
   const { blogPosts } = useBlog();
   const { toast } = useToast();
@@ -42,7 +41,6 @@ export default function SeoManagementPage() {
   const [isAiUpdating, setIsAiUpdating] = useState<string | null>(null);
   
   const form = useForm<SeoFormValues>({
-    // resolver: zodResolver(formSchema), // Removed to allow saving with errors
     defaultValues: {
       pages: [],
     },
@@ -52,58 +50,78 @@ export default function SeoManagementPage() {
   const { control, setValue, getValues } = form;
 
   useEffect(() => {
-    const fetchServices = async () => {
+    const fetchData = async () => {
         setIsLoading(true);
         try {
-            const q = query(collection(db, "services"), orderBy("title"));
-            const querySnapshot = await getDocs(q);
-            const fetchedServices = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
+            // 1. Fetch Services
+            const sQuery = query(collection(db, "services"), orderBy("title"));
+            const sSnap = await getDocs(sQuery);
+            const fetchedServices = sSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
             setServices(fetchedServices);
+
+            // 2. Fetch Static SEO Overrides
+            const staticSnap = await getDocs(collection(db, 'staticSeo'));
+            const staticOverrides: Record<string, any> = {};
+            staticSnap.forEach(doc => {
+                staticOverrides[doc.id] = doc.data();
+            });
+
+            // 3. Define Static Pages with Defaults
+            const staticPagesConfig = [
+                { id: 'home', path: '/', title: 'My Accountant | Professional Accounting & Tax Services', description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.' },
+                { id: 'about', path: '/about', title: 'About Us | My Accountant', description: 'Learn about My Accountant, our vision, mission, and the expertise that drives us to provide top-tier financial services in South Africa.' },
+                { id: 'products', path: '/products', title: 'Our Products | My Accountant', description: 'Comprehensive solutions to meet all your financial needs. We offer a range of services for individuals and businesses.' },
+                { id: 'cv-checker', path: '/cv-checker', title: 'Free AI CV Checker | My Accountant', description: 'Get an instant ATS compatibility score and professional achievement-based rewrites for your CV in seconds.' },
+                { id: 'blog', path: '/blog', title: 'Tax Tip Blog | My Accountant', description: 'Stay informed with our latest articles, tips, and updates on tax-related topics relevant to South African individuals and businesses.' },
+                { id: 'compliance', path: '/compliance', title: 'Free SARS & CIPC Compliance Check', description: 'Ensure your South African business is compliant. Get a free, no-obligation compliance assessment for CIPC and SARS.' },
+                { id: 'sars-compromise', path: '/sars-compromise', title: 'SARS Compromise of Debt | My Accountant', description: 'Explore your options for a SARS Compromise of Debt. We help you negotiate a settlement with SARS to resolve outstanding tax debt.' },
+                { id: 'liquidations', path: '/liquidations', title: 'Company Liquidations | My Accountant', description: 'Professional assistance with voluntary company liquidations in South Africa. Close your business legally and responsibly.' },
+                { id: 'contact', path: '/contact', title: 'Contact Us | My Accountant', description: 'Get in touch with the My Accountant team. Fill out our contact form with your questions or inquiries.' },
+                { id: 'become-a-partner', path: '/become-a-partner', title: 'Bookkeeper Empowerment Initiative | Partner Program', description: 'Partner with My Accountant to grow your practice. Our BEI program provides the tools, mentorship, and opportunities you need.' },
+                { id: 'ai-accountant', path: '/ai-accountant', title: 'AI Accountant | Smart Financial Assistant', description: 'The AI Accountant automates your entire accounting workflow — from receipts to reconciliations — saving you hours of manual work.' },
+                { id: 'ai-accountant-signup', path: '/ai-accountant-signup', title: 'AI Accountant Signup | Start Automating', description: 'Create your AI Accountant profile and start automating your bookkeeping today.' },
+                { id: 'partner-signup', path: '/partner-signup', title: 'Partner Signup | Join the BEI', description: 'Join our partner network and get access to R5000 in starting credits and white-label tools.' },
+                { id: 'popia', path: '/popia', title: 'POPIA Compliance Policy', description: 'Read the My Accountant (Pty) Ltd policy on the Protection of Personal Information Act (POPIA).' },
+                { id: 'refund-policy', path: '/refund-policy', title: 'Refund Policy | My Accountant', description: 'Understand the terms and conditions for refunds on services purchased from My Accountant.' },
+                { id: 'terms', path: '/terms', title: 'BEI Terms & Conditions', description: 'Review the official Terms and Conditions for participating in the My Accountant BEI partner program.' },
+                { id: 'login', path: '/login', title: 'Portal Login | My Accountant', description: 'Access your secure client or partner dashboard to manage your orders and services.' },
+                { id: 'signup', path: '/signup', title: 'Create an Account | My Accountant', description: 'Sign up for a My Accountant account to manage your tax and accounting services online.' },
+            ];
+
+            const staticPages = staticPagesConfig.map(page => ({
+                id: page.id,
+                path: page.path,
+                title: staticOverrides[page.id]?.title || page.title,
+                description: staticOverrides[page.id]?.description || page.description,
+                keywords: staticOverrides[page.id]?.keywords?.map((k: string) => ({ value: k })) || [],
+            }));
+
+            const servicePages = fetchedServices.map(s => ({
+                id: `service-${s.id}`,
+                path: `/products/${s.slug}`,
+                title: s.metaTitle || `${s.title} | My Accountant`,
+                description: s.metaDescription || s.description,
+                keywords: s.metaKeywords?.map(k => ({ value: k })) || [],
+            }));
+            
+            const blogPages = blogPosts.map(p => ({
+                id: `blog-${p.id}`,
+                path: `/blog/${p.slug}`,
+                title: p.metaTitle || `${p.title} | My Accountant`,
+                description: p.metaDescription || p.excerpt,
+                keywords: p.metaKeywords?.map(k => ({ value: k })) || [],
+            }));
+
+            setValue('pages', [...staticPages, ...servicePages, ...blogPages]);
         } catch(error) {
-            console.error("Error fetching services: ", error);
-            toast({ title: 'Error', description: 'Could not fetch services.', variant: 'destructive'});
+            console.error("Error fetching SEO data: ", error);
+            toast({ title: 'Error', description: 'Could not fetch SEO data.', variant: 'destructive'});
         } finally {
             setIsLoading(false);
         }
     };
-    fetchServices();
-  }, [toast]);
-  
-  useEffect(() => {
-    const staticPages = [
-        { id: 'home', path: '/', title: 'My Accountant | Professional Accounting & Tax Services', description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.', keywords: [{value: 'accounting'}, {value: 'tax services'}] },
-        { id: 'about', path: '/about', title: 'About Us | My Accountant', description: 'Learn about My Accountant, our vision, mission, and the expertise that drives us to provide top-tier financial services in South Africa.', keywords: [] },
-        { id: 'products', path: '/products', title: 'Our Products | My Accountant', description: 'Comprehensive solutions to meet all your financial needs. We offer a range of services for individuals and businesses.', keywords: [] },
-        { id: 'blog', path: '/blog', title: 'Tax Tip Blog', description: 'Stay informed with our latest articles, tips, and updates on tax-related topics relevant to South African individuals and businesses.', keywords: [] },
-        { id: 'compliance', path: '/compliance', title: 'Free SARS & CIPC Compliance Check', description: 'Ensure your South African business is compliant. Get a free, no-obligation compliance assessment for CIPC and SARS, plus a 5% discount on your next service.', keywords: [] },
-        { id: 'contact', path: '/contact', title: 'Contact Us', description: 'Get in touch with the My Accountant team. Fill out our contact form with your questions or inquiries, and we will get back to you shortly.', keywords: [] },
-        { id: 'become-a-partner', path: '/become-a-partner', title: 'Bookkeeper Empowerment Initiative', description: 'Partner with My Accountant to grow your practice. Our Bookkeeper Empowerment Initiative (BEI) provides the tools, mentorship, and opportunities you need.', keywords: [] },
-        { id: 'ai-accountant', path: '/ai-accountant', title: 'AI Accountant | Smart Financial Assistant', description: 'The AI Accountant automates your entire accounting workflow — from receipts to reconciliations — saving you hours of manual work every month.', keywords: [] },
-        { id: 'popia', path: '/popia', title: 'POPIA Compliance Policy', description: 'Read the My Accountant (Pty) Ltd policy on the Protection of Personal Information Act (POPIA), detailing how we collect, process, and safeguard your data.', keywords: [] },
-        { id: 'refund-policy', path: '/refund-policy', title: 'Refund Policy', description: 'Understand the terms and conditions for refunds on services purchased from My Accountant. Learn about our 48-hour request window and non-refundable policy once work has commenced.', keywords: [] },
-        { id: 'terms', path: '/terms', title: 'BEI Terms & Conditions', description: 'Review the official Terms and Conditions for participating in the My Accountant Bookkeeper Empowerment Initiative (BEI) partner program.', keywords: [] },
-        { id: 'sars-compromise', path: '/sars-compromise', title: 'SARS Compromise of Debt', description: 'Explore your options for a SARS Compromise of Debt with My Accountant. We help you negotiate a settlement with SARS to resolve outstanding tax debt and get a fresh start.', keywords: [] },
-        { id: 'liquidations', path: '/liquidations', title: 'Company Liquidations', description: 'Professional assistance with voluntary company liquidations in South Africa. Close your business legally and responsibly with expert guidance from My Accountant.', keywords: [] },
-    ];
-    
-    const servicePages = services.map(s => ({
-        id: `service-${s.id}`,
-        path: `/products/${s.slug}`,
-        title: s.metaTitle || `${s.title} | My Accountant`,
-        description: s.metaDescription || s.description,
-        keywords: s.metaKeywords?.map(k => ({ value: k })) || [],
-    }));
-    
-    const blogPages = blogPosts.map(p => ({
-        id: `blog-${p.id}`,
-        path: `/blog/${p.slug}`,
-        title: p.metaTitle || `${p.title} | My Accountant`,
-        description: p.metaDescription || p.excerpt,
-        keywords: p.metaKeywords?.map(k => ({ value: k })) || [],
-    }));
-
-    setValue('pages', [...staticPages, ...servicePages, ...blogPages]);
-  }, [services, blogPosts, setValue]);
+    fetchData();
+  }, [blogPosts, setValue, toast]);
 
 
   const onSubmit = async (data: SeoFormValues) => {
@@ -130,6 +148,15 @@ export default function SeoManagementPage() {
                     metaDescription: page.description,
                     metaKeywords: page.keywords?.map(k => k.value) || [],
                 }, { merge: true }));
+            } else {
+                // Static Page Save
+                const staticRef = doc(db, 'staticSeo', page.id);
+                writePromises.push(setDoc(staticRef, {
+                    title: page.title,
+                    description: page.description,
+                    keywords: page.keywords?.map(k => k.value) || [],
+                    path: page.path
+                }));
             }
         });
         
@@ -137,7 +164,7 @@ export default function SeoManagementPage() {
 
         toast({
             title: 'SEO Settings Saved',
-            description: 'Your changes have been saved successfully.',
+            description: 'Your changes have been saved successfully across all pages.',
         });
 
     } catch (e) {
@@ -194,6 +221,9 @@ export default function SeoManagementPage() {
             } else if (groupName === 'Blog Posts') {
                 const originalPost = blogPosts.find(p => `blog-${p.id}` === page.id);
                  if (originalPost) originalTitle = originalPost.title;
+            } else {
+                // For static pages, use the path or ID as context
+                originalTitle = page.id.replace(/-/g, ' ');
             }
 
             if (originalTitle) {
@@ -222,7 +252,7 @@ export default function SeoManagementPage() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading && pages.length === 0) {
       return (
           <div className="flex justify-center items-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -233,25 +263,28 @@ export default function SeoManagementPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">SEO Management</h1>
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+        <div>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-950">SEO Management</h1>
+            <p className="text-sm text-muted-foreground">Manage metadata for all {pages.length} pages on the website.</p>
+        </div>
+        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} className="gap-2">
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4" />}
             Save All Changes
         </Button>
       </div>
       <Card>
         <CardHeader>
           <CardTitle>Page SEO Details</CardTitle>
-          <CardDescription>Update the meta titles and descriptions for pages on your site.</CardDescription>
+          <CardDescription>Update the meta titles and descriptions. Use the AI button to auto-optimize sections.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <Tabs defaultValue="all">
-                <TabsList>
+                <TabsList className="mb-4">
                     <TabsTrigger value="all">All Pages ({pages.length})</TabsTrigger>
                     <TabsTrigger value="duplicates">Duplicate Titles ({duplicateTitleGroups.length})</TabsTrigger>
                 </TabsList>
-                <TabsContent value="all" className="pt-4">
+                <TabsContent value="all" className="p-0">
                     <form className="space-y-8">
                     <Accordion type="multiple" defaultValue={['Static Pages']} className="w-full">
                         {Object.entries(pageGroups).map(([groupName, groupPages]) => (
@@ -259,9 +292,9 @@ export default function SeoManagementPage() {
                             <div className="flex items-center">
                             <AccordionTrigger className="text-xl font-semibold flex-grow">{groupName} ({groupPages.length})</AccordionTrigger>
                            
-                                <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating || groupName === 'Static Pages'}>
-                                    {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2" />}
-                                    Update with AI
+                                <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating} className="text-primary font-bold">
+                                    {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                                    Auto-Optimize with AI
                                 </Button>
                             
                             </div>
@@ -284,30 +317,41 @@ export default function SeoManagementPage() {
                     </Accordion>
                     </form>
                 </TabsContent>
-                 <TabsContent value="duplicates" className="pt-4">
+                 <TabsContent value="duplicates" className="p-0">
                      {duplicateTitleGroups.length > 0 ? (
-                        <Accordion type="multiple" className="w-full">
-                        {duplicateTitleGroups.map((group, index) => (
-                            <AccordionItem key={index} value={`duplicate-${index}`}>
-                                <AccordionTrigger className="text-lg font-semibold flex-grow">
-                                    {group[0].title} ({group.length} pages)
-                                </AccordionTrigger>
-                                <AccordionContent className="space-y-6 pt-4">
-                                    {group.map(page => (
-                                        <SeoPageForm
-                                            key={page.id}
-                                            form={form}
-                                            control={control}
-                                            index={page.originalIndex}
-                                            page={page}
-                                        />
-                                    ))}
-                                </AccordionContent>
-                            </AccordionItem>
-                        ))}
-                        </Accordion>
+                        <div className="space-y-4 pt-4">
+                            <Alert variant="destructive">
+                                <AlertTitle>Duplicate Titles Found</AlertTitle>
+                                <AlertDescription>
+                                    Search engines prefer unique titles for every page. These pages currently share identical meta titles.
+                                </AlertDescription>
+                            </Alert>
+                            <Accordion type="multiple" className="w-full">
+                            {duplicateTitleGroups.map((group, index) => (
+                                <AccordionItem key={index} value={`duplicate-${index}`}>
+                                    <AccordionTrigger className="text-lg font-semibold flex-grow">
+                                        "{group[0].title}" ({group.length} pages)
+                                    </AccordionTrigger>
+                                    <AccordionContent className="space-y-6 pt-4">
+                                        {group.map(page => (
+                                            <SeoPageForm
+                                                key={page.id}
+                                                form={form}
+                                                control={control}
+                                                index={page.originalIndex}
+                                                page={page}
+                                            />
+                                        ))}
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                            </Accordion>
+                        </div>
                      ) : (
-                        <p className="text-center text-muted-foreground py-8">No duplicate titles found. Great job!</p>
+                        <div className="text-center py-20 bg-muted/20 rounded-lg border-2 border-dashed">
+                            <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4 opacity-20" />
+                            <p className="text-muted-foreground">No duplicate titles found. Your site is well-optimized!</p>
+                        </div>
                      )}
                 </TabsContent>
             </Tabs>
