@@ -151,6 +151,7 @@ export default function PartnerServicesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isBulkBranding, setIsBulkBranding] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<Record<string, 'pending' | 'processing' | 'done' | 'error' | 'rate_limited'>>({});
+  const [servicesToProcessCount, setServicesToProcessCount] = useState(0);
   const { toast } = useToast();
 
   const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
@@ -191,9 +192,18 @@ export default function PartnerServicesPage() {
         return;
     }
 
+    // Filter to only process unbranded items
+    const toProcess = services.filter(s => !overrides[s.id]);
+
+    if (toProcess.length === 0) {
+        toast({ title: "No action needed", description: "All products are already branded or customized." });
+        return;
+    }
+
     setIsBulkBranding(true);
+    setServicesToProcessCount(toProcess.length);
     const initialStatus: Record<string, any> = {};
-    services.forEach(s => initialStatus[s.id] = 'pending');
+    toProcess.forEach(s => initialStatus[s.id] = 'pending');
     setBulkStatus(initialStatus);
 
     const processService = async (service: Service, retryCount = 0): Promise<boolean> => {
@@ -238,12 +248,12 @@ export default function PartnerServicesPage() {
     };
 
     try {
-        for (const service of services) {
+        for (const service of toProcess) {
             await processService(service);
             // Throttling: Add a 3-second delay between successful requests to stay under Free Tier limits (RPM)
             await new Promise(resolve => setTimeout(resolve, 3000));
         }
-        toast({ title: "Bulk Branding Complete", description: "All services have been updated with your practice branding." });
+        toast({ title: "Bulk Branding Complete", description: `${toProcess.length} services have been updated with your practice branding.` });
     } catch (e) {
         console.error(e);
         toast({ title: "Bulk Process Failed", variant: "destructive" });
@@ -269,11 +279,11 @@ export default function PartnerServicesPage() {
   };
 
   const bulkProgress = useMemo(() => {
-      const total = services.length;
+      const total = servicesToProcessCount;
       if (total === 0) return 0;
       const completed = Object.values(bulkStatus).filter(s => s === 'done' || s === 'error').length;
       return (completed / total) * 100;
-  }, [bulkStatus, services]);
+  }, [bulkStatus, servicesToProcessCount]);
 
   return (
     <div className="space-y-8">
@@ -298,7 +308,7 @@ export default function PartnerServicesPage() {
                   <div className="flex justify-between items-center text-sm font-bold text-primary">
                       <span className="flex items-center gap-2">
                         <Loader2 className="h-3 w-3 animate-spin" />
-                        Branding Practice Catalog...
+                        Branding {servicesToProcessCount} Default Services...
                       </span>
                       <span>{Math.round(bulkProgress)}%</span>
                   </div>
@@ -354,10 +364,10 @@ export default function PartnerServicesPage() {
                   const override = overrides[service.id];
                   const displayPrice = override?.price ?? service.price;
                   const displayTitle = override?.title ?? service.title;
-                  const brandingStatus = bulkStatus[service.id];
+                  const currentStatus = bulkStatus[service.id];
 
                   return (
-                  <TableRow key={service.id} className={cn(brandingStatus === 'rate_limited' && "bg-yellow-50/50")}>
+                  <TableRow key={service.id} className={cn(currentStatus === 'rate_limited' && "bg-yellow-50/50")}>
                     <TableCell className="font-medium">
                         <div className="flex flex-col">
                             <span className="font-bold">{displayTitle}</span>
@@ -365,13 +375,13 @@ export default function PartnerServicesPage() {
                         </div>
                     </TableCell>
                     <TableCell>
-                        {brandingStatus === 'processing' ? (
+                        {currentStatus === 'processing' ? (
                             <Badge variant="outline" className="animate-pulse h-5 text-[10px]"><Loader2 className="h-2 w-2 mr-1 animate-spin"/> Processing</Badge>
-                        ) : brandingStatus === 'rate_limited' ? (
+                        ) : currentStatus === 'rate_limited' ? (
                             <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200 h-5 text-[10px] font-bold"><Clock className="h-2 w-2 mr-1"/> Rate Limited - Retrying...</Badge>
-                        ) : brandingStatus === 'done' || override?.metaTitle ? (
+                        ) : currentStatus === 'done' || override?.metaTitle ? (
                             <Badge variant="success" className="bg-green-100 text-green-800 border-green-200 h-5 text-[10px]">Branded</Badge>
-                        ) : brandingStatus === 'error' ? (
+                        ) : currentStatus === 'error' ? (
                             <Badge variant="destructive" className="h-5 text-[10px]">Error</Badge>
                         ) : (
                             <Badge variant="secondary" className="opacity-50 h-5 text-[10px]">Default</Badge>
