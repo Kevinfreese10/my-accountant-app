@@ -116,24 +116,29 @@ export default function BecomeAPartnerPage() {
 
   const challenges = [
     {
-        title: 'Capacity Overload',
-        description: 'Stop turning away work because you lack hands. Outsource to our expert team when you hit your limit.',
-        icon: Users
+        title: 'Limited Service Range',
+        description: 'Offering only bookkeeping services limits your earning potential. Through BEI, you can sell My Accountant’s full suite of services — from company registration to VAT, COIDA, CIDB, NCR, and more.',
+        icon: Briefcase
     },
     {
-        title: 'Compliance Stress',
-        description: 'SARS and CIPC regulations change constantly. Our automated roadmap keeps you and your clients compliant.',
-        icon: ShieldAlert
+        title: 'Lack of Mentorship',
+        description: 'Many bookkeepers work alone, with no guidance from experienced professionals. We provide mentorship from senior accountants and industry experts who help you grow your confidence and capabilities.',
+        icon: GraduationCap
     },
     {
-        title: 'High Tech Costs',
-        description: 'No need for expensive CRM or practice management software. We provide the engine for R499/month.',
+        title: 'Technology Gaps',
+        description: 'Without proper systems, managing clients and documents becomes messy. You get access to our cloud-based reseller dashboard to manage, track, and outsource client orders seamlessly.',
         icon: Cpu
     },
     {
-        title: 'Branding Identity',
-        description: 'Maintain your professional image. We stay in the background while you remain the face of the business.',
-        icon: Sparkles
+        title: 'Capacity Constraints',
+        description: 'Handling large clients or complex projects alone isn’t easy. We’re a qualified team of accountants and tax professionals — when you outsource overflow work to us, it’s handled securely, accurately, and on time.',
+        icon: Users
+    },
+    {
+        title: 'Compliance Overwhelm',
+        description: 'Complex tax and statutory rules can deter small practitioners from taking on advanced clients. We provide ready-to-use templates, compliance guides, and ongoing training to help you stay compliant and confident.',
+        icon: ShieldAlert
     }
   ]
 
@@ -204,15 +209,15 @@ export default function BecomeAPartnerPage() {
                 <h2 className="text-3xl font-bold tracking-tight">The Challenges We're Solving</h2>
                 <p className="text-muted-foreground max-w-2xl mx-auto">We built the BEI because we know what it's like to run a growing practice in South Africa.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {challenges.map((item, idx) => (
                     <Card key={idx} className="border-none shadow-none bg-transparent text-center space-y-4">
                         <div className="mx-auto h-16 w-16 rounded-full bg-white shadow-sm border flex items-center justify-center">
                             <item.icon className="h-8 w-8 text-primary" />
                         </div>
-                        <div>
+                        <div className="space-y-2">
                             <h3 className="font-bold text-lg">{item.title}</h3>
-                            <p className="text-sm text-muted-foreground leading-relaxed mt-2">{item.description}</p>
+                            <p className="text-sm text-muted-foreground leading-relaxed px-4">{item.description}</p>
                         </div>
                     </Card>
                 ))}
@@ -288,7 +293,7 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
 
-      <section id="ai-assistant" className="container mx-auto px-4 scroll-m-20 border-t pt-16">
+      <section id="ai-assistant" className="container mx-auto px-4 scroll-m-24 border-t pt-16">
         <WebsiteAIWidget />
       </section>
     </div>
