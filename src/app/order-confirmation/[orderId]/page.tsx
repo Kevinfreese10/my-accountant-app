@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react';
 import { useParams, notFound, useRouter } from 'next/navigation';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order } from '@/lib/types';
-import { Loader2, CheckCircle, Banknote, LogIn } from 'lucide-react';
+import { Order, User } from '@/lib/types';
+import { Loader2, CheckCircle, Banknote, LogIn, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
@@ -27,6 +28,7 @@ export default function OrderConfirmationPage() {
     const { user, isAuthenticated } = useAuth();
     const orderId = params.orderId as string;
     const [order, setOrder] = useState<Order | null>(null);
+    const [reseller, setReseller] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -43,8 +45,17 @@ export default function OrderConfirmationPage() {
                     } as Order;
                     setOrder(orderData);
 
+                    // Fetch reseller details if it's a white-label order
+                    if (orderData.resellerId) {
+                        const resellerSnap = await getDoc(doc(db, 'users', orderData.resellerId));
+                        if (resellerSnap.exists()) {
+                            setReseller({ ...resellerSnap.data(), id: resellerSnap.id } as User);
+                        }
+                    }
+
                     // If user is authenticated and lands here, redirect them to PayFast immediately.
-                    if (isAuthenticated && orderData.status === 'Pending Payment') {
+                    // ONLY if it's not a reseller order (resellers use EFT)
+                    if (isAuthenticated && orderData.status === 'Pending Payment' && !orderData.resellerId) {
                         handlePayNow(orderData);
                     }
                 } else {
@@ -54,7 +65,7 @@ export default function OrderConfirmationPage() {
             };
             fetchOrder();
         }
-    }, [orderId, isAuthenticated]); // Rerun when authentication status changes
+    }, [orderId, isAuthenticated]); 
     
     const handlePayNow = (order: Order) => {
         if (!isAuthenticated) {
@@ -108,6 +119,8 @@ export default function OrderConfirmationPage() {
         return notFound();
     }
     
+    const isPartnerOrder = !!order.resellerId;
+
     return (
         <div className="container mx-auto px-4 py-12 max-w-4xl">
             <Card>
@@ -115,7 +128,9 @@ export default function OrderConfirmationPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                       Please complete payment for your order using the secure PayFast button below.
+                       {isPartnerOrder 
+                        ? "Please complete your payment via EFT using the details below." 
+                        : "Please complete payment for your order using the secure PayFast button below."}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -142,16 +157,72 @@ export default function OrderConfirmationPage() {
                     </section>
                     
                     <section className="text-center">
-                        {isAuthenticated ? (
-                             <Button onClick={() => handlePayNow(order)} className="w-full max-w-sm">
-                                Pay Now with PayFast
-                            </Button>
+                        {isPartnerOrder ? (
+                            <div className="space-y-6">
+                                {reseller?.bankingDetails?.bankName ? (
+                                    <div className="bg-muted p-6 rounded-lg border text-left space-y-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="flex items-center gap-2">
+                                            <Banknote className="h-5 w-5 text-primary" />
+                                            <h4 className="font-bold text-lg">Payment Instructions (EFT)</h4>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
+                                            <div>
+                                                <p className="text-muted-foreground uppercase text-[10px] font-bold tracking-widest mb-1">Bank Name</p>
+                                                <p className="font-semibold">{reseller.bankingDetails.bankName}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-muted-foreground uppercase text-[10px] font-bold tracking-widest mb-1">Account Holder</p>
+                                                <p className="font-semibold">{reseller.bankingDetails.accountHolder}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-muted-foreground uppercase text-[10px] font-bold tracking-widest mb-1">Account Number</p>
+                                                <p className="font-semibold font-mono">{reseller.bankingDetails.accountNumber}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-muted-foreground uppercase text-[10px] font-bold tracking-widest mb-1">Branch Code</p>
+                                                <p className="font-semibold font-mono">{reseller.bankingDetails.branchCode}</p>
+                                            </div>
+                                        </div>
+                                        <div className="bg-primary/5 p-4 rounded border border-primary/20 flex flex-col items-center justify-center">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-1">EFT Payment Reference</p>
+                                            <p className="text-2xl font-black text-primary font-mono">{order.id}</p>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground italic text-center">
+                                            Please email proof of payment to <a href={`mailto:${reseller.email}`} className="text-primary font-bold hover:underline">{reseller.email}</a>
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <Alert variant="destructive">
+                                        <AlertTitle>Missing Payment Info</AlertTitle>
+                                        <AlertDescription>
+                                            The partner has not provided banking details. Please contact them at {reseller?.email || 'the practice email'} for payment instructions.
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+                                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                    <Button asChild variant="outline">
+                                        <Link href="/dashboard/orders">Go to Dashboard</Link>
+                                    </Button>
+                                    <Button asChild className="gap-2">
+                                        <Link href={`/p/${reseller?.landingPage?.slug || ''}`}>
+                                            Return to Practice Page <ExternalLink className="h-4 w-4" />
+                                        </Link>
+                                    </Button>
+                                </div>
+                            </div>
                         ) : (
-                             <Button onClick={() => handlePayNow(order)} className="w-full max-w-sm">
-                                <LogIn className="mr-2 h-4 w-4" /> Login or Sign Up to Pay
-                            </Button>
+                            <>
+                                {isAuthenticated ? (
+                                    <Button onClick={() => handlePayNow(order)} className="w-full max-w-sm h-12 text-lg font-bold">
+                                        Pay Now with PayFast
+                                    </Button>
+                                ) : (
+                                    <Button onClick={() => handlePayNow(order)} className="w-full max-w-sm h-12 text-lg font-bold">
+                                        <LogIn className="mr-2 h-5 w-5" /> Login to Pay
+                                    </Button>
+                                )}
+                            </>
                         )}
-                       
                     </section>
                 </CardContent>
             </Card>

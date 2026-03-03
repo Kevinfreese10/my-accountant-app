@@ -96,15 +96,23 @@ const heading = {
 export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPassword, showPaymentButton = false }: OrderConfirmationEmailProps) => {
     const previewText = `Order Confirmation #${order.id}`;
     
-    const customerDisplayName = reseller ? reseller.companyName || reseller.name : order.customerName;
-    const customerFirstName = customerDisplayName.split(' ')[0];
+    // Greeting logic: If reseller is present, this email is for the end-client
+    const customerDisplayName = reseller ? (order.endCustomerName || order.customerName) : order.customerName;
+    const customerFirstName = customerDisplayName?.split(' ')[0] || 'Client';
 
-
-    const companyName = 'My Accountant';
-    const companyEmail = 'info@myacc.co.za';
-    const companyAddress = '369 Oak Avenue, Ferndale, Randburg';
+    const companyName = reseller?.companyName || 'My Accountant';
+    const companyEmail = reseller?.email || 'info@myacc.co.za';
+    
+    let companyAddress = '369 Oak Avenue, Ferndale, Randburg';
+    if (reseller?.address) {
+        const addr = reseller.address;
+        companyAddress = [addr.street, addr.suburb, addr.city, addr.province, addr.zip].filter(Boolean).join(', ');
+    }
     
     const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za';
+    const refundPolicyUrl = reseller?.landingPage?.slug 
+        ? `${siteUrl}/p/${reseller.landingPage.slug}/refund-policy`
+        : `${siteUrl}/refund-policy`;
 
     return (
         <Html>
@@ -119,26 +127,38 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                 </Text>
                  {isNewUser && generatedPassword && (
                     <Text style={paragraph}>
-                        Welcome to My Accountant! An account has been created for you. You can log in using your email and this temporary password: <strong>{generatedPassword}</strong>.
+                        Welcome to {companyName}! An account has been created for you. You can log in using your email and this temporary password: <strong>{generatedPassword}</strong>.
                     </Text>
                  )}
                 <Text style={paragraph}>
                     Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed.
                 </Text>
-                {showPaymentButton ? (
-                    <Text style={paragraph}>
-                        Please click the button below to complete your payment.
-                    </Text>
-                ) : (
-                     <Text style={paragraph}>
-                        You will be redirected to PayFast to complete your payment.
-                    </Text>
-                )}
+                
+                {!reseller ? (
+                    <>
+                        <Text style={paragraph}>
+                            {showPaymentButton 
+                                ? "Please click the button below to complete your payment." 
+                                : "You will be redirected to PayFast to complete your payment."}
+                        </Text>
 
-                {showPaymentButton && (
-                    <Button style={button} href={`${siteUrl}/order-confirmation/${order.id}`}>
-                        Pay Now
-                    </Button>
+                        {showPaymentButton && (
+                            <Button style={button} href={`${siteUrl}/order-confirmation/${order.id}`}>
+                                Pay Now
+                            </Button>
+                        )}
+                    </>
+                ) : (
+                    reseller.bankingDetails?.bankName && (
+                        <Section style={{ border: '1px solid #e6ebf1', borderRadius: '5px', padding: '20px', backgroundColor: '#fafafa', marginTop: '20px' }}>
+                            <Text style={{ ...paragraph, fontWeight: 'bold', marginBottom: '10px' }}>Payment Instructions (EFT):</Text>
+                            <Text style={{ ...paragraph, margin: 0, fontSize: '14px' }}><strong>Bank:</strong> {reseller.bankingDetails.bankName}</Text>
+                            <Text style={{ ...paragraph, margin: 0, fontSize: '14px' }}><strong>Account Holder:</strong> {reseller.bankingDetails.accountHolder}</Text>
+                            <Text style={{ ...paragraph, margin: 0, fontSize: '14px' }}><strong>Account Number:</strong> {reseller.bankingDetails.accountNumber}</Text>
+                            <Text style={{ ...paragraph, margin: 0, fontSize: '14px' }}><strong>Branch Code:</strong> {reseller.bankingDetails.branchCode}</Text>
+                            <Text style={{ ...paragraph, margin: 0, marginTop: '10px', color: '#c00', fontSize: '14px' }}><strong>Reference:</strong> {order.id}</Text>
+                        </Section>
+                    )
                 )}
                 
                 <Hr style={hr} />
@@ -167,7 +187,7 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                 <Hr style={hr} />
                 
                 <Text style={{...paragraph, fontSize: '14px', marginTop: '20px'}}>
-                    By making payment, you accept our <Link href={`${siteUrl}/refund-policy`} style={anchor}>Refund Policy</Link>.
+                    By making payment, you accept our <Link href={refundPolicyUrl} style={anchor}>Refund Policy</Link>.
                 </Text>
                 
                 <Hr style={hr} />
