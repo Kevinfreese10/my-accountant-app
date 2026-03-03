@@ -199,8 +199,13 @@ export default function PartnerServicesPage() {
             setBulkStatus(prev => ({ ...prev, [service.id]: 'processing' }));
             
             try {
+                // Ensure we only pass a plain object with strings to the Server Function
                 const branded = await brandService({
-                    service,
+                    service: {
+                        title: service.title,
+                        description: service.description,
+                        longDescription: service.longDescription,
+                    },
                     partnerName: user.companyName || user.name,
                     apiKey: user.geminiApiKey
                 });

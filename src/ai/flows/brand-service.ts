@@ -10,7 +10,11 @@
 import { z } from 'genkit';
 
 const BrandServiceInputSchema = z.object({
-  service: z.any().describe('The global service object to brand.'),
+  service: z.object({
+    title: z.string(),
+    description: z.string(),
+    longDescription: z.string(),
+  }).describe('The service text details to brand.'),
   partnerName: z.string().describe('The name of the partner practice.'),
   apiKey: z.string().describe('The partner\'s Gemini API Key.'),
 });
