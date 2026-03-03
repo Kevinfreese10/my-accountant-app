@@ -175,29 +175,36 @@ export default function BecomeAPartnerPage() {
 
       {/* About the Initiative */}
       <section className="container mx-auto px-4 scroll-m-20">
-        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6">
+        <div className="max-w-3xl mx-auto text-center space-y-8">
+            <div className="space-y-4">
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">About the Initiative</Badge>
-                <h2 className="text-4xl font-bold leading-tight">A Modern Engine for Modern Bookkeepers</h2>
-                <p className="text-lg text-muted-foreground leading-relaxed">
-                    The Bookkeeper Empowerment Initiative (BEI) is a pioneering program designed to solve the two biggest hurdles for South African independent practitioners: <strong>Capacity</strong> and <strong>Technology</strong>.
-                </p>
-                <p className="text-lg text-muted-foreground leading-relaxed">
-                    We provide you with a fully white-labeled service platform, AI-powered automation tools, and an expert back-office team that fulfills orders under your brand. You keep the client, you set the price, we provide the power.
-                </p>
+                <h2 className="text-4xl font-bold leading-tight">Our philosophy has always been simple</h2>
+                <p className="text-2xl font-bold text-slate-800 italic">"A client referred to someone else is a client lost."</p>
             </div>
-            <div className="relative aspect-video rounded-2xl overflow-hidden shadow-2xl border-8 border-white">
-                <img 
-                    src="https://picsum.photos/seed/bei-about/800/600" 
-                    alt="Accounting Team" 
-                    className="object-cover w-full h-full"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
-                    <div className="flex items-center gap-3 text-white">
-                        <CheckCircle2 className="h-6 w-6 text-green-400" />
-                        <span className="font-bold">Over 150 Practices Empowered</span>
+            
+            <div className="space-y-6 text-lg text-muted-foreground leading-relaxed">
+                <p>
+                    With the Bookkeeper Empowerment Initiative, you never have to send your client away because you lack capacity, specialised experience, or technical expertise.
+                </p>
+                <p>
+                    Instead, you can confidently outsource the service through us — discreetly and professionally — while maintaining your client relationship.
+                </p>
+                
+                <div className="flex flex-wrap justify-center gap-4 py-4">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full font-bold text-sm border border-green-100">
+                        <CheckCircle2 className="h-4 w-4" /> You stay in control
+                    </div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full font-bold text-sm border border-green-100">
+                        <CheckCircle2 className="h-4 w-4" /> You keep the client
+                    </div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full font-bold text-sm border border-green-100">
+                        <CheckCircle2 className="h-4 w-4" /> You protect your brand
                     </div>
                 </div>
+
+                <p className="font-semibold text-slate-950">
+                    We handle the complexity behind the scenes so your client never needs to move to another accountant.
+                </p>
             </div>
         </div>
       </section>
