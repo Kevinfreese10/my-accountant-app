@@ -54,7 +54,7 @@ export async function checkCV(input: CVAnalysisInput): Promise<CVAnalysisOutput>
   });
 
   const { output } = await ai.generate({
-    model: 'googleai/gemini-1.5-flash',
+    model: 'googleai/gemini-2.5-flash',
     output: { schema: CVAnalysisOutputSchema },
     prompt: [
       { text: `You are an expert Executive Recruiter and ATS (Applicant Tracking System) specialist. 
