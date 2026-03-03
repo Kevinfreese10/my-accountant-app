@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles, Globe, HeartHandshake, Percent, ClipboardList, TrendingUp, ExternalLink } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles, Globe, HeartHandshake, Percent, ClipboardList, TrendingUp, ExternalLink, AlertCircle, Zap, ShieldAlert, BarChart3 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import dynamic from 'next/dynamic';
@@ -69,34 +69,57 @@ export default function BecomeAPartnerPage() {
     {
         icon: <Percent className="h-6 w-6 text-primary" />,
         title: '25% Partner Discount',
-        description: 'Get 25% off our standard service pricing (excluding 3rd party costs like CIPC fees). High margins for your practice.',
+        description: 'Get 25% off My Accountant service fees (excl. 3rd party costs). Enjoy high margins while offering competitive pricing.',
     },
     {
         icon: <HeartHandshake className="h-6 w-6 text-primary" />,
         title: 'White-Label Outsourcing',
-        description: 'Our back-office fulfills orders under your brand. All client communication uses your identity.',
+        description: 'Our back-office fulfills orders under your brand. All client communication uses your identity and SMTP server.',
     },
     {
         icon: <ClipboardList className="h-6 w-6 text-primary" />,
         title: 'Client CRM & Automation',
-        description: 'Automated task creation based on client needs (VAT, PAYE, etc.). Never miss a compliance deadline.',
+        description: 'Automated task creation based on client needs (VAT, PAYE, etc.). Never miss a SARS or CIPC deadline again.',
     },
     {
         icon: <Users className="h-6 w-6 text-primary" />,
         title: 'Staff Management Module',
-        description: 'Assign tasks to your team, track progress, and manage internal workflows through a dedicated staff portal.',
+        description: 'Assign tasks to your team, track progress, and manage internal workflows through a dedicated practice portal.',
     },
     {
         icon: <TrendingUp className="h-6 w-6 text-primary" />,
         title: 'Flexible Pricing Control',
-        description: 'Edit your own selling prices on your landing page. Our costs remain fixed, giving you full control over your profit.',
+        description: 'Edit your own selling prices on your landing page. Our wholesale costs remain fixed, giving you full control over profit.',
     },
     {
         icon: <Globe className="h-6 w-6 text-primary" />,
         title: 'Custom Landing Page',
-        description: 'Get a professional, white-labeled landing page to showcase your services. Fully customizable branding.',
+        description: 'Get a professional, white-labeled landing page to showcase your services. Fully customizable colors and logo.',
     },
   ];
+
+  const challenges = [
+    {
+        title: 'Capacity Overload',
+        description: 'Stop turning away work because you lack hands. Outsource to our expert team when you hit your limit.',
+        icon: Users
+    },
+    {
+        title: 'Compliance Stress',
+        description: 'SARS and CIPC regulations change constantly. Our automated roadmap keeps you and your clients compliant.',
+        icon: ShieldAlert
+    },
+    {
+        title: 'High Tech Costs',
+        description: 'No need for expensive CRM or practice management software. We provide the engine for R499/month.',
+        icon: Cpu
+    },
+    {
+        title: 'Branding Identity',
+        description: 'Maintain your professional image. We stay in the background while you remain the face of the business.',
+        icon: Sparkles
+    }
+  ]
 
   return (
     <div className="space-y-16 pb-16">
@@ -109,7 +132,7 @@ export default function BecomeAPartnerPage() {
             <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl">
                 Bookkeeper <span className="text-gradient">#Empowerment</span> Initiative
             </h1>
-            <h2 className="mt-6 text-2xl md:text-3xl font-bold text-slate-800">Scale Your Practice with AI and Expert Back-Office Support</h2>
+            <h2 className="mt-6 text-2xl md:text-3xl font-bold text-slate-800 uppercase tracking-tighter italic">Scale Your Practice with AI and Expert Back-Office Support</h2>
             <p className="mt-6 text-xl text-muted-foreground max-w-3xl mx-auto font-medium">
                 Join the BEI network. R5000 Setup fee (fully returned as practice credits). 
                 R499/month hosting & support. 3 Free Staff Members included.
@@ -129,6 +152,59 @@ export default function BecomeAPartnerPage() {
         <TrustIndexWidget />
       </div>
 
+      {/* About the Initiative */}
+      <section className="container mx-auto px-4 scroll-m-20">
+        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6">
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">About the Initiative</Badge>
+                <h2 className="text-4xl font-bold leading-tight">A Modern Engine for Modern Bookkeepers</h2>
+                <p className="text-lg text-muted-foreground leading-relaxed">
+                    The Bookkeeper Empowerment Initiative (BEI) is a pioneering program designed to solve the two biggest hurdles for South African independent practitioners: <strong>Capacity</strong> and <strong>Technology</strong>.
+                </p>
+                <p className="text-lg text-muted-foreground leading-relaxed">
+                    We provide you with a fully white-labeled service platform, AI-powered automation tools, and an expert back-office team that fulfills orders under your brand. You keep the client, you set the price, we provide the power.
+                </p>
+            </div>
+            <div className="relative aspect-video rounded-2xl overflow-hidden shadow-2xl border-8 border-white">
+                <img 
+                    src="https://picsum.photos/seed/bei-about/800/600" 
+                    alt="Accounting Team" 
+                    className="object-cover w-full h-full"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
+                    <div className="flex items-center gap-3 text-white">
+                        <CheckCircle2 className="h-6 w-6 text-green-400" />
+                        <span className="font-bold">Over 150 Practices Empowered</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </section>
+
+      {/* Challenges Section */}
+      <section className="bg-slate-50 py-24 border-y">
+        <div className="container mx-auto px-4">
+            <div className="text-center mb-16 space-y-4">
+                <h2 className="text-3xl font-bold tracking-tight">The Challenges We're Solving</h2>
+                <p className="text-muted-foreground max-w-2xl mx-auto">We built the BEI because we know what it's like to run a growing practice in South Africa.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                {challenges.map((item, idx) => (
+                    <Card key={idx} className="border-none shadow-none bg-transparent text-center space-y-4">
+                        <div className="mx-auto h-16 w-16 rounded-full bg-white shadow-sm border flex items-center justify-center">
+                            <item.icon className="h-8 w-8 text-primary" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-lg">{item.title}</h3>
+                            <p className="text-sm text-muted-foreground leading-relaxed mt-2">{item.description}</p>
+                        </div>
+                    </Card>
+                ))}
+            </div>
+        </div>
+      </section>
+
+      {/* Financial Model Section */}
       <section className="container mx-auto px-4">
         <div className="max-w-4xl mx-auto">
             <div className="bg-primary/5 border-2 border-primary/10 rounded-3xl p-8 md:p-12 shadow-inner">
@@ -154,11 +230,12 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
       
-      <section className="bg-white py-24 border-t border-b">
+      {/* Key Benefits Grid */}
+      <section id="benefits" className="bg-white py-24 border-t border-b">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-                <h2 className="text-4xl font-bold tracking-tight">Everything You Need to Scale</h2>
-                <p className="text-muted-foreground mt-4 max-w-2xl mx-auto">A modern back-office engine for your accounting firm.</p>
+                <h2 className="text-4xl font-bold tracking-tight">Key Benefits of Joining</h2>
+                <p className="text-muted-foreground mt-4 max-w-2xl mx-auto">A modern back-office engine for your accounting firm, designed for maximum profitability.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {benefits.map(benefit => (
