@@ -153,8 +153,11 @@ export default function BecomeAPartnerPage() {
             <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl">
                 Bookkeeper <span className="text-gradient">#Empowerment</span> Initiative
             </h1>
-            <h2 className="mt-6 text-2xl md:text-3xl font-bold text-slate-800 uppercase tracking-tighter italic">Scale Your Practice with AI and Expert Back-Office Support</h2>
-            <p className="mt-6 text-xl text-muted-foreground max-w-3xl mx-auto font-medium">
+            <h2 className="mt-6 text-2xl md:text-3xl font-bold text-slate-800 uppercase tracking-tighter">Scale Your Practice 10X — Without Expanding Your Team.</h2>
+            <p className="mt-6 text-xl text-slate-700 max-w-3xl mx-auto font-bold italic leading-relaxed">
+                Outsource strategically while keeping control, confidence, and the client relationship firmly in your hands.
+            </p>
+            <p className="mt-6 text-sm text-muted-foreground max-w-3xl mx-auto font-medium">
                 Join the BEI network. R5000 Setup fee (fully returned as practice credits). 
                 R499/month hosting & support. 3 Free Staff Members included.
             </p>
