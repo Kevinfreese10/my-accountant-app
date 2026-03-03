@@ -60,8 +60,14 @@ export async function websiteQAndA(
   `;
   
   const becomeAPartnerPageContent = `
-    Bookkeeper Empowerment Initiative (BEI): Empowers small and growing bookkeepers in South Africa. Joining is free. Partners get a 10% discount on all services.
-    How it works: Apply online, access your reseller dashboard, outsource or accept work, and access mentorship and training. All client communication goes through your email (white-label model).
+    Bookkeeper Empowerment Initiative (BEI): Empowers small and growing bookkeepers in South Africa. Joining is free.
+    BEI Benefits:
+    - 25% Discount: Partners get 25% off My Accountant's standard service fees (excluding 3rd party costs like CIPC).
+    - White-Labeling: Seamless outsourcing while maintaining your brand.
+    - Client CRM: Advanced dashboard that automatically creates tasks based on client requirements (VAT, PAYE, etc.).
+    - Staff Management: Manage your team, assign tasks, and track internal project workflows.
+    - Pricing Control: Partners can set their own client selling prices while My Accountant's base cost remains fixed.
+    How it works: Apply online, pay R5000 setup (loaded as practice credits), and get access to your dashboard. R499/month hosting fee deducted from credits.
     Who can join: Freelance Bookkeepers, Startup Accounting Firms, Tax Practitioners, Business Consultants, Payroll Administrators. No need to be a registered accountant to offer services, but to receive outsourced work from My Accountant, you must belong to a recognized professional body (SAICA, SAIT, CIBA, or SAIPA).
   `;
   
@@ -130,7 +136,7 @@ export async function websiteQAndA(
     name: 'websiteQAndAPrompt',
     input: {schema: WebsiteQAndAInputSchema},
     output: {schema: WebsiteQAndAOutputSchema},
-    prompt: `You are an expert male AI assistant for a company called "My Accountant". Your name is 'Khai'.
+    prompt: `You are an expert AI assistant for a company called "My Accountant". Your name is 'Khai'.
     
     Your personality is friendly, professional, and very helpful. Start your responses with a warm, welcoming tone and use paragraphs for spacing to make your answers easy to read.
     

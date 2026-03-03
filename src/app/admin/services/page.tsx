@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Service } from '@/lib/types';
@@ -126,9 +125,10 @@ export default function AdminServicesPage() {
   const handleFormSubmit = async (serviceData: Omit<Service, 'id'> & { id?: string }) => {
     const { id, ...data } = serviceData;
     
+    // Applying the 25% partner discount
     const finalData = {
         ...data,
-        resellerPrice: data.price * 0.9,
+        resellerPrice: data.price * 0.75,
     };
     
     try {
@@ -182,11 +182,13 @@ export default function AdminServicesPage() {
             let updatedCount = 0;
 
             services.forEach(service => {
-                if (service.availability !== 'in_stock' || service.condition !== 'new') {
+                const newResellerPrice = service.price * 0.75;
+                if (service.availability !== 'in_stock' || service.condition !== 'new' || Math.abs((service.resellerPrice || 0) - newResellerPrice) > 0.01) {
                     const serviceRef = doc(db, 'services', service.id);
                     batch.update(serviceRef, {
                         availability: 'in_stock',
-                        condition: 'new'
+                        condition: 'new',
+                        resellerPrice: newResellerPrice
                     });
                     updatedCount++;
                 }
@@ -194,7 +196,7 @@ export default function AdminServicesPage() {
 
             if (updatedCount > 0) {
                 await batch.commit();
-                toast({ title: 'Success!', description: `${updatedCount} products were updated with default values.` });
+                toast({ title: 'Success!', description: `${updatedCount} products were updated with default values and the 25% partner discount.` });
                 fetchServices(); // Refetch to show updated data
             } else {
                 toast({ title: 'No Updates Needed', description: 'All products already have the correct default values.' });
@@ -278,19 +280,19 @@ export default function AdminServicesPage() {
                     <AlertDialogTrigger asChild>
                         <Button variant="outline" disabled={isUpdatingDefaults}>
                             {isUpdatingDefaults ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                            Update Product Defaults
+                            Sync 25% Discount
                         </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogTitle>Apply 25% Partner Discount?</AlertDialogTitle>
                             <AlertDialogDescription>
-                                This will scan all products and update any that do not have `availability` set to "in_stock" and `condition` set to "new". This action cannot be undone.
+                                This will scan all products and update the `resellerPrice` to 75% of the public price. It also ensures availability is "in_stock" and condition is "new".
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleUpdateDefaults}>Yes, Update All</AlertDialogAction>
+                            <AlertDialogAction onClick={handleUpdateDefaults}>Yes, Apply Discount</AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
@@ -310,7 +312,7 @@ export default function AdminServicesPage() {
                 <TableHead>Condition</TableHead>
                 <TableHead>Availability</TableHead>
                 <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Reseller Price</TableHead>
+                <TableHead className="text-right">Partner Cost (25% off)</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles, Globe, HeartHandshake } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles, Globe, HeartHandshake, Percent, ClipboardList, TrendingUp, ExternalLink } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import dynamic from 'next/dynamic';
@@ -65,75 +65,42 @@ const DynamicFaqSection = dynamic(() => Promise.resolve(FaqSection), {
 
 export default function BecomeAPartnerPage() {
 
-  const challenges = [
-    {
-      title: 'Limited Service Range',
-      description: 'Offering only bookkeeping services limits your earning potential.',
-      icon: Briefcase,
-      solution: "Through BEI, you can sell My Accountant’s full suite of services — from company registration to VAT, COIDA, CIDB, NCR, and more.",
-    },
-    {
-      title: 'Lack of Mentorship',
-      description: 'Many bookkeepers work alone, with no guidance from experienced professionals.',
-      icon: GraduationCap,
-      solution: 'We provide mentorship from senior accountants and industry experts who help you grow your confidence and capabilities.',
-    },
-    {
-      title: 'Technology Gaps',
-      description: 'Without proper systems, managing clients and documents becomes messy.',
-      icon: Cpu,
-      solution: 'You get access to our cloud-based reseller dashboard to manage, track, and outsource client orders seamlessly.',
-    },
-    {
-      title: 'Capacity Constraints',
-      description: 'Handling large clients or complex projects alone isn’t easy.',
-      icon: Users,
-      solution: 'We’re a qualified team of accountants and tax professionals — when you outsource overflow work to us, it’s handled securely, accurately, and on time.',
-    },
-     {
-      title: 'Compliance Overwhelm',
-      description: 'Complex tax and statutory rules can deter small practitioners from taking on advanced clients.',
-      icon: ShieldCheck,
-      solution: 'We provide ready-to-use templates, compliance guides, and ongoing training to help you stay compliant and confident.',
-    },
-  ];
-
   const benefits = [
     {
-        icon: <Wallet2 className="h-6 w-6 text-primary" />,
-        title: 'Credit-Based Growth',
-        description: 'Your R5000 setup fee is returned as credits. We deduct your R499/month hosting fee from this balance, keeping your cash flow free.',
+        icon: <Percent className="h-6 w-6 text-primary" />,
+        title: '25% Partner Discount',
+        description: 'Get 25% off our standard service pricing (excluding 3rd party costs like CIPC fees). High margins for your practice.',
+    },
+    {
+        icon: <HeartHandshake className="h-6 w-6 text-primary" />,
+        title: 'White-Label Outsourcing',
+        description: 'Our back-office fulfills orders under your brand. All client communication uses your identity.',
+    },
+    {
+        icon: <ClipboardList className="h-6 w-6 text-primary" />,
+        title: 'Client CRM & Automation',
+        description: 'Automated task creation based on client needs (VAT, PAYE, etc.). Never miss a compliance deadline.',
     },
     {
         icon: <Users className="h-6 w-6 text-primary" />,
-        title: '3 Free Staff Users',
-        description: 'Grow your team without the cost. Your first 3 additional staff members are free, with extras at only R45/month.',
+        title: 'Staff Management Module',
+        description: 'Assign tasks to your team, track progress, and manage internal workflows through a dedicated staff portal.',
+    },
+    {
+        icon: <TrendingUp className="h-6 w-6 text-primary" />,
+        title: 'Flexible Pricing Control',
+        description: 'Edit your own selling prices on your landing page. Our costs remain fixed, giving you full control over your profit.',
     },
     {
         icon: <Globe className="h-6 w-6 text-primary" />,
         title: 'Custom Landing Page',
-        description: 'Get a professional, white-labeled landing page to showcase your services. See an example at myacc.co.za/p/interscope',
-    },
-    {
-        icon: <Sparkles className="h-6 w-6 text-primary" />,
-        title: 'AI Branding Tool',
-        description: 'Use our AI engine to automatically re-brand all 50+ My Accountant services with your own practice identity in seconds.',
-    },
-    {
-        icon: <HeartHandshake className="h-6 w-6 text-primary" />,
-        title: 'Seamless White-Labeling',
-        description: 'We act as your back-office. All client deliverables are sent directly to you, preserving your brand authority.',
-    },
-    {
-        icon: <FileText className="h-6 w-6 text-primary" />,
-        title: 'Compliance Resources',
-        description: 'Save time with professional templates for engagement letters and onboarding forms available in your dashboard.',
+        description: 'Get a professional, white-labeled landing page to showcase your services. Fully customizable branding.',
     },
   ];
 
   return (
     <div className="space-y-16 pb-16">
-      <section className="bg-background border-b relative overflow-hidden">
+      <section className="bg-white border-b relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
             <div className="absolute top-10 left-10"><Bot size={120} /></div>
             <div className="absolute bottom-10 right-10"><Wallet size={120} /></div>
@@ -187,35 +154,7 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
       
-      <section className="container mx-auto px-4">
-        <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold tracking-tight">The Challenges We Solve</h2>
-            <p className="text-muted-foreground mt-2">Why 150+ practitioners have joined the BEI network.</p>
-        </div>
-        <div className="space-y-12 max-w-4xl mx-auto">
-            {challenges.map((challenge, index) => (
-                <div key={challenge.title} className="group">
-                    <div className="flex items-center gap-6">
-                        <div className="bg-primary/10 rounded-2xl h-16 w-16 flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors duration-300">
-                            <challenge.icon className="h-8 w-8 text-primary group-hover:text-white" />
-                        </div>
-                        <div className="space-y-1">
-                            <h3 className="text-2xl font-bold tracking-tight">{challenge.title}</h3>
-                            <p className="text-muted-foreground font-medium">{challenge.description}</p>
-                        </div>
-                    </div>
-                    <div className="mt-4 ml-20 bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg">
-                        <div className="flex gap-3">
-                            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0"/>
-                            <p className="font-bold text-green-900 text-sm">{challenge.solution}</p>
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-      </section>
-      
-      <section className="bg-background py-24 border-t border-b">
+      <section className="bg-white py-24 border-t border-b">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16">
                 <h2 className="text-4xl font-bold tracking-tight">Everything You Need to Scale</h2>
@@ -262,5 +201,3 @@ export default function BecomeAPartnerPage() {
     </div>
   );
 }
-
-import { ExternalLink } from 'lucide-react';
