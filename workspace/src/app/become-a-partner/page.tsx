@@ -184,6 +184,15 @@ export default function BecomeAPartnerPage() {
             
             <div className="space-y-6 text-lg text-muted-foreground leading-relaxed">
                 <p>
+                    The Bookkeeper Empowerment Initiative by My Accountant was created to empower small and growing bookkeepers across South Africa. We know what it’s like to start out — you have the skills, but limited clients, tools, and support. That’s why BEI gives you the technology, mentorship, and opportunities to build your own brand, attract more clients, and scale your income — all while staying independent.
+                </p>
+                <p>
+                    Whether you’re a freelance bookkeeper, a new accounting firm, or a small practitioner, BEI is designed to help you grow faster with less stress.
+                </p>
+                
+                <Separator className="my-8" />
+
+                <p>
                     With the Bookkeeper Empowerment Initiative, you never have to send your client away because you lack capacity, specialised experience, or technical expertise.
                 </p>
                 <p>
