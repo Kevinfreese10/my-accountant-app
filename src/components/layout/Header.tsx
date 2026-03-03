@@ -48,9 +48,11 @@ const Header = () => {
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-8">
-          <Link href="/" className="text-2xl font-bold text-gradient">
-            My Accountant
-          </Link>
+          {!isAuthPage && (
+            <Link href="/" className="text-2xl font-bold text-gradient">
+              My Accountant
+            </Link>
+          )}
           {!isAuthPage && (
             <nav className="hidden items-center gap-6 text-sm font-medium lg:flex">
               {navLinks.map(link => (
@@ -89,41 +91,43 @@ const Header = () => {
           </div>
           
           <div className="lg:hidden">
-            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Open menu</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left">
-                <div className="flex flex-col gap-6 pt-8">
-                  <Link href="/" className="text-2xl font-bold text-primary" onClick={() => setMobileMenuOpen(false)}>
-                    My Accountant
-                  </Link>
-                   {!isAuthPage && navLinks.map(link => (
-                    <Link key={link.href} href={link.href} className="text-lg font-medium text-foreground/80 transition-colors hover:text-foreground flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
-                      {link.icon && <link.icon className="h-5 w-5" />}
-                      {link.label}
+            {!isAuthPage && (
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Menu className="h-5 w-5" />
+                    <span className="sr-only">Open menu</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left">
+                  <div className="flex flex-col gap-6 pt-8">
+                    <Link href="/" className="text-2xl font-bold text-primary" onClick={() => setMobileMenuOpen(false)}>
+                      My Accountant
                     </Link>
-                  ))}
-                  <div className="mt-auto">
-                  {isAuthenticated && user ? (
-                      <div className="space-y-4">
-                          <Link href={user.role === 'partner' ? '/partner/dashboard' : '/admin/dashboard'} className="text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
-                          <Button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full">Logout</Button>
-                      </div>
-                    ) : (
-                      <Button asChild className="w-full" onClick={() => setMobileMenuOpen(false)}>
-                        <Link href="/login">
-                          <LogIn className="mr-2 h-4 w-4" /> Login
-                        </Link>
-                      </Button>
-                    )}
+                     {navLinks.map(link => (
+                      <Link key={link.href} href={link.href} className="text-lg font-medium text-foreground/80 transition-colors hover:text-foreground flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
+                        {link.icon && <link.icon className="h-5 w-5" />}
+                        {link.label}
+                      </Link>
+                    ))}
+                    <div className="mt-auto">
+                    {isAuthenticated && user ? (
+                        <div className="space-y-4">
+                            <Link href={user.role === 'partner' ? '/partner/dashboard' : '/admin/dashboard'} className="text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
+                            <Button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full">Logout</Button>
+                        </div>
+                      ) : (
+                        <Button asChild className="w-full" onClick={() => setMobileMenuOpen(false)}>
+                          <Link href="/login">
+                            <LogIn className="mr-2 h-4 w-4" /> Login
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </SheetContent>
-            </Sheet>
+                </SheetContent>
+              </Sheet>
+            )}
           </div>
         </div>
       </div>
