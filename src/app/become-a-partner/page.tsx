@@ -240,32 +240,6 @@ export default function BecomeAPartnerPage() {
             </div>
         </div>
       </section>
-
-      {/* Financial Model Section */}
-      <section className="container mx-auto px-4">
-        <div className="max-w-4xl mx-auto">
-            <div className="bg-primary/5 border-2 border-primary/10 rounded-3xl p-8 md:p-12 shadow-inner">
-                <div className="flex flex-col md:flex-row gap-8 items-center">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border text-center min-w-[240px]">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Practice Setup</p>
-                        <p className="text-4xl font-black text-primary">R5,000</p>
-                        <Separator className="my-4" />
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Practice Credits</p>
-                        <p className="text-4xl font-black text-green-600">R5,000</p>
-                    </div>
-                    <div className="space-y-4 text-center md:text-left">
-                        <h2 className="text-3xl font-black italic uppercase tracking-tighter">Your Money, Working for Your Growth</h2>
-                        <p className="text-lg text-muted-foreground leading-relaxed font-medium">
-                            Your R5000 setup fee is immediately loaded into your <strong>Practice Wallet</strong> as credits. 
-                        </p>
-                        <p className="text-lg text-muted-foreground leading-relaxed font-medium">
-                            We deduct your monthly subscription (R499) and any outsourced work from this balance. It covers your hosting, AI tools, and gives you a professional headstart.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-      </section>
       
       {/* Key Benefits Grid */}
       <section id="benefits" className="bg-white py-24 border-t border-b scroll-m-20">
