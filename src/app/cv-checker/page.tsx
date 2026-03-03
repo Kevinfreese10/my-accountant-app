@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -16,12 +16,16 @@ import { checkCV, CVAnalysisOutput } from '@/ai/flows/check-cv-flow';
 import { Progress } from '@/components/ui/progress';
 import { saveCvLead } from '@/app/actions';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+import Link from 'next/link';
+import { Service } from '@/lib/types';
 
 const storage = getStorage(firebaseApp);
+const db = getFirestore(firebaseApp);
 
 const formSchema = z.object({
   cvFile: z.custom<FileList>().refine((files) => files && files.length > 0, 'A CV file is required (PDF).'),
@@ -34,6 +38,7 @@ const formSchema = z.object({
 export default function CVCheckerPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<CVAnalysisOutput | null>(null);
+  const [relatedServices, setRelatedServices] = useState<Service[]>([]);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -45,6 +50,26 @@ export default function CVCheckerPage() {
       consentStorage: false,
     },
   });
+
+  useEffect(() => {
+    const fetchRelated = async () => {
+        try {
+            const q = query(
+                collection(db, 'services'),
+                where('title', 'in', [
+                    'Individual Income Tax Return (ITR12) Simple',
+                    'Complex Individual Income Tax Return (ITR12) Filing',
+                    'Income Tax Return for Sole Proprietors (ITR12)'
+                ])
+            );
+            const snap = await getDocs(q);
+            setRelatedServices(snap.docs.map(d => ({ id: d.id, ...d.data() } as Service)));
+        } catch (e) {
+            console.error("Failed to fetch related products:", e);
+        }
+    };
+    fetchRelated();
+  }, []);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const file = values.cvFile[0];
@@ -314,6 +339,43 @@ export default function CVCheckerPage() {
         </div>
         <TrustIndexWidget />
       </section>
+
+      {relatedServices.length > 0 && (
+        <section className="space-y-8 pt-12 border-t">
+            <div className="text-center">
+                <h2 className="text-3xl font-bold">Maximize Your Tax Returns</h2>
+                <p className="text-muted-foreground mt-2">Professional tax services for individuals and sole proprietors.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {relatedServices.map(service => (
+                    <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 border">
+                        <CardHeader>
+                            <CardTitle className="text-xl font-bold leading-tight group-hover:text-primary transition-colors">{service.title}</CardTitle>
+                            <div className="pt-2">
+                                {service.isPriceTbc ? (
+                                    <span className="text-lg font-bold opacity-50 block">Price on Request</span>
+                                ) : (
+                                    <span className="text-xl font-bold text-primary block">
+                                        {new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(service.price)}
+                                    </span>
+                                )}
+                            </div>
+                        </CardHeader>
+                        <CardContent className="flex-grow">
+                            <p className="text-sm text-muted-foreground line-clamp-3">{service.description}</p>
+                        </CardContent>
+                        <CardFooter>
+                            <Button asChild variant="outline" className="w-full border-primary text-primary font-semibold">
+                                <Link href={`/products/${service.slug}`}>
+                                    View Details <ArrowRight className="ml-2 h-4 w-4" />
+                                </Link>
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                ))}
+            </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -20,7 +20,7 @@ import { useState, useEffect } from 'react';
 
 const navLinks = [
   { href: '/products', label: 'Products' },
-  { href: '/cv-checker', label: 'CV Checker', icon: FileSearch },
+  { href: '/cv-checker', label: 'CV Checker' },
   { href: '/about', label: 'About' },
   { href: '/blog', label: 'Blog' },
   { href: '/compliance', label: 'Compliance' },
