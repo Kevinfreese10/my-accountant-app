@@ -1,4 +1,3 @@
-
 import {
   Body,
   Container,
@@ -9,8 +8,6 @@ import {
   Preview,
   Section,
   Text,
-  Row,
-  Column,
   Link,
   Button,
 } from '@react-email/components';
@@ -96,7 +93,9 @@ const heading = {
 export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPassword, showPaymentButton = false }: OrderConfirmationEmailProps) => {
     const previewText = `Order Confirmation #${order.id}`;
     
-    // Greeting logic: If reseller is present, this email is for the end-client
+    // Determine the correct name to use in the greeting
+    // For partner orders, order.customerName is actually the PARTNER's name,
+    // so we must prioritize order.endCustomerName for the client greeting.
     const customerDisplayName = reseller ? (order.endCustomerName || order.customerName) : order.customerName;
     const customerFirstName = customerDisplayName?.split(' ')[0] || 'Client';
 
@@ -152,11 +151,11 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                     reseller.bankingDetails?.bankName && (
                         <Section style={{ border: '1px solid #e6ebf1', borderRadius: '5px', padding: '20px', backgroundColor: '#fafafa', marginTop: '20px' }}>
                             <Text style={{ ...paragraph, fontWeight: 'bold', marginBottom: '10px' }}>Payment Instructions (EFT):</Text>
-                            <Text style={{ ...paragraph, margin: 0, fontSize: '14px' }}><strong>Bank:</strong> {reseller.bankingDetails.bankName}</Text>
-                            <Text style={{ ...paragraph, margin: 0, fontSize: '14px' }}><strong>Account Holder:</strong> {reseller.bankingDetails.accountHolder}</Text>
-                            <Text style={{ ...paragraph, margin: 0, fontSize: '14px' }}><strong>Account Number:</strong> {reseller.bankingDetails.accountNumber}</Text>
-                            <Text style={{ ...paragraph, margin: 0, fontSize: '14px' }}><strong>Branch Code:</strong> {reseller.bankingDetails.branchCode}</Text>
-                            <Text style={{ ...paragraph, margin: 0, marginTop: '10px', color: '#c00', fontSize: '14px' }}><strong>Reference:</strong> {order.id}</Text>
+                            <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Bank:</strong> {reseller.bankingDetails.bankName}</Text>
+                            <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Account Holder:</strong> {reseller.bankingDetails.accountHolder}</Text>
+                            <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Account Number:</strong> {reseller.bankingDetails.accountNumber}</Text>
+                            <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Branch Code:</strong> {reseller.bankingDetails.branchCode}</Text>
+                            <Text style={{ ...paragraph, margin: '10px 0 0 0', color: '#c00', fontSize: '14px', fontWeight: 'bold' }}><strong>EFT Reference:</strong> {order.id}</Text>
                         </Section>
                     )
                 )}
@@ -165,12 +164,12 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                 <Text style={{ ...paragraph, fontWeight: 'bold' }}>
                     Order Summary:
                 </Text>
-                <table style={{ width: '100%' }}>
+                <table style={{ width: '100%', marginBottom: '20px' }}>
                     <tbody>
                     {order.items.map((item: any) => (
                         <tr key={item.id}>
-                        <td><Text style={paragraph}>{item.title} (x{item.quantity})</Text></td>
-                        <td align="right"><Text style={paragraph}>{formatPrice(item.clientPrice || item.price)}</Text></td>
+                        <td style={{ padding: '8px 0' }}><Text style={{ ...paragraph, margin: 0 }}>{item.title} (x{item.quantity})</Text></td>
+                        <td align="right" style={{ padding: '8px 0' }}><Text style={{ ...paragraph, margin: 0, fontWeight: 'bold' }}>{formatPrice(item.clientPrice || item.price)}</Text></td>
                         </tr>
                     ))}
                     </tbody>
@@ -179,8 +178,8 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                 <table style={{ width: '100%' }}>
                     <tbody>
                         <tr>
-                        <td><Text style={{ ...paragraph, fontWeight: 'bold' }}>Total</Text></td>
-                        <td align="right"><Text style={{ ...paragraph, fontWeight: 'bold' }}>{formatPrice(order.clientTotal || order.total)}</Text></td>
+                        <td><Text style={{ ...paragraph, fontWeight: 'bold', fontSize: '18px' }}>Total Due</Text></td>
+                        <td align="right"><Text style={{ ...paragraph, fontWeight: 'bold', fontSize: '18px', color: '#214392' }}>{formatPrice(order.clientTotal || order.total)}</Text></td>
                         </tr>
                     </tbody>
                 </table>

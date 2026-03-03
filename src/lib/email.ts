@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -22,6 +21,10 @@ type EmailPayload = {
     fromNameOverride?: string;
 }
 
+/**
+ * Sends an email using either global or partner-specific SMTP settings.
+ * Ensures white-labeling by adjusting 'From' name and 'Reply-To' for partner orders.
+ */
 export async function sendEmail({ 
     to, 
     cc, 
@@ -36,7 +39,7 @@ export async function sendEmail({
     fromNameOverride
 }: EmailPayload) {
   
-  // Default SMTP Configuration (My Accountant)
+  // 1. Default SMTP Configuration (My Accountant Master)
   let transportConfig: any = {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 465),
@@ -55,12 +58,12 @@ export async function sendEmail({
   let finalBcc = Array.isArray(bcc) ? [...bcc] : (bcc ? [bcc] : []);
   let finalReplyTo = replyTo;
 
-  // Use override if provided (useful for testing settings before saving)
+  // 2. Apply explicit SMTP overrides (e.g., from profile test button)
   if (smtpOverride && smtpOverride.host && smtpOverride.user && smtpOverride.pass) {
       transportConfig = {
           host: smtpOverride.host,
           port: Number(smtpOverride.port || 465),
-          secure: smtpOverride.port === '465',
+          secure: String(smtpOverride.port) === '465',
           auth: {
               user: smtpOverride.user,
               pass: smtpOverride.pass,
@@ -72,68 +75,71 @@ export async function sendEmail({
       fromEmail = smtpOverride.user;
   }
 
-  // Check for Reseller (Partner) details if no override is present
+  // 3. Handle Partner White-Labeling (If resellerId provided)
   if (resellerId && !smtpOverride) {
     try {
-      // Check 'users' collection first
-      let partnerRef = doc(db, 'users', resellerId);
-      let partnerSnap = await getDoc(partnerRef);
+      // Fetch partner profile to get branding and custom SMTP if available
+      // Note: We check both 'users' and 'aiAccountantClients' for maximum compatibility
+      let partnerData: User | null = null;
+      const userRef = doc(db, 'users', resellerId);
+      const userSnap = await getDoc(userRef);
       
-      // Fallback to 'aiAccountantClients' if not found in 'users'
-      if (!partnerSnap.exists()) {
-          partnerRef = doc(db, 'aiAccountantClients', resellerId);
-          partnerSnap = await getDoc(partnerRef);
+      if (userSnap.exists()) {
+          partnerData = userSnap.data() as User;
+      } else {
+          const aiClientRef = doc(db, 'aiAccountantClients', resellerId);
+          const aiClientSnap = await getDoc(aiClientRef);
+          if (aiClientSnap.exists()) {
+              partnerData = aiClientSnap.data() as User;
+          }
       }
       
-      if (partnerSnap.exists()) {
-        const partner = partnerSnap.data() as User;
-        
-        // Set white-label name
+      if (partnerData) {
+        // Set white-label Display Name
         if (!fromNameOverride) {
-            fromName = partner.companyName || partner.name;
+            fromName = partnerData.companyName || partnerData.name;
         }
 
-        // Always set Reply-To to partner email for white-labeling
+        // Set Reply-To to partner email so client responses go to them
         if (!finalReplyTo) {
-            finalReplyTo = partner.email;
+            finalReplyTo = partnerData.email;
         }
         
-        // If partner has configured SMTP, use it
-        if (partner.smtpDetails?.host && partner.smtpDetails?.user && partner.smtpDetails?.pass) {
+        // If partner has configured their own SMTP, use it for true white-label delivery
+        if (partnerData.smtpDetails?.host && partnerData.smtpDetails?.user && partnerData.smtpDetails?.pass) {
           transportConfig = {
-            host: partner.smtpDetails.host,
-            port: Number(partner.smtpDetails.port || 465),
-            secure: String(partner.smtpDetails.port) === '465',
+            host: partnerData.smtpDetails.host,
+            port: Number(partnerData.smtpDetails.port || 465),
+            secure: String(partnerData.smtpDetails.port) === '465',
             auth: {
-              user: partner.smtpDetails.user,
-              pass: partner.smtpDetails.pass,
+              user: partnerData.smtpDetails.user,
+              pass: partnerData.smtpDetails.pass,
             },
             tls: {
               rejectUnauthorized: false
             }
           };
-          // CRITICAL: Ensure the from email address matches the authenticated SMTP user
-          fromEmail = partner.smtpDetails.user;
+          // Update the authenticated sender address
+          fromEmail = partnerData.smtpDetails.user;
           
-          // Also BCC the partner on all their outgoing emails
-          if (!finalBcc.includes(partner.email)) {
-            finalBcc.push(partner.email);
+          // Blind-copy the partner on their own client notifications for their records
+          if (!finalBcc.includes(partnerData.email)) {
+            finalBcc.push(partnerData.email);
           }
         }
       }
     } catch (error) {
-      console.error('Error fetching partner SMTP details:', error);
+      console.error('Error fetching partner details for email:', error);
+      // Non-blocking: falls back to default SMTP if lookup fails
     }
   }
   
-  if (!transportConfig.host || !transportConfig.port || !transportConfig.auth.user || !transportConfig.auth.pass) {
-      console.error('SMTP configuration is missing.');
+  if (!transportConfig.host || !transportConfig.auth.user || !transportConfig.auth.pass) {
+      console.error('SMTP configuration is missing. Cannot send email.');
       throw new Error('Email server is not configured.');
   }
 
-  // Construct the final from header
   const fromAddress = from || `"${fromName}" <${fromEmail}>`;
-
   const transporter = nodemailer.createTransport(transportConfig);
 
   try {

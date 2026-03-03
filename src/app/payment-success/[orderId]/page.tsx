@@ -1,4 +1,3 @@
-
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, notFound, useRouter } from 'next/navigation';
@@ -46,6 +45,8 @@ export default function PaymentSuccessPage() {
                 if (orderSnap.exists()) {
                     const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
                     
+                    // Check if we need to send the "Request Documents" email
+                    // Avoid duplicate sending if order is already processed or email is logged in notes
                     if (orderData.status !== 'Processing' && !orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`)) {
                         
                         const itemsWithServices = orderData.items.map(item => {
@@ -62,18 +63,24 @@ export default function PaymentSuccessPage() {
                                 path: item.service.attachmentUrl!,
                             }));
                         
+                        // CRITICAL: Determine correct recipient for white-labeling
+                        // If it's an outsourced order, the "Customer" is the Partner, so we MUST use endCustomerEmail
+                        const recipientEmail = orderData.resellerId && orderData.endCustomerEmail 
+                            ? orderData.endCustomerEmail 
+                            : orderData.customerEmail;
+
                         try {
                             await sendEmail({
-                                to: orderData.customerEmail,
+                                to: recipientEmail,
                                 subject: `Action Required for Your Order #${orderId}`,
                                 html: emailHtml,
                                 attachments: attachments,
                                 resellerId: orderData.resellerId || undefined,
                             });
                              const emailNote: OrderNote = {
-                                text: 'Sent "Request Documents" email to client after payment.',
+                                text: `Sent "Request Documents" email to ${recipientEmail} after payment.`,
                                 date: Timestamp.now(),
-                                authorId: 'system', // System-sent
+                                authorId: 'system',
                                 type: 'email',
                                 subject: `Action Required for Your Order #${orderId}`,
                                 attachments: null,
@@ -81,9 +88,8 @@ export default function PaymentSuccessPage() {
                             await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
                         } catch(e) {
                              console.error("Failed to send document request email:", e);
-                             toast({ title: 'Email Failed', description: 'Could not send document request email.', variant: 'destructive'});
+                             toast({ title: 'Email Failed', description: 'Could not notify client. Please check your SMTP settings.', variant: 'destructive'});
                         }
-
                     }
                     
                     setOrder(orderData);
@@ -101,9 +107,7 @@ export default function PaymentSuccessPage() {
                 setIsLoading(false);
             };
 
-            // Since there is no ITN, we can call this immediately
             fetchOrderDetails();
-
         }
     }, [orderId, toast]);
 
@@ -153,7 +157,7 @@ export default function PaymentSuccessPage() {
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Order Date:</span>
-                                <span>{new Date(order.date.seconds * 1000).toLocaleDateString()}</span>
+                                <span>{order.date?.toDate ? format(order.date.toDate(), 'dd/MM/yyyy') : format(new Date(order.date), 'dd/MM/yyyy')}</span>
                             </div>
                             <Separator />
                             {order.items.map((item, index) => (
