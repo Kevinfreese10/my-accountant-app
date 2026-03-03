@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWidget'), {
   ssr: false,
@@ -89,7 +90,7 @@ export default function BecomeAPartnerPage() {
     {
         icon: <TrendingUp className="h-6 w-6 text-primary" />,
         title: 'Flexible Pricing Control',
-        description: 'Edit your own selling prices on your landing page. Our wholesale costs remain fixed, giving you full control over profit.',
+        description: 'Edit your own selling prices on your landing page. Our wholesale costs remains fixed, giving you full control over profit.',
     },
     {
         icon: <Globe className="h-6 w-6 text-primary" />,

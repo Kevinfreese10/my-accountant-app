@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWidget'), {
   ssr: false,
