@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Wallet2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 
 const db = getFirestore(firebaseApp);
 
@@ -101,10 +102,11 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
               <div className="p-4 sm:p-6 lg:p-8">
                   <div className="flex items-center gap-4 mb-6">
                       <SidebarTrigger className="md:hidden" />
-                      <div className="flex flex-col gap-1">
-                          <h2 className="text-sm font-semibold text-primary">{user?.companyName || 'Partner Practice'}</h2>
-                          {isLapsed && <Badge variant="destructive" className="w-fit text-[10px] h-4">Subscription Lapsed</Badge>}
-                      </div>
+                      {isLapsed && (
+                          <div className="flex flex-col gap-1">
+                              <Badge variant="destructive" className="w-fit text-[10px] h-4">Subscription Lapsed</Badge>
+                          </div>
+                      )}
                   </div>
 
                   {isLapsed && (

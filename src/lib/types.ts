@@ -244,7 +244,8 @@ export type User = {
   createdAt?: any;
   source?: 'AI Accountant' | 'Client Management' | 'Partner Management';
   clientSource?: 'admin' | 'partner' | 'ai_accountant';
-  department?: 'Accounting and Tax' | 'Administration' | 'CAP';
+  department?: 'Accounting and Tax' | 'Administration' | 'CAP' | string;
+  departments?: string[]; // Practice custom departments
   entityType?: 'Company' | 'Trust' | 'Individual';
   status?: 'Active' | 'Inactive' | 'Archived' | 'Pending Setup Payment';
   partnerId?: string; // Links staff or clients to a partner
