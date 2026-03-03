@@ -523,6 +523,17 @@ export type ProcessedEmail = {
   replySent?: boolean;
 };
 
+export type CVLead = {
+  id: string;
+  email?: string;
+  name?: string;
+  role: string;
+  score: number;
+  analysis: any;
+  cvUrl?: string;
+  createdAt: any;
+};
+
 import { z } from 'zod';
 
 export const FindStoryNameInputSchema = z.object({

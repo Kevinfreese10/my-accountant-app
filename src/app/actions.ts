@@ -2,7 +2,7 @@
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, CVLead } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import React from 'react';
@@ -23,6 +23,21 @@ import { analyzeClientComment } from '@/ai/flows/analyze-client-comment';
 
 const db = getFirestore(firebaseApp);
 
+
+export async function saveCvLead(data: Omit<CVLead, 'id' | 'createdAt'>) {
+    try {
+        const docRef = doc(collection(db, 'cvLeads'));
+        await setDoc(docRef, {
+            ...data,
+            id: docRef.id,
+            createdAt: serverTimestamp(),
+        });
+        return { success: true, id: docRef.id };
+    } catch (e) {
+        console.error("Save CV lead failed:", e);
+        return { success: false };
+    }
+}
 
 export async function notifyStaffOfDocumentUpload({ orderId, clientName, assignedStaffName, assignedStaffEmail }: { orderId: string, clientName: string, assignedStaffName: string, assignedStaffEmail: string }) {
     const emailHtml = render(

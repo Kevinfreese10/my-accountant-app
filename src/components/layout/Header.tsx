@@ -1,8 +1,7 @@
-
 'use client';
 
 import Link from 'next/link';
-import { ShoppingCart, LogIn, Menu } from 'lucide-react';
+import { ShoppingCart, LogIn, Menu, FileSearch } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -21,6 +20,7 @@ import { useState, useEffect } from 'react';
 
 const navLinks = [
   { href: '/products', label: 'Products' },
+  { href: '/cv-checker', label: 'CV Checker', icon: FileSearch },
   { href: '/about', label: 'About' },
   { href: '/blog', label: 'Blog' },
   { href: '/compliance', label: 'Compliance' },
@@ -48,9 +48,10 @@ const Header = () => {
           <Link href="/" className="text-2xl font-bold text-gradient">
             My Accountant
           </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+          <nav className="hidden items-center gap-6 text-sm font-medium lg:flex">
             {navLinks.map(link => (
-              <Link key={link.href} href={link.href} className="text-foreground/80 transition-colors hover:text-foreground">
+              <Link key={link.href} href={link.href} className="text-foreground/80 transition-colors hover:text-foreground flex items-center gap-1.5">
+                {link.icon && <link.icon className="h-4 w-4" />}
                 {link.label}
               </Link>
             ))}
@@ -82,7 +83,7 @@ const Header = () => {
             )}
           </div>
           
-          <div className="md:hidden">
+          <div className="lg:hidden">
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -96,7 +97,8 @@ const Header = () => {
                     My Accountant
                   </Link>
                    {navLinks.map(link => (
-                    <Link key={link.href} href={link.href} className="text-lg font-medium text-foreground/80 transition-colors hover:text-foreground" onClick={() => setMobileMenuOpen(false)}>
+                    <Link key={link.href} href={link.href} className="text-lg font-medium text-foreground/80 transition-colors hover:text-foreground flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
+                      {link.icon && <link.icon className="h-5 w-5" />}
                       {link.label}
                     </Link>
                   ))}

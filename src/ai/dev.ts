@@ -17,3 +17,4 @@ export * from '@/ai/flows/optimize-allocation-rule';
 export * from '@/ai/flows/ai-smart-regroup';
 export * from '@/ai/flows/analyze-client-comment';
 export * from '@/ai/flows/brand-service';
+export * from '@/ai/flows/check-cv-flow';
