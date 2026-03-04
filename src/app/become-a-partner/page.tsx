@@ -289,10 +289,10 @@ export default function BecomeAPartnerPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
-                    <Link href="/partner-signup">Sign Up & Claim Credits</Link>
+                    <Link href="/partner-signup">Sign up</Link>
                 </Button>
                 <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg border-2">
-                    <Link href="/contact">Speak to a Consultant</Link>
+                    <Link href="/contact">Book a demo</Link>
                 </Button>
             </div>
         </div>
