@@ -6,7 +6,6 @@ import ClientProviders from '@/contexts/ClientProviders';
 import { bodyFont, headlineFont } from '@/app/fonts';
 import { cn } from '@/lib/utils';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
-import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import ExternalScripts from '@/components/layout/ExternalScripts';
 
 export const metadata: Metadata = {
@@ -56,7 +55,6 @@ export default function RootLayout({
                 <AppShell>
                   {children}
                 </AppShell>
-                <WebsiteAIWidget />
             </ClientProviders>
         </AuthProvider>
       </body>

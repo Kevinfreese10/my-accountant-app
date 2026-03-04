@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -6,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles, Globe, HeartHandshake, Percent, ClipboardList, TrendingUp, ExternalLink, AlertCircle, Zap, ShieldAlert, BarChart3, LayoutDashboard, LifeBuoy } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -301,10 +299,6 @@ export default function BecomeAPartnerPage() {
                 </Button>
             </div>
         </div>
-      </section>
-
-      <section id="ai-assistant" className="container mx-auto px-4 scroll-m-24 border-t pt-16">
-        <WebsiteAIWidget />
       </section>
     </div>
   );
