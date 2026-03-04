@@ -152,7 +152,6 @@ export default function PartnerServicesPage() {
   const [isBulkBranding, setIsBulkBranding] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<Record<string, 'pending' | 'processing' | 'done' | 'error' | 'rate_limited'>>({});
   const [servicesToProcessCount, setServicesToProcessCount] = useState(0);
-  const [totalOnceOffFees, setTotalOnceOffFees] = useState(0);
   const { toast } = useToast();
 
   const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
@@ -207,7 +206,7 @@ export default function PartnerServicesPage() {
     toProcess.forEach(s => initialStatus[s.id] = 'pending');
     setBulkStatus(initialStatus);
 
-    const processService = async (service: Service, retryCount = 0): Promise<boolean> => {
+    const processService = async (service: Service): Promise<'done' | 'error' | 'rate_limited'> => {
         setBulkStatus(prev => ({ ...prev, [service.id]: 'processing' }));
         
         try {
@@ -231,30 +230,45 @@ export default function PartnerServicesPage() {
             }, { merge: true });
 
             setBulkStatus(prev => ({ ...prev, [service.id]: 'done' }));
-            return true;
+            return 'done';
         } catch (err: any) {
             console.error(`Branding failed for ${service.title}:`, err);
             
             // Handle Rate Limiting (429)
-            if (err.message?.includes('429') && retryCount < 1) {
+            if (err.message?.includes('429')) {
                 setBulkStatus(prev => ({ ...prev, [service.id]: 'rate_limited' }));
-                // Wait 30 seconds before retrying
-                await new Promise(resolve => setTimeout(resolve, 30000));
-                return processService(service, retryCount + 1);
+                return 'rate_limited';
             }
 
             setBulkStatus(prev => ({ ...prev, [service.id]: 'error' }));
-            return false;
+            return 'error';
         }
     };
 
     try {
         for (const service of toProcess) {
-            await processService(service);
-            // Throttling: Add a 3-second delay between successful requests to stay under Free Tier limits (RPM)
+            const result = await processService(service);
+            
+            if (result === 'rate_limited') {
+                toast({ 
+                    title: "Rate Limit Reached", 
+                    description: "You exceeded your current Gemini API quota. Please upgrade to a paid version of Gemini or wait until later/tomorrow to continue.",
+                    variant: "destructive",
+                    duration: 10000,
+                });
+                break; // Stop the loop immediately
+            }
+
+            // Throttling: 3-second delay
             await new Promise(resolve => setTimeout(resolve, 3000));
         }
-        toast({ title: "Bulk Branding Complete", description: `${toProcess.length} services have been updated with your practice branding.` });
+        
+        const completedCount = Object.values(bulkStatus).filter(s => s === 'done').length;
+        if (completedCount === toProcess.length) {
+            toast({ title: "Bulk Branding Complete", description: `${toProcess.length} services have been updated with your practice branding.` });
+        } else {
+            toast({ title: "Process Stopped", description: `Branded ${completedCount} of ${toProcess.length} services before stopping.` });
+        }
     } catch (e) {
         console.error(e);
         toast({ title: "Bulk Process Failed", variant: "destructive" });
@@ -282,7 +296,7 @@ export default function PartnerServicesPage() {
   const bulkProgress = useMemo(() => {
       const total = servicesToProcessCount;
       if (total === 0) return 0;
-      const completed = Object.values(bulkStatus).filter(s => s === 'done' || s === 'error').length;
+      const completed = Object.values(bulkStatus).filter(s => s === 'done' || s === 'error' || s === 'rate_limited').length;
       return (completed / total) * 100;
   }, [bulkStatus, servicesToProcessCount]);
 
@@ -317,8 +331,8 @@ export default function PartnerServicesPage() {
                   <div className="flex gap-2 items-start">
                     <Clock className="h-3 w-3 mt-0.5 text-muted-foreground" />
                     <p className="text-[10px] text-muted-foreground leading-snug">
-                        AI Throttling Active: Applying a 3-second delay between items to manage your API quota. 
-                        <strong> If you hit a 429 error</strong>, the system will pause for 30 seconds before retrying.
+                        AI Throttling Active: Applying a 3-second delay between items. 
+                        <strong> If you hit a rate limit</strong>, the process will stop to protect your quota.
                     </p>
                   </div>
               </CardContent>
@@ -379,7 +393,7 @@ export default function PartnerServicesPage() {
                         {currentStatus === 'processing' ? (
                             <Badge variant="outline" className="animate-pulse h-5 text-[10px]"><Loader2 className="h-2 w-2 mr-1 animate-spin"/> Processing</Badge>
                         ) : currentStatus === 'rate_limited' ? (
-                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200 h-5 text-[10px] font-bold"><Clock className="h-2 w-2 mr-1"/> Rate Limited - Retrying...</Badge>
+                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200 h-5 text-[10px] font-bold"><Clock className="h-2 w-2 mr-1"/> Rate Limited</Badge>
                         ) : currentStatus === 'done' || override?.metaTitle ? (
                             <Badge variant="success" className="bg-green-100 text-green-800 border-green-200 h-5 text-[10px]">Branded</Badge>
                         ) : currentStatus === 'error' ? (

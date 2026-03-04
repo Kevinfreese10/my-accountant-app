@@ -244,7 +244,10 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                 if (isNaN(parsedDate.getTime())) return;
 
                 const description = row.Description;
-                const match = allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase())));
+                const isExpense = row.Amount < 0;
+                
+                // Only match rules for expenses
+                const match = isExpense ? allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase()))) : null;
 
                 const txData: any = {
                     clientId: client.uid!,
@@ -252,12 +255,12 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                     reference: `CSV-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                     description: description,
                     amount: row.Amount,
-                    isExpense: row.Amount < 0,
+                    isExpense: isExpense,
                     bankAccountId: bankAccountId,
-                    status: match ? 'reviewed' : 'new'
+                    status: (isExpense && match) ? 'reviewed' : 'new'
                 };
 
-                if (match) {
+                if (isExpense && match) {
                     const keyword = match.keywords.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
                     txData.allocatedTo = { value: match.accountId, type: 'account' };
                     txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
@@ -433,7 +436,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords</FormLabel><FormControl><Textarea {...field} className="resize-none h-20" /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} className="resize-none h-20" /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="accountId" render={({ field }) => (
                             <FormItem><FormLabel>Account</FormLabel>
                                 <Select onValueChange={field.onChange} value={field.value || ""}>
@@ -615,6 +618,12 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
 
     const handleAllocateByRules = async () => {
         if (!client?.uid || !bankAccountId) return;
+        
+        if (activeSubTab === 'income') {
+            toast({ title: 'No Rules for Income', description: 'Allocation rules only apply to expense transactions.' });
+            return;
+        }
+
         setIsRuleAllocating(true);
         try {
             const rulesQuery = collection(db, "allocationRules");
@@ -627,7 +636,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                 transRef, 
                 where('bankAccountId', '==', bankAccountId), 
                 where('status', '==', 'new'),
-                where('isExpense', '==', activeSubTab === 'expenses')
+                where('isExpense', '==', true)
             );
             const snapshot = await getDocs(q);
 
@@ -878,7 +887,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating}>
+                            <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating || activeSubTab === 'income'}>
                                 {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4" />} Apply Rules
                             </Button>
 

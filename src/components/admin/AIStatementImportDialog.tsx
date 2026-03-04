@@ -191,7 +191,9 @@ export default function AIStatementImportDialog({
         }
 
         filteredTransactions.forEach(tx => {
-            const match = allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase())));
+            const isExpense = tx.amount < 0;
+            // Only match rules for expenses
+            const match = isExpense ? allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase()))) : null;
             
             const txData: any = {
                 clientId: client.id,
@@ -199,12 +201,12 @@ export default function AIStatementImportDialog({
                 reference: `AI-PDF-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                 description: tx.description.toUpperCase(),
                 amount: tx.amount,
-                isExpense: tx.amount < 0,
+                isExpense: isExpense,
                 bankAccountId: watchBankAccountId,
-                status: match ? 'reviewed' : 'new'
+                status: (isExpense && match) ? 'reviewed' : 'new'
             };
 
-            if (match) {
+            if (isExpense && match) {
                 const keyword = match.keywords.find(kw => tx.description.toUpperCase().includes(kw.toUpperCase()));
                 txData.allocatedTo = { value: match.accountId, type: 'account' };
                 txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';

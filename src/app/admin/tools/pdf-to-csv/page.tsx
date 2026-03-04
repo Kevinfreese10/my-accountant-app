@@ -218,7 +218,9 @@ export default function PdfToCsvPage() {
         }
 
         filteredTransactions.forEach(tx => {
-            const match = allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase())));
+            const isExpense = tx.amount < 0;
+            // Only match rules for expenses
+            const match = isExpense ? allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase()))) : null;
             
             const txData: any = {
                 clientId: selectedClient.id,
@@ -226,19 +228,18 @@ export default function PdfToCsvPage() {
                 reference: `PDF-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                 description: tx.description.toUpperCase(),
                 amount: tx.amount,
-                isExpense: tx.amount < 0,
+                isExpense: isExpense,
                 bankAccountId: watchBankAccountId,
-                status: match ? 'reviewed' : 'new'
+                status: (isExpense && match) ? 'reviewed' : 'new'
             };
 
-            if (match) {
+            if (isExpense && match) {
                 const keyword = match.keywords.find(kw => tx.description.toUpperCase().includes(kw.toUpperCase()));
                 txData.allocatedTo = { value: match.accountId, type: 'account' };
                 txData.vatType = selectedClient.isVatRegistered ? match.vatType : 'no_vat';
                 txData.allocatedAt = serverTimestamp();
                 txData.allocationSource = 'rule';
                 txData.matchedRuleId = match.id;
-                txData.matchedRuleDescription = match.description;
                 txData.matchedKeyword = keyword;
                 matchCount++;
             }
@@ -519,11 +520,13 @@ export default function PdfToCsvPage() {
                     </Card>
 
                     <Card>
-                        <CardHeader className="py-4 flex flex-row items-center justify-between border-b">
-                            <CardTitle className="text-md">Transaction Preview</CardTitle>
-                            <Button variant="outline" size="sm" onClick={handleDownloadPreviewExcel} disabled={filteredTransactions.length === 0}>
-                                <FileSpreadsheet className="h-4 w-4 mr-2" /> Download Excel
-                            </Button>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle className="text-md">Transaction Preview</CardTitle>
+                                <Button variant="outline" size="sm" onClick={handleDownloadPreviewExcel} disabled={filteredTransactions.length === 0}>
+                                    <FileSpreadsheet className="h-4 w-4 mr-2" /> Download Excel
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent className="p-0 pt-4 space-y-8">
                             {createOpeningBalance && statementMeta && (
