@@ -1,3 +1,4 @@
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -16,7 +17,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Wallet2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Service, Order } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
@@ -403,7 +404,7 @@ export default function PartnerSignupForm() {
                 Step 3: Setup, Credits & Subscription
             </h3>
             <p className="text-sm">
-                To activate your account, a <strong>R5000 (Incl. VAT)</strong> setup fee is required.
+                To activate your account, a <strong>R5000</strong> setup fee is required.
             </p>
             <div className="bg-white p-4 rounded border space-y-2">
                 <div className="flex justify-between items-center">
@@ -448,5 +449,3 @@ export default function PartnerSignupForm() {
     </Form>
   );
 }
-
-import { Wallet2 } from 'lucide-react';

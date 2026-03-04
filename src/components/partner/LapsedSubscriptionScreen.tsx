@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -199,7 +200,7 @@ export function LapsedSubscriptionScreen({ user }: { user: User }) {
                                         onChange={(e) => setTopUpAmount(e.target.value)}
                                         className="h-10 font-bold"
                                     />
-                                    <p className="text-[10px] text-muted-foreground italic">Minimum R100. Price inclusive of VAT.</p>
+                                    <p className="text-[10px] text-muted-foreground italic">Minimum R100.</p>
                                 </div>
                             </div>
                             <Button onClick={handleTopUpRedirect} disabled={isTopUpLoading} className="w-full h-12 text-lg font-bold gap-2">

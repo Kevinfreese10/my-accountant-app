@@ -23,7 +23,7 @@ const FaqSection = () => {
     },
     {
         question: "What does it cost to join?",
-        answer: "Joining requires a R5000 setup fee (Incl. VAT). This is not a 'lost' fee — the entire amount is immediately converted into R5000 credits in your practice wallet.\n\nFrom these credits, a monthly subscription of R499 is deducted for app hosting, AI tools, and priority support."
+        answer: "Joining requires a R5000 setup fee. This is not a 'lost' fee — the entire amount is immediately converted into R5000 credits in your practice wallet.\n\nFrom these credits, a monthly subscription of R499 is deducted for app hosting, AI tools, and priority support."
     },
     {
         question: "How does the staff billing work?",

@@ -1,3 +1,4 @@
+
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -38,6 +39,7 @@ const userColors = [
 ];
 
 const getUserColor = (userId: string) => {
+  if (!userId) return 'bg-gray-200 text-gray-800';
   const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return userColors[hash % userColors.length];
 };
@@ -139,7 +141,7 @@ function TopUpDialog({ partner }: { partner: User }) {
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
                         />
-                        <p className="text-[10px] text-muted-foreground">Minimum R100. Price is inclusive of 15% VAT.</p>
+                        <p className="text-[10px] text-muted-foreground">Minimum R100.</p>
                     </div>
                 </div>
                 <DialogFooter>
