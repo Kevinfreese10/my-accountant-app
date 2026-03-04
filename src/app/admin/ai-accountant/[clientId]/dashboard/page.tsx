@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -9,7 +7,7 @@ import { getFirestore, doc, getDoc, collection, getDocs, query, where, updateDoc
 import { firebaseApp } from '@/lib/firebase';
 import { User, ChartOfAccount, ImportedTransaction, AllocatedTransaction } from '@/lib/types';
 import { useParams } from 'next/navigation';
-import { Loader2, ArrowRight, Banknote, AlertCircle, PlusCircle } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, AlertCircle, PlusCircle, Sparkles, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,6 +18,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import AIStatementImportDialog from '@/components/admin/AIStatementImportDialog';
 
 const db = getFirestore(firebaseApp);
 
@@ -113,6 +112,8 @@ export default function AIAccountantClientDashboardPage() {
     const [client, setClient] = useState<User | null>(null);
     const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+    const [selectedBankAccountId, setSelectedBankAccountId] = useState<string | undefined>();
     const params = useParams();
     const clientId = params.clientId as string;
 
@@ -191,6 +192,16 @@ export default function AIAccountantClientDashboardPage() {
 
     return (
         <div className="space-y-6">
+            {client && (
+                <AIStatementImportDialog 
+                    open={isImportDialogOpen}
+                    onOpenChange={setIsImportDialogOpen}
+                    client={client}
+                    bankAccountId={selectedBankAccountId}
+                    onImportComplete={() => {}}
+                />
+            )}
+
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
@@ -237,11 +248,24 @@ export default function AIAccountantClientDashboardPage() {
                                         </TableCell>
                                         <TableCell>{acc.lastImportDate ? format(acc.lastImportDate, 'dd MMMM yyyy') : 'N/A'}</TableCell>
                                         <TableCell className="text-right">
-                                             <Button asChild variant="outline" size="sm">
-                                                <Link href={`/admin/ai-accountant/${clientId}/bank/transactions?accountId=${acc.id}`}>
-                                                    View Account <ArrowRight className="ml-2 h-4 w-4" />
-                                                </Link>
-                                            </Button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    className="font-bold border-primary/20 text-primary hover:bg-primary/5"
+                                                    onClick={() => {
+                                                        setSelectedBankAccountId(acc.id);
+                                                        setIsImportDialogOpen(true);
+                                                    }}
+                                                >
+                                                    <Sparkles className="mr-2 h-4 w-4" /> Import Statement (AI)
+                                                </Button>
+                                                <Button asChild variant="ghost" size="sm">
+                                                    <Link href={`/admin/ai-accountant/${clientId}/bank/transactions?accountId=${acc.id}`}>
+                                                        View Account <ArrowRight className="ml-2 h-4 w-4" />
+                                                    </Link>
+                                                </Button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))}

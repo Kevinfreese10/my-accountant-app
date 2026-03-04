@@ -42,6 +42,7 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from "@/components/ui/progress";
 import * as XLSX from 'xlsx';
+import AIStatementImportDialog from '@/components/admin/AIStatementImportDialog';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -184,6 +185,7 @@ function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction,
 
 function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete }: { client: User | null, bankAccountId: string, currentBalance: number, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
+    const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [parsedTransactions, setParsedTransactions] = useState<any[]>([]);
     const [isParsing, setIsParsing] = useState(false);
@@ -289,48 +291,74 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild><Button variant="outline" className="bg-primary text-primary-foreground hover:bg-primary/90 border-none font-bold"><FileUp className="mr-2 h-4 w-4" /> Import CSV</Button></DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
-                <DialogHeader><DialogTitle>Import Bank Statement</DialogTitle></DialogHeader>
-                <div className="space-y-4 py-4">
-                     <input id="statement-file" type="file" accept=".csv" onChange={handleFileChange} />
-                     {isParsing && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 animate-spin"/> Parsing...</p>}
-                     
-                     {parsedTransactions.length > 0 && (
-                        <div className="bg-muted/50 p-4 rounded-lg border space-y-2 animate-in fade-in slide-in-from-top-2">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Transactions Found:</span>
-                                <span className="font-bold">{parsedTransactions.length}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Current Balance:</span>
-                                <span className="font-semibold">{formatPrice(currentBalance)}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Import Total:</span>
-                                <span className={cn("font-bold", importTotal < 0 ? "text-destructive" : "text-green-600")}>
-                                    {formatPrice(importTotal)}
-                                </span>
-                            </div>
-                            <Separator />
-                            <div className="flex justify-between text-sm pt-1">
-                                <span className="text-muted-foreground font-semibold">New Potential Balance:</span>
-                                <span className="font-bold text-primary text-lg">
-                                    {formatPrice(potentialBalance)}
-                                </span>
-                            </div>
-                        </div>
-                     )}
-                </div>
-                <DialogFooter>
-                    <Button type="button" onClick={handleImport} disabled={isUploading || isParsing || parsedTransactions.length === 0}>
-                        {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save {parsedTransactions.length} Transactions
+        <>
+            {client && (
+                <AIStatementImportDialog 
+                    open={isAiDialogOpen}
+                    onOpenChange={setIsAiDialogOpen}
+                    client={client}
+                    bankAccountId={bankAccountId}
+                    onImportComplete={onImportComplete}
+                />
+            )}
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="bg-primary text-primary-foreground hover:bg-primary/90 border-none font-bold">
+                        <FileUp className="mr-2 h-4 w-4" /> Import Statement
                     </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => setIsOpen(true)}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4" /> Standard CSV Upload
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setIsAiDialogOpen(true)}>
+                        <Sparkles className="mr-2 h-4 w-4 text-primary" /> AI PDF Extraction
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader><DialogTitle>Import CSV Bank Statement</DialogTitle></DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <input id="statement-file" type="file" accept=".csv" onChange={handleFileChange} />
+                        {isParsing && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 animate-spin"/> Parsing...</p>}
+                        
+                        {parsedTransactions.length > 0 && (
+                            <div className="bg-muted/50 p-4 rounded-lg border space-y-2 animate-in fade-in slide-in-from-top-2">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">Transactions Found:</span>
+                                    <span className="font-bold">{parsedTransactions.length}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">Current Balance:</span>
+                                    <span className="font-semibold">{formatPrice(currentBalance)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">Import Total:</span>
+                                    <span className={cn("font-bold", importTotal < 0 ? "text-destructive" : "text-green-600")}>
+                                        {formatPrice(importTotal)}
+                                    </span>
+                                </div>
+                                <Separator />
+                                <div className="flex justify-between text-sm pt-1">
+                                    <span className="text-muted-foreground font-semibold">New Potential Balance:</span>
+                                    <span className="font-bold text-primary text-lg">
+                                        {formatPrice(potentialBalance)}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" onClick={handleImport} disabled={isUploading || isParsing || parsedTransactions.length === 0}>
+                            {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save {parsedTransactions.length} Transactions
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     )
 }
 
