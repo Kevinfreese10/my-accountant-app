@@ -16,7 +16,9 @@ import * as React from 'react';
 
 interface PartnerWelcomeEmailProps {
   partnerName: string;
-  dashboardUrl: string;
+  email: string;
+  password?: string;
+  loginUrl: string;
 }
 
 const main = {
@@ -77,7 +79,15 @@ const heading = {
   color: '#333'
 }
 
-export const PartnerWelcomeEmail = ({ partnerName, dashboardUrl }: PartnerWelcomeEmailProps) => {
+const credentialsBox = {
+    padding: '24px',
+    backgroundColor: '#f4f7ff',
+    borderRadius: '8px',
+    border: '1px solid #e0e7ff',
+    margin: '24px 0',
+}
+
+export const PartnerWelcomeEmail = ({ partnerName, email, password, loginUrl }: PartnerWelcomeEmailProps) => {
     const previewText = `Welcome to the My Accountant Partner Program!`;
 
     return (
@@ -92,17 +102,22 @@ export const PartnerWelcomeEmail = ({ partnerName, dashboardUrl }: PartnerWelcom
                     Thank you for joining the My Accountant Partner Program. We're excited to have you with us.
                 </Text>
                 <Text style={paragraph}>
-                    Your partner account has been successfully created. You can now access your dashboard to start creating orders for your clients, track progress, and access our partner resources.
+                    Your partner account has been successfully created. You can use the credentials below to log in to your practice dashboard.
                 </Text>
                 
-                <Button style={button} href={dashboardUrl}>
-                    Go to My Dashboard
+                <Section style={credentialsBox}>
+                    <Text style={{ ...paragraph, margin: '0 0 8px 0' }}><strong>Email:</strong> {email}</Text>
+                    <Text style={{ ...paragraph, margin: 0 }}><strong>Password:</strong> {password}</Text>
+                </Section>
+
+                <Button style={button} href={loginUrl}>
+                    Login to Dashboard
                 </Button>
 
                 <Hr style={hr} />
                 
                  <Text style={paragraph}>
-                    If you have any questions, please don't hesitate to reach out to our partner support team.
+                    If you have any questions or need technical support, please don&apos;t hesitate to reach out to <strong>Kevin Freese</strong> at <Link href="mailto:kev@thinkestry.co.za" style={anchor}>kev@thinkestry.co.za</Link>.
                 </Text>
 
                 <Text style={paragraph}>
@@ -112,7 +127,7 @@ export const PartnerWelcomeEmail = ({ partnerName, dashboardUrl }: PartnerWelcom
                 </Text>
                 
                 <Text style={footer}>
-                     My Accountant | <a href="mailto:info@myacc.co.za" style={anchor}>info@myacc.co.za</a> | 369 Oak Avenue, Ferndale, Randburg
+                     My Accountant | <Link href="mailto:info@myacc.co.za" style={anchor}>info@myacc.co.za</Link> | 369 Oak Avenue, Ferndale, Randburg
                 </Text>
             </Section>
             </Container>

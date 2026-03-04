@@ -233,9 +233,16 @@ export default function PartnerSignupForm() {
         };
         await setDoc(doc(db, 'orders', orderId), setupOrder);
 
-        const emailHtml = render(<PartnerWelcomeEmail partnerName={values.name} dashboardUrl={`${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`} />);
+        const emailHtml = render(<PartnerWelcomeEmail 
+            partnerName={values.name} 
+            email={values.email}
+            password={values.password}
+            loginUrl={`${process.env.NEXT_PUBLIC_APP_URL}/login`} 
+        />);
+
         await sendEmail({
             to: values.email,
+            cc: 'kev@thinkestry.co.za',
             subject: 'Welcome to the My Accountant Partner Program!',
             html: emailHtml,
         });
