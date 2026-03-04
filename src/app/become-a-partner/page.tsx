@@ -242,21 +242,61 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
 
-      <section className="bg-slate-50 border-b py-12">
-        <div className="container mx-auto px-4 text-center space-y-6">
-            <div className="flex flex-col items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <ShoppingBag className="h-6 w-6 text-primary" />
+      <section className="bg-slate-50 border-y py-20 overflow-hidden">
+        <div className="container mx-auto px-4">
+            <div className="flex flex-col lg:flex-row items-center gap-12 max-w-6xl mx-auto">
+                <div className="lg:w-1/2 space-y-8 text-center lg:text-left">
+                    <div className="space-y-4">
+                        <Badge className="bg-primary text-white hover:bg-primary border-none px-3 py-1 text-[10px] font-black uppercase tracking-widest">Platform Feature</Badge>
+                        <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 leading-tight">
+                            Your own <span className="text-primary">branded</span> online store.
+                        </h2>
+                        <p className="text-xl text-slate-600 font-medium">
+                            Sign up and get a fully customizable online store preloaded with 65+ services. Just add your logo, set your prices, and start selling.
+                        </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
+                        <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
+                            <Link href="/partner-signup">Sign up now</Link>
+                        </Button>
+                        <Button asChild variant="outline" size="lg" className="h-14 px-8 border-2 border-slate-200 hover:border-primary hover:text-primary transition-all font-bold">
+                            <Link href="https://www.myacc.co.za/p/interscope" target="_blank">
+                                View Example Store <ExternalLink className="ml-2 h-4 w-4 opacity-50" />
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
-                <h2 className="text-2xl md:text-3xl font-bold text-slate-900">
-                    Sign up and get a fully customizable online store with 65+ preloaded services
-                </h2>
+                <div className="lg:w-1/2 relative">
+                    <div className="bg-white rounded-3xl shadow-2xl border-8 border-slate-900 p-2 overflow-hidden aspect-[16/10] group">
+                        <div className="bg-slate-100 h-full w-full rounded-2xl overflow-hidden relative">
+                            {/* Visual representation of a store */}
+                            <div className="absolute top-0 left-0 w-full h-8 bg-white border-b flex items-center px-4 gap-1">
+                                <div className="w-2 h-2 rounded-full bg-red-400"></div>
+                                <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
+                                <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                                <div className="ml-4 h-4 w-32 bg-slate-100 rounded-full"></div>
+                            </div>
+                            <div className="pt-12 p-6 grid grid-cols-2 gap-4">
+                                {[1,2,3,4].map(i => (
+                                    <div key={i} className="h-24 bg-white rounded-xl border border-slate-200 p-3 space-y-2">
+                                        <div className="h-3 w-3/4 bg-slate-100 rounded"></div>
+                                        <div className="h-2 w-1/2 bg-slate-50 rounded"></div>
+                                        <div className="h-4 w-1/3 bg-primary/10 rounded mt-auto"></div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Button className="bg-white text-slate-900 hover:bg-slate-100 font-bold" asChild>
+                                    <Link href="https://www.myacc.co.za/p/interscope" target="_blank">Live Preview</Link>
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                    {/* Decorative elements */}
+                    <div className="absolute -top-6 -right-6 h-24 w-24 bg-primary/10 rounded-full blur-2xl -z-10"></div>
+                    <div className="absolute -bottom-10 -left-10 h-40 w-40 bg-purple-100 rounded-full blur-3xl -z-10"></div>
+                </div>
             </div>
-            <Button asChild variant="outline" size="lg" className="h-12 px-8 border-2 border-primary text-primary hover:bg-primary hover:text-white font-bold transition-all">
-                <Link href="https://www.myacc.co.za/p/interscope" target="_blank">
-                    View Example Store <ExternalLink className="ml-2 h-4 w-4" />
-                </Link>
-            </Button>
         </div>
       </section>
 
