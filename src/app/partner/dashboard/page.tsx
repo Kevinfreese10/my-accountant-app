@@ -1,5 +1,6 @@
-
 'use client';
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,8 +10,7 @@ import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCir
 import Image from 'next/image';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Order, Service, User, OrderNote } from '@/lib/types';
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp, onSnapshot, arrayUnion } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp, onSnapshot, arrayUnion, increment } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -294,10 +294,10 @@ export default function PartnerDashboardPage() {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-950">Welcome, {user?.contactPerson}!</h1>
-                    <p className="text-lg text-muted-foreground">{user?.companyName}</p>
+                    <h1 className="text-3xl font-bold tracking-tight text-slate-950">Welcome, {user?.contactPerson || user?.name}!</h1>
+                    <p className="text-lg text-muted-foreground">{user?.companyName || 'Practice Member'}</p>
                 </div>
-                {user && (
+                {user && user.role === 'partner' && (
                     <Card className="bg-primary/5 border-primary/20 min-w-[260px] overflow-hidden">
                         <CardHeader className="py-2.5 px-4 flex flex-row items-center justify-between space-y-0 border-b border-primary/10">
                             <div className="flex items-center gap-2">
