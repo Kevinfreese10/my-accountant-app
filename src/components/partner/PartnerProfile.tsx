@@ -25,6 +25,7 @@ import { sendEmail } from '@/lib/email';
 import { Slider } from '../ui/slider';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Progress } from '../ui/progress';
+import { Badge } from '@/components/ui/badge';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -586,7 +587,7 @@ export default function PartnerProfile() {
                                     {landingPageSlug && (
                                         <Button variant="outline" size="sm" asChild>
                                             <Link href={`/p/${landingPageSlug}`} target="_blank">
-                                                <ExternalLink className="h-4 w-4 mr-2"/>
+                                                <ExternalLinkIcon className="h-4 w-4 mr-2"/>
                                                 Visit Page
                                             </Link>
                                         </Button>
