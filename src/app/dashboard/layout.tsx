@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       // Redirect non-clients away from this dashboard
       if (user?.role === 'admin' || user?.role === 'staff') {
         router.push('/admin/dashboard');
-      } else if (user?.role === 'partner') {
+      } else if (user?.role === 'partner' || user?.role === 'partner_staff') {
         router.push('/partner/dashboard');
       } else {
         router.push('/login');
