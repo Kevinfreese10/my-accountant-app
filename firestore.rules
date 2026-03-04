@@ -66,5 +66,9 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if true; // Public lead capture
     }
+    match /demoLeads/{leadId} {
+      allow read: if request.auth != null;
+      allow write: if true; // Public lead capture
+    }
   }
 }

@@ -24,6 +24,7 @@ import {
   PanelLeft,
   ChevronDown,
   FileUser,
+  Presentation,
 } from 'lucide-react';
 
 import {
@@ -90,6 +91,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const adminNavItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
+    { href: '/admin/demo-leads', label: 'Demo Leads', icon: Presentation, roles: ['admin'] },
     { href: '/admin/cv-leads', label: 'CV Leads', icon: FileUser, roles: ['admin'] },
     { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },

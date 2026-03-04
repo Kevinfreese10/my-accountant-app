@@ -538,6 +538,15 @@ export type CVLead = {
   createdAt: any;
 };
 
+export type DemoLead = {
+  id: string;
+  name: string;
+  surname: string;
+  email: string;
+  cell: string;
+  createdAt: any;
+};
+
 import { z } from 'zod';
 
 export const FindStoryNameInputSchema = z.object({

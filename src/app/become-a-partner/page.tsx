@@ -3,16 +3,94 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ShieldAlert, ClipboardList, ShoppingBag, CheckCircle, Globe, Scale } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ShieldAlert, ClipboardList, ShoppingBag, CheckCircle, Globe, Scale, Loader2, Phone, Mail, UserPlus } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { saveDemoLead } from '@/app/actions';
 
 const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWidget'), {
   ssr: false,
 });
+
+const demoFormSchema = z.object({
+  name: z.string().min(2, "First name is required."),
+  surname: z.string().min(2, "Surname is required."),
+  email: z.string().email("A valid email is required."),
+  cell: z.string().min(10, "A valid cell number is required."),
+});
+
+function BookDemoDialog() {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const { toast } = useToast();
+    
+    const form = useForm<z.infer<typeof demoFormSchema>>({
+        resolver: zodResolver(demoFormSchema),
+        defaultValues: { name: '', surname: '', email: '', cell: '' },
+    });
+
+    const onSubmit = async (values: z.infer<typeof demoFormSchema>) => {
+        setIsLoading(true);
+        try {
+            const res = await saveDemoLead(values);
+            if (res.success) {
+                toast({ title: "Request Sent!", description: "A consultant will contact you shortly to schedule your demo." });
+                setIsOpen(false);
+                form.reset();
+            } else {
+                toast({ title: "Submission Failed", variant: "destructive" });
+            }
+        } catch (e) {
+            toast({ title: "Error", description: "An unexpected error occurred.", variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="lg" className="h-14 px-10 text-lg border-2">
+                    Book a demo
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-2xl font-bold">Book a Live Demo</DialogTitle>
+                    <DialogDescription>
+                        Enter your details and our team will reach out to schedule a personalized walkthrough of the BEI platform.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                            <FormField control={form.control} name="surname" render={({ field }) => ( <FormItem><FormLabel>Surname</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        </div>
+                        <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Work Email</FormLabel><FormControl><Input type="email" placeholder="john@practice.co.za" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="cell" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        
+                        <Button type="submit" className="w-full h-12 text-md font-bold mt-4" disabled={isLoading}>
+                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                            Request Demo
+                        </Button>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 const FaqSection = () => {
     const faqs = [
@@ -285,15 +363,13 @@ export default function BecomeAPartnerPage() {
         <div className="max-w-2xl mx-auto space-y-8">
             <h2 className="text-4xl font-bold tracking-tight text-slate-900">Ready to Empower Your Practice?</h2>
             <p className="text-xl text-muted-foreground">
-                Join the Bookkeeper Empowerment Initiative today and 10x your practice with 0 additional staff
+                Join the Bookkeeper Empowerment Initiative and scale your firm 10× — without hiring additional staff.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
                     <Link href="/partner-signup">Sign up</Link>
                 </Button>
-                <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg border-2">
-                    <Link href="/contact">Book a demo</Link>
-                </Button>
+                <BookDemoDialog />
             </div>
         </div>
       </section>

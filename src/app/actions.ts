@@ -2,7 +2,7 @@
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, CVLead } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, CVLead, DemoLead } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import React from 'react';
@@ -35,6 +35,21 @@ export async function saveCvLead(data: Omit<CVLead, 'id' | 'createdAt'>) {
         return { success: true, id: docRef.id };
     } catch (e) {
         console.error("Save CV lead failed:", e);
+        return { success: false };
+    }
+}
+
+export async function saveDemoLead(data: Omit<DemoLead, 'id' | 'createdAt'>) {
+    try {
+        const docRef = doc(collection(db, 'demoLeads'));
+        await setDoc(docRef, {
+            ...data,
+            id: docRef.id,
+            createdAt: serverTimestamp(),
+        });
+        return { success: true, id: docRef.id };
+    } catch (e) {
+        console.error("Save Demo lead failed:", e);
         return { success: false };
     }
 }
@@ -544,6 +559,39 @@ export async function researchMerchantWithAi({
     } catch (error) {
         console.error("Single merchant research failed:", error);
         throw error;
+    }
+}
+
+/**
+ * Researches a specific income merchant with AI.
+ */
+export async function finalizeChatAllocation({
+    clientId,
+    transactionId,
+    accountId,
+    vatType,
+    explanation
+}: {
+    clientId: string,
+    transactionId: string,
+    accountId: string,
+    vatType: string,
+    explanation: string
+}) {
+    try {
+        const transRef = doc(db, 'aiAccountantClients', clientId, 'transactions', transactionId);
+        await updateDoc(transRef, {
+            status: 'reviewed',
+            allocatedTo: { value: accountId, type: 'account' },
+            vatType: vatType,
+            clientComment: explanation,
+            allocatedAt: serverTimestamp(),
+            allocationSource: 'ai'
+        });
+        return { success: true };
+    } catch (e) {
+        console.error("Chat allocation failed:", e);
+        throw e;
     }
 }
 
