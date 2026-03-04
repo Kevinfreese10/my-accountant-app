@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '../ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck, Mail, Upload, Image as ImageIcon, Info, ExternalLinkIcon } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck, Mail, Upload, Image as ImageIcon, Info, ExternalLinkIcon, CheckCircle2, Circle, PartyPopper } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { getFirestore, doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { Switch } from '../ui/switch';
@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
 import { Slider } from '../ui/slider';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Progress } from '../ui/progress';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -149,6 +150,7 @@ export default function PartnerProfile() {
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingHero, setIsUploadingHero] = useState(false);
   const [isUploadingServicesHero, setIsUploadingServicesHero] = useState(false);
+  const [overrideCount, setOverrideCount] = useState(0);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -214,7 +216,61 @@ export default function PartnerProfile() {
   });
 
   const { setValue, watch } = form;
+  const watchedSmtp = watch('smtpDetails');
+  const watchedAiKey = watch('geminiApiKey');
+  const watchedBanking = watch('bankingDetails');
+  const watchedLp = watch('landingPage');
   const themePreset = watch('landingPage.themePreset');
+
+  // Fetch service overrides to check pricing task
+  useEffect(() => {
+      if (!user?.uid) return;
+      const fetchOverrides = async () => {
+          const snap = await getDocs(collection(db, 'users', user.uid, 'serviceOverrides'));
+          setOverrideCount(snap.size);
+      };
+      fetchOverrides();
+  }, [user?.uid]);
+
+  const checklist = useMemo(() => {
+      return [
+          { 
+              label: 'Email SMTP Settings', 
+              done: !!(watchedSmtp?.host && watchedSmtp?.user && watchedSmtp?.pass),
+              description: 'Required for white-label client notifications.'
+          },
+          { 
+              label: 'AI Configuration & Quotas', 
+              done: !!watchedAiKey,
+              description: 'Enable AI-powered transaction matching.'
+          },
+          { 
+              label: 'Update Pricing', 
+              done: overrideCount > 0,
+              description: 'Set your markups in the Services tab.'
+          },
+          { 
+              label: 'Update Banking Details', 
+              done: !!(watchedBanking?.bankName && watchedBanking?.accountNumber),
+              description: 'Required for client EFT payments.'
+          },
+          { 
+              label: 'Edit Landing Content & Images', 
+              done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs.length > 50),
+              description: 'Customize your public practice website.'
+          },
+          { 
+              label: 'Branding & Theme', 
+              done: watchedLp.themePreset !== 'custom' || watchedLp.primaryColor !== '#214392',
+              description: 'Apply your custom colors and styling.'
+          },
+      ];
+  }, [watchedSmtp, watchedAiKey, watchedBanking, watchedLp, overrideCount]);
+
+  const progressPercentage = useMemo(() => {
+      const completed = checklist.filter(i => i.done).length;
+      return Math.round((completed / checklist.length) * 100);
+  }, [checklist]);
 
   useEffect(() => {
     if (themePreset && themePreset !== 'custom') {
@@ -387,7 +443,57 @@ export default function PartnerProfile() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto space-y-10">
+        {/* Onboarding Progress Meter */}
+        <Card className="border-2 border-primary/20 shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
+            <CardHeader className="bg-primary/5 pb-4">
+                <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                        Practice Setup Progress
+                    </CardTitle>
+                    <Badge variant={progressPercentage === 100 ? "success" : "secondary"} className="font-bold">
+                        {progressPercentage === 100 ? <PartyPopper className="h-3 w-3 mr-1" /> : null}
+                        {progressPercentage}% Complete
+                    </Badge>
+                </div>
+                <Progress value={progressPercentage} className="h-2.5 mt-4" />
+            </CardHeader>
+            <CardContent className="pt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {checklist.map((item, idx) => (
+                        <div key={idx} className={cn(
+                            "p-3 rounded-lg border flex flex-col gap-1 transition-all",
+                            item.done ? "bg-green-50/50 border-green-200" : "bg-muted/30 border-muted opacity-70"
+                        )}>
+                            <div className="flex items-center gap-2">
+                                {item.done ? (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                ) : (
+                                    <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
+                                )}
+                                <span className={cn("text-xs font-bold truncate", item.done ? "text-green-800" : "text-slate-600")}>
+                                    {item.label}
+                                </span>
+                            </div>
+                            <p className="text-[9px] text-muted-foreground leading-tight italic ml-6">
+                                {item.description}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+                {progressPercentage === 100 && (
+                    <Alert className="mt-6 bg-green-50 border-green-200 text-green-800 animate-bounce">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <AlertTitle className="font-bold">All Set!</AlertTitle>
+                        <AlertDescription className="text-xs font-medium">
+                            Your practice profile is fully configured. You are ready to accept clients and outsource work seamlessly.
+                        </AlertDescription>
+                    </Alert>
+                )}
+            </CardContent>
+        </Card>
+
         <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             
