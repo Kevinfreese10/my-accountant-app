@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ExternalLink, ShieldAlert, ClipboardList } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ExternalLink, ShieldAlert, ClipboardList, ShoppingBag } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWidget'), {
   ssr: false,
@@ -130,6 +131,11 @@ export default function BecomeAPartnerPage() {
         icon: Cpu
     },
     {
+        title: 'Manual Sales & Quoting',
+        description: 'Quoting manually and chasing EFT payments for small compliance tasks is a time-sink. Your white-labeled online store automates the sale, handles PayFast payments, and collects documents upfront.',
+        icon: ShoppingBag
+    },
+    {
         title: 'Capacity Constraints',
         description: 'Handling large clients or complex projects alone isn’t easy. We’re a qualified team of accountants and tax professionals — when you outsource overflow work to us, it’s handled securely, accurately, and on time.',
         icon: Users
@@ -208,26 +214,41 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
 
-      {/* Challenges Section */}
-      <section className="bg-white py-24 border-y">
+      {/* Challenges Section - Re-designed as alternating rows */}
+      <section className="bg-slate-50 py-24 border-y">
         <div className="container mx-auto px-4">
-            <div className="text-center mb-16 space-y-4">
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900">The Challenges We're Solving</h2>
-                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">We built the BEI because we know what it's like to run a growing practice in South Africa.</p>
+            <div className="text-center mb-20 space-y-4">
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">The Problem</Badge>
+                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Challenges We Solve for Practitioners</h2>
+                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Running a practice shouldn't feel like a solo battle against paperwork.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            
+            <div className="max-w-5xl mx-auto space-y-24">
                 {challenges.map((item, idx) => (
-                    <Card key={idx} className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-                        <CardHeader className="text-center pb-2">
-                            <div className="mx-auto h-16 w-16 rounded-full bg-primary/5 border flex items-center justify-center mb-4">
-                                <item.icon className="h-8 w-8 text-primary" />
+                    <div key={idx} className={cn(
+                        "flex flex-col md:flex-row items-center gap-12 lg:gap-24",
+                        idx % 2 === 1 && "md:flex-row-reverse"
+                    )}>
+                        <div className="flex-1 space-y-6">
+                            <div className="flex items-center gap-4">
+                                <span className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-white font-bold text-sm">
+                                    {idx + 1}
+                                </span>
+                                <h3 className="text-2xl font-bold text-slate-900">{item.title}</h3>
                             </div>
-                            <CardTitle className="text-xl font-bold text-slate-900">{item.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-center">
-                            <p className="text-sm text-muted-foreground leading-relaxed px-4">{item.description}</p>
-                        </CardContent>
-                    </Card>
+                            <p className="text-lg text-muted-foreground leading-relaxed">
+                                {item.description}
+                            </p>
+                        </div>
+                        <div className="flex-1 flex justify-center">
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-primary/10 blur-3xl rounded-full scale-150 opacity-50" />
+                                <div className="relative w-32 h-32 md:w-48 md:h-48 rounded-3xl bg-white border shadow-2xl flex items-center justify-center transform rotate-3 hover:rotate-0 transition-transform duration-500">
+                                    <item.icon className="w-16 h-16 md:w-24 md:h-24 text-primary" strokeWidth={1.5} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 ))}
             </div>
         </div>
