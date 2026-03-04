@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ExternalLink, ShieldAlert, ClipboardList, ShoppingBag } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ShieldAlert, ClipboardList, ShoppingBag, CheckCircle, Globe, Scale } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,51 +70,46 @@ const DynamicFaqSection = dynamic(() => Promise.resolve(FaqSection), {
 
 export default function BecomeAPartnerPage() {
 
-  const benefits = [
+  const featureBenefits = [
     {
-        icon: <Percent className="h-6 w-6 text-primary" />,
-        title: '25% Partner Discount',
-        description: 'Get 25% off My Accountant service fees (excl. 3rd party costs). Enjoy high margins while offering competitive pricing.',
+        icon: Percent,
+        feature: '25% Wholesale Discount',
+        benefit: 'Increase your profit margins instantly. You buy services at wholesale rates and sell at retail prices, keeping 100% of the markup.',
     },
     {
-        icon: <LayoutDashboard className="h-6 w-6 text-primary" />,
-        title: 'Reseller Dashboard',
-        description: 'Access your dedicated reseller dashboard to create and manage client orders, track progress in real time, and outsource orders directly through a secure platform.',
+        icon: LayoutDashboard,
+        feature: 'White-Label Dashboard',
+        benefit: 'Manage your entire practice, staff, and client workflows from a single secure portal that carries your branding, not ours.',
     },
     {
-        icon: <Users className="h-6 w-6 text-primary" />,
-        title: 'Outsourcing Opportunities',
-        description: 'Join a growing pool of bookkeepers and accountants who share work through the BEI network. Take on client work from other members and refer clients.',
+        icon: Globe,
+        feature: 'Custom Practice Landing Page',
+        benefit: 'Get a 24/7 online store with 50+ re-branded services. Let your clients browse, order, and pay while you sleep.',
     },
     {
-        icon: <ShieldCheck className="h-6 w-6 text-primary" />,
-        title: 'Seamless Outsourcing (White-Label Model)',
-        description: 'We communicate with you — you communicate with your client. Deliverables are sent to you, ensuring you remain the sole point of contact.',
+        icon: Users,
+        feature: 'Elastic Outsourcing Capacity',
+        benefit: 'Never say "no" to a complex project again. Confidently scale your business capacity by leveraging our expert backend team.',
     },
     {
-        icon: <GraduationCap className="h-6 w-6 text-primary" />,
-        title: 'Mentorship & Training',
-        description: 'Get practical guidance from experienced accountants. Join monthly training webinars and Q&A sessions to help you price, sell, and manage effectively.',
+        icon: GraduationCap,
+        feature: 'Mentorship & Professional Support',
+        benefit: 'Direct access to senior Chartered Accountants and tax experts to help you navigate complex client queries and technical hurdles.',
     },
     {
-        icon: <FileText className="h-6 w-6 text-primary" />,
-        title: 'Document Templates & Compliance Tools',
-        description: 'Save time with professional templates for engagement letters, employment contracts, pricing schedules, and POPIA compliance documents.',
+        icon: ClipboardList,
+        feature: 'Automated Compliance Roadmap',
+        benefit: 'Never miss a SARS or CIPC deadline. The system automatically monitors your client requirements and creates tasks for your team.',
     },
     {
-        icon: <LifeBuoy className="h-6 w-6 text-primary" />,
-        title: 'Technical & Partner Support',
-        description: 'Our technical team ensures your dashboard runs smoothly. You\'ll have access to support whenever you need help with your account or system setup.',
+        icon: FileText,
+        feature: 'Professional Template Library',
+        benefit: 'Save hundreds of hours with ready-to-use, legally compliant engagement letters, contracts, and pricing schedules.',
     },
     {
-        icon: <ClipboardList className="h-6 w-6 text-primary" />,
-        title: 'Client CRM & Automation',
-        description: 'Automated task creation based on client needs (VAT, PAYE, etc.). Never miss a SARS or CIPC deadline again.',
-    },
-    {
-        icon: <TrendingUp className="h-6 w-6 text-primary" />,
-        title: 'Flexible Pricing Control',
-        description: 'Edit your own selling prices on your landing page. Our wholesale costs remain fixed, giving you full control over profit.',
+        icon: Scale,
+        feature: 'Flexible Pricing Control',
+        benefit: 'Total control over your client-facing prices. Set your own markup on services while our underlying wholesale cost remains fixed.',
     },
   ];
 
@@ -218,7 +213,7 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
 
-      {/* Reverted Challenges Section to Cards */}
+      {/* Challenges Section */}
       <section className="bg-slate-50 py-24 border-y">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16 space-y-4">
@@ -245,25 +240,41 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
       
-      {/* Key Benefits Grid */}
+      {/* Features vs Benefits Section */}
       <section id="benefits" className="bg-white py-24 border-t border-b scroll-m-20">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Key Benefits of Joining</h2>
-                <p className="text-muted-foreground mt-4 max-w-2xl mx-auto text-lg">A modern back-office engine for your accounting firm, designed for maximum profitability.</p>
+                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Features vs Benefits</h2>
+                <p className="text-muted-foreground mt-4 max-w-2xl mx-auto text-lg">A powerful back-office engine for your accounting firm, designed for maximum results.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {benefits.map(benefit => (
-                <div key={benefit.title} className="flex flex-col gap-4 p-8 bg-white rounded-2xl border border-border hover:border-primary/50 transition-colors shadow-sm hover:shadow-md">
-                    <div className="h-12 w-12 rounded-lg bg-primary/5 flex items-center justify-center">
-                        {benefit.icon}
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-bold text-slate-900">{benefit.title}</h3>
-                        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{benefit.description}</p>
-                    </div>
+            
+            <div className="max-w-5xl mx-auto border rounded-2xl overflow-hidden shadow-xl">
+                <div className="grid grid-cols-1 md:grid-cols-2 bg-slate-900 text-white font-black uppercase tracking-widest text-[10px]">
+                    <div className="p-4 border-r border-slate-800 hidden md:block">The Platform Feature</div>
+                    <div className="p-4 hidden md:block">The Business Benefit</div>
                 </div>
-                ))}
+                <div className="divide-y divide-slate-100">
+                    {featureBenefits.map((item, idx) => (
+                        <div key={idx} className="grid grid-cols-1 md:grid-cols-2 group hover:bg-slate-50 transition-colors">
+                            <div className="p-6 md:border-r border-slate-100 space-y-2">
+                                <span className="md:hidden text-[10px] font-black uppercase text-primary tracking-widest block mb-2">Feature</span>
+                                <div className="flex items-center gap-4">
+                                    <div className="h-10 w-10 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center shrink-0 shadow-sm">
+                                        <item.icon className="h-5 w-5 text-primary" />
+                                    </div>
+                                    <h3 className="font-bold text-lg text-slate-900 leading-tight">{item.feature}</h3>
+                                </div>
+                            </div>
+                            <div className="p-6 bg-white group-hover:bg-transparent transition-colors flex flex-col justify-center">
+                                <span className="md:hidden text-[10px] font-black uppercase text-green-600 tracking-widest block mb-2">The Benefit to You</span>
+                                <div className="flex items-start gap-3">
+                                    <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                                    <p className="text-sm text-muted-foreground font-medium leading-relaxed">{item.benefit}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
       </section>
