@@ -1,4 +1,5 @@
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+
+import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { notFound } from 'next/navigation';
@@ -15,7 +16,31 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
   const snapshot = await getDocs(q);
   if (snapshot.empty) return null;
   const doc = snapshot.docs[0];
-  return { ...doc.data(), id: doc.id } as User;
+  const data = doc.data();
+
+  const serializedPartner = {
+    ...data,
+    id: doc.id,
+    uid: doc.id,
+  } as any;
+
+  if (data.createdAt instanceof Timestamp) {
+    serializedPartner.createdAt = data.createdAt.toDate().toISOString();
+  }
+  if (data.yearEnd instanceof Timestamp) {
+    serializedPartner.yearEnd = data.yearEnd.toDate().toISOString();
+  }
+  if (data.subscription) {
+    serializedPartner.subscription = { ...data.subscription };
+    if (data.subscription.lastBillingDate instanceof Timestamp) {
+      serializedPartner.subscription.lastBillingDate = data.subscription.lastBillingDate.toDate().toISOString();
+    }
+    if (data.subscription.subscriptionEndDate instanceof Timestamp) {
+      serializedPartner.subscription.subscriptionEndDate = data.subscription.subscriptionEndDate.toDate().toISOString();
+    }
+  }
+
+  return serializedPartner as User;
 }
 
 export default async function PartnerTermsPage({ params }: { params: { slug: string } }) {

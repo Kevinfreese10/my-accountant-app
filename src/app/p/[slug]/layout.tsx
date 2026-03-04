@@ -1,3 +1,4 @@
+
 import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
@@ -33,6 +34,15 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
   }
   if (data.yearEnd instanceof Timestamp) {
     serializedPartner.yearEnd = data.yearEnd.toDate().toISOString();
+  }
+  if (data.subscription) {
+    serializedPartner.subscription = { ...data.subscription };
+    if (data.subscription.lastBillingDate instanceof Timestamp) {
+      serializedPartner.subscription.lastBillingDate = data.subscription.lastBillingDate.toDate().toISOString();
+    }
+    if (data.subscription.subscriptionEndDate instanceof Timestamp) {
+      serializedPartner.subscription.subscriptionEndDate = data.subscription.subscriptionEndDate.toDate().toISOString();
+    }
   }
 
   return serializedPartner as User;
