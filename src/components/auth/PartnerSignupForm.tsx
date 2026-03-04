@@ -208,7 +208,6 @@ export default function PartnerSignupForm() {
             }
         });
 
-        // Create the setup order
         const orderId = await getNextOrderId();
         const setupOrder: Order = {
             id: orderId,

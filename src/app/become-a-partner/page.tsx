@@ -96,7 +96,7 @@ const FaqSection = () => {
     const faqs = [
     {
         question: "How does the outsourcing work?",
-        answer: "You can decide to complete the order yourself or outsource to us. The process is completely white-labeled, so your client doesn't know the work is being outsourced. We charge you a fixed wholesale price, and you keep the markup."
+        answer: "You can decide to complete the order yourself or outsource to us. The process is completely white-labeled, so your client doesn't know the work is being outsourced. We charge you a fixed wholesale price, and you keep the markup.\n\nWe can then either contact you or contact your client directly through our app which is completely white-labeled so your client remains none the wiser."
     },
     {
         question: "Who should join the Bookkeeper Empowerment Initiative?",
@@ -140,11 +140,6 @@ const FaqSection = () => {
       </section>
   )
 }
-
-const DynamicFaqSection = dynamic(() => Promise.resolve(FaqSection), {
-    ssr: false,
-});
-
 
 export default function BecomeAPartnerPage() {
 
@@ -194,35 +189,35 @@ export default function BecomeAPartnerPage() {
   const challenges = [
     {
         title: 'Limited Service Range',
-        description: 'Offering only bookkeeping services limits your earning potential. Through BEI, you can sell My Accountant’s full suite of services — from company registration to VAT, COIDA, CIDB, NCR, and more.',
+        description: 'Offering only bookkeeping services limits your earning potential. Sell our full suite — from company registration to VAT, COIDA, CIDB, NCR, and more.',
         icon: Briefcase
     },
     {
         title: 'Lack of Mentorship',
-        description: 'Many bookkeepers work alone, with no guidance from experienced professionals. We provide mentorship from senior accountants and industry experts who help you grow your confidence and capabilities.',
+        description: 'Many bookkeepers work alone. We provide mentorship from senior accountants and industry experts who help you grow your capabilities.',
         icon: GraduationCap
     },
     {
         title: 'Technology Gaps',
-        description: 'Without proper systems, managing clients and documents becomes messy. You get access to our cloud-based reseller dashboard to manage, track, and outsource client orders seamlessly.',
+        description: 'Without proper systems, document management is messy. Get our cloud-based dashboard to manage and outsource client orders seamlessly.',
         icon: Cpu
     },
     {
         title: 'Manual Sales & Quoting',
-        description: 'Quoting manually and chasing EFT payments for small compliance tasks is a time-sink. Your white-labeled online store automates the sale, handles PayFast payments, and collects documents upfront.',
+        description: 'Quoting manually and chasing EFTs is a time-sink. Your white-labeled online store automates sales, PayFast, and document collection.',
         icon: ShoppingBag
     },
     {
         title: 'Capacity Constraints',
-        description: 'Handling large clients or complex projects alone isn’t easy. We’re a qualified team of accountants and tax professionals — when you outsource overflow work to us, it’s handled securely, accurately, and on time.',
+        description: 'Handling large clients alone isn’t easy. Our qualified team handles your overflow work securely, accurately, and on time.',
         icon: Users
     },
     {
         title: 'Compliance Overwhelm',
-        description: 'Complex tax and statutory rules can deter small practitioners from taking on advanced clients. We provide ready-to-use templates, compliance guides, and ongoing training to help you stay compliant and confident.',
+        description: 'Advanced statutory rules can be deterring. We provide ready-to-use templates and guides to help you stay compliant and confident.',
         icon: ShieldAlert
     }
-  ]
+  ];
 
   return (
     <div className="space-y-16 pb-16 bg-white">
@@ -257,7 +252,7 @@ export default function BecomeAPartnerPage() {
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
                         <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
-                            <Link href="/partner-signup">Sign up now</Link>
+                            <Link href="/partner-signup">Sign up</Link>
                         </Button>
                         <Button asChild variant="outline" size="lg" className="h-14 px-8 border-2 border-slate-200 hover:border-primary hover:text-primary transition-all font-bold">
                             <Link href="https://www.myacc.co.za/p/interscope" target="_blank">
@@ -269,7 +264,6 @@ export default function BecomeAPartnerPage() {
                 <div className="lg:w-1/2 relative">
                     <div className="bg-white rounded-3xl shadow-2xl border-8 border-slate-900 p-2 overflow-hidden aspect-[16/10] group">
                         <div className="bg-slate-100 h-full w-full rounded-2xl overflow-hidden relative">
-                            {/* Visual representation of a store */}
                             <div className="absolute top-0 left-0 w-full h-8 bg-white border-b flex items-center px-4 gap-1">
                                 <div className="w-2 h-2 rounded-full bg-red-400"></div>
                                 <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
@@ -292,7 +286,6 @@ export default function BecomeAPartnerPage() {
                             </div>
                         </div>
                     </div>
-                    {/* Decorative elements */}
                     <div className="absolute -top-6 -right-6 h-24 w-24 bg-primary/10 rounded-full blur-2xl -z-10"></div>
                     <div className="absolute -bottom-10 -left-10 h-40 w-40 bg-purple-100 rounded-full blur-3xl -z-10"></div>
                 </div>
@@ -304,7 +297,6 @@ export default function BecomeAPartnerPage() {
         <TrustIndexWidget />
       </div>
 
-      {/* About the Initiative */}
       <section className="container mx-auto px-4 scroll-m-20">
         <div className="max-w-4xl mx-auto text-center space-y-8">
             <div className="space-y-4">
@@ -349,7 +341,6 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
 
-      {/* Challenges Section */}
       <section className="bg-slate-50 py-24 border-y">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16 space-y-4">
@@ -376,7 +367,6 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
       
-      {/* Features vs Benefits Section */}
       <section id="benefits" className="bg-white py-24 border-t border-b scroll-m-20">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16">
@@ -415,7 +405,7 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
 
-      <DynamicFaqSection />
+      <FaqSection />
       
       <section className="container mx-auto px-4 text-center">
         <div className="max-w-2xl mx-auto space-y-8">
