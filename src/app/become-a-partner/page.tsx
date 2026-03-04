@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, Bot, GraduationCap, CheckCircle2, ArrowRight, Wallet2, Sparkles, Globe, HeartHandshake, Percent, ClipboardList, TrendingUp, ExternalLink, AlertCircle, Zap, ShieldAlert, BarChart3, LayoutDashboard, LifeBuoy } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ExternalLink, ShieldAlert } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamic from 'next/dynamic';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWidget'), {
@@ -156,32 +156,6 @@ export default function BecomeAPartnerPage() {
                 Never lose a client because you lack capacity, specialised expertise, or time. With the Bookkeeper Empowerment Initiative (BEI), you can confidently outsource complex work while keeping full control of the client relationship and growing your revenue.
             </p>
             <p className="mt-6 text-2xl font-bold text-slate-800 uppercase tracking-tighter">Expand your services. Protect your clients. Scale your practice.</p>
-            
-            <div className="mt-10 max-w-2xl mx-auto bg-primary/5 border-2 border-primary/10 rounded-2xl p-8 shadow-sm">
-                <h3 className="text-xl font-bold text-primary mb-4">Join the BEI Network</h3>
-                <ul className="space-y-3 text-left max-w-md mx-auto">
-                    <li className="flex items-center gap-3 font-semibold text-slate-800">
-                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                        R5,000 Setup Fee (fully returned as practice credits)
-                    </li>
-                    <li className="flex items-center gap-3 font-semibold text-slate-800">
-                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                        R499/month hosting & support
-                    </li>
-                    <li className="flex items-center gap-3 font-semibold text-slate-800">
-                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                        Includes 3 Free Staff Members
-                    </li>
-                </ul>
-                <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-                    <Button asChild size="lg" className="h-14 px-8 text-lg font-bold shadow-xl hover:scale-105 transition-transform w-full sm:w-auto">
-                        <Link href="/partner-signup">Sign Up Now & Get R5000 Credits</Link>
-                    </Button>
-                    <Button asChild variant="outline" size="lg" className="h-14 px-8 text-lg border-2 w-full sm:w-auto">
-                        <Link href="/p/interscope" target="_blank">View Example Page <ExternalLink className="ml-2 h-4 w-4" /></Link>
-                    </Button>
-                </div>
-            </div>
         </div>
       </section>
 
