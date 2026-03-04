@@ -24,6 +24,7 @@ import { format, startOfMonth, addMonths } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { sendAiUserInvite } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -180,7 +181,7 @@ export default function PartnerStaffPage() {
   const canAffordStaff = (currentUser?.creditBalance || 0) >= proRataAmount;
 
   const handleFormSubmit = async (values: any) => {
-    if (!partnerId) return;
+    if (!partnerId || !currentUser) return;
     setIsLoading(true);
 
     try {
@@ -208,15 +209,30 @@ export default function PartnerStaffPage() {
                 createdAt: serverTimestamp(),
             });
 
+            // Send invitation email
+            try {
+                await sendAiUserInvite(
+                    values.email,
+                    values.name,
+                    values.password!,
+                    currentUser.companyName || currentUser.name,
+                    partnerId,
+                    partnerId
+                );
+            } catch (emailError) {
+                console.error("Failed to send invite email:", emailError);
+                toast({ title: "Email notification failed", description: "The user was created but the invitation email could not be sent.", variant: "warning" });
+            }
+
             if (isExtraChargeable) {
                 const partnerRef = doc(db, 'users', partnerId);
                 await updateDoc(partnerRef, {
                     creditBalance: increment(-proRataAmount),
                     'subscription.monthlyTotal': increment(BASE_STAFF_FEE),
                 });
-                toast({ title: 'Staff Member Added', description: `R${proRataAmount} pro-rata fee applied.` });
+                toast({ title: 'Staff Member Added', description: `R${proRataAmount} pro-rata fee applied and invitation sent.` });
             } else {
-                toast({ title: 'Staff Member Added', description: 'Free staff slot utilized.' });
+                toast({ title: 'Staff Member Added', description: 'Free staff slot utilized and invitation sent.' });
             }
         }
         fetchStaff();
