@@ -56,6 +56,11 @@ export default function ExternalScripts() {
           }
         }}
       />
+      <Script
+        id="respondio__growth_tool"
+        src="https://cdn.respond.io/widget/widget.js?wId=85c13926-c3bd-40f9-9535-9f8e052e2bc4"
+        strategy="lazyOnload"
+      />
     </>
   );
 }
