@@ -12,7 +12,11 @@ import { doc, setDoc, Timestamp, getFirestore } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
@@ -20,6 +24,7 @@ export function LapsedSubscriptionScreen({ user }: { user: User }) {
     const { toast } = useToast();
     const [isReactivating, setIsReactivating] = useState(false);
     const [isTopUpLoading, setIsTopUpLoading] = useState(false);
+    const [topUpAmount, setTopUpAmount] = useState<string>('1000');
 
     const monthlyTotal = user.subscription?.monthlyTotal || 499;
     const currentBalance = user.creditBalance || 0;
@@ -44,10 +49,15 @@ export function LapsedSubscriptionScreen({ user }: { user: User }) {
     };
 
     const handleTopUpRedirect = async () => {
+        const numericAmount = parseFloat(topUpAmount);
+        if (isNaN(numericAmount) || numericAmount < 100) {
+            toast({ title: "Invalid Amount", description: "Minimum top-up is R100.", variant: "destructive" });
+            return;
+        }
+
         setIsTopUpLoading(true);
         try {
             const orderId = await getNextOrderId();
-            const topupAmount = Math.max(1000, monthlyTotal - currentBalance + 500); // Suggest a healthy top-up
             
             const topupOrder: Order = {
                 id: orderId,
@@ -57,10 +67,10 @@ export function LapsedSubscriptionScreen({ user }: { user: User }) {
                 items: [{
                     id: 'partner_credit_topup',
                     title: 'Practice Credit Top-up (Manual Reactivation)',
-                    price: topupAmount,
+                    price: numericAmount,
                     quantity: 1,
                 }],
-                total: topupAmount,
+                total: numericAmount,
                 discountCode: null,
                 discountAmount: null,
                 status: 'Pending Payment',
@@ -86,7 +96,7 @@ export function LapsedSubscriptionScreen({ user }: { user: User }) {
                 name_last: user.name.split(' ').slice(1).join(' '),
                 email_address: user.email,
                 m_payment_id: orderId,
-                amount: topupAmount.toFixed(2),
+                amount: numericAmount.toFixed(2),
                 item_name: `Practice Credit Top-up`,
             };
 
@@ -166,20 +176,35 @@ export function LapsedSubscriptionScreen({ user }: { user: User }) {
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            <div className="p-4 bg-muted rounded-lg border flex justify-between items-center">
-                                <div>
-                                    <p className="text-[10px] font-bold text-muted-foreground uppercase">Current Balance</p>
-                                    <p className="text-xl font-bold text-destructive">R{currentBalance.toFixed(2)}</p>
+                            <div className="p-4 bg-muted rounded-lg border flex flex-col gap-4">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-muted-foreground uppercase">Current Balance</p>
+                                        <p className="text-xl font-bold text-destructive">R{currentBalance.toFixed(2)}</p>
+                                    </div>
+                                    <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-bold text-muted-foreground uppercase">Required</p>
+                                        <p className="text-xl font-bold">R{monthlyTotal.toFixed(2)}</p>
+                                    </div>
                                 </div>
-                                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                                <div className="text-right">
-                                    <p className="text-[10px] font-bold text-muted-foreground uppercase">Required</p>
-                                    <p className="text-xl font-bold">R{monthlyTotal.toFixed(2)}</p>
+                                <Separator />
+                                <div className="space-y-2">
+                                    <Label htmlFor="topup-amount" className="text-xs font-bold uppercase text-muted-foreground">Top-up Amount (ZAR)</Label>
+                                    <Input 
+                                        id="topup-amount"
+                                        type="number"
+                                        min="100"
+                                        value={topUpAmount}
+                                        onChange={(e) => setTopUpAmount(e.target.value)}
+                                        className="h-10 font-bold"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">Minimum R100. Price inclusive of VAT.</p>
                                 </div>
                             </div>
                             <Button onClick={handleTopUpRedirect} disabled={isTopUpLoading} className="w-full h-12 text-lg font-bold gap-2">
                                 {isTopUpLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wallet2 className="h-5 w-5" />}
-                                Top Up Practice Wallet
+                                Top Up & Pay
                             </Button>
                         </div>
                     )}
