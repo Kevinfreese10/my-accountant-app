@@ -24,17 +24,6 @@ import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
-const overrideSchema = z.object({
-  title: z.string().min(3, "Title is required"),
-  price: z.preprocess(val => Number(val), z.number().min(0, "Price must be positive")),
-  description: z.string().min(10, "Short description is required"),
-  longDescription: z.string().min(20, "Long description is required"),
-  turnaroundTime: z.string().min(1, "Turnaround time is required"),
-  metaTitle: z.string().optional(),
-  metaDescription: z.string().optional(),
-  metaKeywords: z.array(z.string()).optional(),
-});
-
 function EditServiceDialog({ 
     service, 
     override, 
@@ -49,6 +38,17 @@ function EditServiceDialog({
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+
+    const overrideSchema = z.object({
+      title: z.string().min(3, "Title is required"),
+      price: z.preprocess(val => Number(val), z.number().min(service.price, `Public price cannot be lower than the main store minimum of R${service.price.toFixed(2)}`)),
+      description: z.string().min(10, "Short description is required"),
+      longDescription: z.string().min(20, "Long description is required"),
+      turnaroundTime: z.string().min(1, "Turnaround time is required"),
+      metaTitle: z.string().optional(),
+      metaDescription: z.string().optional(),
+      metaKeywords: z.array(z.string()).optional(),
+    });
 
     const form = useForm<z.infer<typeof overrideSchema>>({
         resolver: zodResolver(overrideSchema),

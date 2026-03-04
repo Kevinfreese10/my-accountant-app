@@ -151,20 +151,37 @@ export default function BecomeAPartnerPage() {
         </div>
         <div className="container mx-auto px-4 py-20 text-center relative z-10">
             <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl">
-                Bookkeeper <span className="text-gradient">#Empowerment</span> Initiative
+                10X Your Practice — <span className="text-gradient">Without Hiring More Staff.</span>
             </h1>
-            <h2 className="mt-6 text-2xl md:text-3xl font-bold text-slate-800 uppercase tracking-tighter italic">Scale Your Practice with AI and Expert Back-Office Support</h2>
-            <p className="mt-6 text-xl text-muted-foreground max-w-3xl mx-auto font-medium">
-                Join the BEI network. R5000 Setup fee (fully returned as practice credits). 
-                R499/month hosting & support. 3 Free Staff Members included.
+            <p className="mt-6 text-xl text-slate-700 max-w-4xl mx-auto font-medium leading-relaxed">
+                Never lose a client because you lack capacity, specialised expertise, or time. With the Bookkeeper Empowerment Initiative (BEI), you can confidently outsource complex work while keeping full control of the client relationship and growing your revenue.
             </p>
-            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Button asChild size="lg" className="h-14 px-8 text-lg font-bold shadow-xl hover:scale-105 transition-transform">
-                    <Link href="/partner-signup">Join the Initiative & Get R5000 Credits</Link>
-                </Button>
-                <Button asChild variant="outline" size="lg" className="h-14 px-8 text-lg border-2">
-                    <Link href="/p/interscope" target="_blank">View Example Page <ExternalLink className="ml-2 h-4 w-4" /></Link>
-                </Button>
+            <p className="mt-6 text-2xl font-bold text-slate-800 uppercase tracking-tighter">Expand your services. Protect your clients. Scale your practice.</p>
+            
+            <div className="mt-10 max-w-2xl mx-auto bg-primary/5 border-2 border-primary/10 rounded-2xl p-8 shadow-sm">
+                <h3 className="text-xl font-bold text-primary mb-4">Join the BEI Network</h3>
+                <ul className="space-y-3 text-left max-w-md mx-auto">
+                    <li className="flex items-center gap-3 font-semibold text-slate-800">
+                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                        R5,000 Setup Fee (fully returned as practice credits)
+                    </li>
+                    <li className="flex items-center gap-3 font-semibold text-slate-800">
+                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                        R499/month hosting & support
+                    </li>
+                    <li className="flex items-center gap-3 font-semibold text-slate-800">
+                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                        Includes 3 Free Staff Members
+                    </li>
+                </ul>
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <Button asChild size="lg" className="h-14 px-8 text-lg font-bold shadow-xl hover:scale-105 transition-transform w-full sm:w-auto">
+                        <Link href="/partner-signup">Sign Up Now & Get R5000 Credits</Link>
+                    </Button>
+                    <Button asChild variant="outline" size="lg" className="h-14 px-8 text-lg border-2 w-full sm:w-auto">
+                        <Link href="/p/interscope" target="_blank">View Example Page <ExternalLink className="ml-2 h-4 w-4" /></Link>
+                    </Button>
+                </div>
             </div>
         </div>
       </section>
@@ -182,7 +199,7 @@ export default function BecomeAPartnerPage() {
                 <p className="text-2xl font-bold text-slate-800 italic">"A client referred to someone else is a client lost."</p>
             </div>
             
-            <div className="space-y-6 text-lg text-muted-foreground leading-relaxed">
+            <div className="space-y-6 text-lg text-muted-foreground leading-relaxed text-left sm:text-center">
                 <p>
                     The Bookkeeper Empowerment Initiative by My Accountant was created to empower small and growing bookkeepers across South Africa. We know what it’s like to start out — you have the skills, but limited clients, tools, and support. That’s why BEI gives you the technology, mentorship, and opportunities to build your own brand, attract more clients, and scale your income — all while staying independent.
                 </p>
@@ -211,7 +228,7 @@ export default function BecomeAPartnerPage() {
                     </div>
                 </div>
 
-                <p className="font-semibold text-slate-950">
+                <p className="font-semibold text-slate-950 text-center">
                     We handle the complexity behind the scenes so your client never needs to move to another accountant.
                 </p>
             </div>
