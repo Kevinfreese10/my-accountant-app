@@ -415,8 +415,16 @@ export default function PartnerProfile() {
                         <CardDescription className="text-xs">
                             Configure your SMTP server to send emails directly from your practice address.
                         </CardDescription>
+                        <Alert className="bg-blue-50 border-blue-200 text-blue-800 mt-2">
+                            <Info className="h-4 w-4" />
+                            <AlertTitle className="font-bold">Default Email Settings</AlertTitle>
+                            <AlertDescription className="text-xs">
+                                If you leave these settings blank, all system emails will be sent via <strong>no_reply@myacc.co.za</strong>. 
+                                Don&apos;t worry — your practice name will still appear as the sender, ensuring your brand remains protected.
+                            </AlertDescription>
+                        </Alert>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                         <FormField control={form.control} name="smtpDetails.host" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Host</FormLabel><FormControl><Input placeholder="e.g. smtp.gmail.com" {...field} /></FormControl></FormItem>)} />
                         <FormField control={form.control} name="smtpDetails.port" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Port</FormLabel><FormControl><Input placeholder="e.g. 465" {...field} /></FormControl></FormItem>)} />
                         <FormField control={form.control} name="smtpDetails.user" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Username (Email)</FormLabel><FormControl><Input placeholder="your@email.com" {...field} /></FormControl></FormItem>)} />

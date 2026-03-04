@@ -54,7 +54,8 @@ export async function sendEmail({
   };
 
   let fromName = fromNameOverride || "My Accountant";
-  let fromEmail = process.env.SMTP_USER || 'info@myacc.co.za';
+  // Fallback to no_reply@myacc.co.za if env variable is not set
+  let fromEmail = process.env.SMTP_USER || 'no_reply@myacc.co.za';
   let finalBcc = Array.isArray(bcc) ? [...bcc] : (bcc ? [bcc] : []);
   let finalReplyTo = replyTo;
 
@@ -79,7 +80,6 @@ export async function sendEmail({
   if (resellerId && !smtpOverride) {
     try {
       // Fetch partner profile to get branding and custom SMTP if available
-      // Note: We check both 'users' and 'aiAccountantClients' for maximum compatibility
       let partnerData: User | null = null;
       const userRef = doc(db, 'users', resellerId);
       const userSnap = await getDoc(userRef);
