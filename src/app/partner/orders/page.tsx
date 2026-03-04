@@ -66,6 +66,7 @@ export default function PartnerOrdersPage() {
   const router = useRouter();
     
   const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
+  const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
 
   const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
       const staffInDept = allStaff.filter(u => u.role === 'staff' && u.department === department);
@@ -90,7 +91,7 @@ export default function PartnerOrdersPage() {
 
 
   useEffect(() => {
-    if (!user?.uid) {
+    if (!user?.uid || !partnerId) {
         setIsLoading(false);
         return;
     }
@@ -104,7 +105,7 @@ export default function PartnerOrdersPage() {
     });
 
     const ordersRef = collection(db, 'orders');
-    const q = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '==', null), orderBy('date', 'desc'));
+    const q = query(ordersRef, where('resellerId', '==', partnerId), where('originalOrderId', '==', null), orderBy('date', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const fetchedOrders = snapshot.docs.map(doc => {
@@ -120,10 +121,10 @@ export default function PartnerOrdersPage() {
     });
 
     return () => unsubscribe();
-  }, [user?.uid]);
+  }, [user?.uid, partnerId]);
 
     const handleOutsource = async () => {
-        if (!user || !selectedOrderForOutsource) return;
+        if (!user || !selectedOrderForOutsource || !partnerId) return;
         
         setIsProcessingOutsource(true);
         toast({
@@ -132,8 +133,13 @@ export default function PartnerOrdersPage() {
         });
     
         try {
+            // Determine the practice owner's profile for credit checks
+            const partnerRef = doc(db, 'users', partnerId);
+            const partnerSnap = await getDoc(partnerRef);
+            const partnerProfile = partnerSnap.data() as User;
+
             const cost = selectedOrderForOutsource.total;
-            const currentBalance = user.creditBalance || 0;
+            const currentBalance = partnerProfile.creditBalance || 0;
             const canAfford = currentBalance >= cost;
 
             const newOrderId = `ORD-${Date.now().toString().slice(-6)}`;
@@ -143,8 +149,8 @@ export default function PartnerOrdersPage() {
             
             const newOrderData: Order = {
                 id: newOrderId,
-                customerName: user.companyName || user.name,
-                customerEmail: user.email,
+                customerName: partnerProfile.companyName || partnerProfile.name,
+                customerEmail: partnerProfile.email,
                 endCustomerName: selectedOrderForOutsource.endCustomerName || selectedOrderForOutsource.customerName,
                 endCustomerEmail: selectedOrderForOutsource.endCustomerEmail || selectedOrderForOutsource.customerEmail,
                 documentContact: docContactPreference,
@@ -157,7 +163,7 @@ export default function PartnerOrdersPage() {
                 })),
                 total: selectedOrderForOutsource.total,
                 status: canAfford ? 'Processing' : 'Pending Payment',
-                resellerId: user.uid,
+                resellerId: partnerId,
                 originalOrderId: selectedOrderForOutsource.id,
                 discountCode: null,
                 discountAmount: null,
@@ -175,7 +181,6 @@ export default function PartnerOrdersPage() {
             
             // Deduct credits if possible
             if (canAfford) {
-                const partnerRef = doc(db, 'users', user.uid);
                 await updateDoc(partnerRef, {
                     creditBalance: increment(-cost)
                 });
@@ -214,7 +219,7 @@ export default function PartnerOrdersPage() {
 
     const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     const orderToUpdate = orders.find(o => o.id === orderId);
-    if (!orderToUpdate || !user) return;
+    if (!orderToUpdate || !user || !partnerId) return;
 
     try {
       const orderRef = doc(db, 'orders', orderId);
@@ -232,7 +237,7 @@ export default function PartnerOrdersPage() {
               priority: 'Medium' as const,
               status: 'To-Do' as const,
               orderId: orderToUpdate.id,
-              partnerId: user.uid,
+              partnerId: partnerId,
               comments: [],
               createdAt: serverTimestamp(),
           };
@@ -277,7 +282,7 @@ export default function PartnerOrdersPage() {
     };
 
     const costToOutsource = selectedOrderForOutsource?.total || 0;
-    const currentWalletBalance = user?.creditBalance || 0;
+    const currentWalletBalance = user?.creditBalance || 0; // Note: This might be inaccurate for staff until fetch completes
     const remainingWalletBalance = currentWalletBalance - costToOutsource;
     const hasSufficientCredits = currentWalletBalance >= costToOutsource;
 
@@ -322,30 +327,15 @@ export default function PartnerOrdersPage() {
                                 <span className="text-muted-foreground text-xs">Cost to Outsource:</span>
                                 <span className="font-semibold text-destructive">{formatPrice(costToOutsource)}</span>
                             </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground text-xs">Current Practice Wallet:</span>
-                                <span className="font-semibold">{formatPrice(currentWalletBalance)}</span>
-                            </div>
                             <Separator className="my-2" />
-                            <div className="flex justify-between items-center pt-1">
-                                <span className="font-bold text-xs">Projected Wallet Balance:</span>
-                                <span className={cn("font-bold", remainingWalletBalance < 0 ? "text-destructive" : "text-primary")}>
-                                    {formatPrice(remainingWalletBalance)}
-                                </span>
-                            </div>
-                            {!hasSufficientCredits && (
-                                <div className="flex items-start gap-2 text-destructive mt-2 bg-destructive/5 p-2 rounded border border-destructive/10">
-                                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                                    <p className="text-[10px] leading-tight">Insufficient credits. You will be redirected to PayFast to complete this payment.</p>
-                                </div>
-                            )}
+                            <p className="text-[10px] text-muted-foreground italic">Payment will be deducted from the practice wallet balance.</p>
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setOutsourceOptionsOpen(false)}>Cancel</Button>
                         <Button onClick={handleOutsource} disabled={isProcessingOutsource}>
                             {isProcessingOutsource && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {hasSufficientCredits ? 'Outsource & Pay with Credits' : 'Outsource & Pay via PayFast'}
+                            Proceed with Outsourcing
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -432,7 +422,7 @@ export default function PartnerOrdersPage() {
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem asChild>
-                                    <Link href={`/partner/orders/${order.id}`}>View/Add Notes</Link>
+                                    <Link href={`/partner/orders/${order.id}`}>View Details</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuSub>

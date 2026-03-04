@@ -1,9 +1,8 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,24 +47,28 @@ export default function OutsourcedOrdersPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [allStaff, setAllStaff] = useState<User[]>([]);
+  const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      if (!user) return;
-      setIsLoading(true);
-      try {
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
-        const staffSnapshot = await getDocs(staffQuery);
+    if (!user || !partnerId) {
+        setIsLoading(false);
+        return;
+    }
+    
+    setIsLoading(true);
+    
+    const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+    getDocs(staffQuery).then(staffSnapshot => {
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setAllStaff(fetchedStaff);
+    });
 
-        const ordersRef = collection(db, 'orders');
-        // Query for orders that belong to this partner AND have an originalOrderId,
-        // which marks them as outsourced orders.
-        const q = query(ordersRef, where('resellerId', '==', user.id), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
+    const ordersRef = collection(db, 'orders');
+    // Query for orders where resellerId is the practice's partnerId
+    const q = query(ordersRef, where('resellerId', '==', partnerId), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
 
-        const querySnapshot = await getDocs(q);
-        let allOrders = querySnapshot.docs.map(doc => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        let allOrders = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
             ...data,
@@ -75,22 +78,19 @@ export default function OutsourcedOrdersPage() {
         });
         
         setOrders(allOrders.filter(order => order.status !== 'Cancelled'));
-      } catch (error) {
-        console.error("Error fetching orders: ", error);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching outsourced orders: ", error);
         toast({
             title: 'Error Fetching Orders',
-            description: 'Could not load your outsourced orders. Please try again later.',
+            description: 'Could not load practice outsourced orders.',
             variant: 'destructive',
-        })
-      } finally {
+        });
         setIsLoading(false);
-      }
-    };
+    });
 
-    if (user) {
-        fetchOrders();
-    }
-  }, [user, toast]);
+    return () => unsubscribe();
+  }, [user, partnerId, toast]);
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
@@ -116,13 +116,13 @@ export default function OutsourcedOrdersPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">My Outsourced Orders</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Practice Outsourced Orders</h1>
       </div>
       <Card>
         <CardHeader>
           <CardTitle>Order History</CardTitle>
           <CardDescription>
-            These are the orders you have sent to My Accountant for fulfillment.
+            Orders that have been sent to My Accountant for fulfillment by your practice.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -133,9 +133,9 @@ export default function OutsourcedOrdersPage() {
           ) : (
              orders.length === 0 ? (
                 <div className="text-center py-10">
-                    <p className="text-muted-foreground">You haven't outsourced any orders yet.</p>
+                    <p className="text-muted-foreground">The practice hasn't outsourced any orders yet.</p>
                      <Button asChild className="mt-4">
-                        <Link href="/partner/orders">View Client Orders</Link>
+                        <Link href="/partner/orders">View Practice Orders</Link>
                     </Button>
                 </div>
              ) : (

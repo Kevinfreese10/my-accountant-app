@@ -167,6 +167,7 @@ export default function PartnerDashboardPage() {
     const [pendingCount, setPendingCount] = useState(0);
     
     const archivedNotifications = user?.archivedNotifications || [];
+    const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
 
     const archiveNotification = async (noteId: string) => {
         if (!user) return;
@@ -185,7 +186,7 @@ export default function PartnerDashboardPage() {
     };
     
     useEffect(() => {
-      if (!user?.uid) {
+      if (!user?.uid || !partnerId) {
         setIsLoading(false);
         return;
       };
@@ -204,7 +205,7 @@ export default function PartnerDashboardPage() {
 
       const ordersRef = collection(db, 'orders');
       
-      const clientOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '==', null), orderBy('date', 'desc'));
+      const clientOrdersQuery = query(ordersRef, where('resellerId', '==', partnerId), where('originalOrderId', '==', null), orderBy('date', 'desc'));
       const unsubClientOrders = onSnapshot(clientOrdersQuery, (snapshot) => {
           let clientOrders = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -225,7 +226,7 @@ export default function PartnerDashboardPage() {
           setIsLoading(false);
       });
 
-      const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
+      const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', partnerId), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
       const unsubOutsourcedOrders = onSnapshot(outsourcedOrdersQuery, (snapshot) => {
           let fetchedOutsourcedOrders = snapshot.docs.map(doc => {
               const data = doc.data();
@@ -245,7 +246,7 @@ export default function PartnerDashboardPage() {
       });
 
       // Count pending transactions for Partner's own chat
-      const transRef = collection(db, 'aiAccountantClients', user.uid, 'transactions');
+      const transRef = collection(db, 'aiAccountantClients', partnerId, 'transactions');
       const transQ = query(transRef, where('status', 'in', ['new', 'ai_review']));
       const unsubTrans = onSnapshot(transQ, (snap) => {
           setPendingCount(snap.size);
@@ -257,7 +258,7 @@ export default function PartnerDashboardPage() {
           unsubOutsourcedOrders();
           unsubTrans();
       }
-    }, [user?.uid]);
+    }, [user?.uid, partnerId]);
 
     const notifications = useMemo(() => {
         if (!user || outsourcedOrders.length === 0) return [];
@@ -297,31 +298,33 @@ export default function PartnerDashboardPage() {
                     <h1 className="text-3xl font-bold tracking-tight text-slate-950">Welcome, {user?.contactPerson || user?.name}!</h1>
                     <p className="text-lg text-muted-foreground">{user?.companyName || 'Practice Member'}</p>
                 </div>
-                {user && user.role === 'partner' && (
+                {user && partnerId && (
                     <Card className="bg-primary/5 border-primary/20 min-w-[260px] overflow-hidden">
                         <CardHeader className="py-2.5 px-4 flex flex-row items-center justify-between space-y-0 border-b border-primary/10">
                             <div className="flex items-center gap-2">
                                 <Wallet2 className="h-3.5 w-3.5 text-muted-foreground" />
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Practice Wallet</span>
                             </div>
-                            <TopUpDialog partner={user} />
+                            {user.role === 'partner' && <TopUpDialog partner={user} />}
                         </CardHeader>
                         <CardContent className="pt-4 px-4 pb-4">
-                            <p className="text-3xl font-bold text-primary tabular-nums">{formatPrice(user.creditBalance || 0)}</p>
+                            <p className="text-3xl font-bold text-primary tabular-nums">
+                                {formatPrice(user.role === 'partner' ? (user.creditBalance || 0) : (allStaff.find(s => s.id === partnerId)?.creditBalance || 0))}
+                            </p>
                             <p className="text-[10px] text-muted-foreground mt-1 font-medium">Available Credits</p>
                         </CardContent>
                     </Card>
                 )}
             </div>
 
-            {pendingCount > 0 && user && (
+            {pendingCount > 0 && partnerId && (
                 <Alert className="bg-primary/10 border-primary/20 shadow-sm animate-in fade-in slide-in-from-top-4 border-2">
                     <Bot className="h-5 w-5 text-primary" />
                     <AlertTitle className="font-bold text-slate-950">Chat with Khai</AlertTitle>
                     <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <span className="text-slate-950 font-bold">Chat with Khai waiting to finalize <strong>{pendingCount}</strong> allocations.</span>
                         <Button size="sm" asChild className="font-bold">
-                            <Link href={`/dashboard/ai-accountant/${user.uid}/chat`}>
+                            <Link href={`/dashboard/ai-accountant/${partnerId}/chat`}>
                                 Open Chat <ArrowRight className="ml-2 h-4 w-4" />
                             </Link>
                         </Button>
