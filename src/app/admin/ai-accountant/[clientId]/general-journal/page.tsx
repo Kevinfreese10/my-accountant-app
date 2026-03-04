@@ -124,7 +124,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
                     <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
                         <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g., 3000-058" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g., Office Flowers" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select><FormItem />)} />
+                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select></FormItem>)} />
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                             <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create Account</Button>
@@ -437,7 +437,7 @@ export default function GeneralJournalsPage() {
     }
 
     return (
-      <Dialog onOpenChange={(open) => !open && setViewingJournal(null)}>
+      <Dialog open={!!viewingJournal} onOpenChange={(open) => !open && setViewingJournal(null)}>
       <div className="space-y-8">
         <CreateGeneralAccountDialog client={client} onAccountCreated={fetchClientAndJournals} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen} />
         <Card>
@@ -615,9 +615,7 @@ export default function GeneralJournalsPage() {
                                     <TableCell>{format(new Date(entries[0].date), 'dd/MM/yyyy')}</TableCell>
                                     <TableCell>{journalRef}</TableCell>
                                     <TableCell className="text-right">
-                                         <DialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
-                                        </DialogTrigger>
+                                         <Button variant="ghost" size="icon" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -667,9 +665,7 @@ export default function GeneralJournalsPage() {
                                     <TableCell>{format(new Date(entries[0].date), 'dd/MM/yyyy')}</TableCell>
                                     <TableCell>{journalRef}</TableCell>
                                     <TableCell className="text-right">
-                                        <DialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
-                                        </DialogTrigger>
+                                        <Button variant="ghost" size="icon" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
                                         <Button variant="ghost" size="icon" onClick={() => handleEditJournal(entries)}><Edit className="h-4 w-4" /></Button>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
