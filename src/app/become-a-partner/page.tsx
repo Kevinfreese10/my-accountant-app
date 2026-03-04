@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ShieldAlert, ClipboardList, ShoppingBag, CheckCircle, Globe, Scale, Loader2, Phone, Mail, UserPlus } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ShieldAlert, ClipboardList, ShoppingBag, CheckCircle, Globe, Scale, Loader2, Phone, Mail, UserPlus, ExternalLink } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -239,6 +239,24 @@ export default function BecomeAPartnerPage() {
                 Never lose a client because you lack capacity, specialised expertise, or time. With the Bookkeeper Empowerment Initiative (BEI), you can confidently outsource complex work while keeping full control of the client relationship and growing your revenue.
             </p>
             <p className="mt-6 text-2xl font-bold text-slate-800 uppercase tracking-tighter">Expand your services. Protect your clients. Scale your practice.</p>
+        </div>
+      </section>
+
+      <section className="bg-slate-50 border-b py-12">
+        <div className="container mx-auto px-4 text-center space-y-6">
+            <div className="flex flex-col items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <ShoppingBag className="h-6 w-6 text-primary" />
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-slate-900">
+                    Sign up and get a fully customizable online store with 65+ preloaded services
+                </h2>
+            </div>
+            <Button asChild variant="outline" size="lg" className="h-12 px-8 border-2 border-primary text-primary hover:bg-primary hover:text-white font-bold transition-all">
+                <Link href="https://www.myacc.co.za/p/interscope" target="_blank">
+                    View Example Store <ExternalLink className="ml-2 h-4 w-4" />
+                </Link>
+            </Button>
         </div>
       </section>
 
