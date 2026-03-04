@@ -1,16 +1,18 @@
-
 'use client';
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Wallet2, Loader2, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Wallet2, Loader2, RefreshCw, CheckCircle2, ArrowRight } from 'lucide-react';
 import { User, Order } from '@/lib/types';
 import { reactivatePracticeSubscription } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { getNextOrderId } from '@/lib/sequence';
 import { doc, setDoc, Timestamp, getFirestore } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
 
