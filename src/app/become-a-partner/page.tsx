@@ -99,7 +99,7 @@ export default function BecomeAPartnerPage() {
     {
         icon: ClipboardList,
         feature: 'Automated Compliance Roadmap',
-        benefit: 'Never miss a SARS or CIPC deadline. The system automatically monitors your client requirements and creates tasks for your team.',
+        benefit: 'Never miss a SARS or CIPC deadline again. The system automatically monitors your client requirements and creates tasks for your team.',
     },
     {
         icon: FileText,
@@ -285,7 +285,7 @@ export default function BecomeAPartnerPage() {
         <div className="max-w-2xl mx-auto space-y-8">
             <h2 className="text-4xl font-bold tracking-tight text-slate-900">Ready to Empower Your Practice?</h2>
             <p className="text-xl text-muted-foreground">
-                Join the Bookkeeper Empowerment Initiative today and claim your R5000 in starting credits.
+                Join the Bookkeeper Empowerment Initiative today and 10x your practice with 0 additional staff
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
