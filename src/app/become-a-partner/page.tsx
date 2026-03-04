@@ -17,6 +17,10 @@ const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWid
 const FaqSection = () => {
     const faqs = [
     {
+        question: "How does the outsourcing work?",
+        answer: "You can decide to complete the order yourself or outsource to us. If you choose to outsource, we can then either contact you or contact your client directly through our app. The process is completely white-labeled, so your client doesn't know the work is being outsourced. We charge you a fixed wholesale price, and you keep the markup."
+    },
+    {
         question: "Who should join the Bookkeeper Empowerment Initiative?",
         answer: "BEI is ideal for passionate professionals who want to grow their business without stress, including:\n- Freelance Bookkeepers\n- Startup Accounting Firms\n- Tax Practitioners\n- Business Consultants\n- Payroll Administrators"
     },
@@ -214,41 +218,28 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
 
-      {/* Challenges Section - Re-designed as alternating rows */}
+      {/* Reverted Challenges Section to Cards */}
       <section className="bg-slate-50 py-24 border-y">
         <div className="container mx-auto px-4">
-            <div className="text-center mb-20 space-y-4">
+            <div className="text-center mb-16 space-y-4">
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">The Problem</Badge>
                 <h2 className="text-4xl font-bold tracking-tight text-slate-900">Challenges We Solve for Practitioners</h2>
                 <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Running a practice shouldn't feel like a solo battle against paperwork.</p>
             </div>
             
-            <div className="max-w-5xl mx-auto space-y-24">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {challenges.map((item, idx) => (
-                    <div key={idx} className={cn(
-                        "flex flex-col md:flex-row items-center gap-12 lg:gap-24",
-                        idx % 2 === 1 && "md:flex-row-reverse"
-                    )}>
-                        <div className="flex-1 space-y-6">
-                            <div className="flex items-center gap-4">
-                                <span className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-white font-bold text-sm">
-                                    {idx + 1}
-                                </span>
-                                <h3 className="text-2xl font-bold text-slate-900">{item.title}</h3>
+                    <Card key={idx} className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
+                        <CardHeader className="text-center pb-2">
+                            <div className="mx-auto h-16 w-16 rounded-full bg-primary/5 border flex items-center justify-center mb-4">
+                                <item.icon className="h-8 w-8 text-primary" />
                             </div>
-                            <p className="text-lg text-muted-foreground leading-relaxed">
-                                {item.description}
-                            </p>
-                        </div>
-                        <div className="flex-1 flex justify-center">
-                            <div className="relative">
-                                <div className="absolute inset-0 bg-primary/10 blur-3xl rounded-full scale-150 opacity-50" />
-                                <div className="relative w-32 h-32 md:w-48 md:h-48 rounded-3xl bg-white border shadow-2xl flex items-center justify-center transform rotate-3 hover:rotate-0 transition-transform duration-500">
-                                    <item.icon className="w-16 h-16 md:w-24 md:h-24 text-primary" strokeWidth={1.5} />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                            <CardTitle className="text-xl font-bold text-slate-900">{item.title}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-center">
+                            <p className="text-sm text-muted-foreground leading-relaxed px-4">{item.description}</p>
+                        </CardContent>
+                    </Card>
                 ))}
             </div>
         </div>
