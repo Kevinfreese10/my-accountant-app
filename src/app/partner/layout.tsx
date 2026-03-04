@@ -42,7 +42,6 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
         const lastBillingDate = user.subscription?.lastBillingDate?.toDate ? user.subscription.lastBillingDate.toDate() : new Date(0);
         
         // Billing check: Is it a new month since the last deduction?
-        // We trigger deduction if more than 28 days have passed since last billing
         const daysSinceLastBilling = (now.getTime() - lastBillingDate.getTime()) / (1000 * 60 * 60 * 24);
         const isNewBillingPeriod = daysSinceLastBilling > 28;
 
@@ -55,7 +54,7 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
                         creditBalance: increment(-currentMonthlyTotal),
                         'subscription.lastBillingDate': serverTimestamp(),
                         'subscription.subscriptionStatus': 'active',
-                        'subscription.monthlyTotal': currentMonthlyTotal // Ensure it's initialized
+                        'subscription.monthlyTotal': currentMonthlyTotal
                     });
                     console.log('Automated monthly billing successful.');
                 } catch (e) {
@@ -110,7 +109,7 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
                       <SidebarTrigger className="md:hidden" />
                       {isLapsed && (
                           <div className="flex flex-col gap-1">
-                              <Badge variant="destructive" className="w-fit text-[10px] h-4">Subscription Lapsed</Badge>
+                              <Badge variant="destructive" className="w-fit text-[10px] h-4 font-bold uppercase">Subscription Lapsed</Badge>
                           </div>
                       )}
                   </div>

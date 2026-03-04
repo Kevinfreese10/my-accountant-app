@@ -152,6 +152,7 @@ export default function PartnerServicesPage() {
   const [isBulkBranding, setIsBulkBranding] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<Record<string, 'pending' | 'processing' | 'done' | 'error' | 'rate_limited'>>({});
   const [servicesToProcessCount, setServicesToProcessCount] = useState(0);
+  const [totalOnceOffFees, setTotalOnceOffFees] = useState(0);
   const { toast } = useToast();
 
   const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
@@ -370,7 +371,7 @@ export default function PartnerServicesPage() {
                   <TableRow key={service.id} className={cn(currentStatus === 'rate_limited' && "bg-yellow-50/50")}>
                     <TableCell className="font-medium">
                         <div className="flex flex-col">
-                            <span className="font-bold">{displayTitle}</span>
+                            <span className="font-bold text-slate-900">{displayTitle}</span>
                             <span className="text-[10px] text-muted-foreground line-clamp-1">{override?.description || service.description}</span>
                         </div>
                     </TableCell>

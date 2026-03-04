@@ -45,13 +45,13 @@ const FaqSection = () => {
   return (
       <section className="container mx-auto px-4 max-w-4xl py-12">
          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold">Frequently Asked Questions</h2>
+            <h2 className="text-3xl font-bold text-slate-900">Frequently Asked Questions</h2>
         </div>
          <Accordion type="single" collapsible className="w-full">
             {faqs.map((faq, index) => (
               <AccordionItem key={index} value={`item-${index}`}>
-                <AccordionTrigger className="text-left font-semibold">{faq.question}</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line text-muted-foreground leading-relaxed">{faq.answer}</AccordionContent>
+                <AccordionTrigger className="text-left font-semibold hover:no-underline">{faq.question}</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line text-muted-foreground leading-relaxed text-base">{faq.answer}</AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
@@ -143,14 +143,14 @@ export default function BecomeAPartnerPage() {
   ]
 
   return (
-    <div className="space-y-16 pb-16">
+    <div className="space-y-16 pb-16 bg-white">
       <section className="bg-white border-b relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
             <div className="absolute top-10 left-10"><Bot size={120} /></div>
             <div className="absolute bottom-10 right-10"><Wallet size={120} /></div>
         </div>
         <div className="container mx-auto px-4 py-20 text-center relative z-10">
-            <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl">
+            <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl text-slate-900">
                 10X Your Practice — <span className="text-gradient">Without Hiring More Staff.</span>
             </h1>
             <p className="mt-6 text-xl text-slate-700 max-w-4xl mx-auto font-medium leading-relaxed">
@@ -192,23 +192,14 @@ export default function BecomeAPartnerPage() {
 
       {/* About the Initiative */}
       <section className="container mx-auto px-4 scroll-m-20">
-        <div className="max-w-3xl mx-auto text-center space-y-8">
+        <div className="max-w-4xl mx-auto text-center space-y-8">
             <div className="space-y-4">
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">About the Initiative</Badge>
-                <h2 className="text-4xl font-bold leading-tight">Our philosophy has always been simple</h2>
+                <h2 className="text-4xl font-bold leading-tight text-slate-900">Our philosophy has always been simple</h2>
                 <p className="text-2xl font-bold text-slate-800 italic">"A client referred to someone else is a client lost."</p>
             </div>
             
             <div className="space-y-6 text-lg text-muted-foreground leading-relaxed text-left sm:text-center">
-                <p>
-                    The Bookkeeper Empowerment Initiative by My Accountant was created to empower small and growing bookkeepers across South Africa. We know what it’s like to start out — you have the skills, but limited clients, tools, and support. That’s why BEI gives you the technology, mentorship, and opportunities to build your own brand, attract more clients, and scale your income — all while staying independent.
-                </p>
-                <p>
-                    Whether you’re a freelance bookkeeper, a new accounting firm, or a small practitioner, BEI is designed to help you grow faster with less stress.
-                </p>
-                
-                <Separator className="my-8" />
-
                 <p>
                     With the Bookkeeper Empowerment Initiative, you never have to send your client away because you lack capacity, specialised experience, or technical expertise.
                 </p>
@@ -217,19 +208,28 @@ export default function BecomeAPartnerPage() {
                 </p>
                 
                 <div className="flex flex-wrap justify-center gap-4 py-4">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full font-bold text-sm border border-green-100">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full font-bold text-sm border border-green-100 shadow-sm">
                         <CheckCircle2 className="h-4 w-4" /> You stay in control
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full font-bold text-sm border border-green-100">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full font-bold text-sm border border-green-100 shadow-sm">
                         <CheckCircle2 className="h-4 w-4" /> You keep the client
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full font-bold text-sm border border-green-100">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full font-bold text-sm border border-green-100 shadow-sm">
                         <CheckCircle2 className="h-4 w-4" /> You protect your brand
                     </div>
                 </div>
 
-                <p className="font-semibold text-slate-950 text-center">
+                <p className="font-bold text-slate-950 text-center text-xl">
                     We handle the complexity behind the scenes so your client never needs to move to another accountant.
+                </p>
+                
+                <Separator className="my-12" />
+
+                <p>
+                    The Bookkeeper Empowerment Initiative by My Accountant was created to empower small and growing bookkeepers across South Africa. We know what it’s like to start out — you have the skills, but limited clients, tools, and support. That’s why BEI gives you the technology, mentorship, and opportunities to build your own brand, attract more clients, and scale your income — all while staying independent.
+                </p>
+                <p>
+                    Whether you’re a freelance bookkeeper, a new accounting firm, or a small practitioner, BEI is designed to help you grow faster with less stress.
                 </p>
             </div>
         </div>
@@ -239,19 +239,21 @@ export default function BecomeAPartnerPage() {
       <section className="bg-slate-50 py-24 border-y">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16 space-y-4">
-                <h2 className="text-3xl font-bold tracking-tight">The Challenges We're Solving</h2>
-                <p className="text-muted-foreground max-w-2xl mx-auto">We built the BEI because we know what it's like to run a growing practice in South Africa.</p>
+                <h2 className="text-3xl font-bold tracking-tight text-slate-900">The Challenges We're Solving</h2>
+                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">We built the BEI because we know what it's like to run a growing practice in South Africa.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {challenges.map((item, idx) => (
-                    <Card key={idx} className="border-none shadow-none bg-transparent text-center space-y-4">
-                        <div className="mx-auto h-16 w-16 rounded-full bg-white shadow-sm border flex items-center justify-center">
-                            <item.icon className="h-8 w-8 text-primary" />
-                        </div>
-                        <div className="space-y-2">
-                            <h3 className="font-bold text-lg">{item.title}</h3>
+                    <Card key={idx} className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
+                        <CardHeader className="text-center pb-2">
+                            <div className="mx-auto h-16 w-16 rounded-full bg-primary/5 border flex items-center justify-center mb-4">
+                                <item.icon className="h-8 w-8 text-primary" />
+                            </div>
+                            <CardTitle className="text-xl font-bold text-slate-900">{item.title}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-center">
                             <p className="text-sm text-muted-foreground leading-relaxed px-4">{item.description}</p>
-                        </div>
+                        </CardContent>
                     </Card>
                 ))}
             </div>
@@ -262,17 +264,17 @@ export default function BecomeAPartnerPage() {
       <section id="benefits" className="bg-white py-24 border-t border-b scroll-m-20">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-                <h2 className="text-4xl font-bold tracking-tight">Key Benefits of Joining</h2>
-                <p className="text-muted-foreground mt-4 max-w-2xl mx-auto">A modern back-office engine for your accounting firm, designed for maximum profitability.</p>
+                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Key Benefits of Joining</h2>
+                <p className="text-muted-foreground mt-4 max-w-2xl mx-auto text-lg">A modern back-office engine for your accounting firm, designed for maximum profitability.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {benefits.map(benefit => (
-                <div key={benefit.title} className="flex flex-col gap-4 p-8 bg-white rounded-2xl border border-border hover:border-primary/50 transition-colors shadow-sm">
+                <div key={benefit.title} className="flex flex-col gap-4 p-8 bg-white rounded-2xl border border-border hover:border-primary/50 transition-colors shadow-sm hover:shadow-md">
                     <div className="h-12 w-12 rounded-lg bg-primary/5 flex items-center justify-center">
                         {benefit.icon}
                     </div>
                     <div>
-                        <h3 className="text-xl font-bold">{benefit.title}</h3>
+                        <h3 className="text-xl font-bold text-slate-900">{benefit.title}</h3>
                         <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{benefit.description}</p>
                     </div>
                 </div>
@@ -285,12 +287,12 @@ export default function BecomeAPartnerPage() {
       
       <section className="container mx-auto px-4 text-center">
         <div className="max-w-2xl mx-auto space-y-8">
-            <h2 className="text-4xl font-bold tracking-tight">Ready to Empower Your Practice?</h2>
+            <h2 className="text-4xl font-bold tracking-tight text-slate-900">Ready to Empower Your Practice?</h2>
             <p className="text-xl text-muted-foreground">
                 Join the Bookkeeper Empowerment Initiative today and claim your R5000 in starting credits.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Button asChild size="lg" className="h-14 px-10 text-lg font-bold">
+                <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
                     <Link href="/partner-signup">Sign Up & Claim Credits</Link>
                 </Button>
                 <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg border-2">
