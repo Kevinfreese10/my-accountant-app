@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -86,7 +85,10 @@ export default function ChartOfAccountsPage() {
             if (clientSnap.exists()) {
                 const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
                 if (clientData.chartOfAccounts) {
-                    clientData.chartOfAccounts.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber));
+                    // Deduplicate by account number to prevent duplicate key errors
+                    const uniqueAccounts = Array.from(new Map(clientData.chartOfAccounts.map(item => [item.accountNumber, item])).values());
+                    uniqueAccounts.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber));
+                    clientData.chartOfAccounts = uniqueAccounts;
                 }
                 setClient(clientData);
             }
@@ -285,5 +287,3 @@ export default function ChartOfAccountsPage() {
         </Dialog>
     );
 }
-
-    

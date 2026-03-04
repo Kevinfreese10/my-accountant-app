@@ -1841,7 +1841,13 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
     const [isSaving, setIsSaving] = useState(false);
     const [viewingRuleData, setViewingRuleData] = useState<{ rule: AllocationRule, keyword?: string } | null>(null);
 
-    const uniqueChartOfAccounts = useMemo(() => [...(client?.chartOfAccounts || [])].sort((a, b) => a.description.localeCompare(b.description)), [client]);
+    const uniqueChartOfAccounts = useMemo(() => {
+        const coa = [...(client?.chartOfAccounts || [])];
+        // Deduplicate locally just in case
+        const unique = Array.from(new Map(coa.map(a => [a.accountNumber, a])).values());
+        return unique.sort((a, b) => a.description.localeCompare(b.description));
+    }, [client]);
+
     const allAvailableRules = useMemo(() => [...(client?.allocationRules || []), ...globalRules], [client?.allocationRules, globalRules]);
 
     useEffect(() => {
@@ -2173,6 +2179,11 @@ export default function BankTransactionsPage() {
         const clientSnap = await getDoc(doc(db, 'aiAccountantClients', params.clientId as string));
         if (clientSnap.exists()) {
             const data = clientSnap.data() as User;
+            if (data.chartOfAccounts) {
+                // Deduplicate locally
+                const uniqueAccounts = Array.from(new Map(data.chartOfAccounts.map(a => [a.accountNumber, a])).values());
+                data.chartOfAccounts = uniqueAccounts;
+            }
             setClient(data);
             const bankAccounts = data.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('8400-'));
             if(!accountId && bankAccounts?.[0]) setAccountId(bankAccounts[0].id);

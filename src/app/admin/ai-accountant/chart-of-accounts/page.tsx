@@ -1,4 +1,3 @@
-
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -61,13 +60,15 @@ function AccountForm({ account, onSave, onCancel }: { account: Partial<ChartOfAc
 export default function AIASettingsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const { toast } = useToast();
-    const [accounts, setAccounts] = useState<ChartOfAccount[]>(masterChartOfAccounts);
+    const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<ChartOfAccount | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        setAccounts(masterChartOfAccounts.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)));
+        // Deduplicate master list by account number
+        const uniqueAccounts = Array.from(new Map(masterChartOfAccounts.map(item => [item.accountNumber, item])).values());
+        setAccounts(uniqueAccounts.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)));
         setIsLoading(false);
     }, []);
 
@@ -87,6 +88,11 @@ export default function AIASettingsPage() {
             updatedAccounts = accounts.map(acc => acc.id === data.id ? { ...acc, ...data } : acc);
             toast({ title: 'Success', description: `Account updated successfully.` });
         } else { // Adding
+            const existingAccount = accounts.find(acc => acc.accountNumber === data.accountNumber);
+            if (existingAccount) {
+                toast({ title: 'Duplicate Account', description: 'An account with this number already exists.', variant: 'destructive' });
+                return;
+            }
             const newAccount: ChartOfAccount = { ...data, id: data.accountNumber };
             updatedAccounts = [...accounts, newAccount];
             toast({ title: 'Success', description: `Account created successfully.` });
