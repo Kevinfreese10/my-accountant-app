@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download, RefreshCw } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download, RefreshCw, Calculator, ArrowUp } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Papa from 'papaparse';
+import { Label } from '@/components/ui/label';
 
 const db = getFirestore(firebaseApp);
 
@@ -32,6 +33,69 @@ const serviceCategories = [
 ];
 
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
+
+function BulkPriceAdjustmentDialog({ 
+    servicesCount, 
+    onUpdate, 
+    isLoading 
+}: { 
+    servicesCount: number, 
+    onUpdate: (amount: number) => Promise<void>, 
+    isLoading: boolean 
+}) {
+    const [amount, setAmount] = useState<string>('');
+    const [isOpen, setIsOpen] = useState(false);
+
+    const handleApply = async () => {
+        const num = parseFloat(amount);
+        if (isNaN(num) || num === 0) return;
+        await onUpdate(num);
+        setIsOpen(false);
+        setAmount('');
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                    <Calculator className="h-4 w-4" />
+                    Bulk Price Adj.
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Bulk Price Adjustment</DialogTitle>
+                    <DialogDescription>
+                        Update the price of <strong>{servicesCount}</strong> products by a fixed amount. 
+                        Partner reseller prices (25% discount) will be auto-recalculated.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="adj-amount">Adjustment Amount (ZAR)</Label>
+                        <Input 
+                            id="adj-amount"
+                            type="number"
+                            placeholder="e.g. 200 or -50"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                        />
+                        <p className="text-[10px] text-muted-foreground italic">
+                            Enter a positive number to increase prices, or a negative number to decrease.
+                        </p>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleApply} disabled={isLoading || !amount}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Apply to {servicesCount} Products
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function AdminServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
@@ -210,6 +274,37 @@ export default function AdminServicesPage() {
         }
     };
 
+    const handleBulkPriceUpdate = async (amount: number) => {
+        setIsUpdatingDefaults(true);
+        toast({ title: 'Updating Prices...', description: `Applying R${amount} adjustment to ${filteredServices.length} products.` });
+
+        try {
+            const batch = writeBatch(db);
+            let updatedCount = 0;
+
+            filteredServices.forEach(service => {
+                const newPrice = Math.max(0, service.price + amount);
+                const newResellerPrice = newPrice * 0.75;
+
+                const serviceRef = doc(db, 'services', service.id);
+                batch.update(serviceRef, {
+                    price: newPrice,
+                    resellerPrice: newResellerPrice
+                });
+                updatedCount++;
+            });
+
+            await batch.commit();
+            toast({ title: 'Prices Updated', description: `${updatedCount} products updated successfully.` });
+            fetchServices();
+        } catch (error) {
+            console.error("Bulk price update failed:", error);
+            toast({ title: 'Update Failed', variant: 'destructive' });
+        } finally {
+            setIsUpdatingDefaults(false);
+        }
+    };
+
 
   return (
     <div className="space-y-8">
@@ -276,26 +371,35 @@ export default function AdminServicesPage() {
                         ))}
                     </SelectContent>
                 </Select>
-                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="outline" disabled={isUpdatingDefaults}>
-                            {isUpdatingDefaults ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                            Sync 25% Discount
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Apply 25% Partner Discount?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                This will scan all products and update the `resellerPrice` to 75% of the public price. It also ensures availability is "in_stock" and condition is "new".
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleUpdateDefaults}>Yes, Apply Discount</AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+                
+                <div className="flex items-center gap-2">
+                    <BulkPriceAdjustmentDialog 
+                        servicesCount={filteredServices.length} 
+                        onUpdate={handleBulkPriceUpdate}
+                        isLoading={isUpdatingDefaults}
+                    />
+
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="outline" disabled={isUpdatingDefaults}>
+                                {isUpdatingDefaults ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                Sync 25% Discount
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Apply 25% Partner Discount?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will scan all products and update the `resellerPrice` to 75% of the public price. It also ensures availability is "in_stock" and condition is "new".
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleUpdateDefaults}>Yes, Apply Discount</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
             </div>
         </CardHeader>
         <CardContent>
