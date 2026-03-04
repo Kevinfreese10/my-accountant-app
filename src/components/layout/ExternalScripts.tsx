@@ -1,8 +1,13 @@
 'use client';
 
 import Script from 'next/script';
+import { usePathname } from 'next/navigation';
 
 export default function ExternalScripts() {
+  const pathname = usePathname();
+  // Check if the current route is a partner landing page
+  const isPartnerPage = pathname?.startsWith('/p/');
+
   return (
     <>
       <Script
@@ -56,11 +61,14 @@ export default function ExternalScripts() {
           }
         }}
       />
-      <Script
-        id="respondio__growth_tool"
-        src="https://cdn.respond.io/widget/widget.js?wId=85c13926-c3bd-40f9-9535-9f8e052e2bc4"
-        strategy="lazyOnload"
-      />
+      {/* Only show the respond.io widget if we are NOT on a partner landing page */}
+      {!isPartnerPage && (
+        <Script
+          id="respondio__growth_tool"
+          src="https://cdn.respond.io/widget/widget.js?wId=85c13926-c3bd-40f9-9535-9f8e052e2bc4"
+          strategy="lazyOnload"
+        />
+      )}
     </>
   );
 }
