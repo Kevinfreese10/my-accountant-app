@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
@@ -36,6 +37,35 @@ export async function saveCvLead(data: Omit<CVLead, 'id' | 'createdAt'>) {
     } catch (e) {
         console.error("Save CV lead failed:", e);
         return { success: false };
+    }
+}
+
+/**
+ * Manually reactivates a lapsed practice subscription using available credits.
+ */
+export async function reactivatePracticeSubscription({ partnerId }: { partnerId: string }) {
+    try {
+        const partnerRef = doc(db, 'users', partnerId);
+        const partnerSnap = await getDoc(partnerRef);
+        if (!partnerSnap.exists()) throw new Error("Partner not found");
+        const partner = partnerSnap.data() as User;
+        
+        const monthlyTotal = partner.subscription?.monthlyTotal || 499;
+        
+        if ((partner.creditBalance || 0) < monthlyTotal) {
+            return { success: false, error: "Insufficient credits to reactivate." };
+        }
+        
+        await updateDoc(partnerRef, {
+            creditBalance: increment(-monthlyTotal),
+            'subscription.lastBillingDate': serverTimestamp(),
+            'subscription.subscriptionStatus': 'active'
+        });
+        
+        return { success: true };
+    } catch (e) {
+        console.error("Reactivation failed:", e);
+        return { success: false, error: "Internal Server Error" };
     }
 }
 
@@ -786,7 +816,7 @@ export async function analyzeClientCommentAndSuggest({
     isVatRegistered: boolean
 }) {
     try {
-        // 1. Update transactions with the permanent comment
+        // 1. Update transactions with the permanent client comment
         const batch = writeBatch(db);
         const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
         transactionIds.forEach(id => {

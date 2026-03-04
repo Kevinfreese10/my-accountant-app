@@ -1,3 +1,4 @@
+
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
@@ -5,20 +6,17 @@ import { ProtectedRoute, useAuth } from '@/contexts/AuthContext';
 import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import DashboardNav from '@/components/dashboard/DashboardNav';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { getFirestore, doc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Wallet2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
+import { LapsedSubscriptionScreen } from '@/components/partner/LapsedSubscriptionScreen';
 
 const db = getFirestore(firebaseApp);
 
 export default function PartnerLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [isBillingChecking, setIsBillingCheck] = useState(true);
   
   useEffect(() => {
@@ -92,7 +90,6 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
   }
 
   const isLapsed = user?.subscription?.subscriptionStatus === 'lapsed';
-  const monthlyTotal = user?.subscription?.monthlyTotal || 499;
 
   return (
     <ProtectedRoute>
@@ -107,30 +104,15 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
               <div className="p-4 sm:p-6 lg:p-8">
                   <div className="flex items-center gap-4 mb-6">
                       <SidebarTrigger className="md:hidden" />
-                      {isLapsed && (
-                          <div className="flex flex-col gap-1">
-                              <Badge variant="destructive" className="w-fit text-[10px] h-4 font-bold uppercase">Subscription Lapsed</Badge>
-                          </div>
-                      )}
                   </div>
 
-                  {isLapsed && (
-                      <Alert variant="destructive" className="mb-8 border-2 shadow-lg animate-in fade-in zoom-in-95">
-                          <AlertCircle className="h-5 w-5" />
-                          <AlertTitle className="font-bold">Practice Subscription Lapsed</AlertTitle>
-                          <AlertDescription className="space-y-4">
-                              <p>Your practice wallet has insufficient credits to cover your monthly subscription of <strong>R{monthlyTotal}</strong>. This fee covers your hosting, support, and included staff users. Please top up your wallet to resume service.</p>
-                              <Button asChild variant="outline" className="border-destructive text-destructive hover:bg-destructive hover:text-white font-bold">
-                                  <Link href="/partner/dashboard">
-                                      <Wallet2 className="mr-2 h-4 w-4"/>
-                                      Top Up Practice Wallet
-                                  </Link>
-                              </Button>
-                          </AlertDescription>
-                      </Alert>
+                  {isLapsed ? (
+                      <div className="flex items-center justify-center min-h-[70vh]">
+                        <LapsedSubscriptionScreen user={user} />
+                      </div>
+                  ) : (
+                      children
                   )}
-
-                  {children}
               </div>
           </SidebarInset>
         </div>

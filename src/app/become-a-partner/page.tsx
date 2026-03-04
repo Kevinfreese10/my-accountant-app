@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -236,7 +237,7 @@ export default function BecomeAPartnerPage() {
       </section>
 
       {/* Challenges Section */}
-      <section className="bg-slate-50 py-24 border-y">
+      <section className="bg-white py-24 border-y">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16 space-y-4">
                 <h2 className="text-3xl font-bold tracking-tight text-slate-900">The Challenges We're Solving</h2>
