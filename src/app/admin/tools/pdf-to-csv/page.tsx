@@ -124,8 +124,10 @@ export default function PdfToCsvPage() {
 
   const filteredTransactions = useMemo(() => {
     if (extractedTransactions.length === 0) return [];
-    const startDate = sortedDates[Math.floor((dateRange[0] / 100) * (sortedDates.length - 1))];
-    const endDate = sortedDates[Math.floor((dateRange[1] / 100) * (sortedDates.length - 1))];
+    const startIndex = Math.floor((dateRange[0] / 100) * (sortedDates.length - 1));
+    const endIndex = Math.floor((dateRange[1] / 100) * (sortedDates.length - 1));
+    const startDate = sortedDates[startIndex];
+    const endDate = sortedDates[endIndex];
     
     return extractedTransactions.filter(tx => tx.date >= startDate && tx.date <= endDate);
   }, [extractedTransactions, sortedDates, dateRange]);
@@ -200,12 +202,11 @@ export default function PdfToCsvPage() {
 
         if (createOpeningBalance && statementMeta) {
             const openBalRef = doc(collection(db, 'aiAccountantClients', selectedClient.id, 'transactions'));
-            const isOverdraft = statementMeta.openingBalance < 0;
             batch.set(openBalRef, {
                 clientId: selectedClient.id,
                 date: new Date(statementMeta.startDate).toISOString(),
                 reference: `OPEN-BAL-${Date.now()}`,
-                description: isOverdraft ? "OPENING BALANCE (OVERDRAFT)" : "OPENING BALANCE",
+                description: statementMeta.openingBalance < 0 ? "OPENING BALANCE (OVERDRAFT)" : "OPENING BALANCE",
                 amount: statementMeta.openingBalance,
                 isExpense: statementMeta.openingBalance < 0,
                 bankAccountId: watchBankAccountId,
@@ -219,7 +220,7 @@ export default function PdfToCsvPage() {
 
         filteredTransactions.forEach(tx => {
             const isExpense = tx.amount < 0;
-            // Only match rules for expenses
+            // Only match rules for expenses (amount < 0)
             const match = isExpense ? allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase()))) : null;
             
             const txData: any = {
@@ -249,7 +250,7 @@ export default function PdfToCsvPage() {
         });
 
         await batch.commit();
-        toast({ title: 'Import Successful', description: `${filteredTransactions.length} transactions imported. ${matchCount} auto-allocated.` });
+        toast({ title: 'Import Successful', description: `${filteredTransactions.length} transactions imported. ${matchCount} expenses auto-allocated.` });
         router.push(`/admin/ai-accountant/${selectedClient.id}/bank/transactions?accountId=${watchBankAccountId}`);
     } catch (e) {
         console.error("Import error:", e);

@@ -1,4 +1,3 @@
-
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
@@ -365,9 +364,13 @@ export async function runAiAccountantAnalysis({
 
                 // PRECEDENCE MATCHING (Deterministic logic tree)
                 
-                // TIER 1: History Match (By exact MerchantKey)
+                // TIER 1: History Match (By exact MerchantKey and Same Direction)
                 if (result.merchantKey) {
-                    const histMatch = history.find(h => h.merchantKey === result.merchantKey && h.allocatedTo);
+                    const histMatch = history.find(h => 
+                        h.merchantKey === result.merchantKey && 
+                        h.allocatedTo && 
+                        h.isExpense === tx.isExpense // Critical: Only match same money direction
+                    );
                     if (histMatch) {
                         finalResult = {
                             accountId: histMatch.allocatedTo!.value,
@@ -380,8 +383,8 @@ export async function runAiAccountantAnalysis({
                     }
                 }
 
-                // TIER 2: Rules Match
-                if (!finalResult) {
+                // TIER 2: Rules Match (Only if it's an expense)
+                if (!finalResult && tx.isExpense) {
                     const ruleMatch = allRules.find(r => r.keywords.some(kw => result.cleanDescription.toUpperCase().includes(kw.toUpperCase())));
                     if (ruleMatch) {
                         matchedKeyword = ruleMatch.keywords.find(kw => result.cleanDescription.toUpperCase().includes(kw.toUpperCase()));
@@ -473,12 +476,14 @@ export async function researchMerchantWithAi({
     clientId,
     description,
     chartOfAccounts,
-    isVatRegistered
+    isVatRegistered,
+    isExpense
 }: {
     clientId: string,
     description: string,
     chartOfAccounts: string,
-    isVatRegistered: boolean
+    isVatRegistered: boolean,
+    isExpense: boolean
 }) {
     try {
         const clientRef = doc(db, 'aiAccountantClients', clientId);
@@ -491,7 +496,8 @@ export async function researchMerchantWithAi({
         const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
-        const match = allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase())));
+        // Only check rules for expenses
+        const match = isExpense ? allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase()))) : null;
         
         let result: SmartAllocationResult;
         let source: string;

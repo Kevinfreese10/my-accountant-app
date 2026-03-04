@@ -246,7 +246,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                 const description = row.Description;
                 const isExpense = row.Amount < 0;
                 
-                // Only match rules for expenses
+                // Only match rules for expenses (amount < 0)
                 const match = isExpense ? allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase()))) : null;
 
                 const txData: any = {
@@ -281,7 +281,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
             await batch.commit();
             toast({ 
                 title: "Import Successful", 
-                description: `${parsedTransactions.length} transactions imported. ${matchCount} auto-allocated by rules.`
+                description: `${parsedTransactions.length} transactions imported. ${matchCount} expenses auto-allocated by rules.`
             });
             onImportComplete();
             setIsOpen(false);
@@ -735,6 +735,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                 description: tx.description,
                 chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
                 isVatRegistered: !!client.isVatRegistered,
+                isExpense: tx.isExpense
             });
             setAiSuggestion(res);
             setIsAiReviewOpen(true);
@@ -1410,7 +1411,8 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 clientId: client.uid,
                 description: group.transactions[0].description,
                 chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
-                isVatRegistered: !!client.isVatRegistered
+                isVatRegistered: !!client.isVatRegistered,
+                isExpense: true // AI Workflow is exclusively expenses
             });
             toast({ title: "Research Complete" });
         } catch (error) {
@@ -1511,7 +1513,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             ]);
         }
         const valWs = XLSX.utils.aoa_to_sheet(valData);
-        XLSX.utils.book_append_sheet(wb, valWs, 'Validation');
+        XLSX.utils.book_append_sheet(wb, ws, 'Validation');
 
         XLSX.writeFile(wb, `SmartMatch_Review_${client.name}.xlsx`);
     };

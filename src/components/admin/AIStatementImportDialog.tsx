@@ -192,7 +192,7 @@ export default function AIStatementImportDialog({
 
         filteredTransactions.forEach(tx => {
             const isExpense = tx.amount < 0;
-            // Only match rules for expenses
+            // Only match rules for expenses (amount < 0)
             const match = isExpense ? allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase()))) : null;
             
             const txData: any = {
@@ -222,7 +222,7 @@ export default function AIStatementImportDialog({
         });
 
         await batch.commit();
-        toast({ title: 'Import Successful', description: `${filteredTransactions.length} transactions imported. ${matchCount} auto-allocated.` });
+        toast({ title: 'Import Successful', description: `${filteredTransactions.length} transactions imported. ${matchCount} expenses auto-allocated.` });
         onImportComplete();
         onOpenChange(false);
         setExtractedTransactions([]);
