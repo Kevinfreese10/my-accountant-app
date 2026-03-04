@@ -1,4 +1,3 @@
-
 import { getFirestore, collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service } from '@/lib/types';
@@ -98,6 +97,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
   const heroLayout = lp?.heroLayout || 'centered';
   const textPosition = lp?.heroTextPosition || 'inside';
   const servicesHeroLayout = lp?.servicesHeroLayout || 'centered';
+  const showServicesHero = lp?.showServicesHero !== false;
 
   const services = globalServices.map(s => {
       const override = overrides[s.id];
@@ -218,7 +218,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
 
       {/* Services Grid */}
       <section id="products" className="scroll-m-24 space-y-16">
-        {lp?.servicesHeroImageUrl ? (
+        {showServicesHero && lp?.servicesHeroImageUrl ? (
             <div className={cn(servicesHeroLayout === 'background' ? "w-full" : "container mx-auto px-4")}>
                 <div 
                     className={cn(
@@ -257,10 +257,15 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
 
         <div className="container mx-auto px-4 space-y-20">
             {categorizedServices.map((category) => (
-                <div key={category.id} className="space-y-8">
-                    <div className="flex items-center gap-4">
-                        <h3 className="text-2xl font-bold">{category.name}</h3>
-                        <Separator className="flex-grow opacity-20" />
+                <div key={category.id} className="space-y-12">
+                    <div className="text-center space-y-4 max-w-2xl mx-auto">
+                        <h3 className="text-3xl font-bold">{category.name}</h3>
+                        {category.description && (
+                            <p className="text-muted-foreground text-sm leading-relaxed">
+                                {category.description}
+                            </p>
+                        )}
+                        <Separator className="w-16 mx-auto partner-border border-b-2 opacity-30" />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {category.data.map((service) => (

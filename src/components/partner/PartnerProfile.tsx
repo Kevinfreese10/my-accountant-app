@@ -81,6 +81,7 @@ const formSchema = z.object({
     termsAndConditions: z.string().optional(),
     heroTitleColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     heroSubtitleColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
+    showServicesHero: z.boolean().default(true),
     servicesHeroImageUrl: z.string().url().optional().or(z.literal('')),
     servicesHeroOverlayOpacity: z.preprocess(val => Number(val) || 0, z.number().min(0).max(100)),
     servicesHeroLayout: z.enum(['centered', 'split-left', 'split-right', 'background']).default('centered'),
@@ -204,6 +205,7 @@ export default function PartnerProfile() {
         termsAndConditions: user?.landingPage?.termsAndConditions || '',
         heroTitleColor: user?.landingPage?.heroTitleColor || '#111827',
         heroSubtitleColor: user?.landingPage?.heroSubtitleColor || '#4b5563',
+        showServicesHero: user?.landingPage?.showServicesHero !== undefined ? user?.landingPage?.showServicesHero : true,
         servicesHeroImageUrl: user?.landingPage?.servicesHeroImageUrl || '',
         servicesHeroOverlayOpacity: user?.landingPage?.servicesHeroOverlayOpacity || 0,
         servicesHeroLayout: user?.landingPage?.servicesHeroLayout || 'centered',
@@ -332,6 +334,7 @@ export default function PartnerProfile() {
 
   const landingPageEnabled = watch('landingPage.enabled');
   const landingPageSlug = watch('landingPage.slug');
+  const showServicesHero = watch('landingPage.showServicesHero');
 
   const ColorField = ({ name, label, description }: { name: any, label: string, description?: string }) => (
     <FormField
@@ -700,9 +703,26 @@ export default function PartnerProfile() {
 
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">
-                                            <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Services Section Hero</FormLabel>
-                                            <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingServicesHero}>
-                                                <label className="cursor-pointer">
+                                            <div className="space-y-0.5">
+                                                <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Services Hero Banner</FormLabel>
+                                                <FormField
+                                                    control={form.control}
+                                                    name="landingPage.showServicesHero"
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex items-center space-x-2 space-y-0">
+                                                            <FormControl>
+                                                                <Switch
+                                                                    checked={field.value}
+                                                                    onCheckedChange={field.onChange}
+                                                                />
+                                                            </FormControl>
+                                                            <span className="text-[10px] text-muted-foreground uppercase font-bold">Show Banner</span>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                            <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingServicesHero || !showServicesHero}>
+                                                <label className={cn("cursor-pointer", !showServicesHero && "opacity-50 pointer-events-none")}>
                                                     {isUploadingServicesHero ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
                                                     Upload Banner
                                                     <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'servicesHero')} />
@@ -714,7 +734,7 @@ export default function PartnerProfile() {
                                             name="landingPage.servicesHeroImageUrl"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormControl><Input {...field} placeholder="https://..." className="text-xs h-8" /></FormControl>
+                                                    <FormControl><Input {...field} placeholder="https://..." className="text-xs h-8" disabled={!showServicesHero} /></FormControl>
                                                     <FormDescription className="text-[9px]">Banner image displayed above the services grid.</FormDescription>
                                                 </FormItem>
                                             )}
@@ -726,7 +746,7 @@ export default function PartnerProfile() {
                                                 render={({ field }) => (
                                                     <FormItem>
                                                         <FormLabel className="text-[10px]">Layout Style</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                        <Select onValueChange={field.onChange} value={field.value} disabled={!showServicesHero}>
                                                             <FormControl><SelectTrigger className="h-8 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
                                                             <SelectContent>
                                                                 <SelectItem value="centered">Centered</SelectItem>
@@ -754,6 +774,7 @@ export default function PartnerProfile() {
                                                                 step={5} 
                                                                 value={[field.value]} 
                                                                 onValueChange={(v) => field.onChange(v[0])} 
+                                                                disabled={!showServicesHero}
                                                             />
                                                         </FormControl>
                                                     </FormItem>
