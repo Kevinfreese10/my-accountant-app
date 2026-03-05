@@ -1,3 +1,4 @@
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -24,8 +25,8 @@ import { cn } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
 import { Slider } from '../ui/slider';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { Progress } from '../ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -465,7 +466,7 @@ export default function PartnerProfile() {
                             <Card>
                                 <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Palette className="h-4 w-4" /> Branding & Theme</CardTitle></CardHeader>
                                 <CardContent className="space-y-6">
-                                    <FormField control={form.control} name="landingPage.themePreset" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Theme Preset</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="custom">Custom</SelectItem><SelectItem value="my_accountant">Master</SelectItem><SelectItem value="tech_blue">Light</SelectItem><SelectItem value="futuristic">Dark</SelectItem></SelectContent></Select></FormItem> )} />
+                                    <FormField control={form.control} name="landingPage.themePreset" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Theme Preset</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="custom">Custom</SelectItem><SelectItem value="my_accountant">Master</SelectItem><SelectItem value="tech_blue">Light</SelectItem><SelectItem value="futuristic">Dark</SelectItem></SelectContent></Select></FormItem> )} />
                                     <Separator className="my-2" />
                                     <ColorField name="landingPage.primaryColor" label="Primary Color" />
                                     <ColorField name="landingPage.buttonColor" label="Button Color" />

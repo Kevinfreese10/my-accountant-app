@@ -157,21 +157,6 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
           {lp?.heroSubtitle}
         </p>
       </div>
-      <div className={cn(
-          "flex gap-4 mt-8",
-          heroLayout === 'centered' || heroLayout === 'background' ? 'justify-center' : 
-          heroLayout === 'split-left' ? 'justify-start' : 'justify-end'
-      )}>
-        <Button size="lg" className="partner-btn" asChild>
-          <Link href="#products">View Our Services</Link>
-        </Button>
-        <Button size="lg" variant="outline" className={cn(
-            "partner-border",
-            isOverlay && heroImage && overlayOpacity > 0.3 ? "bg-white/10 text-white hover:bg-white/20" : "partner-text"
-        )} asChild>
-          <Link href="#about">About Our Practice</Link>
-        </Button>
-      </div>
     </div>
   );
 
