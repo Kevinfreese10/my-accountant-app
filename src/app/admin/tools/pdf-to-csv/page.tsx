@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, RotateCcw, FileSpreadsheet, ArrowRight } from 'lucide-react';
+import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, RotateCcw, FileSpreadsheet, ArrowRight, Trash2, X } from 'lucide-react';
 import { extractStatementPeriod, ExtractStatementPeriodOutput } from '@/ai/flows/extract-statement-period';
 import { getFirestore, collection, getDocs, doc, query, where, writeBatch, serverTimestamp, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -18,7 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Slider } from '@/components/ui/slider';
 import { format, parseISO } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -64,7 +63,11 @@ export default function PdfToCsvPage() {
   const [extractionProgress, setExtractionProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
   
-  const [dateRange, setDateRange] = useState<[number, number]>([0, 100]);
+  // Filtering states
+  const [filterStartDate, setFilterStartDate] = useState<string>('');
+  const [filterEndDate, setFilterEndDate] = useState<string>('');
+  const [excludedIndices, setExcludedIndices] = useState<Set<number>>(new Set());
+
   const { toast } = useToast();
   const router = useRouter();
 
@@ -117,20 +120,26 @@ export default function PdfToCsvPage() {
     setCreateOpeningBalance(false);
   }, [watchClientId, watchBankAccountId]);
 
-  const sortedDates = useMemo(() => {
-    if (extractedTransactions.length === 0) return [];
-    return Array.from(new Set(extractedTransactions.map(tx => tx.date))).sort();
-  }, [extractedTransactions]);
+  const isDuplicate = (tx: Transaction) => {
+    return existingTransactions.some(e => 
+        format(new Date(e.date), 'yyyy-MM-dd') === tx.date && 
+        e.description.toLowerCase().trim() === tx.description.toLowerCase().trim() && 
+        Math.abs(e.amount - tx.amount) < 0.01
+    );
+  };
 
   const filteredTransactions = useMemo(() => {
-    if (extractedTransactions.length === 0) return [];
-    const startIndex = Math.floor((dateRange[0] / 100) * (sortedDates.length - 1));
-    const endIndex = Math.floor((dateRange[1] / 100) * (sortedDates.length - 1));
-    const startDate = sortedDates[startIndex];
-    const endDate = sortedDates[endIndex];
-    
-    return extractedTransactions.filter(tx => tx.date >= startDate && tx.date <= endDate);
-  }, [extractedTransactions, sortedDates, dateRange]);
+    return extractedTransactions.filter((tx, index) => {
+        if (excludedIndices.has(index)) return false;
+        if (filterStartDate && tx.date < filterStartDate) return false;
+        if (filterEndDate && tx.date > filterEndDate) return false;
+        return true;
+    });
+  }, [extractedTransactions, excludedIndices, filterStartDate, filterEndDate]);
+
+  const duplicatesInCurrentList = useMemo(() => {
+      return filteredTransactions.filter(isDuplicate);
+  }, [filteredTransactions, existingTransactions]);
 
   const calculatedRecon = useMemo(() => {
     if (!statementMeta) return null;
@@ -151,6 +160,7 @@ export default function PdfToCsvPage() {
     setExtractionProgress(0);
     setStatusMessage('Reading file...');
     setExtractedTransactions([]);
+    setExcludedIndices(new Set());
     setStatementMeta(null);
 
     const reader = new FileReader();
@@ -169,7 +179,11 @@ export default function PdfToCsvPage() {
         
         setStatusMessage('Extracting header...');
         const meta = await extractStatementPeriod({ statementPdf: firstChunkBase64 });
-        if (meta) setStatementMeta(meta);
+        if (meta) {
+            setStatementMeta(meta);
+            setFilterStartDate(meta.startDate);
+            setFilterEndDate(meta.endDate);
+        }
 
         let allTransactions: Transaction[] = [];
 
@@ -206,6 +220,15 @@ export default function PdfToCsvPage() {
       }
     };
   };
+
+  const handleRemoveDuplicates = () => {
+      const newExcluded = new Set(excludedIndices);
+      extractedTransactions.forEach((tx, idx) => {
+          if (isDuplicate(tx)) newExcluded.add(idx);
+      });
+      setExcludedIndices(newExcluded);
+      toast({ title: "Duplicates Excluded" });
+  }
 
   const handleFinalImport = async () => {
     if (!selectedClient || !watchBankAccountId || filteredTransactions.length === 0) return;
@@ -276,14 +299,6 @@ export default function PdfToCsvPage() {
     }
   };
 
-  const isDuplicate = (tx: Transaction) => {
-    return existingTransactions.some(e => 
-        format(new Date(e.date), 'yyyy-MM-dd') === tx.date && 
-        e.description.toLowerCase().trim() === tx.description.toLowerCase().trim() && 
-        Math.abs(e.amount - tx.amount) < 0.01
-    );
-  };
-
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -324,12 +339,38 @@ export default function PdfToCsvPage() {
             )}
 
             {statementMeta && (
-                <Card className="bg-muted/30 border-dashed">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm font-bold uppercase">Statement Meta</CardTitle></CardHeader>
-                    <CardContent className="text-[11px] space-y-2">
-                        <div className="flex justify-between font-bold"><span>Period:</span><span>{format(parseISO(statementMeta.startDate), 'dd MMM')} - {format(parseISO(statementMeta.endDate), 'dd MMM yyyy')}</span></div>
-                        <div className="flex justify-between"><span>Opening Bal:</span><span>{formatPrice(statementMeta.openingBalance)}</span></div>
-                        <div className="flex justify-between"><span>Closing Bal:</span><span>{formatPrice(statementMeta.closingBalance)}</span></div>
+                <Card className="bg-primary/5 border-primary/20">
+                    <CardHeader className="py-3">
+                        <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                            <Info className="h-3 w-3 text-primary" />
+                            Header Detection
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-[11px] space-y-3">
+                        <div className="flex justify-between font-medium">
+                            <span>Period:</span>
+                            <span>{format(parseISO(statementMeta.startDate), 'dd MMM')} - {format(parseISO(statementMeta.endDate), 'dd MMM yyyy')}</span>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-[9px] uppercase text-muted-foreground">Opening Balance</Label>
+                            <Input 
+                                type="number" 
+                                step="0.01" 
+                                value={statementMeta.openingBalance} 
+                                onChange={(e) => setStatementMeta(p => p ? {...p, openingBalance: parseFloat(e.target.value) || 0} : null)}
+                                className="h-8 text-[11px] font-mono bg-white"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-[9px] uppercase text-muted-foreground">Closing Balance</Label>
+                            <Input 
+                                type="number" 
+                                step="0.01" 
+                                value={statementMeta.closingBalance} 
+                                onChange={(e) => setStatementMeta(p => p ? {...p, closingBalance: parseFloat(e.target.value) || 0} : null)}
+                                className="h-8 text-[11px] font-mono bg-white"
+                            />
+                        </div>
                     </CardContent>
                 </Card>
             )}
@@ -338,42 +379,102 @@ export default function PdfToCsvPage() {
         <div className="lg:col-span-8 space-y-6">
             {extractedTransactions.length > 0 ? (
                 <div className="space-y-6 animate-in fade-in zoom-in-95">
-                    <Card>
-                        <CardHeader><CardTitle>Reconciliation & Filter</CardTitle></CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="p-4 rounded-xl border bg-muted/20 space-y-2">
-                                    <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Projected Recon</p>
-                                    <div className="flex justify-between text-xs"><span>Starting Reference:</span><span className="font-bold">{formatPrice(createOpeningBalance ? statementMeta?.openingBalance! : currentAccountData.balance)}</span></div>
-                                    <div className="flex justify-between text-xs"><span>Import Total:</span><span className={calculatedRecon?.importTotal! < 0 ? "text-destructive" : "text-green-600"}>{formatPrice(calculatedRecon?.importTotal || 0)}</span></div>
-                                    <Separator /><div className="flex justify-between text-sm font-bold pt-1"><span>Projected Bal:</span><span>{formatPrice(calculatedRecon?.projectedBalance || 0)}</span></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card className="bg-muted/20 border-dashed">
+                            <CardHeader className="py-3"><CardTitle className="text-xs uppercase">Import Filters</CardTitle></CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <Label className="text-[9px] uppercase">Start Date</Label>
+                                        <Input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-[9px] uppercase">End Date</Label>
+                                        <Input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="h-8 text-xs" />
+                                    </div>
                                 </div>
-                                <div className={cn("p-4 rounded-xl border flex flex-col justify-center items-center text-center transition-colors", calculatedRecon?.isMatched ? "bg-green-50 border-green-200" : "bg-destructive/5 border-destructive/20")}>
-                                    {calculatedRecon?.isMatched ? <><CheckCircle2 className="h-8 w-8 text-green-600 mb-2" /><p className="text-sm font-bold text-green-800">Balanced!</p></> : <><AlertTriangle className="h-8 w-8 text-destructive mb-2" /><p className="text-sm font-bold text-destructive">Mismatch</p><p className="text-[10px] text-muted-foreground">Diff: {formatPrice(calculatedRecon?.diff || 0)}</p></>}
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Adjust Range</Label>
-                                <Slider value={dateRange} onValueChange={(v) => setDateRange(v as [number, number])} max={100} step={1} />
-                                <div className="flex justify-between text-[10px] font-bold"><span>{sortedDates[0]}</span><span>Importing {filteredTransactions.length} items</span><span>{sortedDates[sortedDates.length-1]}</span></div>
-                            </div>
-                        </CardContent>
-                        <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                            <Button size="lg" onClick={handleFinalImport} disabled={isImporting || filteredTransactions.length === 0} className="font-bold min-w-[200px]">{isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Approve & Import</Button>
-                        </CardFooter>
-                    </Card>
+                                {duplicatesInCurrentList.length > 0 && (
+                                    <Button variant="outline" size="sm" onClick={handleRemoveDuplicates} className="w-full text-destructive border-destructive/20 hover:bg-destructive/5 text-[10px] h-7">
+                                        <X className="mr-1 h-3 w-3" /> Exclude {duplicatesInCurrentList.length} Potential Duplicates
+                                    </Button>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <div className={cn("p-4 rounded-xl border flex flex-col justify-center items-center text-center space-y-1 transition-colors", calculatedRecon?.isMatched ? "bg-green-50 border-green-200" : "bg-destructive/5 border-destructive/20")}>
+                            {calculatedRecon?.isMatched ? (
+                                <>
+                                    <CheckCircle2 className="h-8 w-8 text-green-600 mb-2" />
+                                    <p className="text-sm font-bold text-green-800">Balanced!</p>
+                                </>
+                            ) : (
+                                <>
+                                    <AlertTriangle className="h-8 w-8 text-destructive mb-2" />
+                                    <p className="text-sm font-bold text-destructive">Mismatch</p>
+                                    <p className="text-[10px] text-muted-foreground">Diff: {formatPrice(calculatedRecon?.diff || 0)}</p>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
                     <Card>
-                        <CardContent className="p-0">
+                        <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle className="text-sm font-bold uppercase">Transaction Preview ({filteredTransactions.length} items)</CardTitle>
+                            <Button size="lg" onClick={handleFinalImport} disabled={isImporting || filteredTransactions.length === 0} className="font-bold min-w-[200px]">
+                                {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Approve & Import
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="p-0 overflow-hidden">
                             <Table>
-                                <TableHeader className="bg-muted/30"><TableRow><TableHead className="text-[10px] py-2">Date</TableHead><TableHead className="text-[10px] py-2">Description</TableHead><TableHead className="text-right text-[10px] py-2">Amount</TableHead></TableRow></TableHeader>
+                                <TableHeader className="bg-muted/30 sticky top-0 z-10">
+                                    <TableRow>
+                                        <TableHead className="text-[10px] py-2">Date</TableHead>
+                                        <TableHead className="text-[10px] py-2">Description</TableHead>
+                                        <TableHead className="text-right text-[10px] py-2">Amount</TableHead>
+                                        <TableHead className="w-10"></TableHead>
+                                    </TableRow>
+                                </TableHeader>
                                 <TableBody>
-                                    {filteredTransactions.map((tx, idx) => (
-                                        <TableRow key={idx} className={cn(isDuplicate(tx) && "bg-destructive/5")}>
-                                            <TableCell className="text-[10px] py-2">{tx.date}</TableCell>
-                                            <TableCell className="text-[10px] py-2 font-medium truncate max-w-[300px]">{tx.description}</TableCell>
-                                            <TableCell className={cn("text-right font-mono text-[10px] py-2", tx.amount < 0 ? "text-destructive" : "text-green-600")}>{formatPrice(tx.amount)}</TableCell>
-                                        </TableRow>
-                                    ))}
+                                    {extractedTransactions.map((tx, idx) => {
+                                        const isExcluded = excludedIndices.has(idx);
+                                        const isOutOfDateRange = (filterStartDate && tx.date < filterStartDate) || (filterEndDate && tx.date > filterEndDate);
+                                        const isDup = isDuplicate(tx);
+                                        
+                                        if (isOutOfDateRange) return null;
+
+                                        return (
+                                            <TableRow key={idx} className={cn(
+                                                isExcluded && "opacity-30 bg-muted/50 grayscale",
+                                                isDup && !isExcluded && "bg-destructive/5"
+                                            )}>
+                                                <TableCell className="text-[10px] py-2 whitespace-nowrap">{tx.date}</TableCell>
+                                                <TableCell className="text-[10px] py-2 font-medium">
+                                                    <div className="flex flex-col">
+                                                        <span className="truncate max-w-[300px]">{tx.description}</span>
+                                                        {isDup && !isExcluded && <span className="text-[8px] text-destructive font-bold uppercase tracking-tighter">Existing Record Match</span>}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className={cn("text-right font-mono text-[10px] py-2", tx.amount < 0 ? "text-destructive" : "text-green-600")}>
+                                                    {formatPrice(tx.amount)}
+                                                </TableCell>
+                                                <TableCell className="text-right py-2 pr-4">
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                                        onClick={() => {
+                                                            const newExcluded = new Set(excludedIndices);
+                                                            if (isExcluded) newExcluded.delete(idx);
+                                                            else newExcluded.add(idx);
+                                                            setExcludedIndices(newExcluded);
+                                                        }}
+                                                    >
+                                                        {isExcluded ? <RotateCcw className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        )})}
                                 </TableBody>
                             </Table>
                         </CardContent>
@@ -383,7 +484,7 @@ export default function PdfToCsvPage() {
                 <div className="flex flex-col items-center justify-center h-96 text-center text-muted-foreground border-2 border-dashed rounded-xl bg-muted/5 p-8">
                     <FileText className="h-16 w-16 opacity-10 mb-4" />
                     <p className="text-lg font-bold">Ready for Analysis</p>
-                    <p className="text-sm max-w-sm mx-auto">Upload a PDF statement. We will split it into manageable chunks automatically.</p>
+                    <p className="text-sm max-w-sm mx-auto">Upload a PDF statement to begin automated extraction and reconciliation.</p>
                 </div>
             )}
         </div>
