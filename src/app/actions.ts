@@ -7,25 +7,19 @@ import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, 
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import React from 'react';
-import { DocumentRequestEmail } from '@/components/emails/DocumentRequestEmail';
-import { NewTaskEmail } from '@/components/emails/NewTaskEmail';
-import { format, addDays, addMonths, addYears, isSameDay } from 'date-fns';
 import { ClientDocumentUploadEmail } from '@/components/emails/ClientDocumentUploadEmail';
 import { DocumentReviewEmail } from '@/components/emails/DocumentReviewEmail';
 import { AIAccountantInviteEmail } from '@/components/emails/AIAccountantInviteEmail';
 import { NewNoteNotificationEmail } from '@/components/emails/NewNoteNotificationEmail';
 import { OutstandingDocumentsEmail } from '@/components/emails/OutstandingDocumentsEmail';
 import { AIAnalysisCompleteEmail } from '@/components/emails/AIAnalysisCompleteEmail';
-import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { BankCleaner } from '@/lib/bank-cleaner';
 import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
 import { analyzeClientComment } from '@/ai/flows/analyze-client-comment';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
-import { PDFDocument } from 'pdf-lib';
-
+import { format, addDays, addMonths, addYears } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
-
 
 export async function saveCvLead(data: Omit<CVLead, 'id' | 'createdAt'>) {
     try {
@@ -58,58 +52,25 @@ export async function saveDemoLead(data: Omit<DemoLead, 'id' | 'createdAt'>) {
 }
 
 /**
- * Splits a PDF and processes it in chunks to avoid timeouts and output token limits.
+ * Extracts data from a single PDF chunk.
+ * Handled as a Server Action for security and API key management.
  */
-export async function processStatementInChunks({ 
-    fileBase64, 
-    onProgress 
+export async function extractStatementChunk({ 
+    chunkBase64 
 }: { 
-    fileBase64: string, 
-    onProgress?: (current: number, total: number) => void 
+    chunkBase64: string 
 }) {
     try {
-        // Remove data URI prefix if present
-        const base64Data = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64;
-        const pdfDoc = await PDFDocument.load(base64Data);
-        const pageCount = pdfDoc.getPageCount();
-        const chunkSize = 5; // Process 5 pages at a time
-        
-        let allTransactions: any[] = [];
-
-        for (let i = 0; i < pageCount; i += chunkSize) {
-            const start = i;
-            const end = Math.min(i + chunkSize, pageCount);
-            
-            // Create a new PDF for this chunk
-            const chunkDoc = await PDFDocument.create();
-            const pagesToCopy = Array.from({ length: end - start }, (_, idx) => start + idx);
-            const copiedPages = await chunkDoc.copyPages(pdfDoc, pagesToCopy);
-            copiedPages.forEach(p => chunkDoc.addPage(p));
-            
-            const chunkBase64 = await chunkDoc.saveAsBase64({ dataUri: true });
-            
-            // Extract data for this chunk
-            const result = await extractStatementData({ 
-                statementFile: chunkBase64 
-            });
-
-            if (result?.transactions) {
-                allTransactions = [...allTransactions, ...result.transactions];
-            }
-
-            console.log(`Processed chunk starting at page ${start + 1}. Total transactions so far: ${allTransactions.length}`);
-        }
-
-        return { success: true, transactions: allTransactions, pageCount };
+        const result = await extractStatementData({ 
+            statementFile: chunkBase64 
+        });
+        return { success: true, transactions: result?.transactions || [] };
     } catch (error) {
-        console.error("Chunked extraction failed:", error);
-        throw error;
+        console.error("Chunk extraction failed:", error);
+        return { success: false, error: "AI failed to process this segment." };
     }
 }
 
-/**
- * Manually reactivates a lapsed practice subscription using available credits.
- */
 export async function reactivatePracticeSubscription({ partnerId }: { partnerId: string }) {
     try {
         const partnerRef = doc(db, 'users', partnerId);
@@ -274,9 +235,6 @@ export async function sendAiUserInvite(email: string, name: string, password_do_
     });
 }
 
-/**
- * Moves a specific transaction back to 'new' status.
- */
 export async function moveTransactionToNew({ clientId, transactionId }: { clientId: string, transactionId: string }) {
     try {
         const transRef = doc(db, 'aiAccountantClients', clientId, 'transactions', transactionId);
@@ -302,9 +260,6 @@ export async function moveTransactionToNew({ clientId, transactionId }: { client
     }
 }
 
-/**
- * Updates the global smart merchant database based on a user's approval.
- */
 export async function updateGlobalMerchantDb({ merchantKey, accountId, vatType }: { merchantKey: string, accountId: string, vatType: string }) {
     if (!merchantKey || merchantKey === 'UNKNOWN') return;
     
@@ -344,9 +299,6 @@ export async function updateGlobalMerchantDb({ merchantKey, accountId, vatType }
     }
 }
 
-/**
- * PHASE 1: Immediate Status Lock
- */
 export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
     try {
         const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
@@ -371,11 +323,6 @@ export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: {
     }
 }
 
-/**
- * PHASE 2: Deterministic Grouping & Precedence Matching (REGEX-FIRST)
- * Processes in batches to provide real-time progress.
- * THIS IS AN APP-BASED PROCESS (DETERMINISTIC CODE), NOT AI-BASED.
- */
 export async function runAiAccountantAnalysis({ 
     clientId, 
     bankAccountId, 
@@ -403,7 +350,6 @@ export async function runAiAccountantAnalysis({
 
         if (processingExpenses.length === 0) return { success: true, count: 0 };
 
-        // 1. Fetch Dictionaries & Rules once
         const historyQuery = query(transRef, where('status', 'in', ['reviewed', 'allocated']), limit(1000));
         const historySnap = await getDocs(historyQuery);
         const history = historySnap.docs.map(d => d.data() as ImportedTransaction);
@@ -413,7 +359,6 @@ export async function runAiAccountantAnalysis({
         const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
-        // 2. Process transactions in batches of 20
         let moveCount = 0;
         const batchSize = 20;
 
@@ -421,7 +366,6 @@ export async function runAiAccountantAnalysis({
             const batch = writeBatch(db);
             const chunk = processingExpenses.slice(i, i + batchSize);
 
-            // Process identifying logic for each item in parallel for speed
             await Promise.all(chunk.map(async (tx) => {
                 const result = BankCleaner.process(tx.description);
                 let finalResult: SmartAllocationResult | null = null;
@@ -430,14 +374,11 @@ export async function runAiAccountantAnalysis({
                 let ruleId: string | undefined;
                 let matchedKeyword: string | undefined;
 
-                // PRECEDENCE MATCHING (Deterministic logic tree)
-                
-                // TIER 1: History Match (By exact MerchantKey and Same Direction)
                 if (result.merchantKey) {
                     const histMatch = history.find(h => 
                         h.merchantKey === result.merchantKey && 
                         h.allocatedTo && 
-                        h.isExpense === tx.isExpense // Critical: Only match same money direction
+                        h.isExpense === tx.isExpense
                     );
                     if (histMatch) {
                         finalResult = {
@@ -451,7 +392,6 @@ export async function runAiAccountantAnalysis({
                     }
                 }
 
-                // TIER 2: Rules Match (Only if it's an expense)
                 if (!finalResult && tx.isExpense) {
                     const ruleMatch = allRules.find(r => r.keywords.some(kw => result.cleanDescription.toUpperCase().includes(kw.toUpperCase())));
                     if (ruleMatch) {
@@ -470,7 +410,6 @@ export async function runAiAccountantAnalysis({
                     }
                 }
 
-                // TIER 3: Global Smart DB (Exact Key Match)
                 if (!finalResult && result.merchantKey) {
                     try {
                         const globalRef = doc(db, 'globalMerchants', result.merchantKey);
@@ -491,14 +430,13 @@ export async function runAiAccountantAnalysis({
                     }
                 }
 
-                // UPDATE TRANSACTION IN BATCH
                 batch.update(doc(transRef, tx.id), {
                     rawDescription: tx.description,
                     cleanDescription: result.cleanDescription,
                     merchantKey: result.merchantKey,
                     cleaningVersion: result.cleaningVersion,
                     smartAllocationResult: finalResult,
-                    status: 'ai_review', // Transition to review status
+                    status: 'ai_review',
                     allocationSource: allocationSource,
                     matchType: matchType,
                     matchedRuleId: ruleId || deleteField(),
@@ -507,11 +445,9 @@ export async function runAiAccountantAnalysis({
                 moveCount++;
             }));
             
-            // Commit batch of 20
             await batch.commit();
         }
 
-        // 3. Notify Initiator
         if (moveCount > 0) {
             const emailHtml = render(
                 React.createElement(AIAnalysisCompleteEmail, {
@@ -536,10 +472,6 @@ export async function runAiAccountantAnalysis({
     }
 }
 
-/**
- * Researches a specific merchant group with AI.
- * THIS IS THE ONLY PART THAT USES GENAI.
- */
 export async function researchMerchantWithAi({
     clientId,
     description,
@@ -564,7 +496,6 @@ export async function researchMerchantWithAi({
         const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
-        // Only check rules for expenses
         const match = isExpense ? allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase()))) : null;
         
         let result: SmartAllocationResult;
@@ -582,7 +513,7 @@ export async function researchMerchantWithAi({
             };
             source = 'rule';
         } else {
-            // Manual per-merchant research call to LLM
+            const { suggestTransactionAllocation } = await import('@/ai/flows/suggest-transaction-allocation');
             const aiResult = await suggestTransactionAllocation({
                 description,
                 chartOfAccounts,
@@ -615,9 +546,6 @@ export async function researchMerchantWithAi({
     }
 }
 
-/**
- * Researches a specific income merchant with AI.
- */
 export async function finalizeChatAllocation({
     clientId,
     transactionId,
@@ -648,9 +576,6 @@ export async function finalizeChatAllocation({
     }
 }
 
-/**
- * Resets any transactions locked in 'ai_processing' back to 'new'.
- */
 export async function resetAiAccountantAnalysis({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
     try {
         const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
@@ -684,9 +609,6 @@ export async function resetAiAccountantAnalysis({ clientId, bankAccountId }: { c
     }
 }
 
-/**
- * Combines multiple merchant groups into one target group.
- */
 export async function combineMerchantGroups({
     clientId,
     transactionIds,
@@ -706,7 +628,7 @@ export async function combineMerchantGroups({
             batch.update(doc(transRef, id), {
                 merchantKey: newMerchantKey,
                 cleanDescription: newCleanDescription,
-                matchType: 'manual', // Mark as manual merge
+                matchType: 'manual',
                 allocationSource: 'manual'
             });
         });
@@ -719,9 +641,6 @@ export async function combineMerchantGroups({
     }
 }
 
-/**
- * Analyzes unallocated merchant groups and proposes merges based on similarity.
- */
 export async function proposeRegroups({ 
     clientId, 
     bankAccountId 
@@ -739,7 +658,6 @@ export async function proposeRegroups({
         const snapshot = await getDocs(q);
         const transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
 
-        // 1. Build initial groups
         const merchantGroups: { [key: string]: ImportedTransaction[] } = {};
         transactions.forEach(tx => {
             const key = tx.merchantKey || 'UNKNOWN';
@@ -750,7 +668,6 @@ export async function proposeRegroups({
         const groupKeys = Object.keys(merchantGroups).filter(k => k !== 'UNKNOWN').sort();
         const proposals: any[] = [];
 
-        // 2. Pairwise comparison
         for (let i = 0; i < groupKeys.length; i++) {
             for (let j = i + 1; j < groupKeys.length; j++) {
                 const keyA = groupKeys[i];
@@ -783,9 +700,6 @@ export async function proposeRegroups({
     }
 }
 
-/**
- * Analyzes unallocated merchant groups using AI for semantic similarities.
- */
 export async function proposeAiRegroups({ 
     clientId, 
     bankAccountId,
@@ -805,7 +719,6 @@ export async function proposeAiRegroups({
         const snapshot = await getDocs(q);
         const transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
 
-        // 1. Build initial groups
         const merchantGroups: { [key: string]: ImportedTransaction[] } = {};
         transactions.forEach(tx => {
             const key = tx.merchantKey || 'UNKNOWN';
@@ -815,14 +728,12 @@ export async function proposeAiRegroups({
 
         let groupKeys = Object.keys(merchantGroups).filter(k => k !== 'UNKNOWN');
         
-        // Filter if requested
         if (selectedMerchantKeys && selectedMerchantKeys.length > 0) {
             groupKeys = groupKeys.filter(k => selectedMerchantKeys.includes(k));
         }
 
         if (groupKeys.length < 2) return [];
 
-        // 2. Call AI flow
         const aiInput = groupKeys.map(key => ({
             key,
             example: merchantGroups[key][0].description,
@@ -831,7 +742,6 @@ export async function proposeAiRegroups({
 
         const result = await aiSmartRegroup({ groups: aiInput });
 
-        // 3. Map AI proposals back to UI structure
         return result.proposals.map(p => {
             const fromGroup = merchantGroups[p.fromKey];
             const toGroup = merchantGroups[p.toKey];
@@ -857,9 +767,6 @@ export async function proposeAiRegroups({
     }
 }
 
-/**
- * Applies approved regroups permanently.
- */
 export async function applyRegroups({
     clientId,
     merges,
@@ -883,7 +790,6 @@ export async function applyRegroups({
             });
         });
 
-        // Log audit event
         const auditRef = doc(collection(db, 'aiAccountantClients', clientId, 'auditLogs'));
         batch.set(auditRef, {
             type: 'regroup_applied',
@@ -901,10 +807,6 @@ export async function applyRegroups({
     }
 }
 
-/**
- * Analyzes a client comment and suggests an allocation.
- * Permanently saves the comment to the group transactions.
- */
 export async function analyzeClientCommentAndSuggest({
     clientId,
     transactionIds,
@@ -923,7 +825,6 @@ export async function analyzeClientCommentAndSuggest({
     isVatRegistered: boolean
 }) {
     try {
-        // 1. Update transactions with the permanent client comment
         const batch = writeBatch(db);
         const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
         transactionIds.forEach(id => {
@@ -931,7 +832,6 @@ export async function analyzeClientCommentAndSuggest({
         });
         await batch.commit();
 
-        // 2. Call AI flow for suggestion
         const result = await analyzeClientComment({
             comment,
             merchantKey,
@@ -940,7 +840,6 @@ export async function analyzeClientCommentAndSuggest({
             isVatRegistered
         });
 
-        // 3. Update transactions with the AI draft result
         const batch2 = writeBatch(db);
         transactionIds.forEach(id => {
             batch2.update(doc(transRef, id), {
@@ -962,9 +861,6 @@ export async function analyzeClientCommentAndSuggest({
     }
 }
 
-/**
- * Generates the next occurrence of a recurring task.
- */
 export async function generateNextTaskOccurrence(taskId: string) {
     const taskRef = doc(db, 'tasks', taskId);
     const taskSnap = await getDoc(taskRef);
@@ -988,7 +884,6 @@ export async function generateNextTaskOccurrence(taskId: string) {
 
     const { id, ...rest } = task;
     
-    // Update Title if it's a system-generated compliance task
     let newTitle = task.title;
     if (task.createdBy === 'system' && task.type) {
         const clientNameMatch = task.title.match(/ for (.*)$/);

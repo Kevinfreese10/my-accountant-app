@@ -8,11 +8,11 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Download, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Search, ArrowRight, User, Banknote, Calendar as CalendarIcon, CheckCheck, ChevronsUpDown, Info, RotateCcw, Trash, FileSpreadsheet } from 'lucide-react';
+import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, RotateCcw, FileSpreadsheet, ArrowRight } from 'lucide-react';
 import { extractStatementPeriod, ExtractStatementPeriodOutput } from '@/ai/flows/extract-statement-period';
-import { getFirestore, collection, getDocs, doc, query, where, getDoc, writeBatch, serverTimestamp, orderBy, limit } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, query, where, writeBatch, serverTimestamp, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User as UserType, ChartOfAccount, ImportedTransaction, AllocationRule } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,18 +20,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
-import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from '@/components/ui/command';
-import { cn } from '@/lib/utils';
+import { format, parseISO } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import * as XLSX from 'xlsx';
-import { processStatementInChunks } from '@/app/actions';
-
-export const maxDuration = 120; // Extend duration for large PDF processing
+import { extractStatementChunk } from '@/app/actions';
+import { PDFDocument } from 'pdf-lib';
 
 const db = getFirestore(firebaseApp);
 
@@ -68,6 +64,7 @@ export default function PdfToCsvPage() {
   const [extractedTransactions, setExtractedTransactions] = useState<Transaction[]>([]);
   const [statementMeta, setStatementMeta] = useState<ExtractStatementPeriodOutput | null>(null);
   const [extractionProgress, setExtractionProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('');
   
   const [dateRange, setDateRange] = useState<[number, number]>([0, 100]);
   const { toast } = useToast();
@@ -137,17 +134,6 @@ export default function PdfToCsvPage() {
     return extractedTransactions.filter(tx => tx.date >= startDate && tx.date <= endDate);
   }, [extractedTransactions, sortedDates, dateRange]);
 
-  const incomeTransactions = useMemo(() => {
-    return filteredTransactions.filter(tx => tx.amount > 0);
-  }, [filteredTransactions]);
-
-  const expenseTransactions = useMemo(() => {
-    return filteredTransactions.filter(tx => tx.amount < 0);
-  }, [filteredTransactions]);
-
-  const incomeTotal = useMemo(() => incomeTransactions.reduce((s, t) => s + t.amount, 0), [incomeTransactions]);
-  const expenseTotal = useMemo(() => expenseTransactions.reduce((s, t) => s + t.amount, 0), [expenseTransactions]);
-
   const calculatedRecon = useMemo(() => {
     if (!statementMeta) return null;
     const importTotal = filteredTransactions.reduce((s, t) => s + t.amount, 0);
@@ -165,31 +151,60 @@ export default function PdfToCsvPage() {
 
     setIsExtracting(true);
     setExtractionProgress(0);
+    setStatusMessage('Reading file...');
     setExtractedTransactions([]);
     setStatementMeta(null);
-    toast({ title: 'AI Analysis Started', description: 'Splitting document and beginning chunked extraction...' });
 
     const reader = new FileReader();
-    reader.readAsDataURL(file);
+    reader.readAsArrayBuffer(file);
     reader.onload = async () => {
-      const dataUrl = reader.result as string;
       try {
-        // 1. Get Metadata first (Fast)
-        const meta = await extractStatementPeriod({ statementPdf: dataUrl });
+        const arrayBuffer = reader.result as ArrayBuffer;
+        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const pageCount = pdfDoc.getPageCount();
+        const chunkSize = 5;
+        
+        // 1. Convert to data URL for Meta Extraction (just first chunk usually works for meta)
+        const firstChunkDoc = await PDFDocument.create();
+        const firstPages = await firstChunkDoc.copyPages(pdfDoc, [0]);
+        firstChunkDoc.addPage(firstPages[0]);
+        const firstChunkBase64 = await firstChunkDoc.saveAsBase64({ dataUri: true });
+        
+        setStatusMessage('Extracting statement header...');
+        const meta = await extractStatementPeriod({ statementPdf: firstChunkBase64 });
         if (meta) setStatementMeta(meta);
 
-        // 2. Process transactions in chunks (Prevents timeout)
-        const result = await processStatementInChunks({ 
-            fileBase64: dataUrl 
-        });
+        let allTransactions: Transaction[] = [];
 
-        if (result?.transactions) {
-            setExtractedTransactions(result.transactions);
-            toast({ title: 'Extraction Complete', description: `Successfully processed ${result.pageCount} pages and found ${result.transactions.length} transactions.` });
+        for (let i = 0; i < pageCount; i += chunkSize) {
+            const start = i;
+            const end = Math.min(i + chunkSize, pageCount);
+            const currentProgress = Math.round((start / pageCount) * 100);
+            setExtractionProgress(currentProgress);
+            setStatusMessage(`Processing pages ${start + 1} to ${end} of ${pageCount}...`);
+
+            const chunkDoc = await PDFDocument.create();
+            const pagesToCopy = Array.from({ length: end - start }, (_, idx) => start + idx);
+            const copiedPages = await chunkDoc.copyPages(pdfDoc, pagesToCopy);
+            copiedPages.forEach(p => chunkDoc.addPage(p));
+            
+            const chunkBase64 = await chunkDoc.saveAsBase64({ dataUri: true });
+            
+            const result = await extractStatementChunk({ chunkBase64 });
+
+            if (result.success && result.transactions) {
+                allTransactions = [...allTransactions, ...result.transactions];
+                setExtractedTransactions([...allTransactions]); // Update preview live
+            }
         }
+
+        setExtractionProgress(100);
+        setStatusMessage('Extraction Complete!');
+        toast({ title: 'Success', description: `Processed ${pageCount} pages and found ${allTransactions.length} transactions.` });
+
       } catch (error) {
         console.error('Extraction error:', error);
-        toast({ title: 'AI Error', description: 'Failed to extract data. The file might be too large or complex.', variant: 'destructive' });
+        toast({ title: 'Processing Failed', description: 'Ensure the file is a valid PDF statement.', variant: 'destructive' });
       } finally {
         setIsExtracting(false);
       }
@@ -229,13 +244,12 @@ export default function PdfToCsvPage() {
 
         filteredTransactions.forEach(tx => {
             const isExpense = tx.amount < 0;
-            // Only match rules for expenses (amount < 0)
             const match = isExpense ? allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase()))) : null;
             
             const txData: any = {
                 clientId: selectedClient.id,
                 date: new Date(tx.date).toISOString(),
-                reference: `PDF-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                reference: `AI-CHUNK-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                 description: tx.description.toUpperCase(),
                 amount: tx.amount,
                 isExpense: isExpense,
@@ -259,7 +273,7 @@ export default function PdfToCsvPage() {
         });
 
         await batch.commit();
-        toast({ title: 'Import Successful', description: `${filteredTransactions.length} transactions imported. ${matchCount} expenses auto-allocated.` });
+        toast({ title: 'Import Successful', description: `${filteredTransactions.length} transactions imported.` });
         router.push(`/admin/ai-accountant/${selectedClient.id}/bank/transactions?accountId=${watchBankAccountId}`);
     } catch (e) {
         console.error("Import error:", e);
@@ -277,34 +291,18 @@ export default function PdfToCsvPage() {
     );
   };
 
-  const handleDownloadPreviewExcel = () => {
-    if (filteredTransactions.length === 0) return;
-    
-    const data = filteredTransactions.map(tx => ({
-        'Date': tx.date,
-        'Description': tx.description,
-        'Amount': tx.amount,
-        'Status': isDuplicate(tx) ? 'Potential Duplicate' : 'New'
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Statement Transactions");
-    XLSX.writeFile(wb, "Extracted_Transactions.xlsx");
-  };
-
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">AI Bank Statement Importer</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950">AI Bank Importer</h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         <div className="lg:col-span-4 space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-lg">Target Account</CardTitle>
-                    <CardDescription>Select the client and bank account for this statement.</CardDescription>
+                    <CardTitle className="text-lg">Configuration</CardTitle>
+                    <CardDescription>Select client and upload statement.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Form {...form}>
@@ -338,32 +336,17 @@ export default function PdfToCsvPage() {
                                 )}
                             />
                             
-                            {watchBankAccountId && (
-                                <div className="bg-muted/50 p-3 rounded-lg text-xs space-y-1 animate-in fade-in">
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Current Balance:</span>
-                                        <span className={cn("font-bold", currentAccountData.balance < 0 ? "text-destructive" : "text-green-600")}>{formatPrice(currentAccountData.balance)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Last Imported:</span>
-                                        <span className="font-semibold">{currentAccountData.lastTxDate ? format(new Date(currentAccountData.lastTxDate), 'dd MMM yyyy') : 'Never'}</span>
-                                    </div>
-                                </div>
-                            )}
-
-                            <Separator />
-
                             <FormField
                                 control={form.control}
                                 name="statement"
-                                render={({ field }) => (
+                                render={({ field: { onChange, value, ...rest } }) => (
                                     <FormItem>
-                                        <FormLabel>Statement File (PDF/Image)</FormLabel>
+                                        <FormLabel>PDF Statement</FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="file"
-                                                accept="application/pdf,image/*"
-                                                onChange={(e) => field.onChange(e.target.files)}
+                                                accept="application/pdf"
+                                                onChange={(e) => onChange(e.target.files)}
                                                 disabled={!watchBankAccountId || isExtracting}
                                             />
                                         </FormControl>
@@ -371,272 +354,139 @@ export default function PdfToCsvPage() {
                                     </FormItem>
                                 )}
                             />
-                            <Button type="submit" className="w-full" disabled={isExtracting || !watchBankAccountId}>
+                            <Button type="submit" className="w-full h-12 font-bold" disabled={isExtracting || !watchBankAccountId}>
                                 {isExtracting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                {isExtracting ? 'Extracting...' : 'Extract from PDF'}
+                                {isExtracting ? 'Analyzing...' : 'Extract from PDF'}
                             </Button>
                         </form>
                     </Form>
                 </CardContent>
             </Card>
 
-            {statementMeta && (
-                <Card className="bg-primary/5 border-primary/20 animate-in slide-in-from-left-2">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-                            <Info className="h-4 w-4 text-primary" />
-                            Statement Header Stats
-                        </CardTitle>
+            {isExtracting && (
+                <Card className="border-primary bg-primary/5 animate-pulse">
+                    <CardHeader className="py-3 px-4">
+                        <div className="flex justify-between items-center text-xs font-bold text-primary uppercase">
+                            <span>{statusMessage}</span>
+                            <span>{extractionProgress}%</span>
+                        </div>
                     </CardHeader>
-                    <CardContent className="text-xs space-y-4">
-                        <div className="flex justify-between"><span>Period:</span><span className="font-bold">{format(parseISO(statementMeta.startDate), 'dd MMM')} - {format(parseISO(statementMeta.endDate), 'dd MMM yyyy')}</span></div>
-                        <div className="space-y-1.5">
-                            <Label className="text-[10px] uppercase text-muted-foreground">Opening Balance</Label>
-                            <Input 
-                                type="number" 
-                                step="0.01" 
-                                value={statementMeta.openingBalance} 
-                                onChange={(e) => setStatementMeta(p => p ? {...p, openingBalance: parseFloat(e.target.value) || 0} : null)}
-                                className={cn("h-8 text-xs font-mono font-bold", statementMeta.openingBalance < 0 && "text-destructive border-destructive/30")}
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-[10px] uppercase text-muted-foreground">Closing Balance</Label>
-                            <Input 
-                                type="number" 
-                                step="0.01" 
-                                value={statementMeta.closingBalance} 
-                                onChange={(e) => setStatementMeta(p => p ? {...p, closingBalance: parseFloat(e.target.value) || 0} : null)}
-                                className={cn("h-8 text-xs font-mono font-bold", statementMeta.closingBalance < 0 && "text-destructive border-destructive/30")}
-                            />
-                        </div>
-                        <div className="flex justify-between items-center bg-background p-2 rounded border">
-                            <span className="text-[10px] font-bold uppercase text-muted-foreground">Net Movement:</span>
-                            <span className={cn("font-mono font-bold", (statementMeta.closingBalance - statementMeta.openingBalance) < 0 ? "text-destructive" : "text-green-600")}>
-                                {formatPrice(statementMeta.closingBalance - statementMeta.openingBalance)}
-                            </span>
-                        </div>
+                    <CardContent className="px-4 pb-4">
+                        <Progress value={extractionProgress} className="h-2" />
                     </CardContent>
-                    <CardFooter className="pt-0 pb-4">
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="w-full text-[10px] h-7 font-bold uppercase" 
-                            onClick={form.handleSubmit(onSubmit)}
-                            disabled={isExtracting}
-                        >
-                            <RotateCcw className="h-3 w-3 mr-1" /> Restart Analysis
-                        </Button>
-                    </CardFooter>
+                </Card>
+            )}
+
+            {statementMeta && (
+                <Card className="bg-muted/30 border-dashed">
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-bold uppercase">Statement Meta</CardTitle></CardHeader>
+                    <CardContent className="text-[11px] space-y-2">
+                        <div className="flex justify-between font-bold"><span>Period:</span><span>{format(parseISO(statementMeta.startDate), 'dd MMM')} - {format(parseISO(statementMeta.endDate), 'dd MMM yyyy')}</span></div>
+                        <div className="flex justify-between"><span>Opening Bal:</span><span>{formatPrice(statementMeta.openingBalance)}</span></div>
+                        <div className="flex justify-between"><span>Closing Bal:</span><span>{formatPrice(statementMeta.closingBalance)}</span></div>
+                    </CardContent>
                 </Card>
             )}
         </div>
 
         <div className="lg:col-span-8 space-y-6">
             {extractedTransactions.length > 0 ? (
-                <div className="space-y-6">
+                <div className="space-y-6 animate-in fade-in zoom-in-95">
                     <Card>
                         <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <CardTitle>Review & Reconcile</CardTitle>
-                                    <CardDescription>Adjust the date range and verify the calculated balance.</CardDescription>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Importing</p>
-                                    <p className="text-lg font-bold text-primary">{filteredTransactions.length} of {extractedTransactions.length} items</p>
-                                </div>
-                            </div>
+                            <CardTitle>Reconciliation & Filter</CardTitle>
+                            <CardDescription>Verify the extraction matches your statement totals.</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-8">
-                            <div className="space-y-4">
-                                <div className="flex justify-between text-xs font-medium">
-                                    <span>From: {sortedDates[Math.floor((dateRange[0] / 100) * (sortedDates.length - 1))]}</span>
-                                    <span>To: {sortedDates[Math.floor((dateRange[1] / 100) * (sortedDates.length - 1))]}</span>
-                                </div>
-                                <Slider
-                                    value={dateRange}
-                                    onValueChange={(v) => setDateRange(v as [number, number])}
-                                    max={100}
-                                    step={1}
-                                    className="py-4"
-                                />
-                                <p className="text-[10px] text-muted-foreground italic text-center">Slide to adjust which dates from the statement are imported.</p>
-                            </div>
-
+                        <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="p-4 rounded-xl border bg-muted/20 space-y-2">
-                                    <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Calculated Recon</p>
+                                    <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Projected Recon</p>
                                     <div className="flex justify-between text-xs">
                                         <span className="text-muted-foreground">Starting Reference:</span>
-                                        <span className={cn("font-bold", (createOpeningBalance ? statementMeta?.openingBalance! : currentAccountData.balance) < 0 ? "text-destructive" : "text-green-600")}>
-                                            {formatPrice(createOpeningBalance ? statementMeta?.openingBalance! : currentAccountData.balance)}
-                                        </span>
+                                        <span className="font-bold">{formatPrice(createOpeningBalance ? statementMeta?.openingBalance! : currentAccountData.balance)}</span>
                                     </div>
                                     <div className="flex justify-between text-xs">
-                                        <span className="text-muted-foreground">Import Items Total:</span>
+                                        <span className="text-muted-foreground">Import Total:</span>
                                         <span className={calculatedRecon?.importTotal! < 0 ? "text-destructive" : "text-green-600"}>{formatPrice(calculatedRecon?.importTotal || 0)}</span>
                                     </div>
                                     <Separator />
                                     <div className="flex justify-between text-sm font-bold pt-1">
-                                        <span>Projected GL Bal:</span>
-                                        <span className={cn(calculatedRecon?.projectedBalance! < 0 ? "text-destructive" : "text-green-600")}>
-                                            {formatPrice(calculatedRecon?.projectedBalance || 0)}
-                                        </span>
+                                        <span>Projected Bal:</span>
+                                        <span>{formatPrice(calculatedRecon?.projectedBalance || 0)}</span>
                                     </div>
                                 </div>
 
-                                <div className={cn("p-4 rounded-xl border flex flex-col justify-center items-center text-center space-y-2 transition-colors", calculatedRecon?.isMatched ? "bg-green-50 border-green-200" : "bg-destructive/5 border-destructive/20")}>
+                                <div className={cn("p-4 rounded-xl border flex flex-col justify-center items-center text-center transition-colors", calculatedRecon?.isMatched ? "bg-green-50 border-green-200" : "bg-destructive/5 border-destructive/20")}>
                                     {calculatedRecon?.isMatched ? (
                                         <>
-                                            <CheckCircle2 className="h-8 w-8 text-green-600" />
-                                            <p className="text-sm font-bold text-green-800">Perfect Match!</p>
-                                            <p className="text-[10px] text-green-700">Projected balance matches the statement closing balance.</p>
+                                            <CheckCircle2 className="h-8 w-8 text-green-600 mb-2" />
+                                            <p className="text-sm font-bold text-green-800">Balanced!</p>
+                                            <p className="text-[10px] text-green-700">Matches statement closing.</p>
                                         </>
                                     ) : (
                                         <>
-                                            <AlertTriangle className="h-8 w-8 text-destructive" />
-                                            <p className="text-sm font-bold text-destructive">Balance Mismatch</p>
-                                            <p className="text-[10px] text-muted-foreground">Difference: {formatPrice(calculatedRecon?.diff || 0)}. <br/>Check for missing or double-counted items.</p>
+                                            <AlertTriangle className="h-8 w-8 text-destructive mb-2" />
+                                            <p className="text-sm font-bold text-destructive">Mismatch</p>
+                                            <p className="text-[10px] text-muted-foreground">Diff: {formatPrice(calculatedRecon?.diff || 0)}</p>
                                         </>
                                     )}
                                 </div>
                             </div>
 
-                            {currentAccountData.balance === 0 && statementMeta && statementMeta.openingBalance !== 0 && (
-                                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-start gap-3">
-                                    <Checkbox 
-                                        id="create-opening" 
-                                        checked={createOpeningBalance} 
-                                        onCheckedChange={(v) => setCreateOpeningBalance(!!v)} 
-                                        className="mt-1"
-                                    />
-                                    <div className="space-y-1">
-                                        <Label htmlFor="create-opening" className="text-sm font-bold text-yellow-800">Create Opening Balance Transaction?</Label>
-                                        <p className="text-xs text-yellow-700 leading-relaxed">
-                                            The current bank account balance is zero. Create a transaction for <strong>{formatPrice(statementMeta.openingBalance)}</strong> to match the statement opening balance? This will be posted to the Opening Balance account (9500-002).
-                                        </p>
-                                    </div>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Adjust Import Range</Label>
+                                <Slider
+                                    value={dateRange}
+                                    onValueChange={(v) => setDateRange(v as [number, number])}
+                                    max={100}
+                                    step={1}
+                                />
+                                <div className="flex justify-between text-[10px] font-bold">
+                                    <span>{sortedDates[0]}</span>
+                                    <span>Importing {filteredTransactions.length} items</span>
+                                    <span>{sortedDates[sortedDates.length-1]}</span>
                                 </div>
-                            )}
+                            </div>
                         </CardContent>
                         <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                            <Button variant="ghost" onClick={() => setExtractedTransactions([])}>Clear & Restart</Button>
-                            <Button size="lg" onClick={handleFinalImport} disabled={isImporting || filteredTransactions.length === 0}>
+                            <Button size="lg" onClick={handleFinalImport} disabled={isImporting || filteredTransactions.length === 0} className="font-bold min-w-[200px]">
                                 {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Approve & Import {filteredTransactions.length} Items
+                                Approve & Import
                             </Button>
                         </CardFooter>
                     </Card>
 
                     <Card>
-                        <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <CardTitle className="text-md">Transaction Preview</CardTitle>
-                                <Button variant="outline" size="sm" onClick={handleDownloadPreviewExcel} disabled={filteredTransactions.length === 0}>
-                                    <FileSpreadsheet className="h-4 w-4 mr-2" /> Download Excel
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-0 pt-4 space-y-8">
-                            {createOpeningBalance && statementMeta && (
-                                <div className="px-4 pb-4">
-                                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Adjustments</h4>
-                                    <div className="p-3 bg-primary/5 border rounded-lg flex justify-between items-center text-sm">
-                                        <div className="flex items-center gap-2">
-                                            <Badge variant="outline" className="text-[10px] font-bold uppercase border-primary/30 text-primary">System</Badge>
-                                            <span className="font-semibold">{statementMeta.openingBalance < 0 ? "OPENING BALANCE (OVERDRAFT)" : "OPENING BALANCE"}</span>
-                                        </div>
-                                        <span className={cn("font-mono font-bold", statementMeta.openingBalance < 0 ? "text-destructive" : "text-green-600")}>
-                                            {formatPrice(statementMeta.openingBalance)}
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="px-4">
-                                <h4 className="text-sm font-bold text-green-600 flex items-center justify-between mb-2">
-                                    <span>Income / Receipts ({incomeTransactions.length})</span>
-                                    <span className="font-mono">{formatPrice(incomeTotal)}</span>
-                                </h4>
-                                <div className="border rounded-md overflow-hidden bg-white">
-                                    <Table>
-                                        <TableHeader className="bg-muted/30">
-                                            <TableRow>
-                                                <TableHead className="text-xs">Date</TableHead>
-                                                <TableHead className="text-xs">Description</TableHead>
-                                                <TableHead className="text-right text-xs">Amount</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {incomeTransactions.map((tx, idx) => (
-                                                <TableRow key={`inc-${idx}`} className={cn(isDuplicate(tx) && "bg-destructive/5")}>
-                                                    <TableCell className="text-[10px] py-2">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                                    <TableCell className="text-[10px] py-2 font-medium">{tx.description}</TableCell>
-                                                    <TableCell className="text-right font-mono text-[10px] py-2 text-green-600">{formatPrice(tx.amount)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                            {incomeTransactions.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-xs text-muted-foreground py-8">No income detected.</TableCell></TableRow>}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </div>
-
-                            <div className="px-4 pb-6">
-                                <h4 className="text-sm font-bold text-destructive flex items-center justify-between mb-2">
-                                    <span>Expenses / Payments ({expenseTransactions.length})</span>
-                                    <span className="font-mono">{formatPrice(expenseTotal)}</span>
-                                </h4>
-                                <div className="border rounded-md overflow-hidden bg-white">
-                                    <Table>
-                                        <TableHeader className="bg-muted/30">
-                                            <TableRow>
-                                                <TableHead className="text-xs">Date</TableHead>
-                                                <TableHead className="text-xs">Description</TableHead>
-                                                <TableHead className="text-right text-xs">Amount</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {expenseTransactions.map((tx, idx) => (
-                                                <TableRow key={`exp-${idx}`} className={cn(isDuplicate(tx) && "bg-destructive/5")}>
-                                                    <TableCell className="text-[10px] py-2">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                                    <TableCell className="text-[10px] py-2 font-medium">{tx.description}</TableCell>
-                                                    <TableCell className="text-right font-mono text-[10px] py-2 text-destructive">{formatPrice(tx.amount)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                            {expenseTransactions.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-xs text-muted-foreground py-8">No expenses detected.</TableCell></TableRow>}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </div>
+                        <CardHeader><CardTitle className="text-md">Extracted Data</CardTitle></CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader className="bg-muted/30">
+                                    <TableRow>
+                                        <TableHead className="text-[10px] py-2">Date</TableHead>
+                                        <TableHead className="text-[10px] py-2">Description</TableHead>
+                                        <TableHead className="text-right text-[10px] py-2">Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredTransactions.map((tx, idx) => (
+                                        <TableRow key={idx} className={cn(isDuplicate(tx) && "bg-destructive/5")}>
+                                            <TableCell className="text-[10px] py-2">{tx.date}</TableCell>
+                                            <TableCell className="text-[10px] py-2 font-medium truncate max-w-[300px]">{tx.description}</TableCell>
+                                            <TableCell className={cn("text-right font-mono text-[10px] py-2", tx.amount < 0 ? "text-destructive" : "text-green-600")}>
+                                                {formatPrice(tx.amount)}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
                         </CardContent>
                     </Card>
                 </div>
             ) : (
-                <div className="flex flex-col items-center justify-center h-96 text-center text-muted-foreground border-2 border-dashed rounded-xl bg-muted/5 p-8 space-y-4">
-                    {isExtracting ? (
-                        <>
-                            <Loader2 className="h-12 w-12 animate-spin text-primary opacity-20" />
-                            <div className="space-y-4 w-full max-w-sm">
-                                <div className="space-y-1">
-                                    <p className="text-lg font-bold">AI Chunked Processing...</p>
-                                    <p className="text-sm">We are splitting your statement into 5-page chunks to prevent timeouts. This may take a minute or two.</p>
-                                </div>
-                                <div className="flex items-center gap-2 text-[10px] font-mono uppercase font-bold text-primary">
-                                    <Sparkles className="h-3 w-3 animate-pulse" />
-                                    Bypassing token limits...
-                                </div>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <FileText className="h-16 w-16 opacity-10" />
-                            <div className="space-y-2">
-                                <p className="text-lg font-bold">Ready for Statement</p>
-                                <p className="text-sm max-w-sm">Select a client account and upload a PDF or Image statement. Large documents are automatically processed in reliable chunks.</p>
-                            </div>
-                        </>
-                    )}
+                <div className="flex flex-col items-center justify-center h-96 text-center text-muted-foreground border-2 border-dashed rounded-xl bg-muted/5 p-8">
+                    <FileText className="h-16 w-16 opacity-10 mb-4" />
+                    <p className="text-lg font-bold">Ready for Analysis</p>
+                    <p className="text-sm max-w-sm mx-auto">Upload a PDF statement. We will split it into manageable chunks to ensure accurate data extraction without timeouts.</p>
                 </div>
             )}
         </div>

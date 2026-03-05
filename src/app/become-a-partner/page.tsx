@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -61,7 +62,7 @@ function BookDemoDialog() {
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="lg" className="h-14 px-10 text-lg border-2">
+                <Button variant="outline" size="lg" className="h-14 px-10 text-lg border-2 border-slate-200">
                     Book a demo
                 </Button>
             </DialogTrigger>
