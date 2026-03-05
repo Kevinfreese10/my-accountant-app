@@ -1,4 +1,3 @@
-
 import { getFirestore, collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service } from '@/lib/types';
