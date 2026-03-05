@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, Loader2 } from 'lucide-react';
+import { Clock, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 import { collection, getFirestore, orderBy, query, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Service } from '@/lib/types';

@@ -1,6 +1,5 @@
-
 import Link from 'next/link';
-import { Facebook, Twitter, Linkedin, MapPin, Mail, Phone } from 'lucide-react';
+import { MapPin, Mail, Phone } from 'lucide-react';
 
 const Footer = () => {
   const isProd = process.env.NODE_ENV === 'production';
@@ -60,7 +59,7 @@ const Footer = () => {
         <div className="mt-8 border-t pt-6 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} My Accountant. All rights reserved.</p>
           {isProd && buildId && (
-            <p className="mt-2 text-[10px] opacity-30 font-mono">Build: {buildId}</p>
+            <p className="mt-2 text-[10px] opacity-30 font-mono">Build ID: {buildId}</p>
           )}
         </div>
       </div>
