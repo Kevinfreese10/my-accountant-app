@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Download, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Search, ArrowRight, User, Banknote, Calendar as CalendarIcon, CheckCheck, ChevronsUpDown, Info, RotateCcw, Trash, FileSpreadsheet } from 'lucide-react';
-import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { extractStatementPeriod, ExtractStatementPeriodOutput } from '@/ai/flows/extract-statement-period';
 import { getFirestore, collection, getDocs, doc, query, where, getDoc, writeBatch, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -27,7 +27,11 @@ import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import * as XLSX from 'xlsx';
+import { processStatementInChunks } from '@/app/actions';
+
+export const maxDuration = 120; // Extend duration for large PDF processing
 
 const db = getFirestore(firebaseApp);
 
@@ -63,6 +67,7 @@ export default function PdfToCsvPage() {
   
   const [extractedTransactions, setExtractedTransactions] = useState<Transaction[]>([]);
   const [statementMeta, setStatementMeta] = useState<ExtractStatementPeriodOutput | null>(null);
+  const [extractionProgress, setExtractionProgress] = useState(0);
   
   const [dateRange, setDateRange] = useState<[number, number]>([0, 100]);
   const { toast } = useToast();
@@ -159,28 +164,32 @@ export default function PdfToCsvPage() {
     if (!file) return;
 
     setIsExtracting(true);
+    setExtractionProgress(0);
     setExtractedTransactions([]);
     setStatementMeta(null);
-    toast({ title: 'AI Analysis Started', description: 'Extracting metadata and transactions...' });
+    toast({ title: 'AI Analysis Started', description: 'Splitting document and beginning chunked extraction...' });
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
       const dataUrl = reader.result as string;
       try {
-        const [meta, data] = await Promise.all([
-            extractStatementPeriod({ statementPdf: dataUrl }),
-            extractStatementData({ statementFile: dataUrl })
-        ]);
-
+        // 1. Get Metadata first (Fast)
+        const meta = await extractStatementPeriod({ statementPdf: dataUrl });
         if (meta) setStatementMeta(meta);
-        if (data?.transactions) {
-            setExtractedTransactions(data.transactions);
-            toast({ title: 'Extraction Complete', description: `Found ${data.transactions.length} transactions.` });
+
+        // 2. Process transactions in chunks (Prevents timeout)
+        const result = await processStatementInChunks({ 
+            fileBase64: dataUrl 
+        });
+
+        if (result?.transactions) {
+            setExtractedTransactions(result.transactions);
+            toast({ title: 'Extraction Complete', description: `Successfully processed ${result.pageCount} pages and found ${result.transactions.length} transactions.` });
         }
       } catch (error) {
         console.error('Extraction error:', error);
-        toast({ title: 'AI Error', description: 'Failed to extract data from statement.', variant: 'destructive' });
+        toast({ title: 'AI Error', description: 'Failed to extract data. The file might be too large or complex.', variant: 'destructive' });
       } finally {
         setIsExtracting(false);
       }
@@ -416,7 +425,7 @@ export default function PdfToCsvPage() {
                             onClick={form.handleSubmit(onSubmit)}
                             disabled={isExtracting}
                         >
-                            <RotateCcw className="h-3 w-3 mr-1" /> Recalculate with AI
+                            <RotateCcw className="h-3 w-3 mr-1" /> Restart Analysis
                         </Button>
                     </CardFooter>
                 </Card>
@@ -608,9 +617,15 @@ export default function PdfToCsvPage() {
                     {isExtracting ? (
                         <>
                             <Loader2 className="h-12 w-12 animate-spin text-primary opacity-20" />
-                            <div className="space-y-1">
-                                <p className="text-lg font-bold">AI Processing in Progress...</p>
-                                <p className="text-sm">We are performing deep OCR on your statement. This takes about 30-60 seconds.</p>
+                            <div className="space-y-4 w-full max-w-sm">
+                                <div className="space-y-1">
+                                    <p className="text-lg font-bold">AI Chunked Processing...</p>
+                                    <p className="text-sm">We are splitting your statement into 5-page chunks to prevent timeouts. This may take a minute or two.</p>
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] font-mono uppercase font-bold text-primary">
+                                    <Sparkles className="h-3 w-3 animate-pulse" />
+                                    Bypassing token limits...
+                                </div>
                             </div>
                         </>
                     ) : (
@@ -618,7 +633,7 @@ export default function PdfToCsvPage() {
                             <FileText className="h-16 w-16 opacity-10" />
                             <div className="space-y-2">
                                 <p className="text-lg font-bold">Ready for Statement</p>
-                                <p className="text-sm max-w-sm">Select a client account and upload a PDF or Image statement to begin automated extraction and reconciliation.</p>
+                                <p className="text-sm max-w-sm">Select a client account and upload a PDF or Image statement. Large documents are automatically processed in reliable chunks.</p>
                             </div>
                         </>
                     )}

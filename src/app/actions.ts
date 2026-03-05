@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
@@ -19,6 +20,8 @@ import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-all
 import { BankCleaner } from '@/lib/bank-cleaner';
 import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
 import { analyzeClientComment } from '@/ai/flows/analyze-client-comment';
+import { extractStatementData } from '@/ai/flows/extract-statement-data';
+import { PDFDocument } from 'pdf-lib';
 
 
 const db = getFirestore(firebaseApp);
@@ -51,6 +54,56 @@ export async function saveDemoLead(data: Omit<DemoLead, 'id' | 'createdAt'>) {
     } catch (e) {
         console.error("Save Demo lead failed:", e);
         return { success: false };
+    }
+}
+
+/**
+ * Splits a PDF and processes it in chunks to avoid timeouts and output token limits.
+ */
+export async function processStatementInChunks({ 
+    fileBase64, 
+    onProgress 
+}: { 
+    fileBase64: string, 
+    onProgress?: (current: number, total: number) => void 
+}) {
+    try {
+        // Remove data URI prefix if present
+        const base64Data = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64;
+        const pdfDoc = await PDFDocument.load(base64Data);
+        const pageCount = pdfDoc.getPageCount();
+        const chunkSize = 5; // Process 5 pages at a time
+        
+        let allTransactions: any[] = [];
+
+        for (let i = 0; i < pageCount; i += chunkSize) {
+            const start = i;
+            const end = Math.min(i + chunkSize, pageCount);
+            
+            // Create a new PDF for this chunk
+            const chunkDoc = await PDFDocument.create();
+            const pagesToCopy = Array.from({ length: end - start }, (_, idx) => start + idx);
+            const copiedPages = await chunkDoc.copyPages(pdfDoc, pagesToCopy);
+            copiedPages.forEach(p => chunkDoc.addPage(p));
+            
+            const chunkBase64 = await chunkDoc.saveAsBase64({ dataUri: true });
+            
+            // Extract data for this chunk
+            const result = await extractStatementData({ 
+                statementFile: chunkBase64 
+            });
+
+            if (result?.transactions) {
+                allTransactions = [...allTransactions, ...result.transactions];
+            }
+
+            console.log(`Processed chunk starting at page ${start + 1}. Total transactions so far: ${allTransactions.length}`);
+        }
+
+        return { success: true, transactions: allTransactions, pageCount };
+    } catch (error) {
+        console.error("Chunked extraction failed:", error);
+        throw error;
     }
 }
 
@@ -507,7 +560,7 @@ export async function researchMerchantWithAi({
         const client = clientSnap.data() as User;
 
         const rulesQuery = collection(db, "allocationRules");
-        rulesSnap = await getDocs(rulesQuery);
+        const rulesSnap = await getDocs(rulesQuery);
         const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
