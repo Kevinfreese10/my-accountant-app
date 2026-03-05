@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -19,10 +18,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { saveDemoLead } from '@/app/actions';
-
-/* Force dynamic rendering to ensure fresh content on deploy */
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWidget'), {
   ssr: false,
@@ -173,8 +168,7 @@ const challenges = [
     }
 ];
 
-export default function BecomeAPartnerPage() {
-  const faqs = [
+const faqs = [
     {
         question: "How does the outsourcing work?",
         answer: "You can decide to complete the order yourself or outsource to us. The process is completely white-labeled, so your client doesn't know the work is being outsourced. We charge you a fixed wholesale price, and you keep the markup.\n\nWe can then either contact you or contact your client directly through our app which is completely white-labeled so your client remains none the wiser."
@@ -203,8 +197,9 @@ export default function BecomeAPartnerPage() {
         question: "Do I need to be a registered accountant?",
         answer: "No. Everyone is welcome. However, to receive outsourced work from My Accountant, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA."
     }
-  ];
+];
 
+export default function BecomeAPartnerPage() {
   return (
     <div className="space-y-16 pb-16 bg-white">
       <section className="bg-white border-b relative overflow-hidden">
