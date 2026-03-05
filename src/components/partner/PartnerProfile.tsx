@@ -19,7 +19,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
 import { Slider } from '../ui/slider';
@@ -318,7 +318,6 @@ export default function PartnerProfile() {
 
   const landingPageEnabled = watch('landingPage.enabled');
   const landingPageSlug = watch('landingPage.slug');
-  const showServicesHero = watch('landingPage.showServicesHero');
 
   const ColorField = ({ name, label, description }: { name: any, label: string, description?: string }) => (
     <FormField
