@@ -16,6 +16,10 @@ import { firebaseApp } from '@/lib/firebase';
 import { Service } from '@/lib/types';
 import { useEffect, useState, useMemo } from 'react';
 
+/* Force dynamic rendering to ensure fresh product data on deploy */
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const db = getFirestore(firebaseApp);
 
 type Category = { 

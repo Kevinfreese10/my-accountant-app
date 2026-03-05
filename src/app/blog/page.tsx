@@ -15,6 +15,10 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import { useBlog } from '@/contexts/BlogContext';
 import { format } from 'date-fns';
 
+/* Force dynamic rendering to ensure fresh blog posts on deploy */
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default function BlogPage() {
   const { blogPosts, isLoading } = useBlog();
 

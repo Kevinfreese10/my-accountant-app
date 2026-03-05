@@ -3,7 +3,10 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  /* config options here */
+  /* Generate a unique build ID based on timestamp to bust CDN caches */
+  generateBuildId: async () => {
+    return `build-${new Date().getTime()}`;
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -46,6 +49,7 @@ const nextConfig: NextConfig = {
   },
   env: {
     NEXT_PUBLIC_APP_URL: "https://www.myacc.co.za",
+    NEXT_PUBLIC_BUILD_TIMESTAMP: new Date().toISOString(),
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {

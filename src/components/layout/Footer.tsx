@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { Facebook, Twitter, Linkedin, MapPin, Mail, Phone } from 'lucide-react';
 
 const Footer = () => {
+  const isProd = process.env.NODE_ENV === 'production';
+  const buildId = process.env.NEXT_PUBLIC_BUILD_TIMESTAMP;
+
   return (
     <footer className="border-t bg-background">
       <div className="container mx-auto px-4 py-8">
@@ -56,6 +59,9 @@ const Footer = () => {
         </div>
         <div className="mt-8 border-t pt-6 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} My Accountant. All rights reserved.</p>
+          {isProd && buildId && (
+            <p className="mt-2 text-[10px] opacity-30 font-mono">Build: {buildId}</p>
+          )}
         </div>
       </div>
     </footer>
