@@ -232,7 +232,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
         try {
             const rulesQuery = collection(db, "allocationRules");
             const rulesSnap = await getDocs(rulesQuery);
-            const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+            const globalRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule));
             const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const batch = writeBatch(db);
@@ -552,7 +552,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         
         let q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
             where('bankAccountId', '==', bankAccountId),
-            where('status', 'in', ['new', 'ai_processing']),
+            where('status', 'in', ['new', 'ai_processing', 'ai_review']),
             where('isExpense', '==', activeSubTab === 'expenses')
         );
 
@@ -592,6 +592,15 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             await batch.commit();
             toast({ title: 'Deleted', description: `${selectedTransactions.length} transactions removed.` });
             setSelectedTransactions([]);
+            refetch();
+        } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
+    };
+
+    const handleDeleteTransaction = async (txId: string) => {
+        if (!client?.uid) return;
+        try {
+            await deleteDoc(doc(db, 'aiAccountantClients', client.uid, 'transactions', txId));
+            toast({ title: 'Deleted', description: 'Transaction removed.' });
             refetch();
         } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
     };
@@ -1035,6 +1044,22 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                         setRuleDefaultValues({ description: `Rule for: ${keyword}`, keywords: keyword, accountId: '', vatType: activeSubTab === 'income' ? 'standard_rated_sales' : 'standard_rated_purchases' });
                                                         setIsCreateOpen(true);
                                                     }}>Create Rule</DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>Delete Transaction</DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                <AlertDialogDescription>This will permanently delete this transaction from the records. This action cannot be undone.</AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDeleteTransaction(tx.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </div>
@@ -1915,6 +1940,15 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
         }
     };
 
+    const handleDeleteTransaction = async (txId: string) => {
+        if (!client?.uid) return;
+        try {
+            await deleteDoc(doc(db, 'aiAccountantClients', client.uid, 'transactions', txId));
+            toast({ title: 'Deleted', description: 'Transaction removed.' });
+            refetch();
+        } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
+    };
+
     const handleSaveEditedAllocations = async () => {
         if (!client?.uid || Object.keys(editedAllocations).length === 0) return;
         setIsSaving(true);
@@ -2137,6 +2171,22 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                                                     }}>
                                                         <ArrowRightLeft className="mr-2 h-4 w-4" /> View Ledger
                                                     </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>Delete Transaction</DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                <AlertDialogDescription>This will permanently delete this transaction from the records. This action cannot be undone.</AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDeleteTransaction(tx.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </div>
@@ -2256,7 +2306,7 @@ export default function BankTransactionsPage() {
     const handleEditAccount = async (newName: string) => {
         if (!client || !accountId) return;
         try {
-            const updatedCOA = (client.chartOfAccounts || []).map(acc => acc.id === accountId ? { ...acc, description: newName } : acc);
+            const updatedCOA = (client.chartOfAccounts || []).map(acc => acc.id === accountId ? { ...acc, description: name } : acc);
             await updateDoc(doc(db, 'aiAccountantClients', client.uid), { chartOfAccounts: updatedCOA });
             toast({ title: "Account Updated" });
             fetchClientData();
