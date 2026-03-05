@@ -92,58 +92,7 @@ function BookDemoDialog() {
     );
 }
 
-const FaqSection = () => {
-    const faqs = [
-    {
-        question: "How does the outsourcing work?",
-        answer: "You can decide to complete the order yourself or outsource to us. The process is completely white-labeled, so your client doesn't know the work is being outsourced. We charge you a fixed wholesale price, and you keep the markup.\n\nWe can then either contact you or contact your client directly through our app which is completely white-labeled so your client remains none the wiser."
-    },
-    {
-        question: "Who should join the Bookkeeper Empowerment Initiative?",
-        answer: "BEI is ideal for passionate professionals who want to grow their business without stress, including:\n- Freelance Bookkeepers\n- Startup Accounting Firms\n- Tax Practitioners\n- Business Consultants\n- Payroll Administrators"
-    },
-    {
-        question: "What does it cost to join?",
-        answer: "Joining requires a R5000 setup fee. This is not a 'lost' fee — the entire amount is immediately converted into R5000 credits in your practice wallet.\n\nFrom these credits, a monthly subscription of R499 is deducted for app hosting, AI tools, and priority support."
-    },
-    {
-        question: "How does the staff billing work?",
-        answer: "Every practice gets 3 free additional staff user accounts (4 total users including the owner). Any staff members added beyond this limit cost only R45 per month."
-    },
-    {
-        question: "How does the credit system work?",
-        answer: "Think of it like a prepaid mobile account. Your initial R5000 setup fee provides you with R5000 in starting credits. Your monthly subscription (R499) and any outsourced services are deducted from this balance. Once your credits are finished, you can top up your wallet to keep your services active."
-    },
-    {
-        question: "How does the landing page work?",
-        answer: "Included in your setup is a fully customizable, white-labeled landing page. You can choose your colors, upload your logo, and use our AI to re-brand our 50+ services as your own. Your clients see your brand, while we provide the back-office engine."
-    },
-    {
-        question: "Do I need to be a registered accountant?",
-        answer: "No. Everyone is welcome. However, to receive outsourced work from My Accountant, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA."
-    }
-  ];
-
-  return (
-      <section className="container mx-auto px-4 max-w-4xl py-12">
-         <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-slate-900">Frequently Asked Questions</h2>
-        </div>
-         <Accordion type="single" collapsible className="w-full">
-            {faqs.map((faq, index) => (
-              <AccordionItem key={index} value={`item-${index}`}>
-                <AccordionTrigger className="text-left font-semibold hover:no-underline">{faq.question}</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line text-muted-foreground leading-relaxed text-base">{faq.answer}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-      </section>
-  )
-}
-
-export default function BecomeAPartnerPage() {
-
-  const featureBenefits = [
+const featureBenefits = [
     {
         icon: Percent,
         feature: '25% Wholesale Discount',
@@ -184,9 +133,9 @@ export default function BecomeAPartnerPage() {
         feature: 'Flexible Pricing Control',
         benefit: 'Total control over your client-facing prices. Set your own markup on services while our underlying wholesale cost remains fixed.',
     },
-  ];
+];
 
-  const challenges = [
+const challenges = [
     {
         title: 'Limited Service Range',
         description: 'Offering only bookkeeping services limits your earning potential. Sell our full suite — from company registration to VAT, COIDA, CIDB, NCR, and more.',
@@ -216,6 +165,38 @@ export default function BecomeAPartnerPage() {
         title: 'Compliance Overwhelm',
         description: 'Advanced statutory rules can be deterring. We provide ready-to-use templates and guides to help you stay compliant and confident.',
         icon: ShieldAlert
+    }
+];
+
+export default function BecomeAPartnerPage() {
+  const faqs = [
+    {
+        question: "How does the outsourcing work?",
+        answer: "You can decide to complete the order yourself or outsource to us. The process is completely white-labeled, so your client doesn't know the work is being outsourced. We charge you a fixed wholesale price, and you keep the markup.\n\nWe can then either contact you or contact your client directly through our app which is completely white-labeled so your client remains none the wiser."
+    },
+    {
+        question: "Who should join the Bookkeeper Empowerment Initiative?",
+        answer: "BEI is ideal for passionate professionals who want to grow their business without stress, including:\n- Freelance Bookkeepers\n- Startup Accounting Firms\n- Tax Practitioners\n- Business Consultants\n- Payroll Administrators"
+    },
+    {
+        question: "What does it cost to join?",
+        answer: "Joining requires a R5000 setup fee. This is not a 'lost' fee — the entire amount is immediately converted into R5000 credits in your practice wallet.\n\nFrom these credits, a monthly subscription of R499 is deducted for app hosting, AI tools, and priority support."
+    },
+    {
+        question: "How does the staff billing work?",
+        answer: "Every practice gets 3 free additional staff user accounts (4 total users including the owner). Any staff members added beyond this limit cost only R45 per month."
+    },
+    {
+        question: "How does the credit system work?",
+        answer: "Think of it like a prepaid mobile account. Your initial R5000 setup fee provides you with R5000 in starting credits. Your monthly subscription (R499) and any outsourced services are deducted from this balance. Once your credits are finished, you can top up your wallet to keep your services active."
+    },
+    {
+        question: "How does the landing page work?",
+        answer: "Included in your setup is a fully customizable, white-labeled landing page. You can choose your colors, upload your logo, and use our AI to re-brand our 50+ services as your own. Your clients see your brand, while we provide the back-office engine."
+    },
+    {
+        question: "Do I need to be a registered accountant?",
+        answer: "No. Everyone is welcome. However, to receive outsourced work from My Accountant, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA."
     }
   ];
 
@@ -405,7 +386,19 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
 
-      <FaqSection />
+      <section className="container mx-auto px-4 max-w-4xl py-12">
+         <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-slate-900">Frequently Asked Questions</h2>
+        </div>
+         <Accordion type="single" collapsible className="w-full">
+            {faqs.map((faq, index) => (
+              <AccordionItem key={index} value={`item-${index}`}>
+                <AccordionTrigger className="text-left font-semibold hover:no-underline">{faq.question}</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line text-muted-foreground leading-relaxed text-base">{faq.answer}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+      </section>
       
       <section className="container mx-auto px-4 text-center">
         <div className="max-w-2xl mx-auto space-y-8">

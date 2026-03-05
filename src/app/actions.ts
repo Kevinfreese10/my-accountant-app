@@ -507,7 +507,7 @@ export async function researchMerchantWithAi({
         const client = clientSnap.data() as User;
 
         const rulesQuery = collection(db, "allocationRules");
-        const rulesSnap = await getDocs(rulesQuery);
+        rulesSnap = await getDocs(rulesQuery);
         const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
