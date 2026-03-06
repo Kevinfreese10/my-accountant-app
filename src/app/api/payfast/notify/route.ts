@@ -16,18 +16,12 @@ const PAYFAST_IP_RANGES = [
 ];
 
 function isIpAllowed(req: NextRequest): boolean {
-    let ipStr = req.ip; // Vercel provides this
+    // Priority check for x-forwarded-for in proxy environments
+    let ipStr = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.ip;
     
     if (!ipStr) {
-        const forwardedFor = req.headers.get('x-forwarded-for');
-        if (forwardedFor) {
-            ipStr = forwardedFor.split(',')[0].trim();
-        }
-    }
-
-    if (!ipStr) {
         console.warn('ITN Warning: Could not determine request IP address.');
-        return false; // Fail safe
+        return false;
     }
 
     try {
@@ -42,170 +36,151 @@ function isIpAllowed(req: NextRequest): boolean {
     }
 }
 
+/**
+ * Verifies the PayFast signature by processing the RAW body string.
+ * This is the only way to guarantee parameter order and encoding match.
+ */
+function verifyPayFastSignature(rawBody: string, receivedSignature: string, passphrase?: string): boolean {
+    const params = rawBody.split('&');
+    let signatureString = '';
 
-function rfc3986Encode(str: string) {
-    return encodeURIComponent(str).replace(/[!'()*]/g, (c) => {
-        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
-    }).replace(/%20/g, '+');
-}
-
-
-function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
-    let pfOutput = '';
-    
-    // Create a string from the data object
-    for (const key in data) {
-        if (data.hasOwnProperty(key) && key !== 'signature') {
-            pfOutput += `${key}=${rfc3986Encode(String(data[key]).trim())}&`;
+    for (const param of params) {
+        const [key, value] = param.split('=');
+        if (key !== 'signature') {
+            signatureString += `${key}=${value}&`;
         }
     }
 
-    // Remove last ampersand
-    let getString = pfOutput.slice(0, -1);
+    // Remove trailing ampersand
+    let finalString = signatureString.slice(0, -1);
     
     if (passphrase) {
-        getString += `&passphrase=${rfc3986Encode(passphrase.trim())}`;
+        // Passphrase must be encoded exactly as PayFast expects (standard urlencode)
+        const encodedPassphrase = encodeURIComponent(passphrase.trim()).replace(/%20/g, '+');
+        finalString += `&passphrase=${encodedPassphrase}`;
     }
 
-    return crypto.createHash('md5').update(getString).digest('hex');
+    const calculatedSignature = crypto.createHash('md5').update(finalString).digest('hex');
+    return calculatedSignature === receivedSignature;
 }
 
 export async function POST(req: NextRequest) {
-    // 1. Early logging
-    console.log(`ITN HIT: ${new Date().toISOString()}`, { headers: Object.fromEntries(req.headers.entries()) });
+    console.log(`ITN Processing: ${new Date().toISOString()}`);
   
-    // 2. IP Validation
+    // 1. IP Validation
     if (!isIpAllowed(req)) {
-        console.error('ITN Error: Request received from an invalid IP address:', req.ip || req.headers.get('x-forwarded-for'));
-        return new NextResponse('Forbidden: IP address not allowed', { status: 403 });
+        console.error('ITN Error: Invalid IP address access attempt.');
+        return new NextResponse('Forbidden', { status: 403 });
     }
 
-    let orderDocId: string | null = null;
-    let orderId: string | null = null;
-  
     try {
-        const bodyText = await req.text();
-        const searchParams = new URLSearchParams(bodyText);
-        const data: { [key: string]: any } = {};
+        const rawBody = await req.text();
+        const searchParams = new URLSearchParams(rawBody);
+        const data: { [key: string]: string } = {};
         searchParams.forEach((value, key) => {
             data[key] = value;
         });
 
-        console.log('ITN Parsed Body:', data);
-        orderId = data.m_payment_id;
-
+        const orderId = data.m_payment_id;
         if (!orderId) {
-            console.error('ITN Error: No m_payment_id found in the request body.');
-            return new NextResponse('OK', { status: 200 }); // Still return 200 to prevent PayFast retries
+            console.error('ITN Error: m_payment_id missing.');
+            return new NextResponse('OK', { status: 200 });
         }
 
+        // Find the order
         const ordersRef = collection(db, "orders");
         const q = query(ordersRef, where("id", "==", orderId));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            console.error(`Order ${orderId} not found in database.`);
+            console.error(`Order ${orderId} not found.`);
             return new NextResponse('OK', { status: 200 });
         }
         
-        orderDocId = querySnapshot.docs[0].id;
-        const orderRef = doc(db, 'orders', orderDocId);
-        const orderDoc = await getDoc(orderRef);
+        const orderDoc = querySnapshot.docs[0];
+        const orderRef = orderDoc.ref;
         const currentOrderData = orderDoc.data() as Order;
 
-        // Idempotency check: if status is already beyond 'Pending Payment', log and exit.
-        if (currentOrderData && currentOrderData.status !== 'Pending Payment') {
-            console.log(`ITN Info: Order ${orderId} is already processed (Status: ${currentOrderData.status}). Ignoring duplicate notification.`);
+        // Idempotency: Ignore if already processed
+        if (currentOrderData.status !== 'Pending Payment') {
+            console.log(`ITN Info: Order ${orderId} already processed (Status: ${currentOrderData.status}).`);
             return new NextResponse('OK', { status: 200 });
         }
 
-        // 3. Signature Validation
-        const receivedSignature = data.signature;
-        const expectedSignature = generateSignature(data, process.env.PAYFAST_PASSPHRASE);
+        // 2. Signature Validation using the RAW body
+        const isValid = verifyPayFastSignature(rawBody, data.signature, process.env.PAYFAST_PASSPHRASE);
         
-        if (receivedSignature !== expectedSignature) {
-            console.error('Signature mismatch on ITN for order:', orderId);
-            const log: Omit<ItnLog, 'receivedAt'> = {
-                status: 'Failed',
-                message: `Signature mismatch.`,
-                payload: data,
-            };
-            await updateDoc(orderRef, { itnHistory: arrayUnion({ ...log, receivedAt: Timestamp.now() }) });
+        if (!isValid) {
+            console.error('Signature mismatch for order:', orderId);
+            await updateDoc(orderRef, { 
+                itnHistory: arrayUnion({ 
+                    status: 'Failed', 
+                    message: 'Signature verification failed. Check passphrase.', 
+                    receivedAt: Timestamp.now(),
+                    payload: data
+                }) 
+            });
             return new NextResponse('Signature mismatch', { status: 400 });
         }
         
-        // 4. Amount Validation
-        const orderTotal = parseFloat(currentOrderData.total.toFixed(2));
+        // 3. Amount Validation
+        const orderTotal = parseFloat((currentOrderData.clientTotal || currentOrderData.total).toFixed(2));
         const receivedAmount = parseFloat(data.amount_gross);
         if (Math.abs(orderTotal - receivedAmount) > 0.01) {
-             console.error(`Amount mismatch for order ${orderId}. Expected: ${orderTotal}, Received: ${receivedAmount}`);
-             const log: Omit<ItnLog, 'receivedAt'> = {
-                status: 'Failed',
-                message: `Amount mismatch. Expected: ${orderTotal}, Received: ${receivedAmount}`,
-                payload: data,
-            };
-            await updateDoc(orderRef, { itnHistory: arrayUnion({ ...log, receivedAt: Timestamp.now() }) });
+             console.error(`Amount mismatch. Expected: ${orderTotal}, Received: ${receivedAmount}`);
+             await updateDoc(orderRef, { 
+                itnHistory: arrayUnion({ 
+                    status: 'Failed', 
+                    message: `Amount mismatch. Expected ${orderTotal}, got ${receivedAmount}`, 
+                    receivedAt: Timestamp.now(),
+                    payload: data
+                }) 
+            });
             return new NextResponse('Amount mismatch', { status: 400 });
         }
 
-        // 5. Payment Status Handling
-        let log: Omit<ItnLog, 'receivedAt'>;
+        // 4. Update Order Status
         if (data.payment_status === 'COMPLETE') {
           await updateDoc(orderRef, { status: 'Processing' });
-          console.log(`Order ${orderId} updated to Processing.`);
           
-          // PARTNER CREDIT LOGIC
-          // Check if this is a partner setup or topup
+          // Handle Partner Credit Top-ups
           const isSetup = currentOrderData.items.some(i => i.id === 'partner_setup_fee');
           const isTopup = currentOrderData.items.some(i => i.id === 'partner_credit_topup');
           
           if (isSetup || isTopup) {
-              const partnerId = currentOrderData.resellerId;
+              const partnerId = currentOrderData.resellerId || currentOrderData.userId;
               if (partnerId) {
                   const partnerRef = doc(db, 'users', partnerId);
-                  const amountToCredit = isSetup ? 5000 : currentOrderData.total;
-                  
+                  const creditAmount = isSetup ? 5000 : currentOrderData.total;
                   await updateDoc(partnerRef, {
-                      creditBalance: increment(amountToCredit),
-                      status: 'Active', // Ensure partner is active after setup
+                      creditBalance: increment(creditAmount),
+                      status: 'Active'
                   });
-                  console.log(`Partner ${partnerId} credited with R${amountToCredit}`);
               }
           }
 
-          log = {
-              status: 'Success',
-              message: `Order status updated to Processing. ${isSetup || isTopup ? 'Credits added to partner.' : ''}`,
-              payload: data,
-          };
+          await updateDoc(orderRef, { 
+              itnHistory: arrayUnion({ 
+                  status: 'Success', 
+                  message: 'Payment verified and order set to Processing.', 
+                  receivedAt: Timestamp.now(),
+                  payload: data
+              }) 
+          });
         } else {
-          console.log(`Payment for order ${orderId} not complete. Status: ${data.payment_status}`);
-          log = {
-                status: 'Failed',
-                message: `Payment status was "${data.payment_status}", not "COMPLETE". No status update performed.`,
-                payload: data,
-          };
+          await updateDoc(orderRef, { 
+              itnHistory: arrayUnion({ 
+                  status: 'Failed', 
+                  message: `Payment status was ${data.payment_status}`, 
+                  receivedAt: Timestamp.now(),
+                  payload: data
+              }) 
+          });
         }
-        
-        await updateDoc(orderRef, { itnHistory: arrayUnion({ ...log, receivedAt: Timestamp.now() }) });
 
         return new NextResponse('OK', { status: 200 });
     } catch (error) {
-        console.error('PayFast ITN Error:', error);
-        
-        if (orderDocId) {
-            const log: Omit<ItnLog, 'receivedAt'> = {
-                status: 'Failed',
-                message: `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                payload: {},
-            };
-           try {
-                const orderRef = doc(db, 'orders', orderDocId);
-                await updateDoc(orderRef, { itnHistory: arrayUnion({ ...log, receivedAt: Timestamp.now() }) });
-           } catch (loggingError) {
-               console.error("Failed to log error to Firestore document:", loggingError);
-           }
-        }
-        return new NextResponse('Error processing ITN', { status: 500 });
+        console.error('Critical ITN Error:', error);
+        return new NextResponse('Error', { status: 500 });
     }
 }

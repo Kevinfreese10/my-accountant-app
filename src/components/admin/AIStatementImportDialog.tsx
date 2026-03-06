@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, FileSpreadsheet, RotateCcw, Trash2, CalendarIcon, X, Download } from 'lucide-react';
-import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { extractStatementPeriod, ExtractStatementPeriodOutput } from '@/ai/flows/extract-statement-period';
 import { getFirestore, collection, getDocs, doc, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -18,12 +17,13 @@ import { User, ChartOfAccount, ImportedTransaction, AllocationRule } from '@/lib
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { extractStatementChunk } from '@/app/actions';
+import { PDFDocument } from 'pdf-lib';
 import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
@@ -63,6 +63,8 @@ export default function AIStatementImportDialog({
   const [isImporting, setIsImporting] = useState(false);
   const [extractedTransactions, setExtractedTransactions] = useState<Transaction[]>([]);
   const [statementMeta, setStatementMeta] = useState<ExtractStatementPeriodOutput | null>(null);
+  const [extractionProgress, setExtractionProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('');
   
   // Filtering states
   const [filterStartDate, setFilterStartDate] = useState<string>('');
@@ -141,30 +143,60 @@ export default function AIStatementImportDialog({
     if (!file) return;
 
     setIsExtracting(true);
+    setExtractionProgress(0);
+    setStatusMessage('Reading file...');
     setExtractedTransactions([]);
     setExcludedIndices(new Set());
     setStatementMeta(null);
-    toast({ title: 'AI Analysis Started', description: 'Extracting data from statement...' });
 
     const reader = new FileReader();
-    reader.readAsDataURL(file);
+    reader.readAsArrayBuffer(file);
     reader.onload = async () => {
-      const dataUrl = reader.result as string;
       try {
-        const [meta, data] = await Promise.all([
-            extractStatementPeriod({ statementPdf: dataUrl }),
-            extractStatementData({ statementFile: dataUrl })
-        ]);
-
+        const arrayBuffer = reader.result as ArrayBuffer;
+        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const pageCount = pdfDoc.getPageCount();
+        const chunkSize = 5;
+        
+        const firstChunkDoc = await PDFDocument.create();
+        const firstPages = await firstChunkDoc.copyPages(pdfDoc, [0]);
+        firstChunkDoc.addPage(firstPages[0]);
+        const firstChunkBase64 = await firstChunkDoc.saveAsBase64({ dataUri: true });
+        
+        setStatusMessage('Extracting header...');
+        const meta = await extractStatementPeriod({ statementPdf: firstChunkBase64 });
         if (meta) {
             setStatementMeta(meta);
             setFilterStartDate(meta.startDate);
             setFilterEndDate(meta.endDate);
         }
-        if (data?.transactions) {
-            setExtractedTransactions(data.transactions);
-            toast({ title: 'Extraction Complete', description: `Found ${data.transactions.length} transactions.` });
+
+        let allTransactions: Transaction[] = [];
+
+        for (let i = 0; i < pageCount; i += chunkSize) {
+            const start = i;
+            const end = Math.min(i + chunkSize, pageCount);
+            setExtractionProgress(Math.round((start / pageCount) * 100));
+            setStatusMessage(`Processing pages ${start + 1} to ${end}...`);
+
+            const chunkDoc = await PDFDocument.create();
+            const pagesToCopy = Array.from({ length: end - start }, (_, idx) => start + idx);
+            const copiedPages = await chunkDoc.copyPages(pdfDoc, pagesToCopy);
+            copiedPages.forEach(p => chunkDoc.addPage(p));
+            
+            const chunkBase64 = await chunkDoc.saveAsBase64({ dataUri: true });
+            const result = await extractStatementChunk({ chunkBase64 });
+
+            if (result.success && result.transactions) {
+                allTransactions = [...allTransactions, ...result.transactions];
+                setExtractedTransactions([...allTransactions]);
+            }
         }
+
+        setExtractionProgress(100);
+        setStatusMessage('Complete!');
+        toast({ title: 'Extraction Complete' });
+
       } catch (error) {
         console.error('Extraction error:', error);
         toast({ title: 'AI Error', description: 'Failed to extract data from statement.', variant: 'destructive' });
@@ -180,7 +212,7 @@ export default function AIStatementImportDialog({
           if (isDuplicate(tx)) newExcluded.add(idx);
       });
       setExcludedIndices(newExcluded);
-      toast({ title: "Duplicates Removed", description: `Excluded ${duplicatesInCurrentList.length} possible matches.` });
+      toast({ title: "Duplicates Excluded" });
   };
 
   const handleUpdateTransaction = (index: number, field: keyof Transaction, value: any) => {
@@ -212,7 +244,6 @@ export default function AIStatementImportDialog({
         const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
         const batch = writeBatch(db);
-        let matchCount = 0;
 
         if (createOpeningBalance && statementMeta) {
             const openBalRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
@@ -257,7 +288,6 @@ export default function AIStatementImportDialog({
                 txData.allocationSource = 'rule';
                 txData.matchedRuleId = match.id;
                 txData.matchedKeyword = keyword;
-                matchCount++;
             }
 
             const newRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
@@ -265,12 +295,9 @@ export default function AIStatementImportDialog({
         });
 
         await batch.commit();
-        toast({ title: 'Import Successful', description: `${filteredTransactions.length} transactions imported.` });
+        toast({ title: 'Import Successful' });
         onImportComplete();
         onOpenChange(false);
-        setExtractedTransactions([]);
-        setExcludedIndices(new Set());
-        setStatementMeta(null);
     } catch (e) {
         console.error("Import error:", e);
         toast({ title: 'Import Failed', variant: 'destructive' });
@@ -336,12 +363,22 @@ export default function AIStatementImportDialog({
                   )}
                 />
 
-                <Button type="submit" className="w-full" disabled={isExtracting || !watchBankAccountId}>
+                <Button type="submit" className="w-full h-12 font-bold" disabled={isExtracting || !watchBankAccountId}>
                   {isExtracting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                  {isExtracting ? 'Analyzing...' : 'Extract Data'}
+                  {isExtracting ? 'Analyzing...' : 'Extract from PDF'}
                 </Button>
               </form>
             </Form>
+
+            {isExtracting && (
+                <div className="space-y-2 animate-in fade-in">
+                    <div className="flex justify-between items-center text-[10px] font-bold uppercase text-primary">
+                        <span>{statusMessage}</span>
+                        <span>{extractionProgress}%</span>
+                    </div>
+                    <Progress value={extractionProgress} className="h-1.5" />
+                </div>
+            )}
 
             {statementMeta && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
@@ -411,8 +448,8 @@ export default function AIStatementImportDialog({
                         {calculatedRecon?.isMatched ? (
                             <>
                                 <CheckCircle2 className="h-6 w-6 text-green-600" />
-                                <p className="text-xs font-bold text-green-800">Ready to Import</p>
-                                <p className="text-[10px] text-green-700">Projected balance matches statement.</p>
+                                <p className="text-xs font-bold text-green-800">Balanced!</p>
+                                <p className="text-[10px] text-green-700">Matches detected closing balance.</p>
                             </>
                         ) : (
                             <>
@@ -430,7 +467,7 @@ export default function AIStatementImportDialog({
                         <div className="space-y-1">
                             <Label htmlFor="create-open-check" className="text-xs font-bold text-yellow-800">Post Opening Balance?</Label>
                             <p className="text-[10px] text-yellow-700">
-                                Create a transaction for <strong>{formatPrice(statementMeta.openingBalance)}</strong> dated <strong>{filterStartDate || statementMeta.startDate}</strong> to match the statement start.
+                                Create a transaction for <strong>{formatPrice(statementMeta.openingBalance)}</strong> dated <strong>{filterStartDate || statementMeta.startDate}</strong>.
                             </p>
                         </div>
                     </div>
@@ -514,19 +551,9 @@ export default function AIStatementImportDialog({
               </div>
             ) : (
               <div className="h-[500px] flex flex-col items-center justify-center text-center space-y-4 border-2 border-dashed rounded-xl bg-muted/5 p-8">
-                {isExtracting ? (
-                    <>
-                        <Loader2 className="h-12 w-12 animate-spin text-primary opacity-20" />
-                        <p className="text-lg font-bold">AI Processing...</p>
-                        <p className="text-sm text-muted-foreground">Extracting transactions from your PDF.</p>
-                    </>
-                ) : (
-                    <>
-                        <FileText className="h-16 w-16 opacity-10" />
-                        <p className="text-lg font-bold">Ready for Analysis</p>
-                        <p className="text-sm text-muted-foreground max-w-sm">Upload a PDF statement to begin automated extraction.</p>
-                    </>
-                )}
+                <FileText className="h-16 w-16 opacity-10" />
+                <p className="text-lg font-bold">Ready for Analysis</p>
+                <p className="text-sm text-muted-foreground max-w-sm">Upload a PDF statement to begin automated extraction and reconciliation.</p>
               </div>
             )}
           </main>

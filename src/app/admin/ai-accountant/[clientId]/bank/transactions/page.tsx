@@ -1041,7 +1041,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                     <DropdownMenuItem onClick={() => {
                                                         const keyword = tx.cleanDescription?.split(/\s+/)[0] || tx.description.split(/\s+/)[0];
                                                         setTransactionDescriptionForRule(tx.description);
-                                                        setRuleDefaultValues({ description: `Rule for: ${keyword}`, keywords: keyword, accountId: '', vatType: activeSubTab === 'income' ? 'standard_rated_sales' : 'standard_rated_purchases' });
+                                                        setRuleDefaultValues({ description: `Rule for: ${keyword}`, keywords: keyword, accountId: '', vatType: activeSubTab === 'income' ? 'standard_rated_sales' : 'no_vat' });
                                                         setIsCreateOpen(true);
                                                     }}>Create Rule</DropdownMenuItem>
                                                     <DropdownMenuSeparator />
