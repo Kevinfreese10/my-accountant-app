@@ -197,9 +197,12 @@ export default function AIStatementImportDialog({
 
         if (createOpeningBalance && statementMeta) {
             const openBalRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+            // Use user-selected filterStartDate or fallback to statementMeta.startDate
+            const openBalDate = filterStartDate || statementMeta.startDate;
+            
             batch.set(openBalRef, {
                 clientId: client.id,
-                date: new Date(statementMeta.startDate).toISOString(),
+                date: new Date(openBalDate).toISOString(),
                 reference: `OPEN-BAL-${Date.now()}`,
                 description: statementMeta.openingBalance < 0 ? "OPENING BALANCE (OVERDRAFT)" : "OPENING BALANCE",
                 amount: statementMeta.openingBalance,
@@ -398,12 +401,14 @@ export default function AIStatementImportDialog({
                     </div>
                 </div>
 
-                {currentAccountData.balance === 0 && statementMeta && statementMeta.openingBalance !== 0 && (
+                {statementMeta && (
                     <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg flex items-start gap-3">
                         <Checkbox id="create-open-check" checked={createOpeningBalance} onCheckedChange={(v) => setCreateOpeningBalance(!!v)} className="mt-1" />
                         <div className="space-y-1">
                             <Label htmlFor="create-open-check" className="text-xs font-bold text-yellow-800">Post Opening Balance?</Label>
-                            <p className="text-[10px] text-yellow-700">Create a transaction for <strong>{formatPrice(statementMeta.openingBalance)}</strong> to match the statement start.</p>
+                            <p className="text-[10px] text-yellow-700">
+                                Create a transaction for <strong>{formatPrice(statementMeta.openingBalance)}</strong> dated <strong>{filterStartDate || statementMeta.startDate}</strong> to match the statement start.
+                            </p>
                         </div>
                     </div>
                 )}

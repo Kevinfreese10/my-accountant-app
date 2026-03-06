@@ -244,9 +244,11 @@ export default function PdfToCsvPage() {
 
         if (createOpeningBalance && statementMeta) {
             const openBalRef = doc(collection(db, 'aiAccountantClients', selectedClient.id, 'transactions'));
+            const openBalDate = filterStartDate || statementMeta.startDate;
+            
             batch.set(openBalRef, {
                 clientId: selectedClient.id,
-                date: new Date(statementMeta.startDate).toISOString(),
+                date: new Date(openBalDate).toISOString(),
                 reference: `OPEN-BAL-${Date.now()}`,
                 description: statementMeta.openingBalance < 0 ? "OPENING BALANCE (OVERDRAFT)" : "OPENING BALANCE",
                 amount: statementMeta.openingBalance,
@@ -416,6 +418,18 @@ export default function PdfToCsvPage() {
                             )}
                         </div>
                     </div>
+
+                    {statementMeta && (
+                        <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-start gap-3">
+                            <Checkbox id="tools-open-check" checked={createOpeningBalance} onCheckedChange={(v) => setCreateOpeningBalance(!!v)} className="mt-1" />
+                            <div className="space-y-1">
+                                <Label htmlFor="tools-open-check" className="text-sm font-bold text-yellow-800">Post Opening Balance?</Label>
+                                <p className="text-xs text-yellow-700">
+                                    Create a transaction for <strong>{formatPrice(statementMeta.openingBalance)}</strong> dated <strong>{filterStartDate || statementMeta.startDate}</strong>.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
