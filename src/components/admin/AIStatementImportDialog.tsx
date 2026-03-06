@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, FileSpreadsheet, RotateCcw, Trash2, CalendarIcon, X } from 'lucide-react';
+import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, FileSpreadsheet, RotateCcw, Trash2, CalendarIcon, X, Download } from 'lucide-react';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { extractStatementPeriod, ExtractStatementPeriodOutput } from '@/ai/flows/extract-statement-period';
 import { getFirestore, collection, getDocs, doc, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -24,6 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
 
@@ -182,6 +183,24 @@ export default function AIStatementImportDialog({
       toast({ title: "Duplicates Removed", description: `Excluded ${duplicatesInCurrentList.length} possible matches.` });
   };
 
+  const handleUpdateTransaction = (index: number, field: keyof Transaction, value: any) => {
+      const updated = [...extractedTransactions];
+      updated[index] = { ...updated[index], [field]: value };
+      setExtractedTransactions(updated);
+  };
+
+  const handleDownloadExcel = () => {
+      if (filteredTransactions.length === 0) return;
+      const ws = XLSX.utils.json_to_sheet(filteredTransactions.map(tx => ({
+          Date: tx.date,
+          Description: tx.description,
+          Amount: tx.amount
+      })));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Extracted Transactions");
+      XLSX.writeFile(wb, `Extracted_Statement_${client.name}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+  };
+
   const handleImport = async () => {
     if (!client.id || !watchBankAccountId || filteredTransactions.length === 0) return;
     setIsImporting(true);
@@ -197,7 +216,6 @@ export default function AIStatementImportDialog({
 
         if (createOpeningBalance && statementMeta) {
             const openBalRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-            // Use user-selected filterStartDate or fallback to statementMeta.startDate
             const openBalDate = filterStartDate || statementMeta.startDate;
             
             batch.set(openBalRef, {
@@ -364,8 +382,13 @@ export default function AIStatementImportDialog({
               <div className="space-y-6 animate-in fade-in zoom-in-95">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Card className="bg-muted/20 border-dashed">
-                        <CardHeader className="py-3"><CardTitle className="text-xs uppercase">Import Filters</CardTitle></CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
+                            <CardTitle className="text-xs uppercase">Import Filters</CardTitle>
+                            <Button variant="ghost" size="sm" onClick={handleDownloadExcel} className="h-7 text-[10px] gap-1">
+                                <Download className="h-3 w-3" /> Export Excel
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="space-y-4 px-4 pb-4">
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="space-y-1">
                                     <Label className="text-[9px] uppercase">Start Date</Label>
@@ -415,7 +438,7 @@ export default function AIStatementImportDialog({
 
                 <div className="border rounded-lg overflow-hidden">
                     <div className="bg-muted/50 p-2 border-b flex justify-between items-center">
-                        <span className="text-[10px] font-bold uppercase text-muted-foreground ml-2">Preview ({filteredTransactions.length} items)</span>
+                        <span className="text-[10px] font-bold uppercase text-muted-foreground ml-2">Editable Preview ({filteredTransactions.length} items)</span>
                     </div>
                     <div className="max-h-[400px] overflow-y-auto">
                         <Table>
@@ -440,15 +463,32 @@ export default function AIStatementImportDialog({
                                             isExcluded && "opacity-30 bg-muted/50 grayscale",
                                             isDup && !isExcluded && "bg-destructive/5"
                                         )}>
-                                            <TableCell className="text-[10px] py-2 whitespace-nowrap">{tx.date}</TableCell>
-                                            <TableCell className="text-[10px] py-2 font-medium">
+                                            <TableCell className="p-1">
+                                                <Input 
+                                                    type="date" 
+                                                    value={tx.date} 
+                                                    onChange={(e) => handleUpdateTransaction(idx, 'date', e.target.value)}
+                                                    className="h-7 text-[10px] border-none bg-transparent"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="p-1">
                                                 <div className="flex flex-col">
-                                                    <span className="truncate max-w-[250px]">{tx.description}</span>
-                                                    {isDup && !isExcluded && <span className="text-[8px] text-destructive font-bold uppercase">Possible Duplicate</span>}
+                                                    <Input 
+                                                        value={tx.description} 
+                                                        onChange={(e) => handleUpdateTransaction(idx, 'description', e.target.value)}
+                                                        className="h-7 text-[10px] border-none bg-transparent font-medium"
+                                                    />
+                                                    {isDup && !isExcluded && <span className="text-[8px] text-destructive font-bold uppercase px-3">Possible Duplicate</span>}
                                                 </div>
                                             </TableCell>
-                                            <TableCell className={cn("text-right font-mono text-[10px] py-2", tx.amount < 0 ? "text-destructive" : "text-green-600")}>
-                                                {formatPrice(tx.amount)}
+                                            <TableCell className="p-1">
+                                                <Input 
+                                                    type="number" 
+                                                    step="0.01"
+                                                    value={tx.amount} 
+                                                    onChange={(e) => handleUpdateTransaction(idx, 'amount', parseFloat(e.target.value) || 0)}
+                                                    className={cn("h-7 text-[10px] border-none bg-transparent text-right font-mono", tx.amount < 0 ? "text-destructive" : "text-green-600")}
+                                                />
                                             </TableCell>
                                             <TableCell className="text-right py-2 pr-4">
                                                 <Button 

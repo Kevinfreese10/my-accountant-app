@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, RotateCcw, FileSpreadsheet, ArrowRight, Trash2, X } from 'lucide-react';
+import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, RotateCcw, FileSpreadsheet, ArrowRight, Trash2, X, Download } from 'lucide-react';
 import { extractStatementPeriod, ExtractStatementPeriodOutput } from '@/ai/flows/extract-statement-period';
 import { getFirestore, collection, getDocs, doc, query, where, writeBatch, serverTimestamp, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { extractStatementChunk } from '@/app/actions';
 import { PDFDocument } from 'pdf-lib';
+import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
 
@@ -151,6 +152,24 @@ export default function PdfToCsvPage() {
 
     return { importTotal, projectedBalance, diff, isMatched };
   }, [statementMeta, filteredTransactions, currentAccountData.balance, createOpeningBalance]);
+
+  const handleUpdateTransaction = (index: number, field: keyof Transaction, value: any) => {
+      const updated = [...extractedTransactions];
+      updated[index] = { ...updated[index], [field]: value };
+      setExtractedTransactions(updated);
+  };
+
+  const handleDownloadExcel = () => {
+      if (filteredTransactions.length === 0) return;
+      const ws = XLSX.utils.json_to_sheet(filteredTransactions.map(tx => ({
+          Date: tx.date,
+          Description: tx.description,
+          Amount: tx.amount
+      })));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Extracted Transactions");
+      XLSX.writeFile(wb, `Extracted_Statement_${selectedClient?.name || 'Client'}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const file = values.statement[0];
@@ -383,8 +402,13 @@ export default function PdfToCsvPage() {
                 <div className="space-y-6 animate-in fade-in zoom-in-95">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Card className="bg-muted/20 border-dashed">
-                            <CardHeader className="py-3"><CardTitle className="text-xs uppercase">Import Filters</CardTitle></CardHeader>
-                            <CardContent className="space-y-4">
+                            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
+                                <CardTitle className="text-xs uppercase">Import Filters</CardTitle>
+                                <Button variant="ghost" size="sm" onClick={handleDownloadExcel} className="h-7 text-[10px] gap-1">
+                                    <Download className="h-3 w-3" /> Export Excel
+                                </Button>
+                            </CardHeader>
+                            <CardContent className="space-y-4 px-4 pb-4">
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="space-y-1">
                                         <Label className="text-[9px] uppercase">Start Date</Label>
@@ -433,7 +457,7 @@ export default function PdfToCsvPage() {
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-bold uppercase">Transaction Preview ({filteredTransactions.length} items)</CardTitle>
+                            <CardTitle className="text-sm font-bold uppercase">Editable Preview ({filteredTransactions.length} items)</CardTitle>
                             <Button size="lg" onClick={handleFinalImport} disabled={isImporting || filteredTransactions.length === 0} className="font-bold min-w-[200px]">
                                 {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Approve & Import
@@ -462,15 +486,32 @@ export default function PdfToCsvPage() {
                                                 isExcluded && "opacity-30 bg-muted/50 grayscale",
                                                 isDup && !isExcluded && "bg-destructive/5"
                                             )}>
-                                                <TableCell className="text-[10px] py-2 whitespace-nowrap">{tx.date}</TableCell>
-                                                <TableCell className="text-[10px] py-2 font-medium">
+                                                <TableCell className="p-1">
+                                                    <Input 
+                                                        type="date" 
+                                                        value={tx.date} 
+                                                        onChange={(e) => handleUpdateTransaction(idx, 'date', e.target.value)}
+                                                        className="h-7 text-[10px] border-none bg-transparent"
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="p-1">
                                                     <div className="flex flex-col">
-                                                        <span className="truncate max-w-[300px]">{tx.description}</span>
-                                                        {isDup && !isExcluded && <span className="text-[8px] text-destructive font-bold uppercase tracking-tighter">Existing Record Match</span>}
+                                                        <Input 
+                                                            value={tx.description} 
+                                                            onChange={(e) => handleUpdateTransaction(idx, 'description', e.target.value)}
+                                                            className="h-7 text-[10px] border-none bg-transparent font-medium"
+                                                        />
+                                                        {isDup && !isExcluded && <span className="text-[8px] text-destructive font-bold uppercase tracking-tighter px-3">Existing Match</span>}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className={cn("text-right font-mono text-[10px] py-2", tx.amount < 0 ? "text-destructive" : "text-green-600")}>
-                                                    {formatPrice(tx.amount)}
+                                                <TableCell className="p-1">
+                                                    <Input 
+                                                        type="number" 
+                                                        step="0.01"
+                                                        value={tx.amount} 
+                                                        onChange={(e) => handleUpdateTransaction(idx, 'amount', parseFloat(e.target.value) || 0)}
+                                                        className={cn("h-7 text-[10px] border-none bg-transparent text-right font-mono", tx.amount < 0 ? "text-destructive" : "text-green-600")}
+                                                    />
                                                 </TableCell>
                                                 <TableCell className="text-right py-2 pr-4">
                                                     <Button 
