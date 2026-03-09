@@ -520,10 +520,11 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     const { user } = useAuth();
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
+    const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [allocations, setAllocations] = useState<any>({});
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<any>({});
@@ -537,43 +538,86 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     const [isSubmittingToWorkflow, setIsSubmittingToWorkflow] = useState(false);
 
     type SortField = 'date' | 'description' | 'amount';
-    const [sortField, setSortField] = useState<SortField>('description');
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [currentPage, setCurrentPage] = useState(1);
 
+    // REAL-TIME LISTENER FOR THE ENTIRE WORK QUEUE FOR THIS ACCOUNT
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearchTerm(searchTerm);
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [searchTerm]);
-
-    const baseQuery = useMemo(() => {
-        if (!client?.uid || !bankAccountId) return null;
+        if (!client?.uid || !bankAccountId) return;
+        setIsLoading(true);
         
-        let q = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
+        const q = query(
+            collection(db, 'aiAccountantClients', client.uid, 'transactions'), 
             where('bankAccountId', '==', bankAccountId),
-            where('status', 'in', ['new', 'ai_processing', 'ai_review']),
-            where('isExpense', '==', activeSubTab === 'expenses')
+            where('status', 'in', ['new', 'ai_processing', 'ai_review'])
         );
 
-        const trimmedSearch = debouncedSearchTerm.trim();
-        if (trimmedSearch) {
-            const term = trimmedSearch.toUpperCase();
-            return query(q, 
-                where('description', '>=', term),
-                where('description', '<=', term + '\uf8ff'),
-                orderBy('description', 'asc')
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const txs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportedTransaction));
+            setAllTransactions(txs);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("NewTransactionsTab listener error:", error);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [client?.uid, bankAccountId]);
+
+    // CLIENT-SIDE FILTERING, SORTING, AND SEARCHING
+    const { filteredTransactions, pagedTransactions, totalPages } = useMemo(() => {
+        // 1. Filter by Tab (Expense/Income)
+        let filtered = allTransactions.filter(tx => tx.isExpense === (activeSubTab === 'expenses'));
+
+        // 2. Search Filter (CONTAINS) - Fixes the user's issue
+        if (searchTerm.trim()) {
+            const term = searchTerm.toUpperCase();
+            filtered = filtered.filter(tx => 
+                tx.description.toUpperCase().includes(term) || 
+                tx.cleanDescription?.toUpperCase().includes(term) ||
+                tx.merchantKey?.toUpperCase().includes(term) ||
+                tx.reference?.toUpperCase().includes(term)
             );
         }
 
-        return query(q, orderBy(sortField, sortDirection));
-    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection, debouncedSearchTerm]);
+        // 3. Sorting
+        filtered.sort((a, b) => {
+            let valA: any, valB: any;
+            if (sortField === 'date') {
+                valA = new Date(a.date).getTime();
+                valB = new Date(b.date).getTime();
+            } else if (sortField === 'description') {
+                valA = a.description || '';
+                valB = b.description || '';
+            } else {
+                valA = Math.abs(a.amount);
+                valB = Math.abs(b.amount);
+            }
 
-    const { documents: fetchedTransactions, isLoading, refetch, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
 
-    const transactions = fetchedTransactions;
+        // 4. Pagination
+        const total = Math.ceil(filtered.length / PAGE_SIZE);
+        const start = (currentPage - 1) * PAGE_SIZE;
+        const paged = filtered.slice(start, start + PAGE_SIZE);
 
-    React.useImperativeHandle(ref, () => ({ refetch }));
+        return { 
+            filteredTransactions: filtered, 
+            pagedTransactions: paged, 
+            totalPages: total || 1 
+        };
+    }, [allTransactions, activeSubTab, searchTerm, sortField, sortDirection, currentPage]);
+
+    // Reset page when search or tab changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, activeSubTab]);
+
+    React.useImperativeHandle(ref, () => ({ refetch: () => {} }));
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -592,7 +636,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             await batch.commit();
             toast({ title: 'Deleted', description: `${selectedTransactions.length} transactions removed.` });
             setSelectedTransactions([]);
-            refetch();
         } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
     };
 
@@ -601,7 +644,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         try {
             await deleteDoc(doc(db, 'aiAccountantClients', client.uid, 'transactions', txId));
             toast({ title: 'Deleted', description: 'Transaction removed.' });
-            refetch();
         } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
     };
 
@@ -621,7 +663,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             await batch.commit();
             toast({ title: 'Allocated', description: `${selectedTransactions.length} transactions updated.` });
             setSelectedTransactions([]);
-            refetch();
         } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
     };
 
@@ -673,7 +714,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             if (count > 0) {
                 await batch.commit();
                 toast({ title: 'Rules Applied', description: `${count} transactions auto-allocated across all pages.` });
-                refetch();
             } else { 
                 toast({ title: 'No Matches', description: 'No rules matched any unallocated transactions.' }); 
             }
@@ -693,7 +733,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             const txCollection = collection(db, 'aiAccountantClients', client.uid, 'transactions');
             
             Object.entries(allocations).forEach(([txId, alloc]: [string, any]) => {
-                const tx = transactions.find(t => t.id === txId);
+                const tx = filteredTransactions.find(t => t.id === txId);
                 const selectedVat = alloc.vatType || tx?.vatType || 'no_vat';
                 
                 batch.update(doc(txCollection, txId), {
@@ -707,7 +747,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             await batch.commit();
             toast({ title: "Allocations Saved" });
             setAllocations({});
-            refetch();
         } catch (e) { 
             console.error(e); 
             toast({ title: "Error Saving", variant: "destructive" });
@@ -768,7 +807,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                 await batch.commit();
                 toast({ title: "Transaction Allocated" });
                 setIsAiReviewOpen(false);
-                refetch();
             } catch (e) {
                 toast({ title: "Allocation Failed", variant: "destructive" });
             }
@@ -794,7 +832,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         
         // Main Data
         const rows = [['Date', 'Description', 'Reference', 'Amount', 'Allocate To', 'VAT Type']];
-        transactions.forEach(tx => {
+        filteredTransactions.forEach(tx => {
             rows.push([
                 format(new Date(tx.date), 'dd/MM/yyyy'),
                 tx.description,
@@ -841,7 +879,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
 
     return (
         <div className="space-y-4">
-            <CreateRuleDialog client={client} onRuleCreated={refetch} open={isCreateRuleOpen} onOpenChange={setIsCreateOpen} defaultValues={ruleDefaultValues} transactionDescription={transactionDescriptionForRule} existingRules={globalRules} />
+            <CreateRuleDialog client={client} onRuleCreated={() => {}} open={isCreateRuleOpen} onOpenChange={setIsCreateOpen} defaultValues={ruleDefaultValues} transactionDescription={transactionDescriptionForRule} existingRules={globalRules} />
             <CreateGeneralAccountDialog client={client} onAccountCreated={onAccountCreated} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
             <AIAllocationReviewDialog open={isAiReviewOpen} onOpenChange={setIsAiReviewOpen} suggestion={aiSuggestion} transaction={selectedTxForAi} onAction={handleAiReviewAction} />
             
@@ -852,9 +890,9 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                     </Tabs>
                     <div className="p-4 flex justify-between items-center gap-2 flex-wrap">
                         <div className="flex gap-2 flex-wrap">
-                            <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={currentBalance} onImportComplete={refetch} />
+                            <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={currentBalance} onImportComplete={() => {}} />
                             
-                            <Button variant="outline" onClick={handleDownloadExcel} disabled={transactions.length === 0}>
+                            <Button variant="outline" onClick={handleDownloadExcel} disabled={filteredTransactions.length === 0}>
                                 <FileSpreadsheet className="mr-2 h-4 w-4"/> Download Excel
                             </Button>
 
@@ -910,9 +948,9 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                         </div>
                         <div className="flex items-center gap-4 flex-wrap">
                             <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}><ChevronLeft className="h-4 w-4" /></Button>
-                                <span className="text-xs font-medium min-w-[60px] text-center">Page {currentPage}</span>
-                                <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}><ChevronRight className="h-4 w-4" /></Button>
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
+                                <span className="text-xs font-medium min-w-[60px] text-center">Page {currentPage} of {totalPages}</span>
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
                             </div>
                             <div className="relative">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -925,7 +963,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-12"><Checkbox checked={transactions.length > 0 && selectedTransactions.length === transactions.length} onCheckedChange={(v) => setSelectedTransactions(v ? transactions.map(tx => tx.id) : [])} /></TableHead>
+                                <TableHead className="w-12"><Checkbox checked={pagedTransactions.length > 0 && selectedTransactions.length === pagedTransactions.length} onCheckedChange={(v) => setSelectedTransactions(v ? pagedTransactions.map(tx => tx.id) : [])} /></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4" /></Button></TableHead>
                                 <TableHead>Reference</TableHead>
@@ -937,7 +975,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                         </TableHeader>
                         <TableBody>
                             {isLoading ? <TableRow><TableCell colSpan={client?.isVatRegistered ? 8 : 7} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
-                             transactions.map(tx => (
+                             pagedTransactions.map(tx => (
                                 <TableRow key={tx.id}>
                                     <TableCell><Checkbox checked={selectedTransactions.includes(tx.id)} onCheckedChange={(v) => setSelectedTransactions(prev => v ? [...prev, tx.id] : prev.filter(id => id !== tx.id))} /></TableCell>
                                     <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
