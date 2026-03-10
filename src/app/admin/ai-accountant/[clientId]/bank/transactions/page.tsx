@@ -27,7 +27,7 @@ import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from "@/components/ui/command";
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/area';
 import { format, parse } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
@@ -977,7 +977,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                             {isLoading ? <TableRow><TableCell colSpan={client?.isVatRegistered ? 8 : 7} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
                              pagedTransactions.map(tx => (
                                 <TableRow key={tx.id}>
-                                    <TableCell><Checkbox checked={selectedTransactions.includes(tx.id)} onCheckedChange={(v) => setSelectedTransactions(prev => v ? [...prev, tx.id] : prev.filter(id => id !== tx.id))} /></TableCell>
+                                    <TableCell><Checkbox checked={selectedTransactions.includes(tx.id)} onCheckedChange={(checked) => setSelectedTransactions(prev => checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id))} /></TableCell>
                                     <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                     <TableCell>
                                         <div className="flex flex-col">
@@ -1900,6 +1900,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
+    const [searchAmount, setSearchAmount] = useState<string>("");
     const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
     const [editedAllocations, setEditedAllocations] = useState<any>({});
@@ -1948,11 +1949,21 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
             constraints.push(where('allocatedTo.value', '==', selectedGlAccountId));
         }
 
+        if (searchAmount.trim()) {
+            const amount = parseFloat(searchAmount);
+            if (!isNaN(amount)) {
+                // For expenses, we usually store them as negative in some places but positive in amount.
+                // Based on NewTransactionsTab logic, we assume amounts are absolute or tab-dependent.
+                // If it's an expense, we try searching both just in case.
+                constraints.push(where('amount', '==', activeSubTab === 'expenses' ? -Math.abs(amount) : Math.abs(amount)));
+            }
+        }
+
         if (dateRange?.from) constraints.push(where('date', '>=', dateRange.from.toISOString()));
         if (dateRange?.to) constraints.push(where('date', '<=', dateRange.to.toISOString()));
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, activeSubTab, dateRange, selectedGlAccountId]);
+    }, [client?.uid, bankAccountId, activeSubTab, dateRange, selectedGlAccountId, searchAmount]);
 
     const { documents: transactions, isLoading, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage, refetch } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
 
@@ -2032,7 +2043,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                         <TabsList className="grid w-full grid-cols-2 rounded-none"><TabsTrigger value="expenses">Reviewed Expenses</TabsTrigger><TabsTrigger value="income">Reviewed Income</TabsTrigger></TabsList>
                     </Tabs>
                     <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 w-full md:w-auto">
+                        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
                             <Select value={selectedGlAccountId} onValueChange={setSelectedGlAccountId}>
                                 <SelectTrigger className="w-full md:w-[240px]">
                                     <SelectValue placeholder="Filter by Account..." />
@@ -2044,7 +2055,20 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <div className="flex items-center gap-2 ml-4">
+                            
+                            <div className="relative w-full md:w-40">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                    type="number" 
+                                    step="0.01" 
+                                    placeholder="Search Amount..." 
+                                    value={searchAmount} 
+                                    onChange={(e) => setSearchAmount(e.target.value)} 
+                                    className="pl-8 h-10"
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-2 ml-auto md:ml-4">
                                 <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}><ChevronLeft className="h-4 w-4" /></Button>
                                 <span className="text-xs font-medium min-w-[60px] text-center">Page {currentPage}</span>
                                 <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!canGoNext}><ChevronRight className="h-4 w-4" /></Button>
