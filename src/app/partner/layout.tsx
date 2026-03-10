@@ -1,4 +1,3 @@
-
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
@@ -32,14 +31,12 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
             return;
         }
 
-        // Default base subscription is R499 if not set
         const BASE_SUB = 499;
         const currentMonthlyTotal = user.subscription?.monthlyTotal || BASE_SUB;
 
         const now = new Date();
         const lastBillingDate = user.subscription?.lastBillingDate?.toDate ? user.subscription.lastBillingDate.toDate() : new Date(0);
         
-        // Billing check: Is it a new month since the last deduction?
         const daysSinceLastBilling = (now.getTime() - lastBillingDate.getTime()) / (1000 * 60 * 60 * 24);
         const isNewBillingPeriod = daysSinceLastBilling > 28;
 
@@ -54,7 +51,6 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
                         'subscription.subscriptionStatus': 'active',
                         'subscription.monthlyTotal': currentMonthlyTotal
                     });
-                    console.log('Automated monthly billing successful.');
                 } catch (e) {
                     console.error('Automated billing failed:', e);
                 }
@@ -63,7 +59,6 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
                     await updateDoc(partnerRef, {
                         'subscription.subscriptionStatus': 'lapsed'
                     });
-                    console.warn('Subscription lapsed due to insufficient credits.');
                 } catch (e) {
                     console.error('Failed to update lapsed status:', e);
                 }

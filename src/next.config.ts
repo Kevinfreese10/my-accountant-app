@@ -50,6 +50,28 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_URL: "https://www.myacc.co.za",
     NEXT_PUBLIC_BUILD_TIMESTAMP: new Date().toISOString(),
   },
+  async headers() {
+    return [
+      {
+        source: '/become-a-partner',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0, must-revalidate',
+          },
+        ],
+      },
+      {
+        source: '/partner',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0, must-revalidate',
+          },
+        ],
+      },
+    ];
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
