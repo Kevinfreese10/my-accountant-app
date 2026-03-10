@@ -27,7 +27,7 @@ import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandEmpty, CommandInput, CommandList, CommandGroup, CommandSeparator, CommandItem } from "@/components/ui/command";
-import { ScrollArea } from '@/components/area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, parse } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
@@ -1421,9 +1421,14 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         } catch (e) { toast({ title: "Approval Failed", variant: "destructive" }); }
     };
 
-    const handleApproveAllWithAllocations = async () => {
+    const handleApproveAllWithAllocations = async (onlySelected = false) => {
         if (!client?.uid) return;
-        const allocatableGroups = groups.filter(g => approvalSettings[g.merchantKey]?.accountId);
+        
+        let allocatableGroups = groups.filter(g => approvalSettings[g.merchantKey]?.accountId);
+        if (onlySelected && selectedGroupKeys.length > 0) {
+            allocatableGroups = allocatableGroups.filter(g => selectedGroupKeys.includes(g.merchantKey));
+        }
+
         if (allocatableGroups.length === 0) {
             toast({ title: "No allocations found to finalize." });
             return;
@@ -1453,7 +1458,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 });
             });
             await batch.commit();
-            toast({ title: `Approved all ${allocatableGroups.length} groups!` });
+            toast({ title: `Approved ${allocatableGroups.length} groups!` });
         } catch (e) { toast({ title: "Bulk Approval Failed", variant: "destructive" }); }
     }
 
@@ -1709,7 +1714,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         {isAiRegrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                         AI Smart Group
                     </Button>
-                    <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking || groups.length === 0}>
+                    <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking || Cornelius.length === 0}>
                         {isRechecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4" />}
                         Recheck Rules
                     </Button>
@@ -1723,8 +1728,8 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                             Stop & Reset
                         </Button>
                     )}
-                    <Button onClick={handleApproveAllWithAllocations} disabled={allocatedCount === 0} className="bg-green-600 hover:bg-green-700 text-white">
-                        <CheckCircle2 className="mr-2 h-4 w-4" /> Approve All with Allocations ({allocatedCount})
+                    <Button onClick={() => handleApproveAllWithAllocations(onlySelectedGroups)} disabled={allocatedCount === 0} className="bg-green-600 hover:bg-green-700 text-white">
+                        <CheckCircle2 className="mr-2 h-4 w-4" /> {onlySelectedGroups ? `Approve Selected (${selectedGroupKeys.length})` : `Approve All with Allocations (${allocatedCount})`}
                     </Button>
                 </div>
             </div>
@@ -2180,7 +2185,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                                         ) : tx.allocationSource === 'history' ? (
                                             <Badge variant="outline" className="text-[10px] gap-1 border-primary/30 text-primary"><History className="h-3 w-3"/> History</Badge>
                                         ) : tx.allocationSource === 'global_db' ? (
-                                            <Badge variant="outline" className="text-[10px] gap-1 border-green-500/30 text-green-600"><RotateCw className="h-3 w-3"/> Smart DB</Badge>
+                                            <Badge variant="outline" className="text-[10px] gap-1 border-green-500/30 text-green-600"><RotateCcw className="h-3 w-3"/> Smart DB</Badge>
                                         ) : (
                                             <Badge variant="ghost" className="text-[10px] opacity-50">Manual</Badge>
                                         )}
