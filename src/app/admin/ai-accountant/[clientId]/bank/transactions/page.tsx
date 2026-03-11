@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -36,7 +37,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups, analyzeClientCommentAndSuggest } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups, analyzeClientCommentAndSuggest, bulkMoveTransactionsToNew } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -1714,7 +1715,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         {isAiRegrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                         AI Smart Group
                     </Button>
-                    <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking || Cornelius.length === 0}>
+                    <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking || groups.length === 0}>
                         {isRechecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4" />}
                         Recheck Rules
                     </Button>
@@ -1908,6 +1909,8 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
     const [searchAmount, setSearchAmount] = useState<string>("");
     const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
+    const [isBulkMoving, setIsBulkMoving] = useState(false);
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [editedAllocations, setEditedAllocations] = useState<any>({});
     const [isSaving, setIsSaving] = useState(false);
     const [viewingRuleData, setViewingRuleData] = useState<{ rule: AllocationRule, keyword?: string } | null>(null);
@@ -1957,9 +1960,6 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
         if (searchAmount.trim()) {
             const amount = parseFloat(searchAmount);
             if (!isNaN(amount)) {
-                // For expenses, we usually store them as negative in some places but positive in amount.
-                // Based on NewTransactionsTab logic, we assume amounts are absolute or tab-dependent.
-                // If it's an expense, we try searching both just in case.
                 constraints.push(where('amount', '==', activeSubTab === 'expenses' ? -Math.abs(amount) : Math.abs(amount)));
             }
         }
@@ -1971,6 +1971,11 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
     }, [client?.uid, bankAccountId, activeSubTab, dateRange, selectedGlAccountId, searchAmount]);
 
     const { documents: transactions, isLoading, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage, refetch } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
+
+    // Reset selection when changing filters or page
+    useEffect(() => {
+        setSelectedTransactions([]);
+    }, [activeSubTab, selectedGlAccountId, currentPage]);
 
     const getAllocationName = (allocatedTo: any) => {
         if (!allocatedTo) return 'Unallocated';
@@ -1986,6 +1991,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
         try {
             await moveTransactionToNew({ clientId: client.uid, transactionId: txId });
             toast({ title: "Allocation Cleared", description: "Transaction moved back to 'New' tab." });
+            setSelectedTransactions(prev => prev.filter(id => id !== txId));
             refetch();
         } catch (e) { 
             toast({ title: "Failed to reset", variant: "destructive" }); 
@@ -1994,11 +2000,27 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
         }
     };
 
+    const handleBulkMoveToNew = async () => {
+        if (!client?.uid || selectedTransactions.length === 0) return;
+        setIsBulkMoving(true);
+        try {
+            const res = await bulkMoveTransactionsToNew({ clientId: client.uid, transactionIds: selectedTransactions });
+            toast({ title: "Success", description: `${res.count} transactions moved back to New tab.` });
+            setSelectedTransactions([]);
+            refetch();
+        } catch (e) {
+            toast({ title: "Bulk Move Failed", variant: "destructive" });
+        } finally {
+            setIsBulkMoving(false);
+        }
+    };
+
     const handleDeleteTransaction = async (txId: string) => {
         if (!client?.uid) return;
         try {
             await deleteDoc(doc(db, 'aiAccountantClients', client.uid, 'transactions', txId));
             toast({ title: 'Deleted', description: 'Transaction removed.' });
+            setSelectedTransactions(prev => prev.filter(id => id !== txId));
             refetch();
         } catch (e) { toast({ title: 'Error', variant: 'destructive' }); }
     };
@@ -2073,6 +2095,29 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                                 />
                             </div>
 
+                            {selectedTransactions.length > 0 && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="outline" className="text-destructive border-destructive/20 hover:bg-destructive/5 font-bold gap-2">
+                                            {isBulkMoving ? <Loader2 className="h-4 w-4 animate-spin"/> : <RotateCcw className="h-4 w-4" />}
+                                            Move {selectedTransactions.length} to New
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Move back to New?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will clear the current allocations for {selectedTransactions.length} selected transactions and move them back to the "New Transactions" tab for re-processing.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleBulkMoveToNew}>Yes, Move Transactions</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
+
                             <div className="flex items-center gap-2 ml-auto md:ml-4">
                                 <Button variant="outline" size="sm" onClick={goToPreviousPage} disabled={!canGoPrev}><ChevronLeft className="h-4 w-4" /></Button>
                                 <span className="text-xs font-medium min-w-[60px] text-center">Page {currentPage}</span>
@@ -2086,6 +2131,12 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-12">
+                                    <Checkbox 
+                                        checked={transactions.length > 0 && selectedTransactions.length === transactions.length} 
+                                        onCheckedChange={(v) => setSelectedTransactions(v ? transactions.map(tx => tx.id) : [])} 
+                                    />
+                                </TableHead>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Description</TableHead>
                                 <TableHead>Allocated To</TableHead>
@@ -2096,7 +2147,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading ? <TableRow><TableCell colSpan={client?.isVatRegistered ? 7 : 6} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
+                            {isLoading ? <TableRow><TableCell colSpan={client?.isVatRegistered ? 8 : 7} className="text-center h-24"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow> :
                             transactions.map(tx => {
                                 const edited = editedAllocations[tx.id];
                                 const currentAlloc = edited?.allocatedTo || tx.allocatedTo;
@@ -2104,6 +2155,12 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
 
                                 return (
                                 <TableRow key={tx.id} className={cn(edited && "bg-primary/5")}>
+                                    <TableCell>
+                                        <Checkbox 
+                                            checked={selectedTransactions.includes(tx.id)} 
+                                            onCheckedChange={(checked) => setSelectedTransactions(prev => checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id))} 
+                                        />
+                                    </TableCell>
                                     <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                     <TableCell>
                                         <div className="flex flex-col">

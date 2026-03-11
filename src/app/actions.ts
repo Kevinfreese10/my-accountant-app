@@ -260,6 +260,38 @@ export async function moveTransactionToNew({ clientId, transactionId }: { client
     }
 }
 
+/**
+ * Bulk moves multiple transactions back to 'new' status.
+ */
+export async function bulkMoveTransactionsToNew({ clientId, transactionIds }: { clientId: string, transactionIds: string[] }) {
+    try {
+        const batch = writeBatch(db);
+        transactionIds.forEach(id => {
+            const transRef = doc(db, 'aiAccountantClients', clientId, 'transactions', id);
+            batch.update(transRef, {
+                status: 'new',
+                merchantKey: deleteField(),
+                merchantKey2: deleteField(),
+                smartAllocationResult: deleteField(),
+                allocationSource: deleteField(),
+                matchType: deleteField(),
+                matchedOn: deleteField(),
+                matchedRuleId: deleteField(),
+                matchedRuleDescription: deleteField(),
+                matchedKeyword: deleteField(),
+                allocatedTo: deleteField(),
+                vatType: deleteField(),
+                allocatedAt: deleteField()
+            });
+        });
+        await batch.commit();
+        return { success: true, count: transactionIds.length };
+    } catch (e) {
+        console.error("Bulk move failed:", e);
+        throw e;
+    }
+}
+
 export async function updateGlobalMerchantDb({ merchantKey, accountId, vatType }: { merchantKey: string, accountId: string, vatType: string }) {
     if (!merchantKey || merchantKey === 'UNKNOWN') return;
     
