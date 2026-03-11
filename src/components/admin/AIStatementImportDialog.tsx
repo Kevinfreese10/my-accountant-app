@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { extractStatementChunk } from '@/app/actions';
 import { PDFDocument } from 'pdf-lib';
 import * as XLSX from 'xlsx';
+import { Progress } from '@/components/ui/progress';
 
 const db = getFirestore(firebaseApp);
 
