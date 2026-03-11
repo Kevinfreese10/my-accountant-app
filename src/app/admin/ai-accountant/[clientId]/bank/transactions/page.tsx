@@ -2388,7 +2388,10 @@ export default function BankTransactionsPage() {
     
     const stats = useMemo(() => {
         const balance = allAccountTransactions.reduce((s, t) => s + t.amount, 0);
-        const unallocatedCount = allAccountTransactions.filter(t => t.status === 'new').length;
+        // Sync unallocated count to correctly include identifying workflow items
+        const unallocatedCount = allAccountTransactions.filter(t => 
+            ['new', 'ai_review', 'ai_processing'].includes(t.status)
+        ).length;
         return { balance, unallocatedCount };
     }, [allAccountTransactions]);
 

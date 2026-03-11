@@ -334,10 +334,12 @@ export async function updateGlobalMerchantDb({ merchantKey, accountId, vatType }
 export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
     try {
         const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        // Updated query to include both 'new' and 'ai_review' statuses
+        // This allows items moved back from Reviewed to be picked up again
         const q = query(
             transRef, 
             where('bankAccountId', '==', bankAccountId), 
-            where('status', '==', 'new'),
+            where('status', 'in', ['new', 'ai_review']),
             where('isExpense', '==', true)
         );
         const snapshot = await getDocs(q);
