@@ -163,7 +163,7 @@ export default function AIStatementImportDialog({
         const firstChunkDoc = await PDFDocument.create();
         const firstPages = await firstChunkDoc.copyPages(pdfDoc, [0]);
         firstChunkDoc.addPage(firstPages[0]);
-        const firstChunkBase64 = await firstChunkDoc.saveAsBase64({ dataUri: true });
+        const firstChunkBase64 = `data:application/pdf;base64,${await firstChunkDoc.saveAsBase64()}`;
         
         setStatusMessage('Extracting header...');
         const meta = await extractStatementPeriod({ statementPdf: firstChunkBase64 });
@@ -186,7 +186,7 @@ export default function AIStatementImportDialog({
             const copiedPages = await chunkDoc.copyPages(pdfDoc, pagesToCopy);
             copiedPages.forEach(p => chunkDoc.addPage(p));
             
-            const chunkBase64 = await chunkDoc.saveAsBase64({ dataUri: true });
+            const chunkBase64 = `data:application/pdf;base64,${await chunkDoc.saveAsBase64()}`;
             const result = await extractStatementChunk({ chunkBase64 });
 
             if (result.success && result.transactions) {
