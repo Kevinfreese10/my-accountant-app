@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -155,7 +156,7 @@ export default function AIStatementImportDialog({
     reader.onload = async () => {
       try {
         const arrayBuffer = reader.result as ArrayBuffer;
-        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
         const pageCount = pdfDoc.getPageCount();
         const chunkSize = 5;
         
