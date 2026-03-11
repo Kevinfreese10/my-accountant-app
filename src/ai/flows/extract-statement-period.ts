@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for extracting the date range and balances from bank statements.
@@ -26,12 +25,6 @@ const ExtractStatementPeriodOutputSchema = z.object({
   balanceConfidence: z.number().min(0).max(100).describe("A confidence score (0-100) on the accuracy of the extracted opening and closing balances."),
 });
 export type ExtractStatementPeriodOutput = z.infer<typeof ExtractStatementPeriodOutputSchema>;
-
-export async function extractStatementPeriod(
-  input: ExtractStatementPeriodInput
-): Promise<ExtractStatementPeriodOutput> {
-  return extractStatementPeriodFlow(input);
-}
 
 const prompt = ai.definePrompt({
   name: 'extractStatementPeriodPrompt',
@@ -64,3 +57,9 @@ const extractStatementPeriodFlow = ai.defineFlow(
     return output!;
   }
 );
+
+export async function extractStatementPeriod(
+  input: ExtractStatementPeriodInput
+): Promise<ExtractStatementPeriodOutput> {
+  return extractStatementPeriodFlow(input);
+}

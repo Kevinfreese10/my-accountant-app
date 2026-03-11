@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -10,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, FileSpreadsheet, RotateCcw, Trash2, CalendarIcon, X, Download } from 'lucide-react';
+import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, FileSpreadsheet, RotateCcw, Trash2, X, Download } from 'lucide-react';
 import { extractStatementPeriod, ExtractStatementPeriodOutput } from '@/ai/flows/extract-statement-period';
 import { getFirestore, collection, getDocs, doc, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -27,6 +26,7 @@ import { extractStatementChunk } from '@/app/actions';
 import { PDFDocument } from 'pdf-lib';
 import * as XLSX from 'xlsx';
 import { Progress } from '@/components/ui/progress';
+import { allVatTypes } from '@/lib/vat-types';
 
 const db = getFirestore(firebaseApp);
 
