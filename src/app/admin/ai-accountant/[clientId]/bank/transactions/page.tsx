@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -686,7 +685,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             const q = query(
                 transRef, 
                 where('bankAccountId', '==', bankAccountId), 
-                where('status', '==', 'new'),
+                where('status', 'in', ['new', 'ai_review']),
                 where('isExpense', '==', true)
             );
             const snapshot = await getDocs(q);
@@ -1715,7 +1714,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         {isAiRegrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                         AI Smart Group
                     </Button>
-                    <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking || groups.length === 0}>
+                    <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking || Gabriel.length === 0}>
                         {isRechecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4" />}
                         Recheck Rules
                     </Button>
@@ -1903,16 +1902,16 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
     onAccountCreated: () => void; 
 }) => {
     const { toast } = useToast();
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const [dateRange, setDateRange] = setDateRange<DateRange | undefined>(undefined);
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
     const [searchAmount, setSearchAmount] = useState<string>("");
     const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
     const [isBulkMoving, setIsBulkMoving] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [editedAllocations, setEditedAllocations] = useState<any>({});
-    const [isSaving, setIsSaving] = useState(false);
     const [viewingRuleData, setViewingRuleData] = useState<{ rule: AllocationRule, keyword?: string } | null>(null);
 
     const uniqueChartOfAccounts = useMemo(() => {
@@ -1983,6 +1982,34 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
             return customers.find(c => c.id === allocatedTo.value)?.name || allocatedTo.value;
         }
         return uniqueChartOfAccounts.find(a => a.id === allocatedTo.value)?.description || allocatedTo.value;
+    };
+
+    const handleBulkReallocate = async (allocation: { value: string, type: 'account' | 'customer' | 'supplier' }, vatType: VatType) => {
+        if (!client?.uid || selectedTransactions.length === 0) return;
+        setIsSaving(true);
+        try {
+            const batch = writeBatch(db);
+            const txCollection = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            
+            selectedTransactions.forEach(id => {
+                batch.update(doc(txCollection, id), {
+                    allocatedTo: allocation,
+                    vatType: client.isVatRegistered ? vatType : 'no_vat',
+                    allocatedAt: serverTimestamp(),
+                    allocationSource: 'manual',
+                });
+            });
+            await batch.commit();
+            toast({ title: 'Bulk Reallocation Successful', description: `${selectedTransactions.length} transactions updated.` });
+            setSelectedTransactions([]);
+            setEditedAllocations({}); // Clear any pending individual edits
+            refetch();
+        } catch (e) {
+            console.error(e);
+            toast({ title: "Error Reallocating", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleResetToNew = async (txId: string) => {
@@ -2096,6 +2123,58 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                             </div>
 
                             {selectedTransactions.length > 0 && (
+                                <>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="gap-2 border-primary/20 text-primary font-bold">
+                                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : <RefreshCw className="h-4 w-4"/>}
+                                            Bulk Reallocate <ChevronsUpDown className="ml-1 h-4 w-4"/>
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-64 p-0" align="start">
+                                        <Command className="w-full">
+                                            <CommandInput placeholder="Search accounts..." />
+                                            <CommandList className="max-h-72 overflow-y-auto">
+                                                <CommandEmpty>No results found.</CommandEmpty>
+                                                <CommandGroup heading="General Ledger Accounts">
+                                                    {uniqueChartOfAccounts.map(acc => (
+                                                        <DropdownMenuSub key={acc.id}>
+                                                            <DropdownMenuSubTrigger className="flex items-center justify-between w-full p-2 cursor-pointer hover:bg-muted">
+                                                                <span>{acc.description}</span>
+                                                            </DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubContent className="w-56">
+                                                                <DropdownMenuLabel>VAT Treatment</DropdownMenuLabel>
+                                                                <DropdownMenuSeparator />
+                                                                {allVatTypes.map(v => (
+                                                                    <DropdownMenuItem 
+                                                                        key={v.name} 
+                                                                        onSelect={() => handleBulkReallocate({value: acc.id, type: 'account'}, v.name as VatType)}
+                                                                    >
+                                                                        {v.label}
+                                                                    </DropdownMenuItem>
+                                                                ))}
+                                                            </DropdownMenuSubContent>
+                                                        </DropdownMenuSub>
+                                                    ))}
+                                                </CommandGroup>
+                                                {activeSubTab === 'income' && (
+                                                    <CommandGroup heading="Customers">
+                                                        {customers.map(c => (
+                                                            <DropdownMenuItem 
+                                                                key={c.id} 
+                                                                onSelect={() => handleBulkReallocate({value: c.id, type: 'customer'}, 'no_vat')}
+                                                                className="p-2 cursor-pointer hover:bg-muted"
+                                                            >
+                                                                {c.name}
+                                                            </DropdownMenuItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                )}
+                                            </CommandList>
+                                        </Command>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button variant="outline" className="text-destructive border-destructive/20 hover:bg-destructive/5 font-bold gap-2">
@@ -2116,6 +2195,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
+                                </>
                             )}
 
                             <div className="flex items-center gap-2 ml-auto md:ml-4">

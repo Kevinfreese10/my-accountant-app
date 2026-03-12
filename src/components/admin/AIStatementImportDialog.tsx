@@ -225,14 +225,15 @@ export default function AIStatementImportDialog({
 
   const handleDownloadExcel = () => {
       if (filteredTransactions.length === 0) return;
-      const ws = XLSX.utils.json_to_sheet(filteredTransactions.map(tx => ({
+      const ws = XLSX.utils.book_new();
+      const wsData = filteredTransactions.map(tx => ({
           Date: tx.date,
           Description: tx.description,
           Amount: tx.amount
-      })));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Extracted Transactions");
-      XLSX.writeFile(wb, `Extracted_Statement_${client.name}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(wsData);
+      XLSX.utils.book_append_sheet(ws, worksheet, "Extracted Transactions");
+      XLSX.writeFile(ws, `Extracted_Statement_${client.name}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
   };
 
   const handleImport = async () => {
