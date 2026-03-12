@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -10,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, FileSpreadsheet, RotateCcw, Trash2, X, Download } from 'lucide-react';
+import { Loader2, Sparkles, FileText, Upload, AlertTriangle, CheckCircle2, Info, FileSpreadsheet, RotateCcw, Trash2, X, Download, Banknote } from 'lucide-react';
 import { extractStatementPeriod, ExtractStatementPeriodOutput } from '@/ai/flows/extract-statement-period';
 import { getFirestore, collection, getDocs, doc, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -347,6 +346,16 @@ export default function AIStatementImportDialog({
                     </FormItem>
                   )}
                 />
+
+                {watchBankAccountId && (
+                    <div className="bg-muted/50 p-3 rounded-lg flex items-center justify-between animate-in fade-in">
+                        <div className="flex items-center gap-2">
+                            <Banknote className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs font-medium">Existing Book Balance:</span>
+                        </div>
+                        <span className="text-xs font-bold font-mono">{formatPrice(currentAccountData.balance)}</span>
+                    </div>
+                )}
 
                 <FormField
                   control={form.control}

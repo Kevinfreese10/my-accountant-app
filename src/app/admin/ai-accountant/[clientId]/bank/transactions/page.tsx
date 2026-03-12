@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -571,7 +570,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         // 1. Filter by Tab (Expense/Income)
         let filtered = allTransactions.filter(tx => tx.isExpense === (activeSubTab === 'expenses'));
 
-        // 2. Search Filter (CONTAINS) - Fixes the user's issue
+        // 2. Search Filter (CONTAINS)
         if (searchTerm.trim()) {
             const term = searchTerm.toUpperCase();
             filtered = filtered.filter(tx => 
@@ -1917,7 +1916,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
 
     const uniqueChartOfAccounts = useMemo(() => {
         const coa = [...(client?.chartOfAccounts || [])];
-        // Deduplicate locally just in case
+        // Deduplicate locally
         const unique = Array.from(new Map(coa.map(a => [a.accountNumber, a])).values());
         return unique.sort((a, b) => a.description.localeCompare(b.description));
     }, [client]);
@@ -2469,7 +2468,6 @@ export default function BankTransactionsPage() {
     
     const stats = useMemo(() => {
         const balance = allAccountTransactions.reduce((s, t) => s + t.amount, 0);
-        // Sync unallocated count to correctly include identifying workflow items
         const unallocatedCount = allAccountTransactions.filter(t => 
             ['new', 'ai_review', 'ai_processing'].includes(t.status)
         ).length;
@@ -2490,7 +2488,7 @@ export default function BankTransactionsPage() {
                 return;
             }
 
-            // Chunk deletions to stay within the 500-op limit
+            // Chunk deletions
             const docs = snap.docs;
             for (let i = 0; i < docs.length; i += 500) {
                 const batch = writeBatch(db);
