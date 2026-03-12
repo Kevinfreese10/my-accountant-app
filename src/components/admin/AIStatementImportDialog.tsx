@@ -27,6 +27,7 @@ import { PDFDocument } from 'pdf-lib';
 import * as XLSX from 'xlsx';
 import { Progress } from '@/components/ui/progress';
 import { allVatTypes } from '@/lib/vat-types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter as CardFooterComponent } from "@/components/ui/card";
 
 const db = getFirestore(firebaseApp);
 
