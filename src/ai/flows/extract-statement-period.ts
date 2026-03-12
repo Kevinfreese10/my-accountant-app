@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for extracting the date range and balances from bank statements.
@@ -58,6 +59,10 @@ const extractStatementPeriodFlow = ai.defineFlow(
   }
 );
 
+/**
+ * Wrapper function called by the application.
+ * Initialized after the flow definition to ensure availability.
+ */
 export async function extractStatementPeriod(
   input: ExtractStatementPeriodInput
 ): Promise<ExtractStatementPeriodOutput> {

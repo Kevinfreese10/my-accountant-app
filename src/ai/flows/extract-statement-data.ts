@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for extracting transaction data from bank statements (PDF or OCR).
@@ -59,6 +60,10 @@ const extractStatementDataFlow = ai.defineFlow(
   }
 );
 
+/**
+ * Wrapper function called by the application.
+ * Initialized after the flow definition to ensure availability.
+ */
 export async function extractStatementData(
   input: ExtractStatementDataInput
 ): Promise<ExtractStatementDataOutput> {
