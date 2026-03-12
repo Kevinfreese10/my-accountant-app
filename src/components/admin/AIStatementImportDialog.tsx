@@ -563,7 +563,7 @@ export default function AIStatementImportDialog({
                 </div>
               </div>
             ) : (
-              <div className="h-[500px] flex flex-col items-center justify-center text-center space-y-4 border-2 border-dashed rounded-xl bg-muted/5 p-8">
+              <div className="h-[500px] flex flex-col items-center justify-center h-full text-center space-y-4 border-2 border-dashed rounded-xl bg-muted/5 p-8">
                 <FileText className="h-16 w-16 opacity-10" />
                 <p className="text-lg font-bold">Ready for Analysis</p>
                 <p className="text-sm text-muted-foreground max-w-sm">Upload a PDF statement to begin automated extraction and reconciliation.</p>

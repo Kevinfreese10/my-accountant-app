@@ -28,6 +28,7 @@ export type ExtractStatementPeriodOutput = z.infer<typeof ExtractStatementPeriod
 
 const prompt = ai.definePrompt({
   name: 'extractStatementPeriodPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: ExtractStatementPeriodInputSchema },
   output: { schema: ExtractStatementPeriodOutputSchema },
   prompt: `You are an expert financial OCR agent. Your only task is to find the start date, end date, opening balance, and closing balance of the provided bank statement document.
@@ -53,14 +54,13 @@ const extractStatementPeriodFlow = ai.defineFlow(
     outputSchema: ExtractStatementPeriodOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input, { model: 'googleai/gemini-2.5-flash' });
+    const { output } = await prompt(input);
     return output!;
   }
 );
 
 /**
  * Wrapper function called by the application.
- * Initialized after the flow definition to ensure availability.
  */
 export async function extractStatementPeriod(
   input: ExtractStatementPeriodInput

@@ -31,6 +31,7 @@ export type ExtractStatementDataOutput = z.infer<typeof ExtractStatementDataOutp
 
 const prompt = ai.definePrompt({
   name: 'extractStatementDataPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: ExtractStatementDataInputSchema },
   output: { schema: ExtractStatementDataOutputSchema },
   prompt: `You are an expert OCR and data extraction agent specializing in South African bank statements.
@@ -54,14 +55,13 @@ const extractStatementDataFlow = ai.defineFlow(
     outputSchema: ExtractStatementDataOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input, { model: 'googleai/gemini-2.5-flash' });
+    const { output } = await prompt(input);
     return output!;
   }
 );
 
 /**
  * Wrapper function called by the application.
- * Initialized after the flow definition to ensure availability.
  */
 export async function extractStatementData(
   input: ExtractStatementDataInput
