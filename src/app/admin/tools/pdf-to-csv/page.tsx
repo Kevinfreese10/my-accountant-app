@@ -83,7 +83,7 @@ export default function PdfToCsvPage() {
   useEffect(() => {
     const fetchClients = async () => {
         const snap = await getDocs(query(collection(db, "aiAccountantClients"), orderBy("name")));
-        setClients(snap.docs.map(d => ({ ...d.data(), id: d.id, uid: d.id } as UserType)));
+        setClients(snap.docs.map(d => ({ ...d.data(), id: doc.id, uid: d.id } as UserType)));
     };
     fetchClients();
   }, []);
