@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -11,8 +10,8 @@ import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon, PlusCircle, MoreHorizontal, Eye, Copy, FileText, Mail, Download, CheckCircle, ChevronsUpDown, CheckCheck } from 'lucide-react';
-import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs, updateDoc, writeBatch, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs, updateDoc, writeBatch, setDoc, serverTimestamp } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { User, Invoice, ClientCustomer, ChartOfAccount } from '@/lib/types';
@@ -29,6 +28,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import InvoicePreview from '@/components/admin/InvoicePreview';
 import InvoiceDownloadButton from '@/components/pdf/InvoiceDownloadButton';
+
+const db = getFirestore(firebaseApp);
 
 const lineItemSchema = z.object({
     accountId: z.string().min(1, "Please select an account."),
@@ -164,7 +165,7 @@ export default function InvoicesPage() {
 
     useEffect(() => {
         fetchData();
-    }, [clientId, toast]);
+    }, [clientId]);
 
     const onSubmit = async (data: InvoiceFormValues) => {
         if (!client || !client.id) return;
@@ -194,7 +195,7 @@ export default function InvoicesPage() {
                 subtotal: subtotal,
                 vat: vat,
                 total: total,
-                createdAt: new Date(),
+                createdAt: serverTimestamp(),
             });
 
             // Increment invoice number on client profile
@@ -222,7 +223,7 @@ export default function InvoicesPage() {
                 vatType: 'no_vat',
                 vatAmount: 0,
                 status: 'allocated',
-                allocatedAt: new Date(),
+                allocatedAt: serverTimestamp(),
             });
 
             // 2. Credit Sales Accounts
@@ -241,7 +242,7 @@ export default function InvoicesPage() {
                     vatType: line.vatType as any,
                     vatAmount: 0,
                     status: 'allocated',
-                    allocatedAt: new Date(),
+                    allocatedAt: serverTimestamp(),
                 });
             });
             
@@ -260,7 +261,7 @@ export default function InvoicesPage() {
                     vatType: 'no_vat',
                     vatAmount: 0,
                     status: 'allocated',
-                    allocatedAt: new Date(),
+                    allocatedAt: serverTimestamp(),
                 });
             }
 
