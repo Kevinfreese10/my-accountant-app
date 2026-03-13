@@ -19,33 +19,31 @@ interface InvoiceDownloadButtonProps {
 function toErrorMessage(x: unknown): string {
   try {
     if (typeof x === "string") return x;
-    if (x instanceof Error) return String(x.message);
+    if (!x) return "An unexpected error occurred.";
     
-    if (x && typeof x === "object") {
-      const anyX = x as any;
-      
-      // Specifically catch React elements which cause Error #31
-      if (anyX.$$typeof) {
-        return "An internal rendering error occurred.";
-      }
+    const anyX = x as any;
 
+    // Specifically catch React elements or objects with React-like properties
+    // which cause Error #31 when rendered as children in the toast.
+    if (anyX.$$typeof || anyX._owner || anyX.props) {
+      return "A service error occurred (rendering element detected).";
+    }
+
+    if (x instanceof Error) {
+      return typeof x.message === "string" ? x.message : String(x.message);
+    }
+    
+    if (typeof x === "object") {
       if (typeof anyX.message === "string") return anyX.message;
       if (typeof anyX.error === "string") return anyX.error;
       
-      try {
-        const stringified = JSON.stringify(x);
-        if (stringified && stringified !== '{}' && stringified !== '[]') {
-            return stringified;
-        }
-      } catch {
-          // Ignore stringification errors
-      }
+      const stringified = JSON.stringify(x);
+      return (stringified && stringified !== '{}') ? stringified : String(x);
     }
     
-    const fallback = String(x);
-    return (fallback && fallback !== "[object Object]") ? fallback : "An unexpected error occurred.";
+    return String(x);
   } catch {
-    return "Something went wrong while generating the invoice.";
+    return "Something went wrong while processing the error.";
   }
 }
 
