@@ -75,6 +75,23 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/BEI',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0, must-revalidate',
+          },
+          {
+            key: 'Pragma',
+            value: 'no-cache',
+          },
+          {
+            key: 'Expires',
+            value: '0',
+          },
+        ],
+      },
+      {
         source: '/partner',
         headers: [
           {
