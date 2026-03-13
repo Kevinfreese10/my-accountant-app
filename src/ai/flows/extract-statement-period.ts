@@ -3,8 +3,6 @@
  * @fileOverview An AI agent for extracting the date range and balances from bank statements.
  *
  * - extractStatementPeriod - A function that takes a bank statement and returns its start date, end date, and balances.
- * - ExtractStatementPeriodInput - The input type for the extractStatementPeriod function.
- * - ExtractStatementPeriodOutput - The return type for the extractStatementPeriod function.
  */
 
 import { ai } from '@/ai/genkit';

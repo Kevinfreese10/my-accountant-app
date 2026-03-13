@@ -1,11 +1,18 @@
 'use client';
 
+/**
+ * Force dynamic rendering to ensure the latest changes are always served
+ * after a publish, bypassing any stale CDN or build-time caches.
+ */
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ShieldAlert, ClipboardList, ShoppingBag, CheckCircle, Globe, Scale, Loader2, ExternalLink } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import dynamic from 'next/dynamic';
+import dynamicImport from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -19,7 +26,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { saveDemoLead } from '@/app/actions';
 
-const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWidget'), {
+const TrustIndexWidget = dynamicImport(() => import('@/components/shared/TrustIndexWidget'), {
   ssr: false,
 });
 

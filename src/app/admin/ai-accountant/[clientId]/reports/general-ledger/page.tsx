@@ -7,11 +7,11 @@ import React, { useState, useEffect, useMemo, ReactNode } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs, deleteField } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Edit, Trash2, Search, Link as LinkIcon, Scale, ChevronsUpDown } from "lucide-react";
+import { Loader2, Download, Eye, Trash2, Search, Scale, ChevronsUpDown } from "lucide-react";
 import { useParams, useSearchParams } from 'next/navigation';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterComponent } from "@/components/ui/table";
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -251,10 +251,9 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                         const bankAccountName = accountsToDisplay.find(a => a.id === tx.bankAccountId)?.description || 'Bank';
                         vatEntry.transactions.push({
                             id: tx.id,
-                            isJournal,
-                            date: txDate,
                             description: `VAT on ${tx.description} (Bank: ${bankAccountName})`,
                             ref: tx.reference,
+                            date: txDate,
                             debit: inclusiveAmount < 0 ? -vatAmount : 0, // Debit for purchases (input)
                             credit: inclusiveAmount > 0 ? vatAmount : 0, // Credit for sales (output)
                         });

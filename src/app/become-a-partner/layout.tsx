@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Layout for the Become a Partner flow.
+ * Forces dynamic rendering to ensure fresh content delivery.
+ */
 import { ReactNode } from 'react';
 
 export const dynamic = 'force-dynamic';

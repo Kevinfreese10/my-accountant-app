@@ -1,10 +1,8 @@
 'use server';
 /**
- * @fileOverview An AI agent for extracting transaction data from bank statements (PDF or OCR).
+ * @fileOverview An AI agent for extracting transaction data from bank statements.
  *
  * - extractStatementData - A function that takes a bank statement and returns structured transaction data.
- * - ExtractStatementDataInput - The input type for the extractStatementData function.
- * - ExtractStatementDataOutput - The return type for the extractStatementData function.
  */
 
 import { ai } from '@/ai/genkit';
