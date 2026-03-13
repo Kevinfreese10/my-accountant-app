@@ -26,7 +26,7 @@ const navLinks = [
   { href: '/compliance', label: 'Compliance' },
   { href: '/sars-compromise', label: 'SARS Compromise' },
   { href: '/liquidations', label: 'Liquidations' },
-  { href: '/become-a-partner', label: 'Become a Partner' },
+  { href: '/BEI', label: 'Become a Partner' },
   { href: '/contact', label: 'Contact' },
 ];
 
@@ -57,7 +57,6 @@ const Header = () => {
             <nav className="hidden items-center gap-6 text-sm font-medium lg:flex">
               {navLinks.map(link => (
                 <Link key={link.href} href={link.href} className="text-foreground/80 transition-colors hover:text-foreground flex items-center gap-1.5">
-                  {link.icon && <link.icon className="h-4 w-4" />}
                   {link.label}
                 </Link>
               ))}
@@ -106,7 +105,6 @@ const Header = () => {
                     </Link>
                      {navLinks.map(link => (
                       <Link key={link.href} href={link.href} className="text-lg font-medium text-foreground/80 transition-colors hover:text-foreground flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
-                        {link.icon && <link.icon className="h-5 w-5" />}
                         {link.label}
                       </Link>
                     ))}

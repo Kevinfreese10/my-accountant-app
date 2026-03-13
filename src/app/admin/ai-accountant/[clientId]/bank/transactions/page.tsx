@@ -246,7 +246,6 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                 const description = row.Description;
                 const isExpense = row.Amount < 0;
                 
-                // Only match rules for expenses (amount < 0)
                 const match = isExpense ? allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase()))) : null;
 
                 const txData: any = {
@@ -498,7 +497,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={setOpen}>
             <DialogContent>
                 <DialogHeader><DialogTitle>Create New Ledger Account</DialogTitle></DialogHeader>
                 <Form {...form}>

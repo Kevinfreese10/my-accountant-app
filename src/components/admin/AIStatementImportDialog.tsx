@@ -26,7 +26,7 @@ import { extractStatementChunk } from '@/app/actions';
 import { PDFDocument } from 'pdf-lib';
 import * as XLSX from 'xlsx';
 import { Progress } from '@/components/ui/progress';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const db = getFirestore(firebaseApp);
 
