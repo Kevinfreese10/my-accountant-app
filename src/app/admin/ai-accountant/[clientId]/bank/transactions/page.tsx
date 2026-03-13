@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "react-hook-form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from 'react-hook-form';
@@ -378,7 +378,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
     client: User | null;
     onRuleCreated: () => void;
     open: boolean;
-    onOpenChange: (isOpen: boolean) => void;
+    onOpenChange: (open: boolean) => void;
     defaultValues: Partial<z.infer<typeof ruleFormSchema>>;
     transactionDescription: string | null;
     existingRules: AllocationRule[];
@@ -497,7 +497,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
     };
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader><DialogTitle>Create New Ledger Account</DialogTitle></DialogHeader>
                 <Form {...form}>
@@ -1970,7 +1970,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
 
     const { documents: transactions, isLoading, goToNextPage, goToPreviousPage, canGoNext, canGoPrev, currentPage, refetch } = usePaginatedFirestore<ImportedTransaction>({ baseQuery, pageSize: PAGE_SIZE });
 
-    // Reset selection when changing filters or page
+    // Reset page when changing filters or page
     useEffect(() => {
         setSelectedTransactions([]);
     }, [activeSubTab, selectedGlAccountId, currentPage]);
