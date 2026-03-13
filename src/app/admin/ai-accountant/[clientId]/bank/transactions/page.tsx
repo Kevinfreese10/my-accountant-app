@@ -1718,7 +1718,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         Recheck Rules
                     </Button>
                     <Button variant="outline" onClick={handleSaveDrafts} disabled={isSavingDrafts || groups.length === 0} className="border-primary/30 text-primary hover:bg-primary/5">
-                        {isSavingDrafts ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
+                        {isSavingDrafts ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         Save Drafts
                     </Button>
                     {isCurrentlyProcessing && (
@@ -2511,7 +2511,7 @@ export default function BankTransactionsPage() {
     const handleEditAccount = async (newName: string) => {
         if (!client || !accountId) return;
         try {
-            const updatedCOA = (client.chartOfAccounts || []).map(acc => acc.id === accountId ? { ...acc, description: name } : acc);
+            const updatedCOA = (client.chartOfAccounts || []).map(acc => acc.id === accountId ? { ...acc, description: newName } : acc);
             await updateDoc(doc(db, 'aiAccountantClients', client.uid), { chartOfAccounts: updatedCOA });
             toast({ title: "Account Updated" });
             fetchClientData();
