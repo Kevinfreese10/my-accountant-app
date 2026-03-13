@@ -468,7 +468,7 @@ export default function AIStatementImportDialog({
                             <>
                                 <AlertTriangle className="h-6 w-6 text-destructive" />
                                 <p className="text-xs font-bold text-destructive">Recon Mismatch</p>
-                                <p className="text-[10px] text-muted-foreground">Diff: {formatPrice(calculatedRecon?.diff || 0)}</p>
+                                <p className="text-muted-foreground text-[10px]">Diff: {formatPrice(calculatedRecon?.diff || 0)}</p>
                             </>
                         )}
                     </div>
@@ -563,7 +563,7 @@ export default function AIStatementImportDialog({
                 </div>
               </div>
             ) : (
-              <div className="h-[500px] flex flex-col items-center justify-center h-full text-center space-y-4 border-2 border-dashed rounded-xl bg-muted/5 p-8">
+              <div className="flex h-[500px] flex-col items-center justify-center text-center space-y-4 border-2 border-dashed rounded-xl bg-muted/5 p-8">
                 <FileText className="h-16 w-16 opacity-10" />
                 <p className="text-lg font-bold">Ready for Analysis</p>
                 <p className="text-sm text-muted-foreground max-w-sm">Upload a PDF statement to begin automated extraction and reconciliation.</p>

@@ -1,12 +1,5 @@
 'use client';
 
-/**
- * Force dynamic rendering to ensure the latest changes are always served
- * after a publish, bypassing any stale CDN or build-time caches.
- */
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
