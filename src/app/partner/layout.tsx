@@ -9,6 +9,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { getFirestore, doc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { LapsedSubscriptionScreen } from '@/components/partner/LapsedSubscriptionScreen';
+import { PendingSetupScreen } from '@/components/partner/PendingSetupScreen';
 
 const db = getFirestore(firebaseApp);
 
@@ -26,7 +27,7 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const performBillingCheck = async () => {
-        if (!user || user.role !== 'partner') {
+        if (!user || user.role !== 'partner' || user.status === 'Pending Setup Payment') {
             setIsBillingCheck(false);
             return;
         }
@@ -85,6 +86,7 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
   }
 
   const isLapsed = user?.subscription?.subscriptionStatus === 'lapsed';
+  const isPendingSetup = user?.status === 'Pending Setup Payment';
 
   return (
     <ProtectedRoute>
@@ -101,7 +103,11 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
                       <SidebarTrigger className="md:hidden" />
                   </div>
 
-                  {isLapsed ? (
+                  {isPendingSetup ? (
+                      <div className="flex items-center justify-center min-h-[70vh]">
+                        <PendingSetupScreen user={user} />
+                      </div>
+                  ) : isLapsed ? (
                       <div className="flex items-center justify-center min-h-[70vh]">
                         <LapsedSubscriptionScreen user={user} />
                       </div>
