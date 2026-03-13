@@ -32,12 +32,18 @@ function toErrorMessage(x: unknown): string {
       if (typeof anyX.message === "string") return anyX.message;
       if (typeof anyX.error === "string") return anyX.error;
       
-      const stringified = JSON.stringify(x);
-      if (stringified !== '{}' && stringified !== '[]') return stringified;
+      try {
+        const stringified = JSON.stringify(x);
+        if (stringified && stringified !== '{}' && stringified !== '[]') {
+            return stringified;
+        }
+      } catch {
+          // Ignore stringification errors
+      }
     }
     
     const fallback = String(x);
-    return fallback !== "[object Object]" ? fallback : "An unexpected error occurred.";
+    return (fallback && fallback !== "[object Object]") ? fallback : "An unexpected error occurred.";
   } catch {
     return "Something went wrong while generating the invoice.";
   }
