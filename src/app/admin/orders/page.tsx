@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -92,7 +91,9 @@ export default function AdminOrdersPage() {
         console.error("Error fetching staff:", error);
     });
 
-    const ordersQuery = query(collection(db, 'orders'), orderBy('date', 'desc'));
+    const ordersRef = collection(db, 'orders');
+    const ordersQuery = query(ordersRef, orderBy('date', 'desc'));
+    
     const unsubscribe = onSnapshot(ordersQuery, async (snapshot) => {
         const fetchedOrders = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -118,7 +119,19 @@ export default function AdminOrdersPage() {
             return order;
         }));
         
-        setOrders(ordersWithClientDetails.filter(order => order.status !== 'Cancelled'));
+        // ADMIN VISIBILITY LOGIC:
+        // 1. Direct Customer Orders (resellerId is null or empty)
+        // 2. Explicitly Outsourced Work (resellerId IS set AND originalOrderId IS set)
+        // 3. HIDE: Internal Partner Orders (resellerId IS set AND originalOrderId IS NULL)
+        const visibleOrders = ordersWithClientDetails.filter(order => {
+            const isDirectOrder = !order.resellerId;
+            const isOutsourcedWork = !!(order.resellerId && order.originalOrderId);
+            const isCancelled = order.status === 'Cancelled';
+            
+            return (isDirectOrder || isOutsourcedWork) && !isCancelled;
+        });
+
+        setOrders(visibleOrders);
         setIsLoading(false);
     }, (error) => {
         console.error("Error fetching orders in real-time:", error);
