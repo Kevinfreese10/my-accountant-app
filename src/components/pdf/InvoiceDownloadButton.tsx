@@ -19,26 +19,26 @@ interface InvoiceDownloadButtonProps {
 function toErrorMessage(x: unknown): string {
   try {
     if (typeof x === "string") return x;
-    if (!x) return "An unexpected error occurred.";
+    if (x === null || x === undefined) return "An unexpected error occurred.";
     
+    // Check if it looks like a React element or complex object
     const anyX = x as any;
-
-    // Specifically catch React elements or objects with React-like properties
-    // which cause Error #31 when rendered as children in the toast.
     if (anyX.$$typeof || anyX._owner || anyX.props) {
       return "A service error occurred (rendering element detected).";
     }
 
     if (x instanceof Error) {
-      return typeof x.message === "string" ? x.message : String(x.message);
+      return x.message || "An unknown error occurred.";
     }
     
     if (typeof x === "object") {
+      // Try common error fields
       if (typeof anyX.message === "string") return anyX.message;
       if (typeof anyX.error === "string") return anyX.error;
       
+      // Force stringification
       const stringified = JSON.stringify(x);
-      return (stringified && stringified !== '{}') ? stringified : String(x);
+      return (stringified && stringified !== '{}') ? stringified : "Unknown error object";
     }
     
     return String(x);
