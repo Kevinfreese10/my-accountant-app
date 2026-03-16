@@ -217,6 +217,70 @@ export default function BEIPage() {
         </div>
       </section>
 
+      <section className="container mx-auto px-4 scroll-m-20">
+        <div className="max-w-4xl mx-auto space-y-8">
+            <div className="text-center space-y-4">
+                <h2 className="text-3xl font-bold text-slate-900">About the Bookkeeper Empowerment Initiative</h2>
+                <Separator className="w-24 mx-auto border-b-2 border-primary/30" />
+            </div>
+            
+            <div className="space-y-6 text-lg text-muted-foreground leading-relaxed">
+                <p>
+                    Most bookkeeping and accounting firms stop growing for one simple reason: <span className="font-bold text-slate-950">capacity</span>.
+                </p>
+                <p>
+                    You may already have the clients and the demand, but expanding your services normally means hiring staff, building systems, investing in a website, and taking on significant operational risk.
+                </p>
+                <p className="font-bold text-slate-950">
+                    The Bookkeeper Empowerment Initiative (BEI) was created to remove these barriers.
+                </p>
+                <p>
+                    BEI gives bookkeepers and accountants the tools to scale their practice immediately without hiring staff or investing thousands into technology.
+                </p>
+                <p>
+                    Through the program, partners receive access to a fully operational online accounting store and CRM platform, allowing them to start offering professional accounting, tax, and compliance services to their clients right away. There is no need to build a website, develop an ordering system, or create complex internal workflows — everything is already built and ready to use.
+                </p>
+                <p>
+                    <span className="font-bold text-slate-950">More importantly, BEI ensures that you never have to turn away work again.</span>
+                </p>
+                <p>
+                    If a client requires a service that you do not have the time, staff, or expertise to deliver, the work can be white-label outsourced through our platform while you remain the primary relationship holder. Your client continues to see you as their trusted advisor while the work is completed by experienced professionals behind the scenes.
+                </p>
+                <p>
+                    Our philosophy has always been clear: <span className="italic font-medium text-slate-900">A client referred elsewhere is often a client lost.</span>
+                </p>
+                <p className="font-bold text-slate-950">
+                    The Bookkeeper Empowerment Initiative ensures that every opportunity stays within your practice.
+                </p>
+                <p>
+                    As the BEI network grows, the platform evolves into a collaborative ecosystem of accounting professionals. Partners can outsource work to My Accountant, and they can also receive outsourced work from other partners within the network — creating new revenue opportunities across the entire community.
+                </p>
+                
+                <div className="bg-slate-50 p-8 rounded-2xl border space-y-4">
+                    <p className="font-bold text-slate-900">The result is a powerful platform that allows accounting professionals to:</p>
+                    <ul className="space-y-3">
+                        <li className="flex items-center gap-3 font-medium text-slate-800">
+                            <CheckCircle2 className="h-5 w-5 text-primary" /> Expand their service offering instantly
+                        </li>
+                        <li className="flex items-center gap-3 font-medium text-slate-800">
+                            <CheckCircle2 className="h-5 w-5 text-primary" /> Accept more clients with confidence
+                        </li>
+                        <li className="flex items-center gap-3 font-medium text-slate-800">
+                            <CheckCircle2 className="h-5 w-5 text-primary" /> Increase revenue without increasing staff
+                        </li>
+                        <li className="flex items-center gap-3 font-medium text-slate-800">
+                            <CheckCircle2 className="h-5 w-5 text-primary" /> Retain clients by never turning work away
+                        </li>
+                    </ul>
+                </div>
+
+                <p className="text-center font-bold text-slate-950 text-xl pt-4">
+                    BEI is more than a partner program. It is a growth platform designed to help accountants scale their practices faster, smarter, and with far less risk.
+                </p>
+            </div>
+        </div>
+      </section>
+
       <section className="bg-slate-50 py-24 border-y">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16 space-y-4">
