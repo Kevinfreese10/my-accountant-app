@@ -4,24 +4,191 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus, CheckCircle2, Circle, Info } from 'lucide-react';
+import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus, CheckCircle2, Circle, Info, FileText, Download, Briefcase, GraduationCap, Globe } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { User } from '@/lib/types';
-import { getFirestore, collection, getDocs, doc, deleteDoc, query, where, updateDoc, increment } from 'firebase/firestore';
+import { User, Service } from '@/lib/types';
+import { getFirestore, collection, getDocs, doc, deleteDoc, query, where, updateDoc, increment, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const db = getFirestore(firebaseApp);
+
+function PartnerProfileDialog({ 
+    partner, 
+    allServices, 
+    open, 
+    onOpenChange 
+}: { 
+    partner: User | null, 
+    allServices: Service[], 
+    open: boolean, 
+    onOpenChange: (open: boolean) => void 
+}) {
+    if (!partner) return null;
+
+    const expertise = partner.capableServices?.map(id => allServices.find(s => s.id === id)?.title).filter(Boolean) || [];
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+                <DialogHeader className="p-6 bg-primary/5 border-b">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <DialogTitle className="text-2xl font-bold">{partner.companyName || partner.name}</DialogTitle>
+                            <DialogDescription>Professional Practice Profile</DialogDescription>
+                        </div>
+                        <Badge variant={partner.status === 'Active' ? 'success' : 'secondary'} className="uppercase font-bold">
+                            {partner.status}
+                        </Badge>
+                    </div>
+                </DialogHeader>
+                
+                <ScrollArea className="flex-grow p-6">
+                    <div className="space-y-8 pb-4">
+                        {/* Application Status */}
+                        <section className="space-y-4">
+                            <div className="flex items-center gap-2 text-primary font-bold uppercase text-[10px] tracking-widest">
+                                <Briefcase className="h-3.5 w-3.5" /> Outsourcing Application
+                            </div>
+                            <div className={cn(
+                                "p-4 rounded-xl border flex items-start gap-4",
+                                partner.wantsOutsourcedWork ? "bg-green-50 border-green-100" : "bg-muted border-muted"
+                            )}>
+                                <div className={cn(
+                                    "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
+                                    partner.wantsOutsourcedWork ? "bg-green-100 text-green-600" : "bg-slate-200 text-slate-400"
+                                )}>
+                                    {partner.wantsOutsourcedWork ? <CheckCircle2 className="h-6 w-6" /> : <XCircle className="h-6 w-6" />}
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="font-bold text-sm">
+                                        {partner.wantsOutsourcedWork ? 'Applied for Overflow Program' : 'Internal Management Only'}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                        {partner.wantsOutsourcedWork 
+                                            ? 'This practice is seeking outsourced work from the My Accountant network.' 
+                                            : 'This practice only uses the platform to manage their own clients.'}
+                                    </p>
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Verified Documents */}
+                        {partner.wantsOutsourcedWork && (
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 text-primary font-bold uppercase text-[10px] tracking-widest">
+                                    <FileText className="h-3.5 w-3.5" /> Compliance Documents
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <Card className="shadow-sm border-dashed">
+                                        <CardContent className="p-4 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 bg-blue-50 text-blue-600 rounded flex items-center justify-center"><FileText className="h-4 w-4" /></div>
+                                                <span className="text-xs font-semibold">Professional CV</span>
+                                            </div>
+                                            {partner.cvUrl ? (
+                                                <Button size="xs" variant="outline" className="h-7" asChild>
+                                                    <a href={partner.cvUrl} target="_blank" rel="noopener noreferrer"><Download className="h-3 w-3 mr-1" /> View</a>
+                                                </Button>
+                                            ) : <Badge variant="secondary" className="text-[10px] opacity-50">Missing</Badge>}
+                                        </CardContent>
+                                    </Card>
+                                    <Card className="shadow-sm border-dashed">
+                                        <CardContent className="p-4 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 bg-purple-50 text-purple-600 rounded flex items-center justify-center"><GraduationCap className="h-4 w-4" /></div>
+                                                <span className="text-xs font-semibold">Certificates</span>
+                                            </div>
+                                            {partner.certificateUrl ? (
+                                                <Button size="xs" variant="outline" className="h-7" asChild>
+                                                    <a href={partner.certificateUrl} target="_blank" rel="noopener noreferrer"><Download className="h-3 w-3 mr-1" /> View</a>
+                                                </Button>
+                                            ) : <Badge variant="secondary" className="text-[10px] opacity-50">Missing</Badge>}
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            </section>
+                        )}
+
+                        {/* Service Expertise */}
+                        {expertise.length > 0 && (
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 text-primary font-bold uppercase text-[10px] tracking-widest">
+                                    <Globe className="h-3.5 w-3.5" /> Capabilities & Expertise
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {expertise.map((item, idx) => (
+                                        <Badge key={idx} variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                                            {item}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+
+                        <Separator />
+
+                        {/* Contact & Banking */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <section className="space-y-3">
+                                <h4 className="text-xs font-black uppercase text-muted-foreground tracking-widest">Contact Details</h4>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Owner:</span>
+                                        <span className="font-semibold">{partner.contactPerson || partner.name}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Email:</span>
+                                        <span className="font-semibold">{partner.email}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Cell:</span>
+                                        <span className="font-semibold">{partner.contactNumber || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            </section>
+                            <section className="space-y-3">
+                                <h4 className="text-xs font-black uppercase text-muted-foreground tracking-widest">Banking (For Payouts)</h4>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Bank:</span>
+                                        <span className="font-semibold">{partner.bankingDetails?.bankName || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Account:</span>
+                                        <span className="font-semibold">{partner.bankingDetails?.accountNumber || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </ScrollArea>
+                
+                <DialogFooter className="p-6 border-t bg-muted/30">
+                    <Button variant="ghost" onClick={() => onOpenChange(false)}>Close Profile</Button>
+                    {partner.landingPage?.slug && (
+                        <Button asChild className="gap-2">
+                            <Link href={`/p/${partner.landingPage.slug}`} target="_blank">
+                                View Landing Page <ExternalLink className="h-4 w-4" />
+                            </Link>
+                        </Button>
+                    )}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function ManualCreditDialog({ partner, onUpdate, open, onOpenChange }: { partner: User | null, onUpdate: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
     const [amount, setAmount] = useState<string>('');
@@ -93,28 +260,37 @@ function ManualCreditDialog({ partner, onUpdate, open, onOpenChange }: { partner
 
 export default function AdminPartnersPage() {
   const [partners, setPartners] = useState<User[]>([]);
+  const [allServices, setAllServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPartnerForCredits, setSelectedPartnerForCredits] = useState<User | null>(null);
+  const [selectedPartnerForProfile, setSelectedPartnerForProfile] = useState<User | null>(null);
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const fetchPartners = async () => {
+  const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-        const q = query(collection(db, "users"), where('role', '==', 'partner'));
-        const querySnapshot = await getDocs(q);
-        const fetchedPartners = querySnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
-        setPartners(fetchedPartners);
+        const partnerQuery = query(collection(db, "users"), where('role', '==', 'partner'));
+        const servicesQuery = query(collection(db, "services"));
+        
+        const [partnerSnap, servicesSnap] = await Promise.all([
+            getDocs(partnerQuery),
+            getDocs(servicesQuery)
+        ]);
+
+        setPartners(partnerSnap.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User)));
+        setAllServices(servicesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service)));
     } catch (error) {
-        console.error("Error fetching partners:", error);
-        toast({ title: 'Error', description: 'Could not fetch partners from the database.', variant: 'destructive'});
+        console.error("Error fetching admin data:", error);
+        toast({ title: 'Error', description: 'Could not load practice records.', variant: 'destructive'});
     } finally {
         setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchPartners();
+    fetchInitialData();
   }, []);
 
   const getSetupChecklist = (p: User) => {
@@ -137,7 +313,7 @@ export default function AdminPartnersPage() {
   const handleDelete = async (partnerId: string) => {
     try {
         await deleteDoc(doc(db, "users", partnerId));
-        fetchPartners();
+        fetchInitialData();
         toast({
             title: 'Partner Deleted',
             description: 'The partner has been removed from Firestore.',
@@ -173,7 +349,14 @@ export default function AdminPartnersPage() {
         partner={selectedPartnerForCredits}
         open={isCreditDialogOpen}
         onOpenChange={setIsCreditDialogOpen}
-        onUpdate={fetchPartners}
+        onUpdate={fetchInitialData}
+      />
+
+      <PartnerProfileDialog 
+        partner={selectedPartnerForProfile}
+        allServices={allServices}
+        open={isProfileDialogOpen}
+        onOpenChange={setIsProfileDialogOpen}
       />
 
       <Card>
@@ -208,7 +391,7 @@ export default function AdminPartnersPage() {
                   <TableCell className="font-medium">{partner.companyName}</TableCell>
                   <TableCell>
                       <div className="flex flex-col">
-                          <span>{partner.contactPerson}</span>
+                          <span>{partner.contactPerson || partner.name}</span>
                           <span className="text-[10px] text-muted-foreground">{partner.email}</span>
                       </div>
                   </TableCell>
@@ -257,13 +440,16 @@ export default function AdminPartnersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => { setSelectedPartnerForProfile(partner); setIsProfileDialogOpen(true); }}>
+                                <FileText className="mr-2 h-4 w-4" /> View Profile & Docs
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setSelectedPartnerForCredits(partner); setIsCreditDialogOpen(true); }}>
                                 <Wallet2 className="mr-2 h-4 w-4" /> Manage Credits
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                              <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-destructive">
-                                    Delete
+                                    Delete Partner
                                 </DropdownMenuItem>
                             </AlertDialogTrigger>
                         </DropdownMenuContent>
@@ -276,21 +462,11 @@ export default function AdminPartnersPage() {
                                 <span className="font-semibold"> {partner.companyName}</span>. This only removes them from Firestore.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
-                            <AlertDialogFooter className="flex-col gap-4 sm:flex-row">
-                                <Accordion type="single" collapsible className="w-full">
-                                    <AccordionItem value="delete-warning" className="border-0">
-                                        <AccordionTrigger className="text-destructive py-0 hover:no-underline font-semibold text-xs">Advanced Warning</AccordionTrigger>
-                                        <AccordionContent className="pt-2 text-xs">
-                                            Deleting this user profile does not remove their account from Firebase Authentication. You must manually remove them from the Firebase Console if you wish to prevent future logins.
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                </Accordion>
-                                <div className="flex gap-2">
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDelete(partner.uid)}>
-                                        Continue
-                                    </AlertDialogAction>
-                                </div>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(partner.uid)}>
+                                    Continue
+                                </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
@@ -304,4 +480,25 @@ export default function AdminPartnersPage() {
       </Card>
     </div>
   );
+}
+
+function XCircle(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="m15 9-6 6" />
+      <path d="m9 9 6 6" />
+    </svg>
+  )
 }
