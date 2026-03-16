@@ -1,10 +1,10 @@
 
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus } from 'lucide-react';
+import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus, CheckCircle2, Circle, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -17,6 +17,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
@@ -114,6 +117,23 @@ export default function AdminPartnersPage() {
     fetchPartners();
   }, []);
 
+  const getSetupChecklist = (p: User) => {
+      return [
+          { label: 'SMTP', done: !!(p.smtpDetails?.host && p.smtpDetails?.user) },
+          { label: 'AI Key', done: !!p.geminiApiKey },
+          { label: 'Bank Info', done: !!(p.bankingDetails?.bankName && p.bankingDetails?.accountNumber) },
+          { label: 'Landing Page', done: !!(p.landingPage?.enabled && p.landingPage?.slug) },
+          { label: 'Branding', done: p.landingPage?.themePreset !== 'custom' || p.landingPage?.primaryColor !== '#214392' },
+          { label: 'Content', done: (p.landingPage?.aboutUs?.length || 0) > 50 },
+      ];
+  };
+
+  const calculateProgress = (p: User) => {
+      const list = getSetupChecklist(p);
+      const completed = list.filter(i => i.done).length;
+      return Math.round((completed / list.length) * 100);
+  };
+
   const handleDelete = async (partnerId: string) => {
     try {
         await deleteDoc(doc(db, "users", partnerId));
@@ -159,7 +179,7 @@ export default function AdminPartnersPage() {
       <Card>
         <CardHeader>
           <CardTitle>All Partners</CardTitle>
-          <CardDescription>View and manage all approved partner accounts and their wallet balances.</CardDescription>
+          <CardDescription>View and manage all approved partner accounts and their setup progress.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -172,20 +192,54 @@ export default function AdminPartnersPage() {
               <TableRow>
                 <TableHead>Company Name</TableHead>
                 <TableHead>Contact Person</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead>Setup Progress</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Wallet Balance</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {partners.map(partner => (
+              {partners.map(partner => {
+                const progress = calculateProgress(partner);
+                const checklist = getSetupChecklist(partner);
+                
+                return (
                 <TableRow key={partner.uid}>
                   <TableCell className="font-medium">{partner.companyName}</TableCell>
-                  <TableCell>{partner.contactPerson}</TableCell>
-                  <TableCell>{partner.email}</TableCell>
                   <TableCell>
-                      <Badge variant={partner.status === 'Active' ? 'success' : 'secondary'}>
+                      <div className="flex flex-col">
+                          <span>{partner.contactPerson}</span>
+                          <span className="text-[10px] text-muted-foreground">{partner.email}</span>
+                      </div>
+                  </TableCell>
+                  <TableCell className="w-[200px]">
+                      <TooltipProvider>
+                          <Tooltip>
+                              <TooltipTrigger asChild>
+                                  <div className="space-y-1.5 cursor-help">
+                                      <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground uppercase">
+                                          <span>Configuration</span>
+                                          <span className={cn(progress === 100 ? "text-green-600" : "text-primary")}>{progress}%</span>
+                                      </div>
+                                      <Progress value={progress} className="h-1.5" />
+                                  </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="w-64 p-0 overflow-hidden" side="bottom">
+                                  <div className="bg-muted/50 p-2 border-b text-[10px] font-black uppercase tracking-widest text-muted-foreground">Setup Checklist</div>
+                                  <div className="p-2 space-y-1.5">
+                                      {checklist.map((item, i) => (
+                                          <div key={i} className="flex items-center gap-2 text-xs">
+                                              {item.done ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <Circle className="h-3 w-3 text-muted-foreground opacity-30" />}
+                                              <span className={cn(item.done ? "text-foreground" : "text-muted-foreground")}>{item.label}</span>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </TooltipContent>
+                          </Tooltip>
+                      </TooltipProvider>
+                  </TableCell>
+                  <TableCell>
+                      <Badge variant={partner.status === 'Active' ? 'success' : 'secondary'} className="text-[10px] uppercase font-bold">
                           {partner.status}
                       </Badge>
                   </TableCell>
@@ -242,7 +296,7 @@ export default function AdminPartnersPage() {
                     </AlertDialog>
                   </TableCell>
                 </TableRow>
-              ))}
+              )})}
             </TableBody>
           </Table>
           )}
