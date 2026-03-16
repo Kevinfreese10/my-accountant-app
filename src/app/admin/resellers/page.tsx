@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus, CheckCircle2, Circle, Info, FileText, Download, Briefcase, GraduationCap, Globe } from 'lucide-react';
+import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus, CheckCircle2, Circle, Info, FileText, Download, Briefcase, GraduationCap, Globe, Mail, ExternalLink, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -13,7 +13,7 @@ import { getFirestore, collection, getDocs, doc, deleteDoc, query, where, update
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -21,6 +21,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAuth } from '@/contexts/AuthContext';
+import { sendEmail } from '@/lib/email';
 
 const db = getFirestore(firebaseApp);
 
@@ -267,6 +269,7 @@ export default function AdminPartnersPage() {
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
 
   const fetchInitialData = async () => {
     setIsLoading(true);
@@ -308,6 +311,35 @@ export default function AdminPartnersPage() {
       const list = getSetupChecklist(p);
       const completed = list.filter(i => i.done).length;
       return Math.round((completed / list.length) * 100);
+  };
+
+  const handleSendAssistanceEmail = async (partner: User) => {
+    if (!currentUser) return;
+    
+    toast({ title: 'Sending...', description: `Drafting assistance offer for ${partner.email}.` });
+    
+    try {
+        await sendEmail({
+            to: partner.email,
+            subject: `Do you need assistance with your ${partner.companyName || 'practice'} setup?`,
+            html: `
+                <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+                    <p>Hi ${partner.contactPerson?.split(' ')[0] || partner.name.split(' ')[0]},</p>
+                    <p>I hope you're having a great week.</p>
+                    <p>I noticed that your practice setup on the My Accountant BEI platform isn't quite complete yet. I'm reaching out to see if you need any assistance with the configuration, such as setting up your white-label SMTP server, your Gemini AI Key, or customizing your practice landing page.</p>
+                    <p>Our goal is to make sure you have everything you need to start scaling your firm efficiently. If you have any questions or would like a quick walkthrough of the dashboard features, please feel free to reply to this email or give us a call.</p>
+                    <br/>
+                    <p>Regards,</p>
+                    <p><strong>${currentUser.name}</strong><br/>My Accountant Support Team</p>
+                </div>
+            `,
+            replyTo: currentUser.email,
+        });
+        toast({ title: 'Email Sent', description: `Assistance offer sent to ${partner.email}.` });
+    } catch (error) {
+        console.error("Failed to send assistance email:", error);
+        toast({ title: 'Email Failed', description: 'Could not send the assistance email.', variant: 'destructive' });
+    }
   };
 
   const handleDelete = async (partnerId: string) => {
@@ -443,6 +475,9 @@ export default function AdminPartnersPage() {
                             <DropdownMenuItem onClick={() => { setSelectedPartnerForProfile(partner); setIsProfileDialogOpen(true); }}>
                                 <FileText className="mr-2 h-4 w-4" /> View Profile & Docs
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleSendAssistanceEmail(partner)}>
+                                <Mail className="mr-2 h-4 w-4" /> Send Assistance Email
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setSelectedPartnerForCredits(partner); setIsCreditDialogOpen(true); }}>
                                 <Wallet2 className="mr-2 h-4 w-4" /> Manage Credits
                             </DropdownMenuItem>
@@ -480,25 +515,4 @@ export default function AdminPartnersPage() {
       </Card>
     </div>
   );
-}
-
-function XCircle(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="m15 9-6 6" />
-      <path d="m9 9 6 6" />
-    </svg>
-  )
 }
