@@ -107,11 +107,17 @@ const featureBenefits = [
         icon: Globe,
         feature: 'Custom Practice Landing Page',
         benefit: 'Get a 24/7 online store with 50+ re-branded services. Let your clients browse, order, and pay while you sleep.',
+        link: 'https://www.myacc.co.za/p/interscope'
     },
     {
         icon: Users,
         feature: 'Elastic Outsourcing Capacity',
         benefit: 'Never say "no" to a complex project again. Confidently scale your business capacity by leveraging our expert backend team.',
+    },
+    {
+        icon: UserPlus,
+        feature: 'Team & Staff Management',
+        benefit: 'Build your firm with up to 3 free additional staff users. Easily assign tasks, track progress, and manage internal project workflows.',
     },
     {
         icon: GraduationCap,
@@ -124,11 +130,6 @@ const featureBenefits = [
         benefit: 'Never miss a SARS or CIPC deadline again. The system automatically monitors your client requirements and creates tasks for your team.',
     },
     {
-        icon: FileText,
-        feature: 'Professional Template Library',
-        benefit: 'Save hundreds of hours with ready-to-use, legally compliant engagement letters, contracts, and pricing schedules.',
-    },
-    {
         icon: Scale,
         feature: 'Flexible Pricing Control',
         benefit: 'Total control over your client-facing prices. Set your own markup on services while our underlying wholesale cost remains fixed.',
@@ -137,12 +138,12 @@ const featureBenefits = [
 
 const faqs = [
     {
-        question: "Is it really free to join?",
-        answer: "Yes! There are no setup fees or monthly subscription costs to join the Bookkeeper Empowerment Initiative. We provide the dashboard and white-label tools for free."
-    },
-    {
         question: "How does the outsourcing work?",
         answer: "When you have an order you want us to handle, you submit it through your dashboard. We charge you the discounted wholesale price (25% off our retail rates), and we complete the work behind the scenes. You remain the primary contact for your client."
+    },
+    {
+        question: "Is it really free to join?",
+        answer: "Yes! There are no setup fees or monthly subscription costs to join the Bookkeeper Empowerment Initiative. We provide the professional dashboard and white-label tools for free."
     },
     {
         question: "Do I need to be a registered accountant?",
@@ -150,11 +151,11 @@ const faqs = [
     },
     {
         question: "How do I pay for outsourced services?",
-        answer: "You load credits into your Practice Wallet via PayFast. When you outsource an order, the wholesale cost is deducted from your credit balance. This ensures a smooth, prepaid workflow for all statutory submissions."
+        answer: "You load credits into your Practice Wallet via PayFast. When you outsource an order, the wholesale cost is deducted from your credit balance. This ensures a smooth, prepaid workflow."
     },
     {
         question: "Can I set my own prices?",
-        answer: "Absolutely. As a Full BEI Practice, you have total control over your client-facing prices. Our wholesale price remains fixed, allowing you to decide your own profit margins."
+        answer: "Absolutely. As a BEI Practice, you have total control over your client-facing prices on your landing page. Our wholesale price remains fixed, allowing you to decide your own profit margins."
     }
 ];
 
@@ -219,9 +220,9 @@ export default function BEIPage() {
       <section className="bg-slate-50 py-24 border-y">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16 space-y-4">
-                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Platform Benefits</Badge>
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Practice Benefits</Badge>
                 <h2 className="text-4xl font-bold tracking-tight text-slate-900">Features vs Benefits</h2>
-                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Build a professional, scalable firm with the BEI professional toolkit.</p>
+                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Everything you need to build a professional, scalable firm.</p>
             </div>
 
             <div className="max-w-5xl mx-auto bg-white rounded-2xl overflow-hidden shadow-2xl border">
@@ -238,9 +239,21 @@ export default function BEIPage() {
                                 </div>
                                 <h3 className="font-bold text-lg text-slate-900">{item.feature}</h3>
                             </div>
-                            <div className="p-6 flex items-start gap-3 bg-white group-hover:bg-transparent transition-colors">
-                                <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
-                                <p className="text-sm text-muted-foreground font-medium leading-relaxed">{item.benefit}</p>
+                            <div className="p-6 flex flex-col items-start gap-1 bg-white group-hover:bg-transparent transition-colors">
+                                <div className="flex items-start gap-3">
+                                    <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                                    <p className="text-sm text-muted-foreground font-medium leading-relaxed">{item.benefit}</p>
+                                </div>
+                                {item.link && (
+                                    <a 
+                                        href={item.link} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="text-primary font-bold text-xs flex items-center gap-1 mt-2 hover:underline ml-8"
+                                    >
+                                        View Example <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -249,7 +262,7 @@ export default function BEIPage() {
 
             <div className="mt-16 text-center">
                 <Button asChild size="lg" className="h-14 px-12 text-lg font-black shadow-xl">
-                    <Link href="/partner-signup">Sign up for Free</Link>
+                    <Link href="/partner-signup">Join for Free</Link>
                 </Button>
             </div>
         </div>
