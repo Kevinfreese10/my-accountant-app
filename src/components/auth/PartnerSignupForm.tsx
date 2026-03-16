@@ -16,14 +16,12 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Briefcase, CheckCircle2, BadgeCheck, UserPlus, FileText } from 'lucide-react';
+import { Loader2, Briefcase, CheckCircle2, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Service, User } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import PartnerWelcomeEmail from '../emails/PartnerWelcomeEmail';
-import { Badge } from '../ui/badge';
-import { cn } from '@/lib/utils';
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -178,6 +176,7 @@ export default function PartnerSignupForm() {
 
             await sendEmail({
                 to: values.email,
+                cc: 'kev@thinkestry.co.za',
                 subject: `Welcome to the My Accountant Partner Program!`,
                 html: emailHtml,
             });

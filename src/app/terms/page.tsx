@@ -54,7 +54,7 @@ export default function TermsAndConditionsPage() {
                         <li>Submit proof of qualification and professional membership for verification;</li>
                         <li>Maintain professional indemnity insurance where applicable.</li>
                     </ul>
-                    <p className="mt-2 text-xs italic">Note: Admission to the overflow program is discretionary and work allocation is merit-based.</p>
+                    <p className="mt-2 text-xs italic">Note: Admission to the overflow program is discretionary and work allocation is merit-based. My Accountant does not guarantee any specific volume of work.</p>
                 </section>
                 <section>
                     <h2 className="text-xl font-semibold text-foreground mb-2">4. Program Fees & Practice Wallet</h2>
