@@ -6,11 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive, Wallet2, TrendingUp, Bot } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive, Wallet2, TrendingUp, Bot, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Order, Service, User, OrderNote } from '@/lib/types';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp, onSnapshot, arrayUnion, increment } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, getDocs, orderBy, query, where, updateDoc, setDoc, Timestamp, onSnapshot, arrayUnion, increment } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -30,6 +30,9 @@ import { getNextOrderId } from '@/lib/sequence';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { render } from '@react-email/components';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import { sendEmail } from '@/lib/email';
 
 const db = getFirestore(firebaseApp);
 
