@@ -92,37 +92,47 @@ function BookDemoDialog() {
     );
 }
 
-const practiceBenefits = [
+const featureBenefits = [
     {
         icon: Percent,
         feature: '25% Wholesale Discount',
-        benefit: 'Increase your profit margins instantly. You buy services at wholesale rates and sell at retail prices, keeping 100% of the markup.'
-    },
-    {
-        icon: Globe,
-        feature: 'Custom Practice Website',
-        benefit: 'Get a 24/7 online store with 60+ re-branded services. Let your clients browse, order, and pay while you maintain your brand identity.'
+        benefit: 'Increase your profit margins instantly. You buy services at wholesale rates and sell at retail prices, keeping 100% of the markup.',
     },
     {
         icon: LayoutDashboard,
-        feature: 'White-Label CRM',
-        benefit: 'Manage your entire practice, staff, and client workflows from a single secure portal that carries your logo and colors.'
+        feature: 'White-Label Dashboard',
+        benefit: 'Manage your entire practice, staff, and client workflows from a single secure portal that carries your branding, not ours.',
     },
     {
-        icon: UserPlus,
-        feature: 'Team & Staff Management',
-        benefit: 'Scale your workforce. Add staff users to assign tasks, manage internal workflows, and track project status.'
+        icon: Globe,
+        feature: 'Custom Practice Landing Page',
+        benefit: 'Get a 24/7 online store with 50+ re-branded services. Let your clients browse, order, and pay while you sleep.',
+    },
+    {
+        icon: Users,
+        feature: 'Elastic Outsourcing Capacity',
+        benefit: 'Never say "no" to a complex project again. Confidently scale your business capacity by leveraging our expert backend team.',
+    },
+    {
+        icon: GraduationCap,
+        feature: 'Mentorship & Professional Support',
+        benefit: 'Direct access to senior Chartered Accountants and tax experts to help you navigate complex client queries and technical hurdles.',
     },
     {
         icon: ClipboardList,
-        feature: 'Automated Task Manager',
-        benefit: 'Never miss a deadline. Automatic roadmap generation based on client compliance needs like VAT and PAYE.'
+        feature: 'Automated Compliance Roadmap',
+        benefit: 'Never miss a SARS or CIPC deadline again. The system automatically monitors your client requirements and creates tasks for your team.',
     },
     {
-        icon: TrendingUp,
-        feature: 'Receive Overflow Work',
-        benefit: 'Grow beyond your own client base. Get access to overflow work from our national network (merit-based for registered members).'
-    }
+        icon: FileText,
+        feature: 'Professional Template Library',
+        benefit: 'Save hundreds of hours with ready-to-use, legally compliant engagement letters, contracts, and pricing schedules.',
+    },
+    {
+        icon: Scale,
+        feature: 'Flexible Pricing Control',
+        benefit: 'Total control over your client-facing prices. Set your own markup on services while our underlying wholesale cost remains fixed.',
+    },
 ];
 
 const faqs = [
@@ -210,24 +220,31 @@ export default function BEIPage() {
         <div className="container mx-auto px-4">
             <div className="text-center mb-16 space-y-4">
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Platform Benefits</Badge>
-                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Why Join the BEI Practice Network?</h2>
-                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Build a professional, scalable firm with zero upfront costs.</p>
+                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Features vs Benefits</h2>
+                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Build a professional, scalable firm with the BEI professional toolkit.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-                {practiceBenefits.map((item, idx) => (
-                    <Card key={idx} className="border-none shadow-md hover:shadow-xl transition-all duration-300 group">
-                        <CardHeader className="pb-2">
-                            <div className="h-12 w-12 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-colors">
-                                <item.icon className="h-6 w-6" />
+            <div className="max-w-5xl mx-auto bg-white rounded-2xl overflow-hidden shadow-2xl border">
+                <div className="grid grid-cols-1 md:grid-cols-2 bg-slate-900 text-white font-black uppercase tracking-widest text-[10px]">
+                    <div className="p-4 border-r border-slate-800 hidden md:block">The Platform Feature</div>
+                    <div className="p-4 hidden md:block">The Business Benefit</div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                    {featureBenefits.map((item, idx) => (
+                        <div key={idx} className="grid grid-cols-1 md:grid-cols-2 group hover:bg-slate-50 transition-colors">
+                            <div className="p-6 md:border-r border-slate-100 flex items-center gap-4">
+                                <div className="h-12 w-12 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center shrink-0 shadow-sm group-hover:bg-primary group-hover:text-white transition-colors">
+                                    <item.icon className="h-6 w-6" />
+                                </div>
+                                <h3 className="font-bold text-lg text-slate-900">{item.feature}</h3>
                             </div>
-                            <CardTitle className="text-xl font-bold text-slate-900">{item.feature}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-sm text-muted-foreground leading-relaxed">{item.benefit}</p>
-                        </CardContent>
-                    </Card>
-                ))}
+                            <div className="p-6 flex items-start gap-3 bg-white group-hover:bg-transparent transition-colors">
+                                <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                                <p className="text-sm text-muted-foreground font-medium leading-relaxed">{item.benefit}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
 
             <div className="mt-16 text-center">
