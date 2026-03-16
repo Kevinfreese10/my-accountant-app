@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { Metadata } from 'next';
@@ -29,53 +28,48 @@ export default function TermsAndConditionsPage() {
             <CardContent className="space-y-6 text-muted-foreground">
                 <section>
                     <h2 className="text-xl font-semibold text-foreground mb-2">1. Introduction</h2>
-                    <p>Welcome to the <strong>Bookkeeper Empowerment Initiative (BEI)</strong>, a program operated by <strong>My Accountant (Pty) Ltd</strong>. By registering as a BEI Partner, accessing your practice dashboard, or outsourcing/accepting work through the BEI platform, you agree to comply with the following Terms and Conditions (“Terms”).</p>
-                    <p className="mt-2">These Terms govern the relationship between <strong>My Accountant</strong>, <strong>BEI Partners</strong>, and <strong>Clients</strong> in connection with:</p>
+                    <p>Welcome to the <strong>Bookkeeper Empowerment Initiative (BEI)</strong>, a program operated by <strong>My Accountant (Pty) Ltd</strong>. By registering as a BEI Partner, accessing your practice dashboard, or outsourcing work through the BEI platform, you agree to comply with the following Terms and Conditions (“Terms”).</p>
+                    <p className="mt-2">These Terms govern the relationship between <strong>My Accountant</strong> and <strong>BEI Partners</strong> in connection with:</p>
                      <ul className="list-disc pl-6 space-y-1 mt-2">
                         <li>The creation and outsourcing of client orders;</li>
                         <li>The use of the white-labeled practice dashboard and landing pages;</li>
-                        <li>Payment, credit management, and subscription billing; and</li>
+                        <li>Tiered benefits and practice credit management; and</li>
                         <li>Compliance with applicable laws, including the <strong>Protection of Personal Information Act (POPIA)</strong>.</li>
                     </ul>
                 </section>
                 <section>
-                    <h2 className="text-xl font-semibold text-foreground mb-2">2. Definitions</h2>
-                     <ul className="list-disc pl-6 space-y-1 mt-2">
-                        <li><strong>“Partner”</strong> means any bookkeeper, accountant, tax practitioner, or consultant approved for the BEI program.</li>
-                        <li><strong>“Practice Wallet”</strong> refers to the prepaid credit balance maintained by the Partner.</li>
-                        <li><strong>“Outsourced Work”</strong> means any order assigned by a Partner to My Accountant for fulfillment.</li>
-                        <li><strong>“Professional Body”</strong> refers to SAICA, SAIT, CIBA, or SAIPA.</li>
+                    <h2 className="text-xl font-semibold text-foreground mb-2">2. Partner Tiers</h2>
+                    <p>The BEI offers two entry levels for practitioners:</p>
+                    <ul className="list-disc pl-6 space-y-2 mt-2">
+                        <li><strong>Starter Partner:</strong> Designed for freelancers and referral-based bookkeepers. Offers a 10% wholesale discount and basic order management. All orders are auto-outsourced to My Accountant.</li>
+                        <li><strong>Full Practice:</strong> Designed for professional firms. Offers a 25% wholesale discount, full white-label tools, staff management, and custom practice landing pages.</li>
                     </ul>
                 </section>
                 <section>
-                    <h2 className="text-xl font-semibold text-foreground mb-2">3. Eligibility for Outsourcing</h2>
-                    <p>While anyone may join the BEI to use the software and tools, <strong>to receive outsourced work from My Accountant</strong>, a Partner must:</p>
+                    <h2 className="text-xl font-semibold text-foreground mb-2">3. Eligibility for Receiving Overflow Work</h2>
+                    <p>While any practitioner may join the BEI, <strong>to receive outsourced work from the My Accountant network</strong>, a Partner must:</p>
                     <ul className="list-disc pl-6 space-y-1 mt-2">
+                        <li>Be on the <strong>Full Practice</strong> tier;</li>
                         <li>Be a registered member in good standing with a recognized Professional Body (SAICA, SAIT, CIBA, or SAIPA);</li>
                         <li>Submit proof of qualification and professional membership for verification;</li>
                         <li>Maintain professional indemnity insurance where applicable.</li>
                     </ul>
+                    <p className="mt-2 text-xs italic">Note: Admission to the overflow program is discretionary and work allocation is merit-based.</p>
                 </section>
                 <section>
                     <h2 className="text-xl font-semibold text-foreground mb-2">4. Program Benefits</h2>
-                    <p>BEI Partners in good standing are entitled to:</p>
-                    <ul className="list-disc pl-6 space-y-1 mt-2">
-                        <li>A <strong>25% Wholesale Discount</strong> on My Accountant’s standard service fees (excluding third-party costs like CIPC or CIDB fees).</li>
-                        <li>A white-labeled practice dashboard and customizable online store.</li>
-                        <li>Automated CRM tools and practice templates.</li>
-                        <li>Mentorship and technical support from senior Chartered Accountants.</li>
-                    </ul>
+                    <p>BEI Partners in good standing are entitled to tiered discounts and platform access as described in their selected model. Full Practices enjoy an enhanced 25% wholesale discount on My Accountant’s standard service fees (excluding third-party costs like CIPC or CIDB fees).</p>
                 </section>
                 <section>
                     <h2 className="text-xl font-semibold text-foreground mb-2">5. Fee Structure & Practice Wallet</h2>
-                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">5.1 Setup Fee & Credits</h3>
-                    <p>Activation of a BEI Partner account requires a <strong>R5,000.00 setup fee</strong>. This entire amount is immediately converted into <strong>Practice Credits</strong> and loaded into the Partner’s wallet. These credits can be used to pay for monthly subscriptions or outsourced services.</p>
+                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">5.1 Free Entry Model</h3>
+                    <p>There is currently <strong>no setup fee or monthly subscription cost</strong> to join the BEI on either the Starter or Full Practice tiers. Access to the basic dashboard and white-label tools is provided free of charge.</p>
                     
-                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">5.2 Monthly Subscription</h3>
-                    <p>A monthly platform fee of <strong>R499.00</strong> is deducted from the Practice Wallet. This covers app hosting, AI tools, and priority partner support. If the wallet balance is insufficient to cover the subscription, access to the dashboard will be restricted until the wallet is topped up.</p>
+                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">5.2 Practice Credits</h3>
+                    <p>Partners load credits into a <strong>Practice Wallet</strong> via PayFast. These credits are used to pay for outsourced services at the applicable wholesale rate. Credits do not expire but are non-refundable once loaded.</p>
 
-                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">5.3 Staff User Billing</h3>
-                    <p>Each practice includes <strong>3 free additional staff users</strong> (plus the practice owner). Any staff members added beyond this limit will be billed at <strong>R45.00 per user, per month</strong>, deducted from the Practice Wallet.</p>
+                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">5.3 Staff User Billing (Full Tier Only)</h3>
+                    <p>Full Practice accounts include <strong>3 free additional staff users</strong>. Any staff members added beyond this limit may be subject to a nominal monthly hosting fee as indicated in the dashboard.</p>
                 </section>
                  <section>
                     <h2 className="text-xl font-semibold text-foreground mb-2">6. White-Labeling & Client Ownership</h2>
@@ -83,14 +77,13 @@ export default function TermsAndConditionsPage() {
                     <ul className="list-disc pl-6 space-y-1 mt-2">
                         <li>All system-generated emails will carry the Partner’s branding.</li>
                         <li>My Accountant will not market directly to the Partner’s clients.</li>
-                        <li>If the Partner configures custom SMTP settings, emails will be sent directly from the Partner’s domain.</li>
+                        <li>The Partner remains the primary point of contact for the client unless direct contact is explicitly enabled (Full Practice only).</li>
                     </ul>
                 </section>
 
                 <section>
                     <h2 className="text-xl font-semibold text-foreground mb-2">7. Refunds & Cancellations</h2>
                     <ul className="list-disc pl-6 space-y-1 mt-2">
-                        <li>The R5,000 setup fee is non-refundable as it is immediately converted into usable practice credits.</li>
                         <li>Outsourced services are non-refundable once work has commenced.</li>
                         <li>Refunds for services not yet started will be credited back to the Practice Wallet, minus a 10% processing fee.</li>
                     </ul>

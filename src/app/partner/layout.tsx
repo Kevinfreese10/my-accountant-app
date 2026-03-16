@@ -25,53 +25,10 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, user, router]);
 
+  // Automated billing check removed - BEI is now free-to-join with zero monthly subscription.
   useEffect(() => {
-    const performBillingCheck = async () => {
-        if (!user || user.role !== 'partner' || user.status === 'Pending Setup Payment') {
-            setIsBillingCheck(false);
-            return;
-        }
-
-        const BASE_SUB = 499;
-        const currentMonthlyTotal = user.subscription?.monthlyTotal || BASE_SUB;
-
-        const now = new Date();
-        const lastBillingDate = user.subscription?.lastBillingDate?.toDate ? user.subscription.lastBillingDate.toDate() : new Date(0);
-        
-        const daysSinceLastBilling = (now.getTime() - lastBillingDate.getTime()) / (1000 * 60 * 60 * 24);
-        const isNewBillingPeriod = daysSinceLastBilling > 28;
-
-        if (isNewBillingPeriod) {
-            const partnerRef = doc(db, 'users', user.uid);
-
-            if ((user.creditBalance || 0) >= currentMonthlyTotal) {
-                try {
-                    await updateDoc(partnerRef, {
-                        creditBalance: increment(-currentMonthlyTotal),
-                        'subscription.lastBillingDate': serverTimestamp(),
-                        'subscription.subscriptionStatus': 'active',
-                        'subscription.monthlyTotal': currentMonthlyTotal
-                    });
-                } catch (e) {
-                    console.error('Automated billing failed:', e);
-                }
-            } else {
-                try {
-                    await updateDoc(partnerRef, {
-                        'subscription.subscriptionStatus': 'lapsed'
-                    });
-                } catch (e) {
-                    console.error('Failed to update lapsed status:', e);
-                }
-            }
-        }
-        setIsBillingCheck(false);
-    };
-
-    if (isAuthenticated && user) {
-        performBillingCheck();
-    }
-  }, [isAuthenticated, user]);
+    setIsBillingCheck(false);
+  }, [user]);
 
   if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'partner' && user?.role !== 'partner_staff')) {
      return (
@@ -85,6 +42,7 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
      );
   }
 
+  // Pending setup and lapsed statuses are deprecated in the free model
   const isLapsed = user?.subscription?.subscriptionStatus === 'lapsed';
   const isPendingSetup = user?.status === 'Pending Setup Payment';
 

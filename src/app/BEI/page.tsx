@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ShieldAlert, ClipboardList, ShoppingBag, CheckCircle, Globe, Scale, Loader2, ExternalLink } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ShieldAlert, ClipboardList, ShoppingBag, CheckCircle, Globe, Scale, Loader2, ExternalLink, UserPlus, Zap } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamicImport from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { saveDemoLead } from '@/app/actions';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const TrustIndexWidget = dynamicImport(() => import('@/components/shared/TrustIndexWidget'), {
   ssr: false,
@@ -92,110 +93,89 @@ function BookDemoDialog() {
     );
 }
 
-const featureBenefits = [
+const comparisonFeatures = [
     {
-        icon: Percent,
-        feature: '25% Wholesale Discount',
-        benefit: 'Increase your profit margins instantly. You buy services at wholesale rates and sell at retail prices, keeping 100% of the markup.',
+        feature: 'Setup Fee',
+        starter: 'R0 (Free)',
+        full: 'R0 (Free)',
+        benefit: 'Zero barriers to entry. Start building your practice without upfront costs.'
     },
     {
-        icon: LayoutDashboard,
-        feature: 'White-Label Dashboard',
-        benefit: 'Manage your entire practice, staff, and client workflows from a single secure portal that carries your branding, not ours.',
+        feature: 'Monthly Subscription',
+        starter: 'R0 (Free)',
+        full: 'R0 (Free)',
+        benefit: 'Keep 100% of your earnings. No recurring overheads for using our platform.'
     },
     {
-        icon: Globe,
-        feature: 'Custom Practice Landing Page',
-        benefit: 'Get a 24/7 online store with 50+ re-branded services. Let your clients browse, order, and pay while you sleep.',
+        feature: 'Wholesale Discount',
+        starter: '10%',
+        full: '25%',
+        benefit: 'Higher margins on every service. Full Practices maximize profitability on all outsourced work.'
     },
     {
-        icon: Users,
-        feature: 'Elastic Outsourcing Capacity',
-        benefit: 'Never say "no" to a complex project again. Confidently scale your business capacity by leveraging our expert backend team.',
+        feature: 'White-Label Branding',
+        starter: 'No',
+        full: 'Yes',
+        benefit: 'Your logo, your colors. Maintain a professional front-end while we handle the back-office.'
     },
     {
-        icon: GraduationCap,
-        feature: 'Mentorship & Professional Support',
-        benefit: 'Direct access to senior Chartered Accountants and tax experts to help you navigate complex client queries and technical hurdles.',
+        feature: 'Custom Practice Website',
+        starter: 'No',
+        full: 'Yes',
+        benefit: 'Get a 24/7 online store preloaded with 60+ services. Browse Example: /p/interscope'
     },
     {
-        icon: ClipboardList,
-        feature: 'Automated Compliance Roadmap',
-        benefit: 'Never miss a SARS or CIPC deadline again. The system automatically monitors your client requirements and creates tasks for your team.',
+        feature: 'Pricing Control',
+        starter: 'Fixed Retail',
+        full: 'Custom Markup',
+        benefit: 'Set your own retail prices. You decide your profit margins based on your market.'
     },
     {
-        icon: FileText,
-        feature: 'Professional Template Library',
-        benefit: 'Save hundreds of hours with ready-to-use, legally compliant engagement letters, contracts, and pricing schedules.',
+        feature: 'Team & Staff Management',
+        starter: 'No',
+        full: 'Yes (Up to 3 Free)',
+        benefit: 'Scale your workforce. Add staff users to assign tasks and manage internal workflows.'
     },
     {
-        icon: Scale,
-        feature: 'Flexible Pricing Control',
-        benefit: 'Total control over your client-facing prices. Set your own markup on services while our underlying wholesale cost remains fixed.',
-    },
-];
-
-const challenges = [
-    {
-        title: 'Limited Service Range',
-        description: 'Offering only bookkeeping services limits your earning potential. Sell our full suite — from company registration to VAT, COIDA, CIDB, NCR, and more.',
-        icon: Briefcase
+        feature: 'Automated Task Manager',
+        starter: 'No',
+        full: 'Yes',
+        benefit: 'Never miss a deadline. Automatic roadmap generation based on client compliance needs.'
     },
     {
-        title: 'Lack of Mentorship',
-        description: 'Many bookkeepers work alone. We provide mentorship from senior accountants and industry experts who help you grow your capabilities.',
-        icon: GraduationCap
+        feature: 'Receive Overflow Work',
+        starter: 'No',
+        full: 'Yes (Optional)',
+        benefit: 'Grow beyond your own client base. Get access to overflow work from our national network (merit-based).'
     },
     {
-        title: 'Technology Gaps',
-        description: 'Without proper systems, document management is messy. Get our cloud-based dashboard to manage and outsource client orders seamlessly.',
-        icon: Cpu
-    },
-    {
-        title: 'Manual Sales & Quoting',
-        description: 'Quoting manually and chasing EFTs is a time-sink. Your white-labeled online store automates sales, PayFast, and document collection.',
-        icon: ShoppingBag
-    },
-    {
-        title: 'Capacity Constraints',
-        description: 'Handling large clients alone isn’t easy. Our qualified team handles your overflow work securely, accurately, and on time.',
-        icon: Users
-    },
-    {
-        title: 'Compliance Overwhelm',
-        description: 'Advanced statutory rules can be deterring. We provide ready-to-use templates and guides to help you stay compliant and confident.',
-        icon: ShieldAlert
+        feature: 'Document Contact',
+        starter: 'Partner Only',
+        full: 'Partner or Client',
+        benefit: 'Save time. We can contact your client directly for documents under your brand.'
     }
 ];
 
 const faqs = [
     {
+        question: "Is it really free to join?",
+        answer: "Yes! There are no setup fees or monthly subscription costs for either the Starter or Full Practice tiers. We only charge you the discounted wholesale price when you choose to outsource a service to us."
+    },
+    {
         question: "How does the outsourcing work?",
-        answer: "You can decide to complete the order yourself or outsource to us. The process is completely white-labeled, so your client doesn't know the work is being outsourced. We charge you a fixed wholesale price, and you keep the markup.\n\nWe can then either contact you or contact your client directly through our app which is completely white-labeled so your client remains none the wiser."
+        answer: "When you have an order you want us to handle, you submit it through your dashboard. We charge you the wholesale price (minus your 10% or 25% discount), and we complete the work. You can choose whether we contact you or your client directly (Full Practice only) for documents."
     },
     {
-        question: "Who should join the Bookkeeper Empowerment Initiative?",
-        answer: "BEI is ideal for passionate professionals who want to grow their business without stress, including:\n- Freelance Bookkeepers\n- Startup Accounting Firms\n- Tax Practitioners\n- Business Consultants\n- Payroll Administrators"
-    },
-    {
-        question: "What does it cost to join?",
-        answer: "Joining requires a R5000 setup fee. This is not a 'lost' fee — the entire amount is immediately converted into R5000 credits in your practice wallet.\n\nFrom these credits, a monthly subscription of R499 is deducted for app hosting, AI tools, and priority support."
-    },
-    {
-        question: "How does the staff billing work?",
-        answer: "Every practice gets 3 free additional staff user accounts (4 total users including the owner). Any staff members added beyond this limit cost only R45 per month."
-    },
-    {
-        question: "How does the credit system work?",
-        answer: "Think of it like a prepaid mobile account. Your initial R5000 setup fee provides you with R5000 in starting credits. Your monthly subscription (R499) and any outsourced services are deducted from this balance. Once your credits are finished, you can top up your wallet to keep your services active."
-    },
-    {
-        question: "How does the landing page work?",
-        answer: "Included in your setup is a fully customizable, white-labeled landing page. You can choose your colors, upload your logo, and use our AI to re-brand our 50+ services as your own. Your clients see your brand, while we provide the back-office engine."
+        question: "Why should I choose the Full Practice tier if both are free?",
+        answer: "The Full Practice tier offers significantly better margins (25% discount vs 10%), your own branded landing page, staff management tools, and the ability to set your own client-facing prices. It is designed for practitioners ready to build a professional, scalable firm."
     },
     {
         question: "Do I need to be a registered accountant?",
-        answer: "No. Everyone is welcome. However, to receive outsourced work from My Accountant, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA."
+        answer: "Anyone can join the BEI to use the software. However, to receive outsourced overflow work from the My Accountant network, you must be a registered member in good standing with a recognized professional body (SAICA, SAIT, CIBA, or SAIPA)."
+    },
+    {
+        question: "How do I pay for outsourced services?",
+        answer: "You load credits into your Practice Wallet via PayFast. When you outsource an order, the wholesale cost is deducted from your credit balance."
     }
 ];
 
@@ -218,62 +198,6 @@ export default function BEIPage() {
         </div>
       </section>
 
-      <section className="bg-slate-50 border-y py-20 overflow-hidden">
-        <div className="container mx-auto px-4">
-            <div className="flex flex-col lg:flex-row items-center gap-12 max-w-6xl mx-auto">
-                <div className="lg:w-1/2 space-y-8 text-center lg:text-left">
-                    <div className="space-y-4">
-                        <Badge className="bg-primary text-white hover:bg-primary border-none px-3 py-1 text-[10px] font-black uppercase tracking-widest">Platform Feature</Badge>
-                        <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 leading-tight">
-                            Your own <span className="text-primary">branded</span> online store.
-                        </h2>
-                        <p className="text-xl text-slate-600 font-medium">
-                            Sign up and get a fully customizable online store preloaded with 65+ services. Just add your logo, set your prices, and start selling.
-                        </p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
-                        <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
-                            <Link href="/partner-signup">Sign up</Link>
-                        </Button>
-                        <Button asChild variant="outline" size="lg" className="h-14 px-8 border-2 border-slate-200 hover:border-primary hover:text-primary transition-all font-bold">
-                            <Link href="https://www.myacc.co.za/p/interscope" target="_blank">
-                                View Example Store <ExternalLink className="ml-2 h-4 w-4 opacity-50" />
-                            </Link>
-                        </Button>
-                    </div>
-                </div>
-                <div className="lg:w-1/2 relative">
-                    <div className="bg-white rounded-3xl shadow-2xl border-8 border-slate-900 p-2 overflow-hidden aspect-[16/10] group">
-                        <div className="bg-slate-100 h-full w-full rounded-2xl overflow-hidden relative">
-                            <div className="absolute top-0 left-0 w-full h-8 bg-white border-b flex items-center px-4 gap-1">
-                                <div className="w-2 h-2 rounded-full bg-red-400"></div>
-                                <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
-                                <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                                <div className="ml-4 h-4 w-32 bg-slate-100 rounded-full"></div>
-                            </div>
-                            <div className="pt-12 p-6 grid grid-cols-2 gap-4">
-                                {[1,2,3,4].map(i => (
-                                    <div key={i} className="h-24 bg-white rounded-xl border border-slate-200 p-3 space-y-2">
-                                        <div className="h-3 w-3/4 bg-slate-100 rounded"></div>
-                                        <div className="h-2 w-1/2 bg-slate-50 rounded"></div>
-                                        <div className="h-4 w-1/3 bg-primary/10 rounded mt-auto"></div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Button className="bg-white text-slate-900 hover:bg-slate-100 font-bold" asChild>
-                                    <Link href="https://www.myacc.co.za/p/interscope" target="_blank">Live Preview</Link>
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="absolute -top-6 -right-6 h-24 w-24 bg-primary/10 rounded-full blur-2xl -z-10"></div>
-                    <div className="absolute -bottom-10 -left-10 h-40 w-40 bg-purple-100 rounded-full blur-3xl -z-10"></div>
-                </div>
-            </div>
-        </div>
-      </section>
-
       <div className="container mx-auto px-4">
         <TrustIndexWidget />
       </div>
@@ -281,7 +205,7 @@ export default function BEIPage() {
       <section className="container mx-auto px-4 scroll-m-20">
         <div className="max-w-4xl mx-auto text-center space-y-8">
             <div className="space-y-4">
-                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">About the Initiative</Badge>
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Our Philosophy</Badge>
                 <h2 className="text-4xl font-bold leading-tight text-slate-900">Our philosophy has always been simple</h2>
                 <p className="text-2xl font-bold text-slate-800 italic">"A client referred to someone else is a client lost."</p>
             </div>
@@ -309,78 +233,71 @@ export default function BEIPage() {
                 <p className="font-bold text-slate-950 text-center text-xl">
                     We handle the complexity behind the scenes so your client never needs to move to another accountant.
                 </p>
-                
-                <Separator className="my-12" />
-
-                <p>
-                    The Bookkeeper Empowerment Initiative by My Accountant was created to empower small and growing bookkeepers across South Africa. We know what it’s like to start out — you have the skills, but limited clients, tools, and support. That’s why BEI gives you the technology, mentorship, and opportunities to build your own brand, attract more clients, and scale your income — all while staying independent.
-                </p>
-                <p>
-                    Whether you’re a freelance bookkeeper, a new accounting firm, or a small practitioner, BEI is designed to help you grow faster with less stress.
-                </p>
             </div>
         </div>
       </section>
 
-      <section className="bg-slate-50 py-24 border-y">
+      {/* Unified Comparison & Benefits Table */}
+      <section id="pricing" className="bg-slate-50 py-24 border-y">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16 space-y-4">
-                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">The Problem</Badge>
-                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Challenges We Solve for Practitioners</h2>
-                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Running a practice shouldn't feel like a solo battle against paperwork.</p>
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Model Comparison</Badge>
+                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Choose Your Path to Growth</h2>
+                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Both models are free to join. Choose the level of support that fits your current practice stage.</p>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {challenges.map((item, idx) => (
-                    <Card key={idx} className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-                        <CardHeader className="text-center pb-2">
-                            <div className="mx-auto h-16 w-16 rounded-full bg-primary/5 border flex items-center justify-center mb-4">
-                                <item.icon className="h-8 w-8 text-primary" />
-                            </div>
-                            <CardTitle className="text-xl font-bold text-slate-900">{item.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-center">
-                            <p className="text-sm text-muted-foreground leading-relaxed px-4">{item.description}</p>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-        </div>
-      </section>
-      
-      <section id="benefits" className="bg-white py-24 border-t border-b scroll-m-20">
-        <div className="container mx-auto px-4">
-            <div className="text-center mb-16">
-                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Features vs Benefits</h2>
-                <p className="text-muted-foreground mt-4 max-w-2xl mx-auto text-lg">A powerful back-office engine for your accounting firm, designed for maximum results.</p>
-            </div>
-            
-            <div className="max-w-5xl mx-auto border rounded-2xl overflow-hidden shadow-xl">
-                <div className="grid grid-cols-1 md:grid-cols-2 bg-slate-900 text-white font-black uppercase tracking-widest text-[10px]">
-                    <div className="p-4 border-r border-slate-800 hidden md:block">The Platform Feature</div>
-                    <div className="p-4 hidden md:block">The Business Benefit</div>
+
+            <div className="max-w-6xl mx-auto bg-white rounded-3xl shadow-2xl border overflow-hidden">
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-slate-900 hover:bg-slate-900 border-none">
+                                <TableHead className="w-[200px] text-white font-bold py-6 px-6">Feature</TableHead>
+                                <TableHead className="text-white font-bold text-center py-6">Starter Partner</TableHead>
+                                <TableHead className="bg-primary text-white font-bold text-center py-6 shadow-2xl relative">
+                                    Full BEI Practice
+                                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white text-primary font-black border-none animate-bounce">RECOMMENDED</Badge>
+                                </TableHead>
+                                <TableHead className="hidden md:table-cell text-white font-bold py-6 px-6">Practice Growth Benefit</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {comparisonFeatures.map((row, idx) => (
+                                <TableRow key={idx} className="group hover:bg-muted/30 border-slate-100">
+                                    <TableCell className="font-bold text-slate-700 py-4 px-6">{row.feature}</TableCell>
+                                    <TableCell className="text-center text-slate-600">
+                                        {row.starter === 'No' ? <X className="h-4 w-4 mx-auto text-slate-300" /> : row.starter}
+                                    </TableCell>
+                                    <TableCell className="text-center font-black text-primary bg-primary/5 group-hover:bg-primary/10 transition-colors">
+                                        {row.feature === 'Custom Practice Website' ? (
+                                            <div className="flex flex-col items-center gap-1">
+                                                <span>{row.full}</span>
+                                                <Button variant="link" size="xs" className="h-auto p-0 text-[10px] text-primary underline" asChild>
+                                                    <Link href="/p/interscope" target="_blank">View Example <ExternalLink className="h-2 w-2 ml-1"/></Link>
+                                                </Button>
+                                            </div>
+                                        ) : row.full}
+                                    </TableCell>
+                                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground italic py-4 px-6 leading-relaxed">
+                                        {row.benefit}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </div>
-                <div className="divide-y divide-slate-100">
-                    {featureBenefits.map((item, idx) => (
-                        <div key={idx} className="grid grid-cols-1 md:grid-cols-2 group hover:bg-slate-50 transition-colors">
-                            <div className="p-6 md:border-r border-slate-100 space-y-2">
-                                <span className="md:hidden text-[10px] font-black uppercase text-primary tracking-widest block mb-2">Feature</span>
-                                <div className="flex items-center gap-4">
-                                    <div className="h-10 w-10 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center shrink-0 shadow-sm">
-                                        <item.icon className="h-5 w-5 text-primary" />
-                                    </div>
-                                    <h3 className="font-bold text-lg text-slate-900 leading-tight">{item.feature}</h3>
-                                </div>
-                            </div>
-                            <div className="p-6 bg-white group-hover:bg-transparent transition-colors flex flex-col justify-center">
-                                <span className="md:hidden text-[10px] font-black uppercase text-green-600 tracking-widest block mb-2">The Benefit to You</span>
-                                <div className="flex items-start gap-3">
-                                    <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
-                                    <p className="text-sm text-muted-foreground font-medium leading-relaxed">{item.benefit}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 bg-slate-50 border-t">
+                    <div className="p-8 flex flex-col justify-center items-center text-center border-r border-slate-200">
+                        <p className="text-sm font-bold text-slate-500 mb-4 uppercase tracking-widest">Freelance / Referral</p>
+                        <Button variant="outline" size="lg" className="w-full sm:w-auto h-12 px-10 border-2 font-bold" asChild>
+                            <Link href="/partner-signup?tier=starter">Join as Starter</Link>
+                        </Button>
+                    </div>
+                    <div className="p-8 flex flex-col justify-center items-center text-center bg-primary/5">
+                        <p className="text-sm font-bold text-primary mb-4 uppercase tracking-widest">Professional Firm</p>
+                        <Button size="lg" className="w-full sm:w-auto h-12 px-10 font-black shadow-lg" asChild>
+                            <Link href="/partner-signup?tier=full">Setup Full Practice</Link>
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -404,11 +321,11 @@ export default function BEIPage() {
         <div className="max-w-2xl mx-auto space-y-8">
             <h2 className="text-4xl font-bold tracking-tight text-slate-900">Ready to Empower Your Practice?</h2>
             <p className="text-xl text-muted-foreground">
-                Join the Bookkeeper Empowerment Initiative and scale your firm 10× — without hiring additional staff.
+                Join the Bookkeeper Empowerment Initiative today. No setup fees, no monthly costs — just pure growth.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
-                    <Link href="/partner-signup">Sign up</Link>
+                    <Link href="/partner-signup">Sign up for Free</Link>
                 </Button>
                 <BookDemoDialog />
             </div>
