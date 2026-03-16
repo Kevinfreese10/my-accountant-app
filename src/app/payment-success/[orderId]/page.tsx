@@ -45,10 +45,11 @@ export default function PaymentSuccessPage() {
                 if (orderSnap.exists()) {
                     const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
                     
-                    // Check if we need to send the "Request Documents" email
-                    // Avoid duplicate sending if order is already processed or email is logged in notes
-                    if (orderData.status !== 'Processing' && !orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`)) {
-                        
+                    // CHECK IF NOTIFICATION HAS BEEN SENT
+                    // Use the presence of the log note as the source of truth to avoid duplicates
+                    const alreadyNotified = orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`);
+
+                    if (!alreadyNotified) {
                         const itemsWithServices = orderData.items.map(item => {
                             const service = allServices.find(s => s.id === item.id);
                             return { ...item, service };
@@ -64,7 +65,6 @@ export default function PaymentSuccessPage() {
                             }));
                         
                         // CRITICAL: Determine correct recipient for white-labeling
-                        // If it's an outsourced order, the "Customer" is the Partner, so we MUST use endCustomerEmail
                         const recipientEmail = orderData.resellerId && orderData.endCustomerEmail 
                             ? orderData.endCustomerEmail 
                             : orderData.customerEmail;
@@ -78,7 +78,7 @@ export default function PaymentSuccessPage() {
                                 resellerId: orderData.resellerId || undefined,
                             });
                              const emailNote: OrderNote = {
-                                text: `Sent "Request Documents" email to ${recipientEmail} after payment.`,
+                                text: `Sent "Request Documents" email to ${recipientEmail} (User redirected to success page).`,
                                 date: Timestamp.now(),
                                 authorId: 'system',
                                 type: 'email',
@@ -114,7 +114,7 @@ export default function PaymentSuccessPage() {
     const orderUrl = useMemo(() => {
         if (!currentUser) return '/login';
         if (currentUser.role === 'admin' || currentUser.role === 'staff') return `/admin/orders/${orderId}`;
-        if (currentUser.role === 'partner') return `/partner/orders/${orderId}`;
+        if (currentUser.role === 'partner' || currentUser.role === 'partner_staff') return `/partner/orders/${orderId}`;
         return `/dashboard/orders/${orderId}`;
     }, [currentUser, orderId]);
     

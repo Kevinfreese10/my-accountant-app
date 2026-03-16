@@ -4,6 +4,11 @@ import { firebaseApp } from '@/lib/firebase';
 import crypto from 'crypto';
 import { ItnLog, Order, User } from '@/lib/types';
 import ipaddr from 'ipaddr.js';
+import { render } from '@react-email/components';
+import React from 'react';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import { sendEmail } from '@/lib/email';
+import { services as allServices } from '@/lib/data';
 
 const db = getFirestore(firebaseApp);
 
@@ -157,6 +162,46 @@ export async function POST(req: NextRequest) {
                       status: 'Active'
                   });
               }
+          }
+
+          // 5. Send Document Request Email (Automated)
+          const isOutsourced = !!currentOrderData.resellerId;
+          const recipientEmail = isOutsourced && currentOrderData.endCustomerEmail 
+              ? currentOrderData.endCustomerEmail 
+              : currentOrderData.customerEmail;
+
+          // Only send if not already notified
+          const alreadyNotified = currentOrderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`);
+
+          if (recipientEmail && !alreadyNotified) {
+              const itemsWithServices = currentOrderData.items.map(item => {
+                  const service = allServices.find(s => s.id === item.id);
+                  return { ...item, service };
+              }).filter(item => item.service) as { service: Service }[];
+
+              const emailHtml = render(React.createElement(DocumentRequestEmail, {
+                  order: { ...currentOrderData, id: orderId! },
+                  items: itemsWithServices,
+                  replyTo: 'info@myacc.co.za'
+              }));
+
+              await sendEmail({
+                  to: recipientEmail,
+                  subject: `Action Required for Your Order #${orderId}`,
+                  html: emailHtml,
+                  resellerId: currentOrderData.resellerId || undefined,
+              });
+
+              await updateDoc(orderRef, { 
+                  notes: arrayUnion({
+                      text: `Sent "Request Documents" email to ${recipientEmail} (Automated via PayFast ITN).`,
+                      date: Timestamp.now(),
+                      authorId: 'system',
+                      type: 'email',
+                      subject: `Action Required for Your Order #${orderId}`,
+                      attachments: null,
+                  }) 
+              });
           }
 
           await updateDoc(orderRef, { 

@@ -46,6 +46,10 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { render } from '@react-email/components';
+import React from 'react';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import { sendEmail } from '@/lib/email';
 
 
 const db = getFirestore(firebaseApp);
@@ -227,22 +231,59 @@ export default function PartnerOrdersPage() {
         status: newStatus,
       });
 
-      if (newStatus === 'Processing' && !orderToUpdate.isOutsourced) {
-          const taskData = {
-              title: `Process Order: ${orderToUpdate.id}`,
-              description: `Practice fulfillment for ${orderToUpdate.endCustomerName || orderToUpdate.customerName}. Services: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
-              assignedTo: [user.uid],
-              createdBy: user.uid,
-              dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-              priority: 'Medium' as const,
-              status: 'To-Do' as const,
-              orderId: orderToUpdate.id,
-              partnerId: partnerId,
-              comments: [],
-              createdAt: serverTimestamp(),
-          };
-          await addDoc(collection(db, 'tasks'), taskData);
-          toast({ title: 'Task Created', description: 'A task has been added to your dashboard for fulfillment.' });
+      if (newStatus === 'Processing') {
+          // If moving to processing and NOT outsourced, create an internal task
+          if (!orderToUpdate.isOutsourced) {
+              const taskData = {
+                  title: `Process Order: ${orderToUpdate.id}`,
+                  description: `Practice fulfillment for ${orderToUpdate.endCustomerName || orderToUpdate.customerName}. Services: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
+                  assignedTo: [user.uid],
+                  createdBy: user.uid,
+                  dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+                  priority: 'Medium' as const,
+                  status: 'To-Do' as const,
+                  orderId: orderToUpdate.id,
+                  partnerId: partnerId,
+                  comments: [],
+                  createdAt: serverTimestamp(),
+              };
+              await addDoc(collection(db, 'tasks'), taskData);
+              toast({ title: 'Task Created', description: 'A task has been added to your dashboard for fulfillment.' });
+          }
+
+          // NOTIFY CLIENT: Confirmation of payment & Request for documents
+          const emailTo = orderToUpdate.endCustomerEmail || orderToUpdate.customerEmail;
+          if (emailTo) {
+              const itemsWithServices = orderToUpdate.items.map(item => {
+                  const service = allServices.find(s => s.id === item.id);
+                  return { ...item, service };
+              }).filter(item => item.service) as { service: Service }[];
+
+              const emailHtml = render(React.createElement(DocumentRequestEmail, {
+                  order: { ...orderToUpdate, id: orderToUpdate.originalOrderId || orderToUpdate.id },
+                  items: itemsWithServices,
+                  reseller: user,
+                  replyTo: user.email,
+              }));
+
+              await sendEmail({
+                  to: emailTo,
+                  subject: `Action Required for Your Order #${orderToUpdate.originalOrderId || orderToUpdate.id}`,
+                  html: emailHtml,
+                  resellerId: partnerId,
+              });
+
+              await updateDoc(orderRef, {
+                  notes: arrayUnion({
+                      text: `Sent "Payment Confirmed & Request Documents" email to ${emailTo}.`,
+                      date: Timestamp.now(),
+                      authorId: user.uid,
+                      type: 'email',
+                      subject: `Action Required for Your Order #${orderToUpdate.originalOrderId || orderToUpdate.id}`,
+                      attachments: null,
+                  })
+              });
+          }
       }
 
       toast({
