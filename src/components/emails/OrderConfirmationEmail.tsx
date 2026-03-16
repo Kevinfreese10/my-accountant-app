@@ -93,9 +93,6 @@ const heading = {
 export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPassword, showPaymentButton = false }: OrderConfirmationEmailProps) => {
     const previewText = `Order Confirmation #${order.id}`;
     
-    // Determine the correct name to use in the greeting
-    // For partner orders, order.customerName is actually the PARTNER's name,
-    // so we must prioritize order.endCustomerName for the client greeting.
     const customerDisplayName = reseller ? (order.endCustomerName || order.customerName) : order.customerName;
     const customerFirstName = customerDisplayName?.split(' ')[0] || 'Client';
 
@@ -124,11 +121,23 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                 <Text style={paragraph}>
                     Hi {customerFirstName},
                 </Text>
-                 {isNewUser && generatedPassword && (
+
+                {isNewUser && generatedPassword && (
+                    <Section style={{ border: '1px solid #e6ebf1', borderRadius: '5px', padding: '20px', backgroundColor: '#f0f7ff', marginTop: '20px', marginBottom: '20px' }}>
+                        <Text style={{ ...paragraph, fontWeight: 'bold', color: '#214392', marginBottom: '10px' }}>Your Login Credentials</Text>
+                        <Text style={paragraph}>An account has been created for you to track your order and upload documents.</Text>
+                        <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Login Email:</strong> {order.customerEmail}</Text>
+                        <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Temporary Password:</strong> {generatedPassword}</Text>
+                        <Text style={{ ...paragraph, fontSize: '12px', fontStyle: 'italic', marginTop: '10px' }}>Please change your password after logging in for the first time.</Text>
+                    </Section>
+                )}
+
+                {!isNewUser && !reseller && (
                     <Text style={paragraph}>
-                        Welcome to {companyName}! An account has been created for you. You can log in using your email and this temporary password: <strong>{generatedPassword}</strong>.
+                        You can log in to your existing account using your email <strong>{order.customerEmail}</strong> to view your order status.
                     </Text>
-                 )}
+                )}
+
                 <Text style={paragraph}>
                     Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed.
                 </Text>

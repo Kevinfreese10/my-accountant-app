@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -11,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash, RefreshCw, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, OrderNote, User } from '@/lib/types';
 import { Separator } from '../ui/separator';
@@ -24,8 +24,11 @@ import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { getNextOrderId } from '@/lib/sequence';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import Link from 'next/link';
+import { customAlphabet } from 'nanoid';
 
 const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
+const nanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 10);
 
 const lineItemSchema = z.object({
   serviceId: z.string().min(1, 'Please select a service.'),
@@ -36,7 +39,6 @@ const lineItemSchema = z.object({
   discountValue: z.preprocess(val => Number(val) || 0, z.number().min(0, 'Discount cannot be negative.').optional()),
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0).optional()),
 }).refine((data) => {
-    // Validation: Net selling price cannot be less than reseller cost
     const quantity = data.quantity || 1;
     const lineItemTotal = data.price * quantity;
     let discountAmount = 0;
@@ -62,7 +64,7 @@ const formSchema = z.object({
   items: z.array(lineItemSchema).min(1, 'At least one line item is required.'),
 });
 
-type CreateOrderFormValues = z.infer<typeof formSchema>;
+type CreatePartnerOrderFormValues = z.infer<typeof formSchema>;
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -75,7 +77,7 @@ const formatPrice = (price: number) => {
 
 export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCreated: () => void }) {
   const router = useRouter();
-  const { user: partner } = useAuth();
+  const { user: partner, reauthenticate } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -117,7 +119,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     return () => unsubscribe();
   }, [partnerId]);
 
-  const form = useForm<CreateOrderFormValues>({
+  const form = useForm<CreatePartnerOrderFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       customerFirstName: '',
@@ -140,22 +142,18 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
         
         setIsCheckingUser(true);
         try {
-            const collectionsToSearch = ['users', 'aiAccountantClients'];
-            let found = false;
-            for (const coll of collectionsToSearch) {
-                const userQ = query(collection(db, coll), where("email", "==", watchedEmail.toLowerCase().trim()));
-                const userSnap = await getDocs(userQ);
-                if (!userSnap.empty) {
-                    const userData = userSnap.docs[0].data();
-                    setLinkedUser({ 
-                        name: userData.companyName || userData.name, 
-                        id: userSnap.docs[0].id 
-                    });
-                    found = true;
-                    break;
-                }
+            const usersQ = query(collection(db, 'users'), where("email", "==", watchedEmail.toLowerCase().trim()));
+            const userSnap = await getDocs(usersQ);
+            
+            if (!userSnap.empty) {
+                const userData = userSnap.docs[0].data();
+                setLinkedUser({ 
+                    name: userData.name, 
+                    id: userSnap.docs[0].id 
+                });
+            } else {
+                setLinkedUser(null);
             }
-            if (!found) setLinkedUser(null);
         } catch (e) {
             console.error("User lookup failed:", e);
         } finally {
@@ -203,9 +201,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     
     if (selectedService) {
         form.setValue(`items.${index}.description`, override?.title || selectedService.title);
-        // Use override price if available, otherwise default global price
         form.setValue(`items.${index}.price`, override?.price ?? selectedService.price);
-        // Reseller price is the wholesale cost (floor)
         form.setValue(`items.${index}.resellerPrice`, selectedService.resellerPrice || selectedService.price);
         form.trigger(`items.${index}`);
     }
@@ -226,7 +222,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     return (lineItemTotal - discountAmount);
   };
 
-  async function onSubmit(values: CreateOrderFormValues) {
+  async function onSubmit(values: CreatePartnerOrderFormValues) {
     if (!partner || !partnerId) return;
 
     if (!hasBankingDetails) {
@@ -235,26 +231,43 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     }
 
     setIsLoading(true);
-    toast({ title: 'Creating Order...', description: 'Please wait.' });
+    toast({ title: 'Processing Order...', description: 'Checking user profile and creating order.' });
 
     try {
-        const orderId = await getNextOrderId();
-        const customerFullName = `${values.customerFirstName} ${values.customerLastName}`;
-        
         let finalUserId = linkedUser?.id || null;
+        let isNewUser = false;
+        let generatedPassword = null;
+
         if (!finalUserId) {
-            const collectionsToSearch = ['users', 'aiAccountantClients'];
-            for (const coll of collectionsToSearch) {
-                const userQ = query(collection(db, coll), where("email", "==", values.customerEmail.toLowerCase().trim()));
-                const userSnap = await getDocs(userQ);
-                if (!userSnap.empty) {
-                    finalUserId = userSnap.docs[0].id;
-                    break;
-                }
+            isNewUser = true;
+            generatedPassword = nanoid();
+            
+            // Create Firebase Auth Account
+            const userCredential = await createUserWithEmailAndPassword(auth, values.customerEmail, generatedPassword);
+            finalUserId = userCredential.user.uid;
+
+            // Create Firestore Profile
+            const userDocRef = doc(db, 'users', finalUserId);
+            await setDoc(userDocRef, {
+                id: finalUserId,
+                uid: finalUserId,
+                name: `${values.customerFirstName} ${values.customerLastName}`,
+                email: values.customerEmail.toLowerCase().trim(),
+                contactNumber: values.customerPhone,
+                role: 'client',
+                source: `Partner Order (${partner.companyName})`,
+                createdAt: serverTimestamp(),
+            });
+
+            // Re-authenticate partner to prevent auth state switch
+            if (auth.currentUser) {
+                await reauthenticate(auth.currentUser);
             }
         }
 
-        // Calculate reseller total cost (what partner pays My Accountant)
+        const orderId = await getNextOrderId();
+        const customerFullName = `${values.customerFirstName} ${values.customerLastName}`;
+        
         const resellerTotal = values.items.reduce((acc, item) => {
             const resellerBase = item.resellerPrice || item.price;
             return acc + (resellerBase * item.quantity);
@@ -274,8 +287,8 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
             items: values.items.map(item => ({ 
                 id: item.serviceId,
                 title: item.description, 
-                price: item.resellerPrice || item.price, // Partner cost
-                clientPrice: item.price, // Partner selling price
+                price: item.resellerPrice || item.price,
+                clientPrice: item.price,
                 quantity: item.quantity,
                 discountType: item.discountType,
                 discountValue: item.discountValue,
@@ -293,7 +306,14 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
         await setDoc(doc(db, 'orders', orderId), orderData);
 
         const confirmationEmailSubject = `Order Confirmation: #${orderId}`;
-        const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={partner} />);
+        const emailHtml = render(
+            <OrderConfirmationEmail 
+                order={orderData} 
+                reseller={partner} 
+                isNewUser={isNewUser}
+                generatedPassword={generatedPassword}
+            />
+        );
         
         await sendEmail({
             to: values.customerEmail,
@@ -302,12 +322,16 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
             resellerId: partnerId,
         });
 
-        toast({ title: 'Order Created Successfully', description: `Your client has been notified.` });
+        toast({ title: 'Order Created', description: `Client notified. ${isNewUser ? 'New profile created.' : 'Existing profile linked.'}` });
         onOrderCreated();
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error creating order: ", error);
-        toast({ title: 'Order Creation Failed', description: 'There was a problem saving the order. Please try again.', variant: 'destructive' });
+        toast({
+            title: 'Operation Failed',
+            description: error.message || 'There was a problem processing your request.',
+            variant: 'destructive',
+        });
     } finally {
         setIsLoading(false);
     }

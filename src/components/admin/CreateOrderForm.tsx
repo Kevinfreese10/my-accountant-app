@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -11,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck, Search, CheckCircle2 } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where, serverTimestamp } from 'firebase/firestore';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, OrderNote, User } from '@/lib/types';
 import { Separator } from '../ui/separator';
@@ -23,9 +23,11 @@ import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { getNextOrderId } from '@/lib/sequence';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
-
+import { customAlphabet } from 'nanoid';
 
 const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
+const nanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 10);
 
 const lineItemSchema = z.object({
   isCustom: z.boolean().default(false),
@@ -61,7 +63,7 @@ export default function CreateOrderForm() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [total, setTotal] = useState(0);
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, reauthenticate } = useAuth();
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [isServicesLoading, setIsServicesLoading] = useState(true);
   
@@ -83,23 +85,6 @@ export default function CreateOrderForm() {
   const watchedEmail = form.watch('customerEmail');
 
   useEffect(() => {
-    const fetchServices = async () => {
-        setIsServicesLoading(true);
-        try {
-            const q = query(collection(db, "services"), orderBy("title"));
-            const querySnapshot = await getDocs(q);
-            const fetchedServices = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
-            setAllServices(fetchedServices);
-        } catch (error) {
-            toast({ title: 'Error', description: 'Could not fetch services.', variant: 'destructive'});
-        } finally {
-            setIsServicesLoading(false);
-        }
-    };
-    fetchServices();
-  }, [toast]);
-
-  useEffect(() => {
     const lookupUser = async () => {
         if (!watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
             setLinkedUser(null);
@@ -108,22 +93,18 @@ export default function CreateOrderForm() {
         
         setIsCheckingUser(true);
         try {
-            const collectionsToSearch = ['users', 'aiAccountantClients'];
-            let found = false;
-            for (const coll of collectionsToSearch) {
-                const userQ = query(collection(db, coll), where("email", "==", watchedEmail.toLowerCase().trim()));
-                const userSnap = await getDocs(userQ);
-                if (!userSnap.empty) {
-                    const userData = userSnap.docs[0].data();
-                    setLinkedUser({ 
-                        name: userData.companyName || userData.name, 
-                        id: userSnap.docs[0].id 
-                    });
-                    found = true;
-                    break;
-                }
+            const usersQ = query(collection(db, 'users'), where("email", "==", watchedEmail.toLowerCase().trim()));
+            const userSnap = await getDocs(usersQ);
+            
+            if (!userSnap.empty) {
+                const userData = userSnap.docs[0].data();
+                setLinkedUser({ 
+                    name: userData.name, 
+                    id: userSnap.docs[0].id 
+                });
+            } else {
+                setLinkedUser(null);
             }
-            if (!found) setLinkedUser(null);
         } catch (e) {
             console.error("User lookup failed:", e);
         } finally {
@@ -165,10 +146,6 @@ export default function CreateOrderForm() {
     return () => subscription.unsubscribe();
   }, [form]);
   
-  useEffect(() => {
-    setTotal(calculateTotal(form.getValues('items')));
-  }, []);
-  
   const handleServiceChange = (serviceId: string, index: number) => {
     const selectedService = allServices.find(s => s.id === serviceId);
     if (selectedService) {
@@ -193,27 +170,41 @@ export default function CreateOrderForm() {
     return (lineItemTotal - discountAmount);
   };
 
-
   async function onSubmit(values: CreateOrderFormValues) {
     if (!currentUser) return;
     
     setIsLoading(true);
-    toast({
-      title: 'Creating Order...',
-      description: 'Please wait while we generate the new order.',
-    });
+    toast({ title: 'Processing Order...', description: 'Checking user profile and creating order.' });
 
     try {
         let finalUserId = linkedUser?.id || null;
+        let isNewUser = false;
+        let generatedPassword = null;
+
         if (!finalUserId) {
-            const collectionsToSearch = ['users', 'aiAccountantClients'];
-            for (const coll of collectionsToSearch) {
-                const userQ = query(collection(db, coll), where("email", "==", values.customerEmail.toLowerCase().trim()));
-                const userSnap = await getDocs(userQ);
-                if (!userSnap.empty) {
-                    finalUserId = userSnap.docs[0].id;
-                    break;
-                }
+            isNewUser = true;
+            generatedPassword = nanoid();
+            
+            // Create Firebase Auth Account
+            const userCredential = await createUserWithEmailAndPassword(auth, values.customerEmail, generatedPassword);
+            finalUserId = userCredential.user.uid;
+
+            // Create Firestore Profile
+            const userDocRef = doc(db, 'users', finalUserId);
+            await setDoc(userDocRef, {
+                id: finalUserId,
+                uid: finalUserId,
+                name: `${values.customerFirstName} ${values.customerLastName}`,
+                email: values.customerEmail.toLowerCase().trim(),
+                contactNumber: values.customerPhone,
+                role: 'client',
+                source: 'Staff Order',
+                createdAt: serverTimestamp(),
+            });
+
+            // Re-authenticate admin to prevent auth state switch
+            if (auth.currentUser) {
+                await reauthenticate(auth.currentUser);
             }
         }
 
@@ -224,67 +215,78 @@ export default function CreateOrderForm() {
 
         const confirmationEmailSubject = `My Accountant | Order Confirmation: #${orderId}`;
 
-        const confirmationNote: OrderNote = {
-            text: 'Order confirmation email sent to client.',
+        const orderData: Order = {
+            id: orderId,
+            userId: finalUserId,
+            customerName: customerFullName,
+            customerEmail: values.customerEmail,
+            customerPhone: values.customerPhone,
+            items: values.items.map(item => ({ 
+                id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
+                title: item.description, 
+                price: item.price,
+                quantity: item.quantity
+            })),
+            total: total,
+            discountCode: null,
+            discountAmount: null,
+            paymentMethod: 'EFT',
+            status: 'Pending Payment',
             date: Timestamp.now(),
-            authorId: currentUser.uid,
-            type: 'email',
-            subject: confirmationEmailSubject,
-            attachments: null,
+            department: department || null,
+            assignedTo: null,
+            source: 'Staff',
         };
 
-      const orderData: Order = {
-        id: orderId,
-        userId: finalUserId,
-        customerName: customerFullName,
-        customerEmail: values.customerEmail,
-        customerPhone: values.customerPhone,
-        items: values.items.map(item => ({ 
-            id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
-            title: item.description, 
-            price: item.price,
-            quantity: item.quantity
-        })),
-        total: total,
-        discountCode: null,
-        discountAmount: null,
-        paymentMethod: 'EFT',
-        status: 'Pending Payment',
-        date: Timestamp.now(),
-        department: department || null,
-        assignedTo: null,
-        notes: [confirmationNote],
-        source: 'Staff',
-      };
+        await setDoc(doc(db, 'orders', orderId), orderData);
+        
+        const emailHtml = render(
+            <OrderConfirmationEmail 
+                order={orderData} 
+                isNewUser={isNewUser} 
+                generatedPassword={generatedPassword}
+                showPaymentButton={true} 
+            />
+        );
 
-      await setDoc(doc(db, 'orders', orderId), orderData);
-      
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} showPaymentButton={true} />);
-      await sendEmail({
-        to: values.customerEmail,
-        bcc: 'kev@thinkestry.co.za',
-        subject: confirmationEmailSubject,
-        html: emailHtml,
-      });
+        await sendEmail({
+            to: values.customerEmail,
+            bcc: 'kev@thinkestry.co.za',
+            subject: confirmationEmailSubject,
+            html: emailHtml,
+        });
 
-      toast({
-        title: 'Order Created Successfully',
-        description: `Order ${orderId} has been created for the client.`,
-      });
-      
-      setIsLoading(false);
-      router.push('/admin/orders');
+        toast({ title: 'Order Created', description: `Client notified. ${isNewUser ? 'New profile created.' : 'Existing profile linked.'}` });
+        router.push('/admin/orders');
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error creating order: ", error);
         toast({
-            title: 'Order Creation Failed',
-            description: 'There was a problem saving the order. Please try again.',
+            title: 'Operation Failed',
+            description: error.message || 'There was a problem processing your request.',
             variant: 'destructive',
         });
+    } finally {
         setIsLoading(false);
     }
   }
+
+  useEffect(() => {
+    const fetchServices = async () => {
+        setIsServicesLoading(true);
+        try {
+            const q = query(collection(db, "services"), orderBy("title"));
+            const querySnapshot = await getDocs(q);
+            const fetchedServices = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
+            setAllServices(fetchedServices);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsServicesLoading(false);
+        }
+    };
+    fetchServices();
+  }, []);
 
   return (
     <Form {...form}>
