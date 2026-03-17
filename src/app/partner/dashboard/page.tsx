@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -6,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive, Wallet2, TrendingUp, Bot, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive, Wallet2, TrendingUp, Bot, AlertCircle, Sparkles, Settings, CheckCircle2, Circle } from 'lucide-react';
 import Image from 'next/image';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Order, Service, User, OrderNote } from '@/lib/types';
@@ -17,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import CreatePartnerOrderForm from '@/components/partner/CreatePartnerOrderForm';
@@ -33,19 +34,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { render } from '@react-email/components';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import { sendEmail } from '@/lib/email';
+import { Progress } from '@/components/ui/progress';
 
 const db = getFirestore(firebaseApp);
-
-const userColors = [
-  'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
-  'bg-yellow-200 text-yellow-800', 'bg-purple-200 text-purple-800', 'bg-pink-200 text-pink-800',
-];
-
-const getUserColor = (userId: string) => {
-  if (!userId) return 'bg-gray-200 text-gray-800';
-  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return userColors[hash % userColors.length];
-};
 
 function TopUpDialog({ partner }: { partner: User }) {
     const [amount, setAmount] = useState<string>('');
@@ -165,12 +156,23 @@ export default function PartnerDashboardPage() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isAssistingLoading, setIsAssistingLoading] = useState(false);
     const { toast } = useToast();
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const [pendingCount, setPendingCount] = useState(0);
+    const [overrideCount, setOverrideCount] = useState(0);
     
-    const archivedNotifications = user?.archivedNotifications || [];
     const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
+    const archivedNotifications = user?.archivedNotifications || [];
+
+    useEffect(() => {
+        if (!partnerId) return;
+        const fetchOverrides = async () => {
+            const snap = await getDocs(collection(db, 'users', partnerId, 'serviceOverrides'));
+            setOverrideCount(snap.size);
+        };
+        fetchOverrides();
+    }, [partnerId]);
 
     const archiveNotification = async (noteId: string) => {
         if (!user) return;
@@ -263,6 +265,89 @@ export default function PartnerDashboardPage() {
       }
     }, [user?.uid, partnerId]);
 
+    const setupChecklist = useMemo(() => {
+        if (!user) return [];
+        return [
+            { label: 'Email SMTP Settings', done: !!(user.smtpDetails?.host && user.smtpDetails?.user && user.smtpDetails?.pass), description: 'White-label notifications.' },
+            { label: 'AI Configuration', done: !!user.geminiApiKey, description: 'Enabled matching engine.' },
+            { label: 'Update Pricing', done: overrideCount > 0, description: 'Service markups set.' },
+            { label: 'Banking Details', done: !!(user.bankingDetails?.bankName && user.bankingDetails?.accountNumber), description: 'Client EFT payments.' },
+            { label: 'Landing Page Content', done: !!(user.landingPage?.heroImageUrl && user.landingPage?.aboutUs?.length! > 50), description: 'Public website ready.' },
+            { label: 'Branding & Theme', done: user.landingPage?.themePreset !== 'custom' || user.landingPage?.primaryColor !== '#214392', description: 'Practice colors applied.' },
+        ];
+    }, [user, overrideCount]);
+
+    const progressPercentage = useMemo(() => {
+        const completed = setupChecklist.filter(i => i.done).length;
+        return Math.round((completed / setupChecklist.length) * 100);
+    }, [setupChecklist]);
+
+    const handleAssistedSetup = async () => {
+        if (!user) return;
+        setIsAssistingLoading(true);
+        toast({ title: "Creating Order...", description: "Connecting to secure payment gateway." });
+
+        try {
+            const orderId = await getNextOrderId();
+            const ASSISTED_SETUP_FEE = 2950;
+
+            const setupOrder: Order = {
+                id: orderId,
+                userId: user.uid,
+                customerName: user.companyName || user.name,
+                customerEmail: user.email,
+                items: [{
+                    id: 'assisted_setup_fee',
+                    title: 'Professional Practice Assisted Setup (Once-off)',
+                    price: ASSISTED_SETUP_FEE,
+                    quantity: 1,
+                }],
+                total: ASSISTED_SETUP_FEE,
+                discountCode: null,
+                discountAmount: null,
+                status: 'Pending Payment',
+                date: Timestamp.now(),
+                source: 'Partner',
+                resellerId: user.uid,
+            };
+            
+            await setDoc(doc(db, 'orders', orderId), setupOrder);
+
+            const payfastUrl = 'https://www.payfast.co.za/eng/process';
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = payfastUrl;
+
+            const data: { [key: string]: string } = {
+                merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
+                merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
+                return_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`,
+                cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`,
+                notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+                name_first: user.name.split(' ')[0],
+                name_last: user.name.split(' ').slice(1).join(' '),
+                email_address: user.email,
+                m_payment_id: orderId,
+                amount: ASSISTED_SETUP_FEE.toFixed(2),
+                item_name: `Professional Practice Assisted Setup`,
+            };
+
+            for (const key in data) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = data[key];
+                form.appendChild(input);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+        } catch (e) {
+            toast({ title: "Setup Failed", variant: "destructive" });
+            setIsAssistingLoading(false);
+        }
+    };
+
     const notifications = useMemo(() => {
         if (!user || outsourcedOrders.length === 0) return [];
         let allNotes: (OrderNote & { orderId: string, orderTitle: string, customerName: string })[] = [];
@@ -320,76 +405,156 @@ export default function PartnerDashboardPage() {
                 )}
             </div>
 
-            {pendingCount > 0 && partnerId && (
-                <Alert className="bg-primary/10 border-primary/20 shadow-sm animate-in fade-in slide-in-from-top-4 border-2">
-                    <Bot className="h-5 w-5 text-primary" />
-                    <AlertTitle className="font-bold text-slate-950">Chat with Khai</AlertTitle>
-                    <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <span className="text-slate-950 font-bold">Chat with Khai waiting to finalize <strong>{pendingCount}</strong> allocations.</span>
-                        <Button size="sm" asChild className="font-bold">
-                            <Link href={`/dashboard/ai-accountant/${partnerId}/chat`}>
-                                Open Chat <ArrowRight className="ml-2 h-4 w-4" />
-                            </Link>
-                        </Button>
-                    </AlertDescription>
-                </Alert>
-            )}
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <Card className="lg:col-span-2">
-                    <CardHeader>
-                        <CardTitle>Recent Notifications</CardTitle>
-                        <CardDescription>Updates from My Accountant on your outsourced orders.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div> :
-                        notifications.length > 0 ? (
-                        <ScrollArea className="h-72 pr-4">
-                            <div className="space-y-4">
-                            {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
-                                const author = getAuthor(note.authorId);
-                                const date = note.date instanceof Date ? note.date : note.date.toDate();
-                                const noteId = note.orderId + date.toISOString();
-                                return (
-                                    <div key={index} className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg border border-transparent hover:border-border transition-colors">
-                                        <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", author ? getUserColor(author.id) : 'bg-gray-200')}>
-                                            {author?.name.charAt(0) || 'U'}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-8 space-y-8">
+                    {progressPercentage < 100 && (
+                        <Card className="border-2 border-primary/20 bg-primary/5 shadow-md overflow-hidden animate-in fade-in slide-in-from-top-4">
+                            <CardHeader className="pb-2">
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white">
+                                            <Settings className="h-4 w-4" />
                                         </div>
-                                        <div className="flex-1">
-                                            <div className="flex justify-between items-start">
-                                                <p className="text-sm">
-                                                    <span className="font-semibold">{author?.name || 'My Accountant Support'}</span>
-                                                    <span className="text-muted-foreground"> left a note on order </span>
-                                                    <Link href={`/partner/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
-                                                </p>
-                                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                                                    {formatDistanceToNow(date, { addSuffix: true })}
-                                                </p>
-                                            </div>
-                                            <p className="mt-2 text-sm text-foreground/80 italic leading-relaxed">
-                                                "{note.text}"
-                                            </p>
-                                            <div className="flex justify-end mt-2">
-                                                <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => archiveNotification(noteId)}>
-                                                    <Archive className="mr-2 h-3 w-3"/> Archive
-                                                </Button>
-                                            </div>
-                                        </div>
+                                        <CardTitle className="text-lg">Practice Setup Progress</CardTitle>
                                     </div>
-                                )
-                            })}
+                                    <Badge variant={progressPercentage > 70 ? "success" : "secondary"} className="font-bold">
+                                        {progressPercentage}% Complete
+                                    </Badge>
+                                </div>
+                                <Progress value={progressPercentage} className="h-2 mt-4" />
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                                    {setupChecklist.map((item, idx) => (
+                                        <div key={idx} className="flex items-center gap-3">
+                                            {item.done ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> : <Circle className="h-4 w-4 text-muted-foreground shrink-0 opacity-30" />}
+                                            <div className="flex-1 overflow-hidden">
+                                                <p className={cn("text-xs font-bold truncate", item.done ? "text-green-800" : "text-muted-foreground")}>{item.label}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                            <CardFooter className="bg-primary/10 border-t border-primary/5 py-3 flex justify-between items-center">
+                                <p className="text-[10px] text-primary font-bold uppercase tracking-widest italic">Complete your setup to scale faster.</p>
+                                <Button size="sm" asChild variant="link" className="text-primary font-black h-auto p-0">
+                                    <Link href="/partner/profile">Configure Settings <ArrowRight className="ml-1 h-3 w-3" /></Link>
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    )}
+
+                    {pendingCount > 0 && partnerId && (
+                        <Alert className="bg-primary/10 border-primary/20 shadow-sm animate-in fade-in slide-in-from-top-4 border-2">
+                            <Bot className="h-5 w-5 text-primary" />
+                            <AlertTitle className="font-bold text-slate-950">Chat with Khai</AlertTitle>
+                            <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <span className="text-slate-950 font-bold">Chat with Khai waiting to finalize <strong>{pendingCount}</strong> allocations.</span>
+                                <Button size="sm" asChild className="font-bold">
+                                    <Link href={`/dashboard/ai-accountant/${partnerId}/chat`}>
+                                        Open Chat <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Link>
+                                </Button>
+                            </AlertDescription>
+                        </Alert>
+                    )}
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Recent Notifications</CardTitle>
+                            <CardDescription>Updates from My Accountant on your outsourced orders.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div> :
+                            notifications.length > 0 ? (
+                            <ScrollArea className="h-72 pr-4">
+                                <div className="space-y-4">
+                                {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
+                                    const author = getAuthor(note.authorId);
+                                    const date = note.date instanceof Date ? note.date : note.date.toDate();
+                                    const noteId = note.orderId + date.toISOString();
+                                    return (
+                                        <div key={index} className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg border border-transparent hover:border-border transition-colors">
+                                            <div className={cn("mt-1 h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm", author ? getUserColor(author.id) : 'bg-gray-200')}>
+                                                {author?.name.charAt(0) || 'U'}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-start">
+                                                    <p className="text-sm">
+                                                        <span className="font-semibold">{author?.name || 'My Accountant Support'}</span>
+                                                        <span className="text-muted-foreground"> left a note on order </span>
+                                                        <Link href={`/partner/outsourced-orders/${note.orderId}`} className="font-semibold text-primary hover:underline">{note.orderId}</Link>
+                                                    </p>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                                                        {formatDistanceToNow(date, { addSuffix: true })}
+                                                    </p>
+                                                </div>
+                                                <p className="mt-2 text-sm text-foreground/80 italic leading-relaxed">
+                                                    "{note.text}"
+                                                </p>
+                                                <div className="flex justify-end mt-2">
+                                                    <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => archiveNotification(noteId)}>
+                                                        <Archive className="mr-2 h-3 w-3"/> Archive
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                                </div>
+                            </ScrollArea>
+                            ) : (
+                            <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground border-2 border-dashed rounded-lg">
+                                <Inbox className="h-12 w-12 mb-4 opacity-20"/>
+                                <p className="font-semibold text-sm">All caught up!</p>
+                                <p className="text-xs">No new notes on your outsourced orders.</p>
                             </div>
-                        </ScrollArea>
-                        ) : (
-                        <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground border-2 border-dashed rounded-lg">
-                            <Inbox className="h-12 w-12 mb-4 opacity-20"/>
-                            <p className="font-semibold text-sm">All caught up!</p>
-                            <p className="text-xs">No new notes on your outsourced orders.</p>
-                        </div>
-                        )}
-                    </CardContent>
-                </Card>
-                <div className="space-y-8">
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <div className="lg:col-span-4 space-y-8">
+                    {progressPercentage < 100 && (
+                        <Card className="border-2 border-dashed border-primary shadow-lg overflow-hidden animate-bounce-slow">
+                            <CardHeader className="bg-primary pb-4 text-white">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 fill-current" />
+                                    Don't Have Time?
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-6 space-y-4">
+                                <p className="text-sm font-medium leading-relaxed">
+                                    Want us to handle your technical setup, white-labeling, and pricing configuration for you?
+                                </p>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2 text-xs">
+                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                        <span>SMTP & Email Integration</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs">
+                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                        <span>Landing Page Customization</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs">
+                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                        <span>Service Pricing & AI Setup</span>
+                                    </div>
+                                </div>
+                                <Button 
+                                    className="w-full font-bold shadow-md h-12" 
+                                    variant="default"
+                                    onClick={handleAssistedSetup}
+                                    disabled={isAssistingLoading}
+                                >
+                                    {isAssistingLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    Assisted Setup (R2,950)
+                                </Button>
+                                <p className="text-[10px] text-center text-muted-foreground uppercase font-bold tracking-tighter">Secure Payment via PayFast</p>
+                            </CardContent>
+                        </Card>
+                    )}
+
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-lg">Quick Actions</CardTitle>
@@ -400,6 +565,7 @@ export default function PartnerDashboardPage() {
                             <Button className="w-full justify-start font-semibold" asChild><Link href="/partner/profile"><Users className="mr-3 h-4 w-4"/>Manage Profile</Link></Button>
                         </CardContent>
                     </Card>
+
                      <Card className="bg-muted/20">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm flex items-center gap-2">
@@ -420,7 +586,6 @@ export default function PartnerDashboardPage() {
                     </Card>
                 </div>
             </div>
-      
         </div>
     );
 }
