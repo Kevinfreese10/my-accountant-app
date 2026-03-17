@@ -571,7 +571,6 @@ export default function PartnerDashboardPage() {
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <Button className="w-full justify-start font-semibold" asChild><Link href="/partner/services"><Briefcase className="mr-3 h-4 w-4"/>Services & Pricing</Link></Button>
-                            <Button className="w-full justify-start font-semibold" asChild><Link href="/partner/ai-accountant/clients"><BrainCircuit className="mr-3 h-4 w-4"/>AI Accountant</Link></Button>
                             <Button className="w-full justify-start font-semibold" asChild><Link href="/partner/profile"><Users className="mr-3 h-4 w-4"/>Manage Profile</Link></Button>
                         </CardContent>
                     </Card>
