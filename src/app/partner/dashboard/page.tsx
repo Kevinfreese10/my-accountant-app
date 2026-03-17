@@ -150,31 +150,31 @@ function TopUpDialog({ partner }: { partner: User }) {
 }
 
 export default function PartnerDashboardPage() {
-    const { user, updateUser } = useAuth();
-    const router = useRouter();
-    const { blogPosts, isLoading: isBlogLoading } = useBlog();
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isAssistingLoading, setIsAssistingLoading] = useState(false);
-    const { toast } = useToast();
-    const [allStaff, setAllStaff] = useState<User[]>([]);
-    const [pendingCount, setPendingCount] = useState(0);
-    const [overrideCount, setOverrideCount] = useState(0);
-    
-    const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
-    const archivedNotifications = user?.archivedNotifications || [];
+  const { user, updateUser } = useAuth();
+  const router = useRouter();
+  const { blogPosts, isLoading: isBlogLoading } = useBlog();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAssistingLoading, setIsAssistingLoading] = useState(false);
+  const { toast } = useToast();
+  const [allStaff, setAllStaff] = useState<User[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [overrideCount, setOverrideCount] = useState(0);
+  
+  const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
+  const archivedNotifications = user?.archivedNotifications || [];
 
-    useEffect(() => {
-        if (!partnerId) return;
-        const fetchOverrides = async () => {
-            const snap = await getDocs(collection(db, 'users', partnerId, 'serviceOverrides'));
-            setOverrideCount(snap.size);
-        };
-        fetchOverrides();
-    }, [partnerId]);
+  useEffect(() => {
+      if (!partnerId) return;
+      const fetchOverrides = async () => {
+          const snap = await getDocs(collection(db, 'users', partnerId, 'serviceOverrides'));
+          setOverrideCount(snap.size);
+      };
+      fetchOverrides();
+  }, [partnerId]);
 
-    const archiveNotification = async (noteId: string) => {
+  const archiveNotification = async (noteId: string) => {
         if (!user) return;
         const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, {
@@ -279,7 +279,7 @@ export default function PartnerDashboardPage() {
 
     const progressPercentage = useMemo(() => {
         const completed = setupChecklist.filter(i => i.done).length;
-        return Math.round((completed / setupChecklist.length) * 100);
+        return Math.round((completed / checklist.length) * 100);
     }, [setupChecklist]);
 
     const handleAssistedSetup = async () => {
@@ -289,7 +289,7 @@ export default function PartnerDashboardPage() {
 
         try {
             const orderId = await getNextOrderId();
-            const ASSISTED_SETUP_FEE = 2950;
+            const ASSISTED_SETUP_FEE = 4950;
 
             const setupOrder: Order = {
                 id: orderId,
@@ -298,7 +298,7 @@ export default function PartnerDashboardPage() {
                 customerEmail: user.email,
                 items: [{
                     id: 'assisted_setup_fee',
-                    title: 'Professional Practice Assisted Setup (Once-off)',
+                    title: 'Professional Practice Assisted Setup & Platform Demo (Once-off)',
                     price: ASSISTED_SETUP_FEE,
                     quantity: 1,
                 }],
@@ -329,7 +329,7 @@ export default function PartnerDashboardPage() {
                 email_address: user.email,
                 m_payment_id: orderId,
                 amount: ASSISTED_SETUP_FEE.toFixed(2),
-                item_name: `Professional Practice Assisted Setup`,
+                item_name: `Professional Practice Assisted Setup & Demo`,
             };
 
             for (const key in data) {
@@ -525,7 +525,7 @@ export default function PartnerDashboardPage() {
                             </CardHeader>
                             <CardContent className="pt-6 space-y-4">
                                 <p className="text-sm font-medium leading-relaxed">
-                                    Want us to handle your technical setup, white-labeling, and pricing configuration for you?
+                                    Want us to handle your technical setup, white-labeling, pricing configuration, and <strong>Platform Demo</strong> for you?
                                 </p>
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-2 text-xs">
@@ -540,6 +540,10 @@ export default function PartnerDashboardPage() {
                                         <CheckCircle2 className="h-3 w-3 text-green-600" />
                                         <span>Service Pricing & AI Setup</span>
                                     </div>
+                                    <div className="flex items-center gap-2 text-xs">
+                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                        <span>Full Platform Walkthrough Demo</span>
+                                    </div>
                                 </div>
                                 <Button 
                                     className="w-full font-bold shadow-md h-12" 
@@ -548,7 +552,7 @@ export default function PartnerDashboardPage() {
                                     disabled={isAssistingLoading}
                                 >
                                     {isAssistingLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                    Assisted Setup (R2,950)
+                                    Assisted Setup & Demo (R4,950)
                                 </Button>
                                 <p className="text-[10px] text-center text-muted-foreground uppercase font-bold tracking-tighter">Secure Payment via PayFast</p>
                             </CardContent>
