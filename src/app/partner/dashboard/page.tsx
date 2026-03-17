@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -267,19 +266,26 @@ export default function PartnerDashboardPage() {
 
     const setupChecklist = useMemo(() => {
         if (!user) return [];
+        const watchedSmtp = user.smtpDetails;
+        const watchedAiKey = user.geminiApiKey;
+        const watchedBanking = user.bankingDetails;
+        const watchedLp = user.landingPage || {};
+
         return [
-            { label: 'Email SMTP Settings', done: !!(user.smtpDetails?.host && user.smtpDetails?.user && user.smtpDetails?.pass), description: 'White-label notifications.' },
-            { label: 'AI Configuration', done: !!user.geminiApiKey, description: 'Enabled matching engine.' },
-            { label: 'Update Pricing', done: overrideCount > 0, description: 'Service markups set.' },
-            { label: 'Banking Details', done: !!(user.bankingDetails?.bankName && user.bankingDetails?.accountNumber), description: 'Client EFT payments.' },
-            { label: 'Landing Page Content', done: !!(user.landingPage?.heroImageUrl && user.landingPage?.aboutUs?.length! > 50), description: 'Public website ready.' },
-            { label: 'Branding & Theme', done: user.landingPage?.themePreset !== 'custom' || user.landingPage?.primaryColor !== '#214392', description: 'Practice colors applied.' },
+            { label: 'Email SMTP Settings', done: !!(watchedSmtp?.host && watchedSmtp?.user && watchedSmtp?.pass), description: 'Required for white-label client notifications.' },
+            { label: 'AI Configuration & Quotas', done: !!watchedAiKey, description: 'Enable AI-powered transaction matching.' },
+            { label: 'Update Pricing', done: overrideCount > 0, description: 'Set your markups in the Services tab.' },
+            { label: 'Update Banking Details', done: !!(watchedBanking?.bankName && watchedBanking?.accountNumber), description: 'Required for client EFT payments.' },
+            { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },
+            { label: 'Branding & Theme', done: watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392'), description: 'Apply your custom colors and styling.' },
         ];
     }, [user, overrideCount]);
 
     const progressPercentage = useMemo(() => {
         const completed = setupChecklist.filter(i => i.done).length;
-        return Math.round((completed / checklist.length) * 100);
+        const total = setupChecklist.length;
+        if (total === 0) return 0;
+        return Math.round((completed / total) * 100);
     }, [setupChecklist]);
 
     const handleAssistedSetup = async () => {
@@ -516,7 +522,7 @@ export default function PartnerDashboardPage() {
 
                 <div className="lg:col-span-4 space-y-8">
                     {progressPercentage < 100 && (
-                        <Card className="border-2 border-dashed border-primary shadow-lg overflow-hidden animate-bounce-slow">
+                        <Card className="border-2 border-dashed border-primary shadow-lg overflow-hidden">
                             <CardHeader className="bg-primary pb-4 text-white">
                                 <CardTitle className="text-base flex items-center gap-2">
                                     <Sparkles className="h-4 w-4 fill-current" />
