@@ -1,4 +1,3 @@
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -28,7 +27,8 @@ import {
   Circle, 
   PartyPopper, 
   MapPin, 
-  Building 
+  Building,
+  Gavel
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { getFirestore, doc, updateDoc, collection, getDocs } from 'firebase/firestore';
@@ -573,6 +573,10 @@ export default function PartnerProfile() {
                                                 step={1} 
                                             />
                                         </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <FormField control={form.control} name="landingPage.showLogo" render={({ field }) => ( <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="text-[10px] font-bold text-muted-foreground uppercase">Show Logo</FormLabel></FormItem> )} />
+                                            <FormField control={form.control} name="landingPage.hideHeaderBranding" render={({ field }) => ( <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="text-[10px] font-bold text-muted-foreground uppercase">Hide Title</FormLabel></FormItem> )} />
+                                        </div>
                                     </div>
                                     <Separator />
                                     <FormField control={form.control} name="landingPage.aboutUs" render={({ field }) => ( <FormItem><FormLabel className="text-xs">About Us Paragraph</FormLabel><FormControl><Textarea {...field} rows={4} /></FormControl><FormMessage /></FormItem> )} />
@@ -611,6 +615,18 @@ export default function PartnerProfile() {
                                 </CardContent>
                             </Card>
                         </div>
+
+                        <Card className="border-2">
+                            <CardHeader className="bg-muted/30">
+                                <CardTitle className="text-sm flex items-center gap-2"><Gavel className="h-4 w-4" /> Legal & Policies</CardTitle>
+                                <CardDescription className="text-[10px]">Provide custom policy text for your white-label practice landing page.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6 pt-6">
+                                <FormField control={form.control} name="landingPage.refundPolicy" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Refund Policy</FormLabel><FormControl><Textarea {...field} rows={4} placeholder="Detail your practice's refund conditions..." /></FormControl><FormMessage /></FormItem> )} />
+                                <FormField control={form.control} name="landingPage.popiaPolicy" render={({ field }) => ( <FormItem><FormLabel className="text-xs">POPIA Compliance Policy</FormLabel><FormControl><Textarea {...field} rows={4} placeholder="Outline your data protection procedures..." /></FormControl><FormMessage /></FormItem> )} />
+                                <FormField control={form.control} name="landingPage.termsAndConditions" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Terms & Conditions</FormLabel><FormControl><Textarea {...field} rows={4} placeholder="General terms of service for your practice..." /></FormControl><FormMessage /></FormItem> )} />
+                            </CardContent>
+                        </Card>
                     </div>
                 )}
             </div>
