@@ -522,6 +522,35 @@ export default function PartnerProfile() {
                                                 step={1} 
                                             />
                                         </div>
+                                        
+                                        <div className="grid grid-cols-2 gap-4 pt-2">
+                                            <FormField control={form.control} name="landingPage.heroTextPosition" render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-[10px] font-bold uppercase text-muted-foreground">Text Position</FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                        <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="inside">Inside Image (Overlay)</SelectItem>
+                                                            <SelectItem value="below">Below Image</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )} />
+                                            <FormField control={form.control} name="landingPage.heroLayout" render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-[10px] font-bold uppercase text-muted-foreground">Layout Alignment</FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                        <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="centered">Centered</SelectItem>
+                                                            <SelectItem value="split-left">Split Left</SelectItem>
+                                                            <SelectItem value="split-right">Split Right</SelectItem>
+                                                            <SelectItem value="background">Background Only</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )} />
+                                        </div>
                                     </div>
 
                                     <Separator />
