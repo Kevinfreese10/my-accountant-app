@@ -502,6 +502,28 @@ export default function PartnerProfile() {
                                     <Separator />
                                     <FormField control={form.control} name="landingPage.heroSubtitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Hero Subtitle</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem> )} />
                                     <ColorField name="landingPage.heroSubtitleColor" label="Hero Subtitle Color" />
+                                    
+                                    <Separator />
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Hero Section Image</FormLabel>
+                                            <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingHero}><label className="cursor-pointer">{isUploadingHero ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}Upload<input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'hero')} /></label></Button>
+                                        </div>
+                                        <FormField control={form.control} name="landingPage.heroImageUrl" render={({ field }) => ( <FormItem><FormControl><Input {...field} className="text-xs h-8" /></FormControl><FormMessage /></FormItem> )} />
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center text-[10px] font-bold uppercase text-muted-foreground">
+                                                <span>Hero Overlay Opacity</span>
+                                                <span>{watch('landingPage.heroOverlayOpacity')}%</span>
+                                            </div>
+                                            <Slider 
+                                                value={[watch('landingPage.heroOverlayOpacity')]} 
+                                                onValueChange={(val) => setValue('landingPage.heroOverlayOpacity', val[0], { shouldDirty: true })} 
+                                                max={100} 
+                                                step={1} 
+                                            />
+                                        </div>
+                                    </div>
+
                                     <Separator />
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">
@@ -524,6 +546,26 @@ export default function PartnerProfile() {
                                     <ColorField name="landingPage.buttonColor" label="Button Color" description="Call-to-action button color." />
                                     <ColorField name="landingPage.backgroundColor" label="Page Background" />
                                     <ColorField name="landingPage.textColor" label="Default Text Color" />
+                                    <Separator />
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Services Section Hero Image</FormLabel>
+                                            <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingServicesHero}><label className="cursor-pointer">{isUploadingServicesHero ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}Upload<input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'servicesHero')} /></label></Button>
+                                        </div>
+                                        <FormField control={form.control} name="landingPage.servicesHeroImageUrl" render={({ field }) => ( <FormItem><FormControl><Input {...field} className="text-xs h-8" /></FormControl><FormMessage /></FormItem> )} />
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center text-[10px] font-bold uppercase text-muted-foreground">
+                                                <span>Services Hero Opacity</span>
+                                                <span>{watch('landingPage.servicesHeroOverlayOpacity')}%</span>
+                                            </div>
+                                            <Slider 
+                                                value={[watch('landingPage.servicesHeroOverlayOpacity')]} 
+                                                onValueChange={(val) => setValue('landingPage.servicesHeroOverlayOpacity', val[0], { shouldDirty: true })} 
+                                                max={100} 
+                                                step={1} 
+                                            />
+                                        </div>
+                                    </div>
                                 </CardContent>
                             </Card>
                         </div>
