@@ -560,6 +560,19 @@ export default function PartnerProfile() {
                                             <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingLogo}><label className="cursor-pointer">{isUploadingLogo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}Upload<input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'logo')} /></label></Button>
                                         </div>
                                         <FormField control={form.control} name="landingPage.logoUrl" render={({ field }) => ( <FormItem><FormControl><Input {...field} className="text-xs h-8" /></FormControl><FormMessage /></FormItem> )} />
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center text-[10px] font-bold uppercase text-muted-foreground">
+                                                <span>Logo Height</span>
+                                                <span>{watch('landingPage.logoHeight')}px</span>
+                                            </div>
+                                            <Slider 
+                                                value={[watch('landingPage.logoHeight')]} 
+                                                onValueChange={(val) => setValue('landingPage.logoHeight', val[0], { shouldDirty: true })} 
+                                                min={20}
+                                                max={120} 
+                                                step={1} 
+                                            />
+                                        </div>
                                     </div>
                                     <Separator />
                                     <FormField control={form.control} name="landingPage.aboutUs" render={({ field }) => ( <FormItem><FormLabel className="text-xs">About Us Paragraph</FormLabel><FormControl><Textarea {...field} rows={4} /></FormControl><FormMessage /></FormItem> )} />
