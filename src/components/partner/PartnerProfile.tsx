@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '../ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck, Mail, Upload, Image as ImageIcon, Info, ExternalLinkIcon, CheckCircle2, Circle, PartyPopper } from 'lucide-react';
+import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck, Mail, Upload, Image as ImageIcon, Info, ExternalLinkIcon, CheckCircle2, Circle, PartyPopper, MapPin } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { getFirestore, doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -30,6 +30,8 @@ import { Progress } from '@/components/ui/progress';
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 
+const RESERVED_SLUGS = ['admin', 'login', 'signup', 'api', 'dashboard', 'partner', 'p', 'products', 'blog', 'about', 'contact', 'compliance', 'terms', 'popia', 'refund-policy', 'support'];
+
 const formSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
   name: z.string().min(2, 'Contact name is required.'),
@@ -45,6 +47,7 @@ const formSchema = z.object({
   }).optional(),
   address: z.object({
       street: z.string().optional(),
+      suburb: z.string().optional(),
       city: z.string().optional(),
       province: z.string().optional(),
       zip: z.string().optional(),
@@ -57,7 +60,10 @@ const formSchema = z.object({
   }).optional(),
   landingPage: z.object({
     enabled: z.boolean().default(false),
-    slug: z.string().min(3, "Slug must be at least 3 characters").regex(/^[a-z0-9-]+$/, "Slug can only contain lowercase letters, numbers, and hyphens"),
+    slug: z.string()
+        .min(3, "Slug must be at least 3 characters")
+        .regex(/^[a-z0-9-]+$/, "Slug can only contain lowercase letters, numbers, and hyphens")
+        .refine(val => !RESERVED_SLUGS.includes(val), { message: "This slug is reserved for system use." }),
     heroTitle: z.string().min(5, "Hero title is too short"),
     heroSubtitle: z.string().min(10, "Hero subtitle is too short"),
     aboutUs: z.string().min(20, "About Us text is too short"),
@@ -154,6 +160,7 @@ export default function PartnerProfile() {
       },
       address: { 
           street: user?.address?.street || '', 
+          suburb: user?.address?.suburb || '', 
           city: user?.address?.city || '', 
           province: user?.address?.province || '', 
           zip: user?.address?.zip || ''
@@ -222,8 +229,8 @@ export default function PartnerProfile() {
           { label: 'AI Configuration & Quotas', done: !!watchedAiKey, description: 'Enable AI-powered transaction matching.' },
           { label: 'Update Pricing', done: overrideCount > 0, description: 'Set your markups in the Services tab.' },
           { label: 'Update Banking Details', done: !!(watchedBanking?.bankName && watchedBanking?.accountNumber), description: 'Required for client EFT payments.' },
-          { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },
-          { label: 'Branding & Theme', done: watchedLp.themePreset !== 'custom' || watchedLp.primaryColor !== '#214392', description: 'Apply your custom colors and styling.' },
+          { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },
+          { label: 'Branding & Theme', done: watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392'), description: 'Apply your custom colors and styling.' },
       ];
   }, [watchedSmtp, watchedAiKey, watchedBanking, watchedLp, overrideCount]);
 
@@ -287,7 +294,8 @@ export default function PartnerProfile() {
         updateUser({ ...user, ...updateData });
         toast({ title: 'Profile Updated!' });
     } catch (error) {
-        toast({ title: 'Update Failed', variant: 'destructive' });
+        console.error("Profile update failed:", error);
+        toast({ title: 'Update Failed', description: "There was a problem saving your profile settings.", variant: 'destructive' });
     } finally {
         setIsSaving(false);
     }
@@ -325,7 +333,7 @@ export default function PartnerProfile() {
         name={name}
         render={({ field }) => (
             <FormItem className="space-y-3">
-                <div>
+                <div className="flex justify-between items-center">
                     <FormLabel className="text-xs font-bold uppercase text-muted-foreground">{label}</FormLabel>
                     {description && <p className="text-[10px] text-muted-foreground">{description}</p>}
                 </div>
@@ -344,6 +352,7 @@ export default function PartnerProfile() {
                         ))}
                     </div>
                 </div>
+                <FormMessage />
             </FormItem>
         )}
     />
@@ -379,22 +388,40 @@ export default function PartnerProfile() {
 
         <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <div className="space-y-4">
-                <h3 className="text-lg font-medium">Company Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                    <Building className="h-5 w-5 text-primary" />
+                    Company Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="contactNumber" render={({ field }) => ( <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Contact Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="surname" render={({ field }) => ( <FormItem><FormLabel>Contact Surname</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} readOnly disabled /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="contactNumber" render={({ field }) => ( <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <div className="md:col-span-2">
+                        <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted/50" /></FormControl><FormMessage /></FormItem>)} />
+                    </div>
+                </div>
+
+                <div className="pt-4 space-y-4">
+                    <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                        <MapPin className="h-4 w-4" /> Physical Address
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel className="text-xs">Street Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Suburb</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel className="text-xs">City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="address.province" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Province</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel className="text-xs">ZIP / Postal Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    </div>
                 </div>
             </div>
 
             <Separator />
 
             <div className="space-y-4">
-                <h3 className="text-lg font-medium flex items-center gap-2"><Mail className="h-5 w-5 text-primary" /> Email SMTP Settings</h3>
-                <Card className="bg-muted/30">
+                <h3 className="text-xl font-bold flex items-center gap-2"><Mail className="h-5 w-5 text-primary" /> Email SMTP Settings</h3>
+                <Card className="bg-muted/30 border-2">
                     <CardHeader>
                         <CardTitle className="text-sm">Outgoing Mail Server</CardTitle>
                         <Alert className="bg-blue-50 border-blue-200 text-blue-800 mt-2">
@@ -404,14 +431,14 @@ export default function PartnerProfile() {
                         </Alert>
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                        <FormField control={form.control} name="smtpDetails.host" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Host</FormLabel><FormControl><Input placeholder="e.g. smtp.gmail.com" {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="smtpDetails.port" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Port</FormLabel><FormControl><Input placeholder="e.g. 465" {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="smtpDetails.user" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Username</FormLabel><FormControl><Input placeholder="your@email.com" {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="smtpDetails.pass" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="smtpDetails.host" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Host</FormLabel><FormControl><Input placeholder="e.g. smtp.gmail.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="smtpDetails.port" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Port</FormLabel><FormControl><Input placeholder="e.g. 465" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="smtpDetails.user" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Username</FormLabel><FormControl><Input placeholder="your@email.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="smtpDetails.pass" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem>)} />
                     </CardContent>
                     <CardFooter className="bg-muted/50 justify-between py-3">
                         <p className="text-[10px] text-muted-foreground italic">Required for white-label notifications.</p>
-                        <Button type="button" variant="outline" size="sm" onClick={handleTestSmtp} disabled={isTestingSmtp}>
+                        <Button type="button" variant="outline" size="sm" onClick={handleTestSmtp} disabled={isTestingSmtp} className="font-bold">
                             {isTestingSmtp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Test SMTP
                         </Button>
                     </CardFooter>
@@ -422,12 +449,12 @@ export default function PartnerProfile() {
 
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium flex items-center gap-2"><Globe className="h-5 w-5 text-primary" /> White-Label Landing Page</h3>
+                    <h3 className="text-xl font-bold flex items-center gap-2"><Globe className="h-5 w-5 text-primary" /> White-Label Landing Page</h3>
                     <FormField control={form.control} name="landingPage.enabled" render={({ field }) => ( <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="text-xs uppercase font-bold text-muted-foreground">Enabled</FormLabel></FormItem> )} />
                 </div>
 
                 {landingPageEnabled && (
-                    <div className="grid grid-cols-1 gap-6">
+                    <div className="grid grid-cols-1 gap-6 animate-in fade-in zoom-in-95 duration-300">
                         <Card className="border-primary/20">
                             <CardHeader className="pb-3"><CardTitle className="text-sm">Public Link</CardTitle></CardHeader>
                             <CardContent>
@@ -435,18 +462,27 @@ export default function PartnerProfile() {
                                     <div className="bg-muted px-3 py-2 rounded-md font-mono text-sm flex-grow">/p/{landingPageSlug || 'your-slug'}</div>
                                     {landingPageSlug && <Button variant="outline" size="sm" asChild><Link href={`/p/${landingPageSlug}`} target="_blank"><ExternalLinkIcon className="h-4 w-4 mr-2"/>Visit Page</Link></Button>}
                                 </div>
-                                <FormField control={form.control} name="landingPage.slug" render={({ field }) => ( <FormItem className="mt-4"><FormLabel className="text-xs">Custom Slug</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                                <FormField control={form.control} name="landingPage.slug" render={({ field }) => ( 
+                                    <FormItem className="mt-4">
+                                        <FormLabel className="text-xs">Custom Slug</FormLabel>
+                                        <FormControl><Input {...field} /></FormControl>
+                                        <FormDescription className="text-[10px]">
+                                            Must be unique, lowercase, no spaces. Avoid reserved keywords like 'admin', 'api', or 'login'.
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem> 
+                                )} />
                             </CardContent>
                         </Card>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card>
-                                <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Layout className="h-4 w-4" /> Content & Images</CardTitle></CardHeader>
-                                <CardContent className="space-y-6">
-                                    <FormField control={form.control} name="landingPage.heroTitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Hero Title</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                            <Card className="border-2">
+                                <CardHeader className="bg-muted/30"><CardTitle className="text-sm flex items-center gap-2"><Layout className="h-4 w-4" /> Content & Images</CardTitle></CardHeader>
+                                <CardContent className="space-y-6 pt-6">
+                                    <FormField control={form.control} name="landingPage.heroTitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Hero Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                                     <ColorField name="landingPage.heroTitleColor" label="Hero Title Color" />
                                     <Separator />
-                                    <FormField control={form.control} name="landingPage.heroSubtitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Hero Subtitle</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="landingPage.heroSubtitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Hero Subtitle</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem> )} />
                                     <ColorField name="landingPage.heroSubtitleColor" label="Hero Subtitle Color" />
                                     <Separator />
                                     <div className="space-y-4">
@@ -454,22 +490,22 @@ export default function PartnerProfile() {
                                             <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Practice Logo</FormLabel>
                                             <Button variant="outline" size="xs" className="h-7" asChild disabled={isUploadingLogo}><label className="cursor-pointer">{isUploadingLogo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}Upload<input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'logo')} /></label></Button>
                                         </div>
-                                        <FormField control={form.control} name="landingPage.logoUrl" render={({ field }) => ( <FormItem><FormControl><Input {...field} className="text-xs h-8" /></FormControl></FormItem> )} />
+                                        <FormField control={form.control} name="landingPage.logoUrl" render={({ field }) => ( <FormItem><FormControl><Input {...field} className="text-xs h-8" /></FormControl><FormMessage /></FormItem> )} />
                                     </div>
                                     <Separator />
-                                    <FormField control={form.control} name="landingPage.aboutUs" render={({ field }) => ( <FormItem><FormLabel className="text-xs">About Us Paragraph</FormLabel><FormControl><Textarea {...field} rows={4} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="landingPage.aboutUs" render={({ field }) => ( <FormItem><FormLabel className="text-xs">About Us Paragraph</FormLabel><FormControl><Textarea {...field} rows={4} /></FormControl><FormMessage /></FormItem> )} />
                                 </CardContent>
                             </Card>
 
-                            <Card>
-                                <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Palette className="h-4 w-4" /> Branding & Theme</CardTitle></CardHeader>
-                                <CardContent className="space-y-6">
-                                    <FormField control={form.control} name="landingPage.themePreset" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Theme Preset</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="custom">Custom</SelectItem><SelectItem value="my_accountant">Master</SelectItem><SelectItem value="tech_blue">Light</SelectItem><SelectItem value="futuristic">Dark</SelectItem></SelectContent></Select></FormItem> )} />
+                            <Card className="border-2">
+                                <CardHeader className="bg-muted/30"><CardTitle className="text-sm flex items-center gap-2"><Palette className="h-4 w-4" /> Branding & Theme</CardTitle></CardHeader>
+                                <CardContent className="space-y-6 pt-6">
+                                    <FormField control={form.control} name="landingPage.themePreset" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Theme Preset</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a theme..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="custom">Custom</SelectItem><SelectItem value="my_accountant">Master</SelectItem><SelectItem value="tech_blue">Light</SelectItem><SelectItem value="futuristic">Dark</SelectItem></SelectContent></Select><FormMessage /></FormItem> )} />
                                     <Separator className="my-2" />
-                                    <ColorField name="landingPage.primaryColor" label="Primary Color" />
-                                    <ColorField name="landingPage.buttonColor" label="Button Color" />
-                                    <ColorField name="landingPage.backgroundColor" label="Background" />
-                                    <ColorField name="landingPage.textColor" label="Text Color" />
+                                    <ColorField name="landingPage.primaryColor" label="Primary Color" description="Main brand color used for accents." />
+                                    <ColorField name="landingPage.buttonColor" label="Button Color" description="Call-to-action button color." />
+                                    <ColorField name="landingPage.backgroundColor" label="Page Background" />
+                                    <ColorField name="landingPage.textColor" label="Default Text Color" />
                                 </CardContent>
                             </Card>
                         </div>
@@ -480,11 +516,18 @@ export default function PartnerProfile() {
             <Separator />
 
             <div className="space-y-4">
-                <h3 className="text-lg font-medium flex items-center gap-2"><BrainCircuit className="h-5 w-5 text-primary" /> AI Configuration</h3>
-                <Card className="border-primary/20 bg-primary/5">
+                <h3 className="text-xl font-bold flex items-center gap-2"><BrainCircuit className="h-5 w-5 text-primary" /> AI Configuration</h3>
+                <Card className="border-primary/20 bg-primary/5 border-2 shadow-inner">
                     <CardHeader><CardTitle className="text-sm">Gemini AI Integration</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
-                        <FormField control={form.control} name="geminiApiKey" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Google Gemini API Key</FormLabel><FormControl><Input type="password" placeholder="Enter key..." {...field} className="bg-white" /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="geminiApiKey" render={({ field }) => ( 
+                            <FormItem>
+                                <FormLabel className="text-xs">Google Gemini API Key</FormLabel>
+                                <FormControl><Input type="password" placeholder="Enter key..." {...field} className="bg-white" /></FormControl>
+                                <FormDescription className="text-[10px]">Required for automated bank statement processing.</FormDescription>
+                                <FormMessage />
+                            </FormItem> 
+                        )} />
                     </CardContent>
                 </Card>
             </div>
@@ -492,17 +535,23 @@ export default function PartnerProfile() {
             <Separator />
 
             <div className="space-y-4">
-                <h3 className="text-lg font-medium">Banking Details (For Client EFTs)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                     <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                     <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                     <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-primary" />
+                    Banking Details (For Client EFTs)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                     <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
             </div>
             
             <Separator />
-            <Button type="submit" disabled={isSaving} className="w-full h-12 text-lg font-bold">{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Profile Settings</Button>
+            <Button type="submit" disabled={isSaving} className="w-full h-14 text-lg font-black shadow-xl">
+                {isSaving && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                Save All Practice Settings
+            </Button>
         </form>
         </Form>
     </div>
