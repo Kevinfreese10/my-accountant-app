@@ -1,3 +1,4 @@
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -11,7 +12,24 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '../ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, BrainCircuit, Globe, Layout, Palette, ExternalLink, ShieldCheck, Mail, Upload, Image as ImageIcon, Info, ExternalLinkIcon, CheckCircle2, Circle, PartyPopper, MapPin } from 'lucide-react';
+import { 
+  Loader2, 
+  BrainCircuit, 
+  Globe, 
+  Layout, 
+  Palette, 
+  ExternalLink as ExternalLinkIcon, 
+  ShieldCheck, 
+  Mail, 
+  Upload, 
+  Image as ImageIcon, 
+  Info, 
+  CheckCircle2, 
+  Circle, 
+  PartyPopper, 
+  MapPin, 
+  Building 
+} from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { getFirestore, doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -536,7 +554,7 @@ export default function PartnerProfile() {
 
             <div className="space-y-4">
                 <h3 className="text-xl font-bold flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-primary" />
+                    <ImageIcon className="h-5 w-5 text-primary" />
                     Banking Details (For Client EFTs)
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
