@@ -135,9 +135,9 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
   const HeroContent = ({ isOverlay = true }: { isOverlay?: boolean }) => (
     <div className={cn(
         isOverlay && "container mx-auto px-4 relative z-10",
-        heroLayout === 'split-left' && 'lg:mr-auto lg:ml-0 lg:max-w-xl',
-        heroLayout === 'split-right' && 'lg:ml-auto lg:mr-0 lg:max-w-xl',
-        heroLayout === 'background' && 'max-w-4xl mx-auto'
+        heroLayout === 'split-left' ? 'text-left lg:mr-auto lg:ml-0 lg:max-w-xl' :
+        heroLayout === 'split-right' ? 'text-right lg:ml-auto lg:mr-0 lg:max-w-xl' :
+        'text-center max-w-4xl mx-auto'
     )}>
       <div className="space-y-6">
         <h1 
@@ -162,11 +162,11 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
 
   const ServicesHeroContent = ({ isOverlay = true }: { isOverlay?: boolean }) => (
     <div className={cn(
-        "relative z-10 space-y-4",
+        "relative z-10 space-y-4 w-full",
         isOverlay && "container mx-auto px-4",
         servicesHeroLayout === 'split-left' ? 'text-left' : 
         servicesHeroLayout === 'split-right' ? 'text-right' : 'text-center',
-        servicesHeroLayout === 'background' ? 'max-w-4xl w-full mx-auto' : 'max-w-2xl'
+        servicesHeroLayout === 'background' ? 'max-w-4xl mx-auto' : 'max-w-2xl mx-auto'
     )}>
         <h2 
             className="text-3xl md:text-5xl font-bold"
@@ -216,7 +216,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
           <section className={cn(
               "container mx-auto px-4 -mt-12 lg:-mt-16 text-center"
           )}>
-              <div className="bg-background p-8 md:p-12 rounded-2xl">
+              <div className="bg-background p-8 md:p-12 rounded-2xl border shadow-sm">
                 <HeroContent isOverlay={false} />
               </div>
           </section>
@@ -229,7 +229,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
       {/* About Section */}
       <section id="about" className="container mx-auto px-4 scroll-m-24">
         <div className="max-w-4xl mx-auto text-center space-y-6">
-          <h2 className="text-3xl font-bold">About Our Practice</h2>
+          <h2 className="text-3xl font-bold text-slate-900">About Our Practice</h2>
           <Separator className="w-24 mx-auto partner-border border-b-2 opacity-50" />
           <p className="text-lg opacity-80 leading-relaxed whitespace-pre-wrap">
             {lp?.aboutUs}
@@ -240,12 +240,13 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
       {/* Services Grid */}
       <section id="products" className="scroll-m-24 space-y-16">
         {showServicesHero && lp?.servicesHeroImageUrl ? (
-            <div className="space-y-12">
+            <div className={cn(servicesHeroTextPosition === 'below' ? "space-y-12" : "")}>
                 <div className={cn(servicesHeroLayout === 'background' ? "w-full" : "container mx-auto px-4")}>
                     <div 
                         className={cn(
                             "relative overflow-hidden flex items-center p-8 md:p-12",
-                            servicesHeroLayout === 'background' ? "min-h-[300px] lg:min-h-[450px]" : "rounded-2xl h-[200px] lg:h-[350px]",
+                            servicesHeroLayout === 'background' ? "min-h-[350px] lg:min-h-[500px]" : "rounded-3xl h-[250px] lg:h-[400px]",
+                            servicesHeroTextPosition === 'inside' ? "py-20 lg:py-32" : "",
                             servicesHeroLayout === 'split-left' ? 'justify-start' : 
                             servicesHeroLayout === 'split-right' ? 'justify-end' : 'justify-center'
                         )}
@@ -270,8 +271,8 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
             </div>
         ) : (
             <div className="container mx-auto px-4 text-center space-y-4">
-              <h2 className="text-3xl font-bold">{lp?.servicesHeroTitle || 'Accounting & Tax Solutions'}</h2>
-              <p className="opacity-70">{lp?.servicesHeroSubtitle || 'Comprehensive professional services for individuals and SMEs.'}</p>
+              <h2 className="text-3xl font-bold text-slate-900">{lp?.servicesHeroTitle || 'Accounting & Tax Solutions'}</h2>
+              <p className="opacity-70 text-lg">{lp?.servicesHeroSubtitle || 'Comprehensive professional services for individuals and SMEs.'}</p>
             </div>
         )}
 
@@ -279,7 +280,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
             {categorizedServices.map((category) => (
                 <div key={category.id} className="space-y-12">
                     <div className="text-center space-y-4 max-w-2xl mx-auto">
-                        <h3 className="text-3xl font-bold">{category.name}</h3>
+                        <h3 className="text-3xl font-bold text-slate-900">{category.name}</h3>
                         {category.description && (
                             <p className="text-muted-foreground text-sm leading-relaxed">
                                 {category.description}
@@ -289,7 +290,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {category.data.map((service) => (
-                            <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 partner-card border">
+                            <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 partner-card border shadow-sm">
                                 <CardHeader className="space-y-2 pb-4">
                                     <CardTitle className="text-2xl font-bold leading-tight group-hover:partner-text transition-colors">
                                         {service.title}
