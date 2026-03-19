@@ -109,6 +109,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
   const heroLayout = lp?.heroLayout || 'centered';
   const textPosition = lp?.heroTextPosition || 'inside';
   const servicesHeroLayout = lp?.servicesHeroLayout || 'centered';
+  const servicesHeroTextPosition = lp?.servicesHeroTextPosition || 'inside';
   const showServicesHero = lp?.showServicesHero !== false;
 
   const services = globalServices.map(s => {
@@ -156,6 +157,29 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
           {lp?.heroSubtitle}
         </p>
       </div>
+    </div>
+  );
+
+  const ServicesHeroContent = ({ isOverlay = true }: { isOverlay?: boolean }) => (
+    <div className={cn(
+        "relative z-10 space-y-4",
+        isOverlay && "container mx-auto px-4",
+        servicesHeroLayout === 'split-left' ? 'text-left' : 
+        servicesHeroLayout === 'split-right' ? 'text-right' : 'text-center',
+        servicesHeroLayout === 'background' ? 'max-w-4xl w-full mx-auto' : 'max-w-2xl'
+    )}>
+        <h2 
+            className="text-3xl md:text-5xl font-bold"
+            style={{ color: isOverlay ? '#ffffff' : 'inherit' }}
+        >
+            {lp?.servicesHeroTitle || 'Accounting & Tax Solutions'}
+        </h2>
+        <p 
+            className="text-lg opacity-90"
+            style={{ color: isOverlay ? '#ffffff' : 'inherit' }}
+        >
+            {lp?.servicesHeroSubtitle || 'Comprehensive professional services for individuals and SMEs.'}
+        </p>
     </div>
   );
 
@@ -216,39 +240,38 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
       {/* Services Grid */}
       <section id="products" className="scroll-m-24 space-y-16">
         {showServicesHero && lp?.servicesHeroImageUrl ? (
-            <div className={cn(servicesHeroLayout === 'background' ? "w-full" : "container mx-auto px-4")}>
-                <div 
-                    className={cn(
-                        "relative overflow-hidden flex items-center p-8 md:p-12",
-                        servicesHeroLayout === 'background' ? "min-h-[300px] lg:min-h-[400px]" : "rounded-2xl h-[200px] lg:h-[350px]",
-                        servicesHeroLayout === 'split-left' ? 'justify-start' : 
-                        servicesHeroLayout === 'split-right' ? 'justify-end' : 'justify-center'
-                    )}
-                    style={{ 
-                        backgroundImage: `url("${lp.servicesHeroImageUrl}")`,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center'
-                    }}
-                >
+            <div className="space-y-12">
+                <div className={cn(servicesHeroLayout === 'background' ? "w-full" : "container mx-auto px-4")}>
                     <div 
-                        className="absolute inset-0" 
-                        style={{ backgroundColor: `rgba(0,0,0,${(lp.servicesHeroOverlayOpacity || 0) / 100})` }}
-                    />
-                    <div className={cn(
-                        "relative z-10 space-y-4",
-                        servicesHeroLayout === 'split-left' ? 'text-left' : 
-                        servicesHeroLayout === 'split-right' ? 'text-right' : 'text-center',
-                        servicesHeroLayout === 'background' ? 'max-w-4xl w-full mx-auto px-4' : 'max-w-2xl'
-                    )}>
-                        <h2 className="text-3xl md:text-5xl font-bold text-white">Accounting & Tax Solutions</h2>
-                        <p className="text-white/90">Comprehensive professional services for individuals and SMEs.</p>
+                        className={cn(
+                            "relative overflow-hidden flex items-center p-8 md:p-12",
+                            servicesHeroLayout === 'background' ? "min-h-[300px] lg:min-h-[450px]" : "rounded-2xl h-[200px] lg:h-[350px]",
+                            servicesHeroLayout === 'split-left' ? 'justify-start' : 
+                            servicesHeroLayout === 'split-right' ? 'justify-end' : 'justify-center'
+                        )}
+                        style={{ 
+                            backgroundImage: `url("${lp.servicesHeroImageUrl}")`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center'
+                        }}
+                    >
+                        <div 
+                            className="absolute inset-0" 
+                            style={{ backgroundColor: `rgba(0,0,0,${(lp.servicesHeroOverlayOpacity || 0) / 100})` }}
+                        />
+                        {servicesHeroTextPosition === 'inside' && <ServicesHeroContent isOverlay={true} />}
                     </div>
                 </div>
+                {servicesHeroTextPosition === 'below' && (
+                    <div className="container mx-auto px-4">
+                        <ServicesHeroContent isOverlay={false} />
+                    </div>
+                )}
             </div>
         ) : (
             <div className="container mx-auto px-4 text-center space-y-4">
-              <h2 className="text-3xl font-bold">Accounting & Tax Solutions</h2>
-              <p className="opacity-70">Comprehensive professional services for individuals and SMEs.</p>
+              <h2 className="text-3xl font-bold">{lp?.servicesHeroTitle || 'Accounting & Tax Solutions'}</h2>
+              <p className="opacity-70">{lp?.servicesHeroSubtitle || 'Comprehensive professional services for individuals and SMEs.'}</p>
             </div>
         )}
 

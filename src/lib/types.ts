@@ -233,6 +233,9 @@ export type PartnerLandingPageConfig = {
   servicesHeroImageUrl?: string;
   servicesHeroOverlayOpacity?: number;
   servicesHeroLayout?: 'centered' | 'split-left' | 'split-right' | 'background';
+  servicesHeroTitle?: string;
+  servicesHeroSubtitle?: string;
+  servicesHeroTextPosition?: 'inside' | 'below';
 };
 
 export type User = {

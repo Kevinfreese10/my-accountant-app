@@ -111,6 +111,9 @@ const formSchema = z.object({
     servicesHeroImageUrl: z.string().url().optional().or(z.literal('')),
     servicesHeroOverlayOpacity: z.preprocess(val => Number(val) || 0, z.number().min(0).max(100)),
     servicesHeroLayout: z.enum(['centered', 'split-left', 'split-right', 'background']).default('centered'),
+    servicesHeroTitle: z.string().optional(),
+    servicesHeroSubtitle: z.string().optional(),
+    servicesHeroTextPosition: z.enum(['inside', 'below']).default('inside'),
   })
 });
 
@@ -221,6 +224,9 @@ export default function PartnerProfile() {
         servicesHeroImageUrl: user?.landingPage?.servicesHeroImageUrl || '',
         servicesHeroOverlayOpacity: user?.landingPage?.servicesHeroOverlayOpacity || 0,
         servicesHeroLayout: user?.landingPage?.servicesHeroLayout || 'centered',
+        servicesHeroTitle: user?.landingPage?.servicesHeroTitle || 'Accounting & Tax Solutions',
+        servicesHeroSubtitle: user?.landingPage?.servicesHeroSubtitle || 'Comprehensive professional services for individuals and SMEs.',
+        servicesHeroTextPosition: user?.landingPage?.servicesHeroTextPosition || 'inside',
       }
     },
   });
@@ -610,6 +616,39 @@ export default function PartnerProfile() {
                                                 max={100} 
                                                 step={1} 
                                             />
+                                        </div>
+                                        
+                                        <div className="space-y-4 pt-4 border-t border-dashed">
+                                            <FormField control={form.control} name="landingPage.servicesHeroTitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Services Title</FormLabel><FormControl><Input {...field} placeholder="e.g. Accounting & Tax Solutions" /></FormControl><FormMessage /></FormItem> )} />
+                                            <FormField control={form.control} name="landingPage.servicesHeroSubtitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Services Subtitle</FormLabel><FormControl><Textarea {...field} rows={2} placeholder="e.g. Comprehensive professional services for individuals and SMEs." /></FormControl><FormMessage /></FormItem> )} />
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <FormField control={form.control} name="landingPage.servicesHeroTextPosition" render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-[10px] font-bold uppercase text-muted-foreground">Text Position</FormLabel>
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                            <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                                                            <SelectContent>
+                                                                <SelectItem value="inside">Inside Image (Overlay)</SelectItem>
+                                                                <SelectItem value="below">Below Image</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </FormItem>
+                                                )} />
+                                                <FormField control={form.control} name="landingPage.servicesHeroLayout" render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-[10px] font-bold uppercase text-muted-foreground">Layout Alignment</FormLabel>
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                            <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger></FormControl>
+                                                            <SelectContent>
+                                                                <SelectItem value="centered">Centered</SelectItem>
+                                                                <SelectItem value="split-left">Split Left</SelectItem>
+                                                                <SelectItem value="split-right">Split Right</SelectItem>
+                                                                <SelectItem value="background">Background Only</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </FormItem>
+                                                )} />
+                                            </div>
                                         </div>
                                     </div>
                                 </CardContent>
