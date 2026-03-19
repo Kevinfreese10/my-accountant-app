@@ -165,7 +165,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
         "relative z-10 space-y-4 w-full",
         isOverlay && "container mx-auto px-4",
         servicesHeroLayout === 'split-left' ? 'text-left' : 
-        servicesHeroLayout === 'split-right' ? 'text-right' : 'text-center',
+        servicesHeroLayout === 'split-right' ? 'text-right' : 'text-center mx-auto',
         servicesHeroLayout === 'background' ? 'max-w-4xl mx-auto' : 'max-w-2xl mx-auto'
     )}>
         <h2 
@@ -245,7 +245,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                     <div 
                         className={cn(
                             "relative overflow-hidden flex items-center p-8 md:p-12",
-                            servicesHeroLayout === 'background' ? "min-h-[350px] lg:min-h-[500px]" : "rounded-3xl h-[250px] lg:h-[400px]",
+                            servicesHeroLayout === 'background' ? "min-h-[350px] lg:min-h-[500px]" : "h-[250px] lg:h-[400px]",
                             servicesHeroTextPosition === 'inside' ? "py-20 lg:py-32" : "",
                             servicesHeroLayout === 'split-left' ? 'justify-start' : 
                             servicesHeroLayout === 'split-right' ? 'justify-end' : 'justify-center'
@@ -253,7 +253,8 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                         style={{ 
                             backgroundImage: `url("${lp.servicesHeroImageUrl}")`,
                             backgroundSize: 'cover',
-                            backgroundPosition: 'center'
+                            backgroundPosition: 'center',
+                            borderRadius: servicesHeroLayout === 'background' ? '0' : '1.5rem',
                         }}
                     >
                         <div 
