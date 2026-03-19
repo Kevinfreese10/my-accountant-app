@@ -37,6 +37,17 @@ import { Progress } from '@/components/ui/progress';
 
 const db = getFirestore(firebaseApp);
 
+const userColors = [
+  'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
+  'bg-yellow-200 text-yellow-800', 'bg-purple-200 text-purple-800', 'bg-pink-200 text-pink-800',
+];
+
+const getUserColor = (userId: string) => {
+  if (!userId) return 'bg-gray-200 text-gray-800';
+  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return userColors[hash % userColors.length];
+};
+
 function TopUpDialog({ partner }: { partner: User }) {
     const [amount, setAmount] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -477,7 +488,7 @@ export default function PartnerDashboardPage() {
                                 <div className="space-y-4">
                                 {notifications.filter(n => !archivedNotifications.includes(n.orderId + n.date.toISOString())).map((note, index) => {
                                     const author = getAuthor(note.authorId);
-                                    const date = note.date instanceof Date ? note.date : note.date.toDate();
+                                    const date = note.date;
                                     const noteId = note.orderId + date.toISOString();
                                     return (
                                         <div key={index} className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg border border-transparent hover:border-border transition-colors">
