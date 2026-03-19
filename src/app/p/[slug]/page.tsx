@@ -137,7 +137,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
         isOverlay && "container mx-auto px-4 relative z-10",
         heroLayout === 'split-left' ? 'text-left lg:mr-auto lg:ml-0 lg:max-w-xl' :
         heroLayout === 'split-right' ? 'text-right lg:ml-auto lg:mr-0 lg:max-w-xl' :
-        'text-center max-w-4xl mx-auto'
+        'text-center max-w-4xl mx-auto w-full'
     )}>
       <div className="space-y-6">
         <h1 
@@ -190,7 +190,8 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
         className={cn(
             "relative overflow-hidden flex items-center",
             textPosition === 'inside' ? "py-20 lg:py-32" : "h-[300px] lg:h-[450px]",
-            heroLayout === 'split-left' ? 'text-left' : heroLayout === 'split-right' ? 'text-right' : 'text-center'
+            heroLayout === 'split-left' ? 'text-left' : heroLayout === 'split-right' ? 'text-right' : 'text-center',
+            heroLayout === 'background' ? 'w-full' : 'container mx-auto px-4'
         )}
         style={{ 
             backgroundColor: lp?.secondaryColor || 'rgba(0,0,0,0.03)',
@@ -198,6 +199,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
             backgroundImage: heroImage ? `url("${heroImage}")` : 'none',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
+            borderRadius: heroLayout === 'background' ? '0' : '1.5rem',
         }}
       >
         {/* Overlay */}
@@ -213,10 +215,8 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
 
       {/* Text Below Hero Image */}
       {textPosition === 'below' && (
-          <section className={cn(
-              "container mx-auto px-4 -mt-12 lg:-mt-16 text-center"
-          )}>
-              <div className="bg-background p-8 md:p-12 rounded-2xl border shadow-sm">
+          <section className="container mx-auto px-4 -mt-12 lg:-mt-16">
+              <div className="py-12 md:py-16 text-center">
                 <HeroContent isOverlay={false} />
               </div>
           </section>
