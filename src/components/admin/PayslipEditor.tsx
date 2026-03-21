@@ -11,6 +11,7 @@ import { PayrollService } from '@/services/PayrollService';
 import { useToast } from '@/hooks/use-toast';
 import { updatePayslipAction } from '@/app/actions';
 import { Badge } from "@/components/ui/badge";
+import PayslipDownloadButton from '@/components/pdf/PayslipDownloadButton';
 
 const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -242,12 +243,29 @@ export default function PayslipEditor({
                 </div>
             </Card>
 
-            <div className="flex justify-end gap-3">
-                <Button variant="outline" className="font-bold" onClick={onSave}>Discard Changes</Button>
-                <Button className="font-black px-8 gap-2 shadow-lg" onClick={handleSave} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Save & Finalize Payslip
-                </Button>
+            <div className="flex justify-between items-center">
+                <div className="flex gap-2">
+                    <PayslipDownloadButton 
+                        client={client}
+                        employee={employee}
+                        payslip={payslip}
+                        currentData={{
+                            earnings,
+                            deductions: totals.updatedDeductions,
+                            contributions: totals.updatedContributions,
+                            fringeBenefits,
+                            netPay: totals.netPay,
+                            grossPay: totals.gross
+                        }}
+                    />
+                </div>
+                <div className="flex gap-3">
+                    <Button variant="outline" className="font-bold" onClick={onSave}>Discard Changes</Button>
+                    <Button className="font-black px-8 gap-2 shadow-lg" onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        Save & Finalize Payslip
+                    </Button>
+                </div>
             </div>
         </div>
     );
