@@ -298,12 +298,12 @@ export default function InvoicesPage() {
                                         control={form.control}
                                         name="customerId"
                                         render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Customer</FormLabel>
+                                        <FormItem className="flex flex-col">
+                                            <FormLabel className="mb-1">Customer</FormLabel>
                                             <Popover>
                                             <PopoverTrigger asChild>
                                                 <FormControl>
-                                                <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
+                                                <Button variant="outline" role="combobox" className={cn("w-full justify-between h-10", !field.value && "text-muted-foreground")}>
                                                     {field.value ? customers.find((c) => c.id === field.value)?.name : "Select customer..."}
                                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                                 </Button>
@@ -327,16 +327,16 @@ export default function InvoicesPage() {
                                         </FormItem>
                                         )}
                                     />
-                                    <FormField control={form.control} name="invoiceDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Invoice Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
-                                    <FormField control={form.control} name="dueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
+                                    <FormField control={form.control} name="invoiceDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel className="mb-1">Invoice Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal h-10",!field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "dd MMMM yyyy") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
+                                    <FormField control={form.control} name="dueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel className="mb-1">Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal h-10",!field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "dd MMMM yyyy") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
                                 </div>
                                 <Separator />
                                 <div>
-                                    <h3 className="text-lg font-medium mb-2">Line Items</h3>
+                                    <h3 className="text-lg font-medium mb-4">Line Items</h3>
                                     <div className="space-y-4">
                                         {fields.map((field, index) => (
-                                            <div key={field.id} className="grid grid-cols-12 gap-x-2 gap-y-2 p-2 border rounded-md relative items-start">
-                                                <div className="col-span-12 md:col-span-4">
+                                            <div key={field.id} className="grid grid-cols-12 gap-x-3 gap-y-2 p-3 border rounded-md relative items-start">
+                                                <div className={cn("col-span-12", client?.isVatRegistered ? "md:col-span-3" : "md:col-span-4")}>
                                                     <FormField
                                                         control={form.control}
                                                         name={`lineItems.${index}.accountId`}
@@ -346,7 +346,7 @@ export default function InvoicesPage() {
                                                                 <Popover>
                                                                     <PopoverTrigger asChild>
                                                                         <FormControl>
-                                                                            <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
+                                                                            <Button variant="outline" role="combobox" className={cn("w-full justify-between h-10", !field.value && "text-muted-foreground")}>
                                                                                 {field.value ? accounts.find((acc) => acc.id === field.value)?.description : "Select account"}
                                                                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                                                             </Button>
@@ -374,19 +374,23 @@ export default function InvoicesPage() {
                                                         )}
                                                     />
                                                 </div>
-                                                <div className="col-span-12 md:col-span-4"><FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage /></FormItem> )}/></div>
-                                                <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormLabel>Qty</FormLabel><FormControl><Input type="number" {...field}/></FormControl><FormMessage /></FormItem> )}/></div>
-                                                <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <FormItem><FormLabel>Rate</FormLabel><FormControl><Input type="number" {...field}/></FormControl><FormMessage /></FormItem> )}/></div>
+                                                <div className={cn("col-span-12", client?.isVatRegistered ? "md:col-span-3" : "md:col-span-4")}>
+                                                    <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} className="h-10"/></FormControl><FormMessage /></FormItem> )}/>
+                                                </div>
+                                                <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormLabel>Qty</FormLabel><FormControl><Input type="number" {...field} className="h-10"/></FormControl><FormMessage /></FormItem> )}/></div>
+                                                <div className="col-span-4 md:col-span-2"><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <FormItem><FormLabel>Rate</FormLabel><FormControl><Input type="number" {...field} className="h-10"/></FormControl><FormMessage /></FormItem> )}/></div>
                                                 {client?.isVatRegistered && (
-                                                     <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.vatType`} render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{vatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/></div>
+                                                     <div className="col-span-4 md:col-span-2">
+                                                         <FormField control={form.control} name={`lineItems.${index}.vatType`} render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-10 text-xs"><SelectValue/></SelectTrigger></FormControl><SelectContent>{vatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/>
+                                                     </div>
                                                 )}
-                                                <div className="col-span-12 md:col-span-1 flex items-end">
-                                                    <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)} className="w-full h-10 mt-2 md:mt-0"><Trash2 className="h-4 w-4"/></Button>
+                                                <div className="col-span-12 md:col-span-1 flex items-end h-[68px]">
+                                                    <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)} className="w-full h-10 mb-[2px]"><Trash2 className="h-4 w-4"/></Button>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', quantity: 1, rate: 0, vatType: client?.isVatRegistered ? 'standard_rated_sales' : 'no_vat' })} className="mt-2"><PlusCircle className="mr-2 h-4 w-4"/>Add Line</Button>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', quantity: 1, rate: 0, vatType: client?.isVatRegistered ? 'standard_rated_sales' : 'no_vat' })} className="mt-4"><PlusCircle className="mr-2 h-4 w-4"/>Add Line</Button>
                                 </div>
                                 <InvoiceTotals control={form.control} isVatRegistered={client?.isVatRegistered} />
                                 <div className="flex justify-end pt-4">
