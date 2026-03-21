@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar } from 'lucide-react';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -42,6 +42,7 @@ const formSchema = z.object({
   registrationNumber: z.string().optional(),
   payeReference: z.string().optional(),
   firstProcessingMonth: z.string().optional(),
+  excludeSdl: z.boolean().default(false),
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(['A', 'B', 'C']).optional().nullable(),
@@ -88,7 +89,8 @@ export default function ClientForm({
             name: client?.name || client?.companyName || '',
             registrationNumber: client?.registrationNumber || '',
             payeReference: client?.payeReference || '',
-            firstProcessingMonth: client?.firstProcessingMonth || 'February',
+            firstProcessingMonth: client?.firstProcessingMonth || '',
+            excludeSdl: client?.excludeSdl || false,
             yearEnd: client?.yearEnd || 'February',
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
@@ -120,6 +122,20 @@ export default function ClientForm({
 
     const isVatRegistered = form.watch('isVatRegistered');
     const useGlobalRules = form.watch('useGlobalRules');
+
+    // Generate month-year pairs for the last year, current year, and next year
+    const processingPeriods = useMemo(() => {
+        const periods: string[] = [];
+        const currentYear = new Date().getFullYear();
+        const years = [currentYear - 1, currentYear, currentYear + 1];
+        
+        years.forEach(year => {
+            months.forEach(month => {
+                periods.push(`${month} ${year}`);
+            });
+        });
+        return periods;
+    }, []);
 
     useEffect(() => {
         if (!client?.id && isAIClient && !isPayrollClient) {
@@ -190,17 +206,31 @@ export default function ClientForm({
                     )}
 
                     {isPayrollClient && (
-                        <FormField control={form.control} name="firstProcessingMonth" render={({ field }) => ( 
-                            <FormItem className="animate-in fade-in slide-in-from-top-2">
-                                <FormLabel>1st Processing Month (Start Period)</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                                    <SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent>
-                                </Select>
-                                <FormDescription className="text-[10px]">Select the first month you want to start processing payroll for.</FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )} />
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                            <FormField control={form.control} name="firstProcessingMonth" render={({ field }) => ( 
+                                <FormItem>
+                                    <FormLabel>1st Processing Month (Start Period)</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Select start period..." /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            {processingPeriods.map(period => <SelectItem key={period} value={period}>{period}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormDescription className="text-[10px]">Tax rates for PAYE and UIF will be determined based on this year.</FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
+
+                            <FormField control={form.control} name="excludeSdl" render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-muted/20">
+                                    <div className="space-y-0.5">
+                                        <FormLabel className="text-sm">Exclude SDL Calculation?</FormLabel>
+                                        <p className="text-[10px] text-muted-foreground">Tick this if the company is exempt from Skills Development Levy.</p>
+                                    </div>
+                                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                </FormItem>
+                            )} />
+                        </div>
                     )}
 
                     {!isPayrollClient && (

@@ -329,6 +329,7 @@ export type User = {
   registrationNumber?: string;
   payeReference?: string;
   firstProcessingMonth?: string;
+  excludeSdl?: boolean;
 };
 
 export type ClientCustomer = {
