@@ -1,10 +1,10 @@
-
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font, Image } from '@react-pdf/renderer';
 import { Invoice, ClientCustomer, User } from '@/lib/types';
 import { format } from 'date-fns';
 
-// Register fonts
+// Keep font registration simple. If this ever causes deployment/runtime issues,
+// remove it entirely and rely on the built-in Helvetica.
 Font.register({
   family: 'Helvetica',
   fonts: [
@@ -222,81 +222,197 @@ const styles = StyleSheet.create({
   },
 });
 
-const formatPrice = (price?: number): string => {
-  if (price === undefined || price === null || isNaN(price)) return 'R 0.00';
-  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
-};
+function isRenderablePrimitive(value: unknown): value is string | number | boolean {
+  return ['string', 'number', 'boolean'].includes(typeof value);
+}
 
-const safeFormatDate = (date: any): string => {
-  try {
-    if (date?.toDate && typeof date.toDate === 'function') {
-      return format(date.toDate(), 'dd/MM/yyyy');
-    }
-    if (typeof date === 'string' || typeof date === 'number') {
-      const parsedDate = new Date(date);
-      if (!isNaN(parsedDate.getTime())) {
-        return format(parsedDate, 'dd/MM/yyyy');
+function safeText(value: unknown, fallback = ''): string {
+  if (value === null || value === undefined) return fallback;
+  if (isRenderablePrimitive(value)) return String(value);
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString();
+  }
+
+  if (typeof value === 'object') {
+    const anyValue = value as any;
+
+    // Handle Firestore timestamp-like objects
+    if (typeof anyValue?.toDate === 'function') {
+      try {
+        const d = anyValue.toDate();
+        if (d instanceof Date && !Number.isNaN(d.getTime())) {
+          return d.toISOString();
+        }
+      } catch {
+        return fallback;
       }
     }
+
+    // Avoid React element/object rendering crashes
+    if (anyValue?.$$typeof || anyValue?._owner || anyValue?.props || anyValue?.type) {
+      return fallback;
+    }
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+
+  try {
+    return String(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function safeNumber(value: unknown, fallback = 0): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function formatPrice(value: unknown): string {
+  const price = safeNumber(value, 0);
+  return new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: 'ZAR',
+  }).format(price);
+}
+
+function safeFormatDate(date: unknown): string {
+  try {
+    if ((date as any)?.toDate && typeof (date as any).toDate === 'function') {
+      const d = (date as any).toDate();
+      if (d instanceof Date && !Number.isNaN(d.getTime())) {
+        return format(d, 'dd/MM/yyyy');
+      }
+    }
+
+    if (date instanceof Date && !Number.isNaN(date.getTime())) {
+      return format(date, 'dd/MM/yyyy');
+    }
+
+    if (typeof date === 'string' || typeof date === 'number') {
+      const parsed = new Date(date);
+      if (!Number.isNaN(parsed.getTime())) {
+        return format(parsed, 'dd/MM/yyyy');
+      }
+    }
+
     return 'N/A';
   } catch {
-    return 'Invalid Date';
+    return 'N/A';
   }
-};
+}
 
-const renderAddress = (address: any) => {
-    if (!address) return null;
-    if (typeof address === 'string') {
-        return <Text style={styles.address}>{address.replace(/, /g, '\n')}</Text>;
-    }
-    return (
-        <View style={styles.address}>
-            {address.street && <Text>{address.street}</Text>}
-            {address.suburb && <Text>{address.suburb}</Text>}
-            {address.city && <Text>{address.city}</Text>}
-            {address.province && <Text>{address.province}</Text>}
-            {address.zip && <Text>{address.zip}</Text>}
-        </View>
-    );
-};
+function addressLinesFromUnknown(address: unknown): string[] {
+  if (!address) return [];
 
-export function InvoicePdfDocument({ invoice, client, customer }: { invoice: Invoice; client: User; customer: ClientCustomer }) {
-  const hasBankingDetails = !!(client.bankingDetails && client.bankingDetails.bankName && client.bankingDetails.accountHolder && client.bankingDetails.accountNumber);
+  if (typeof address === 'string') {
+    return address
+      .split(/\r?\n|,/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof address === 'object') {
+    const a = address as Record<string, unknown>;
+    return [
+      safeText(a.street),
+      safeText(a.suburb),
+      safeText(a.city),
+      safeText(a.province),
+      safeText(a.country),
+      safeText(a.zip),
+    ].filter(Boolean);
+  }
+
+  return [safeText(address)].filter(Boolean);
+}
+
+function renderAddress(address: unknown) {
+  const lines = addressLinesFromUnknown(address);
+  if (!lines.length) return null;
 
   return (
-    <Document title={`Invoice-${invoice.id}`}>
+    <View>
+      {lines.map((line, index) => (
+        <Text key={`addr-${index}`} style={styles.address}>
+          {line}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+export function InvoicePdfDocument({
+  invoice,
+  client,
+  customer,
+}: {
+  invoice: Invoice;
+  client: User;
+  customer: ClientCustomer;
+}) {
+  const companyName = safeText(client?.companyName || client?.name, 'Company');
+  const logoUrl = typeof client?.logoUrl === 'string' ? client.logoUrl : '';
+  const invoiceId = safeText(invoice?.id, 'Unknown');
+  const customerName = safeText(customer?.name, 'Customer');
+  const notes = safeText(invoice?.notes, '');
+
+  const bankName = safeText(client?.bankingDetails?.bankName, '');
+  const accountHolder = safeText(client?.bankingDetails?.accountHolder, '');
+  const accountNumber = safeText(client?.bankingDetails?.accountNumber, '');
+  const branchCode = safeText(client?.bankingDetails?.branchCode, '');
+  const vatNumber = safeText(client?.vatNumber, '');
+  const customerVatNumber = safeText(customer?.vatNumber, '');
+
+  const lineItems = Array.isArray(invoice?.lineItems) ? invoice.lineItems : [];
+
+  const hasBankingDetails = Boolean(bankName && accountHolder && accountNumber);
+
+  return (
+    <Document title={`Invoice-${invoiceId}`}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View style={styles.companyDetails}>
-            {client.logoUrl && <Image style={styles.logo} src={client.logoUrl} />}
-            <Text style={styles.companyName}>{client.companyName || client.name}</Text>
-            {renderAddress(client.address)}
-            {client.isVatRegistered && client.vatNumber && <Text style={styles.address}>VAT Reg: {client.vatNumber}</Text>}
+            {logoUrl ? <Image style={styles.logo} src={logoUrl} /> : null}
+            <Text style={styles.companyName}>{companyName}</Text>
+            {renderAddress((client as any)?.address)}
+            {client?.isVatRegistered && vatNumber ? (
+              <Text style={styles.address}>VAT Reg: {vatNumber}</Text>
+            ) : null}
           </View>
+
           <View style={styles.invoiceDetails}>
             <Text style={styles.invoiceTitle}>TAX INVOICE</Text>
-            <View style={{ gap: 4 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10 }}>
-                <Text style={{ color: '#777' }}>Invoice #:</Text>
-                <Text style={{ fontWeight: 'bold' }}>{invoice.id}</Text>
+
+            <View>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
+                <Text style={{ color: '#777', marginRight: 10 }}>Invoice #:</Text>
+                <Text style={{ fontWeight: 'bold' }}>{invoiceId}</Text>
               </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10 }}>
-                <Text style={{ color: '#777' }}>Date:</Text>
-                <Text>{safeFormatDate(invoice.invoiceDate)}</Text>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
+                <Text style={{ color: '#777', marginRight: 10 }}>Date:</Text>
+                <Text>{safeFormatDate(invoice?.invoiceDate)}</Text>
               </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10 }}>
-                <Text style={{ color: '#777' }}>Due Date:</Text>
-                <Text>{safeFormatDate(invoice.dueDate)}</Text>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                <Text style={{ color: '#777', marginRight: 10 }}>Due Date:</Text>
+                <Text>{safeFormatDate(invoice?.dueDate)}</Text>
               </View>
             </View>
           </View>
         </View>
 
         <View style={styles.billTo}>
-            <Text style={styles.billToLabel}>Bill To:</Text>
-            <Text style={styles.billToName}>{customer.name}</Text>
-            {renderAddress(customer.address)}
-            {customer.vatNumber && <Text style={styles.address}>VAT Reg: {customer.vatNumber}</Text>}
+          <Text style={styles.billToLabel}>Bill To:</Text>
+          <Text style={styles.billToName}>{customerName}</Text>
+          {renderAddress(customer?.address)}
+          {customerVatNumber ? <Text style={styles.address}>VAT Reg: {customerVatNumber}</Text> : null}
         </View>
 
         <View style={styles.table} wrap>
@@ -306,69 +422,88 @@ export function InvoicePdfDocument({ invoice, client, customer }: { invoice: Inv
             <Text style={[styles.tableHeaderCell, styles.tableCellRate]}>Rate (Excl)</Text>
             <Text style={[styles.tableHeaderCell, styles.tableCellAmount]}>Total (Incl)</Text>
           </View>
-          {invoice.lineItems.map((item, index) => {
-             const isStandardRate = item.vatType === 'standard_rated_sales';
-             const lineExcl = (item.rate || 0) * (item.quantity || 1);
-             const lineVat = isStandardRate ? lineExcl * 0.15 : 0;
-             const lineIncl = lineExcl + lineVat;
+
+          {lineItems.map((item, index) => {
+            const quantity = safeNumber(item?.quantity, 1);
+            const rate = safeNumber(item?.rate, 0);
+            const isStandardRate = safeText(item?.vatType) === 'standard_rated_sales';
+            const lineExcl = rate * quantity;
+            const lineVat = isStandardRate ? lineExcl * 0.15 : 0;
+            const lineIncl = lineExcl + lineVat;
+
             return (
-              <View key={index} style={styles.tableRow} wrap={false}>
-                <Text style={[styles.tableCell, styles.tableCellDescription]}>{item.description}</Text>
-                <Text style={[styles.tableCell, styles.tableCellQty]}>{item.quantity}</Text>
-                <Text style={[styles.tableCell, styles.tableCellRate]}>{formatPrice(item.rate)}</Text>
-                <Text style={[styles.tableCell, styles.tableCellAmount, { fontWeight: 'bold' }]}>{formatPrice(lineIncl)}</Text>
+              <View key={`line-${index}`} style={styles.tableRow} wrap={false}>
+                <Text style={[styles.tableCell, styles.tableCellDescription]}>
+                  {safeText(item?.description, '-')}
+                </Text>
+                <Text style={[styles.tableCell, styles.tableCellQty]}>{String(quantity)}</Text>
+                <Text style={[styles.tableCell, styles.tableCellRate]}>{formatPrice(rate)}</Text>
+                <Text style={[styles.tableCell, styles.tableCellAmount, { fontWeight: 'bold' }]}>
+                  {formatPrice(lineIncl)}
+                </Text>
               </View>
-            )
+            );
           })}
         </View>
 
         <View style={styles.totals}>
-            <View style={styles.totalsContainer}>
-                <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Subtotal (Excl)</Text>
-                    <Text style={styles.totalValue}>{formatPrice(invoice.subtotal)}</Text>
-                </View>
-                <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>VAT (15%)</Text>
-                    <Text style={styles.totalValue}>{formatPrice(invoice.vat)}</Text>
-                </View>
-                <View style={styles.grandTotalRow}>
-                    <Text style={styles.grandTotalLabel}>Grand Total</Text>
-                    <Text style={styles.grandTotalValue}>{formatPrice(invoice.total)}</Text>
-                </View>
+          <View style={styles.totalsContainer}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Subtotal (Excl)</Text>
+              <Text style={styles.totalValue}>{formatPrice(invoice?.subtotal)}</Text>
             </View>
+
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>VAT (15%)</Text>
+              <Text style={styles.totalValue}>{formatPrice(invoice?.vat)}</Text>
+            </View>
+
+            <View style={styles.grandTotalRow}>
+              <Text style={styles.grandTotalLabel}>Grand Total</Text>
+              <Text style={styles.grandTotalValue}>{formatPrice(invoice?.total)}</Text>
+            </View>
+          </View>
         </View>
 
-        {hasBankingDetails && (
-            <View style={styles.bankingDetails} wrap={false}>
-                <Text style={styles.bankingTitle}>Banking Details</Text>
-                <View style={styles.bankingRow}>
-                    <Text style={styles.bankingLabel}>Bank Name:</Text>
-                    <Text style={styles.bankingValue}>{client.bankingDetails!.bankName}</Text>
-                </View>
-                <View style={styles.bankingRow}>
-                    <Text style={styles.bankingLabel}>Account Holder:</Text>
-                    <Text style={styles.bankingValue}>{client.bankingDetails!.accountHolder}</Text>
-                </View>
-                <View style={styles.bankingRow}>
-                    <Text style={styles.bankingLabel}>Account Number:</Text>
-                    <Text style={styles.bankingValue}>{client.bankingDetails!.accountNumber}</Text>
-                </View>
-                <View style={styles.bankingRow}>
-                    <Text style={styles.bankingLabel}>Branch Code:</Text>
-                    <Text style={styles.bankingValue}>{client.bankingDetails!.branchCode}</Text>
-                </View>
-            </View>
-        )}
+        {hasBankingDetails ? (
+          <View style={styles.bankingDetails} wrap={false}>
+            <Text style={styles.bankingTitle}>Banking Details</Text>
 
-        {invoice.notes && (
-            <View style={styles.notesSection} wrap={false}>
-                <Text style={styles.notesLabel}>Notes / Instructions:</Text>
-                <Text style={styles.notesText}>{invoice.notes}</Text>
+            <View style={styles.bankingRow}>
+              <Text style={styles.bankingLabel}>Bank Name:</Text>
+              <Text style={styles.bankingValue}>{bankName}</Text>
             </View>
-        )}
 
-        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
+            <View style={styles.bankingRow}>
+              <Text style={styles.bankingLabel}>Account Holder:</Text>
+              <Text style={styles.bankingValue}>{accountHolder}</Text>
+            </View>
+
+            <View style={styles.bankingRow}>
+              <Text style={styles.bankingLabel}>Account Number:</Text>
+              <Text style={styles.bankingValue}>{accountNumber}</Text>
+            </View>
+
+            <View style={styles.bankingRow}>
+              <Text style={styles.bankingLabel}>Branch Code:</Text>
+              <Text style={styles.bankingValue}>{branchCode}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {notes ? (
+          <View style={styles.notesSection} wrap={false}>
+            <Text style={styles.notesLabel}>Notes / Instructions:</Text>
+            <Text style={styles.notesText}>{notes}</Text>
+          </View>
+        ) : null}
+
+        <Text
+          style={styles.pageNumber}
+          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+          fixed
+        />
+
         <View style={styles.footer} fixed>
           <Text>Thank you for your business!</Text>
         </View>
