@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { PayrollService } from '@/services/PayrollService';
 import { useToast } from '@/hooks/use-toast';
 import { updatePayslipAction } from '@/app/actions';
+import { Badge } from "@/components/ui/badge";
 
 const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-ZA', {
