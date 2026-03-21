@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Payslip, PayslipItem, Employee, User } from "@/lib/types";
-import { Plus, Trash2, Loader2, Save, Calculator, Landmark, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { Plus, Trash2, Loader2, Save, Calculator, Landmark, ShieldCheck, User as UserIcon, Briefcase } from 'lucide-react';
 import { Separator } from "@/components/ui/separator";
 import { PayrollService } from '@/services/PayrollService';
 import { useToast } from '@/hooks/use-toast';
