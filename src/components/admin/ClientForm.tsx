@@ -123,7 +123,6 @@ export default function ClientForm({
     const isVatRegistered = form.watch('isVatRegistered');
     const useGlobalRules = form.watch('useGlobalRules');
 
-    // Generate month-year pairs for the last year, current year, and next year
     const processingPeriods = useMemo(() => {
         const periods: string[] = [];
         const currentYear = new Date().getFullYear();
@@ -168,7 +167,9 @@ export default function ClientForm({
     }, [client?.id, isAIClient, isPayrollClient, replace, toast]);
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        const processedRules = (values.useGlobalRules && !isPayrollClient) ? values.initialRules?.map(r => ({
+        const { initialRules, useGlobalRules, ...rest } = values;
+        
+        const processedRules = (useGlobalRules && !isPayrollClient) ? (initialRules || []).map(r => ({
             ...r,
             keywords: r.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean),
             type: 'hard' as const,
@@ -177,7 +178,7 @@ export default function ClientForm({
         })) : [];
 
         onSubmit({
-            ...values,
+            ...rest,
             allocationRules: processedRules
         });
     };
@@ -200,8 +201,8 @@ export default function ClientForm({
 
                     {!isPayrollClient && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                     )}
 
@@ -210,7 +211,7 @@ export default function ClientForm({
                             <FormField control={form.control} name="firstProcessingMonth" render={({ field }) => ( 
                                 <FormItem>
                                     <FormLabel>1st Processing Month (Start Period)</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select onValueChange={field.onChange} value={field.value}>
                                         <FormControl><SelectTrigger><SelectValue placeholder="Select start period..." /></SelectTrigger></FormControl>
                                         <SelectContent>
                                             {processingPeriods.map(period => <SelectItem key={period} value={period}>{period}</SelectItem>)}
@@ -224,7 +225,7 @@ export default function ClientForm({
                             <FormField control={form.control} name="excludeSdl" render={({ field }) => (
                                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-muted/20">
                                     <div className="space-y-0.5">
-                                        <FormLabel className="text-sm">Exclude SDL Calculation?</FormLabel>
+                                        <FormLabel className="text-sm font-bold">Exclude SDL Calculation?</FormLabel>
                                         <p className="text-[10px] text-muted-foreground">Tick this if the company is exempt from Skills Development Levy.</p>
                                     </div>
                                     <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
@@ -269,7 +270,7 @@ export default function ClientForm({
                         {isVatRegistered && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
                                 <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input {...field} placeholder="e.g. 4123456789" /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                             </div>
                         )}
                     </section>
@@ -412,7 +413,7 @@ export default function ClientForm({
                     </section>
                 )}
                 
-                <div className="flex justify-end gap-2 pt-4">
+                <div className="flex justify-end gap-2 pt-4 sticky bottom-0 bg-background pb-2 border-t">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save Changes</Button>
                 </div>

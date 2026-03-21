@@ -6,16 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PlusCircle, Loader2, ArrowRight, Edit, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { getFirestore, collection, getDocs, query, orderBy, where, doc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
+import { collection, getDocs, query, orderBy, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import ClientForm from '@/components/admin/ClientForm';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-
-const db = getFirestore(firebaseApp);
 
 export default function AIPayrollClientsPage() {
   const [clients, setClients] = useState<User[]>([]);
@@ -31,7 +29,7 @@ export default function AIPayrollClientsPage() {
       const q = query(collection(db, "aiPayrollClients"), orderBy("name"));
       const snapshot = await getDocs(q);
       setClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User)));
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching payroll clients:", error);
       toast({ title: 'Error', description: 'Could not load payroll clients.', variant: 'destructive'});
     } finally {
@@ -46,8 +44,11 @@ export default function AIPayrollClientsPage() {
   const handleFormSubmit = async (data: any) => {
     if (!currentUser) return;
     
+    // Sanitize data for Firestore (removes undefined keys)
+    const sanitizedData = JSON.parse(JSON.stringify(data));
+    
     const clientData = {
-      ...data,
+      ...sanitizedData,
       clientSource: 'ai_payroll',
       role: 'client',
       source: 'AI Payroll',
@@ -70,8 +71,13 @@ export default function AIPayrollClientsPage() {
       }
       fetchClients();
       setIsFormOpen(false);
-    } catch (error) {
-      toast({ title: 'Error', description: 'Failed to save client.', variant: 'destructive'});
+    } catch (error: any) {
+      console.error("Save client error:", error);
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to save client.', 
+        variant: 'destructive'
+      });
     }
   };
 
@@ -125,27 +131,27 @@ export default function AIPayrollClientsPage() {
                   <TableRow key={client.id}>
                     <TableCell>
                         <div className="flex flex-col">
-                            <span className="font-bold">{client.name}</span>
-                            <span className="text-[10px] text-muted-foreground">{client.registrationNumber || 'No Reg Number'}</span>
+                            <span className="font-bold text-slate-900">{client.name}</span>
+                            <span className="text-[10px] text-muted-foreground font-mono">{client.registrationNumber || 'No Reg Number'}</span>
                         </div>
                     </TableCell>
                     <TableCell className="text-xs font-mono">{client.payeReference || 'N/A'}</TableCell>
-                    <TableCell><Badge variant="outline">Active</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="text-[10px] font-bold uppercase">{client.status || 'Active'}</Badge></TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => { setSelectedClient(client); setIsFormOpen(true); }}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setSelectedClient(client); setIsFormOpen(true); }}>
                             <Edit className="h-4 w-4" />
                         </Button>
-                        <Button asChild variant="ghost" size="sm">
+                        <Button asChild variant="ghost" size="sm" className="font-bold h-8">
                             <Link href={`/admin/ai-payroll/${client.id}/dashboard`}>
-                            Manage Payroll <ArrowRight className="ml-2 h-4 w-4" />
+                            Manage <ArrowRight className="ml-2 h-4 w-4" />
                             </Link>
                         </Button>
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
-                {clients.length === 0 && (
+                {!isLoading && clients.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
                       No payroll clients found. Create one to get started.
