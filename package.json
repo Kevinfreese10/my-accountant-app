@@ -49,6 +49,7 @@
     "imap-simple": "^5.1.0",
     "ipaddr.js": "^2.2.0",
     "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.475.0",
     "mailparser": "^3.7.1",
     "next": "15.3.8",
