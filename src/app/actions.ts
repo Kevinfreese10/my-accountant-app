@@ -3,7 +3,7 @@
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, CVLead, DemoLead } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, CVLead, DemoLead, Employee } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import React from 'react';
@@ -21,6 +21,52 @@ import { format, addDays, addMonths, addYears } from 'date-fns';
 import { PayrollService } from '@/services/PayrollService';
 
 const db = getFirestore(firebaseApp);
+
+/**
+ * Runs payroll for all active employees for a specific period.
+ */
+export async function runPayrollAction({
+    clientId,
+    period
+}: {
+    clientId: string,
+    period: string
+}) {
+    try {
+        const employeesRef = collection(db, 'aiPayrollClients', clientId, 'employees');
+        const q = query(employeesRef, where('status', '==', 'Active'));
+        const snap = await getDocs(q);
+        
+        if (snap.empty) return { success: false, error: "No active employees found." };
+
+        const results = await Promise.all(snap.docs.map(async (empDoc) => {
+            const emp = empDoc.data() as Employee;
+            
+            // Check if payslip already exists for this exact period to prevent duplicates
+            const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+            const pq = query(
+                payslipsRef, 
+                where('employeeId', '==', empDoc.id), 
+                where('period', '==', period)
+            );
+            const pSnap = await getDocs(pq);
+            
+            if (pSnap.empty) {
+                await PayrollService.generateInitialPayslip(clientId, empDoc.id, emp.basicSalary);
+                return { success: true };
+            }
+            return { skipped: true };
+        }));
+
+        const created = results.filter(r => r?.success).length;
+        const skipped = results.filter(r => r?.skipped).length;
+
+        return { success: true, created, skipped };
+    } catch (e) {
+        console.error("Payroll run error:", e);
+        return { success: false, error: "An error occurred during processing." };
+    }
+}
 
 /**
  * Automatically generates a payslip for a new employee.
