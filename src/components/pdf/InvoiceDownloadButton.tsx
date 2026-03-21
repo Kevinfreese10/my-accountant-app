@@ -30,6 +30,11 @@ export default function InvoiceDownloadButton({ invoice, client, customer }: Inv
       const doc = new jsPDF();
       const primaryColor = [33, 67, 146]; // #214392 in RGB
 
+      // Helper for clean currency formatting to prevent PDF overlap/char issues
+      const formatCurrency = (val: number) => {
+          return `R ${val.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      };
+
       // 1. Branding / Logo Placeholder or Title
       doc.setTextColor(33, 67, 146);
       doc.setFontSize(22);
@@ -75,9 +80,9 @@ export default function InvoiceDownloadButton({ invoice, client, customer }: Inv
       doc.setTextColor(100);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      doc.text(`Invoice Number:`, 150, 35);
-      doc.text(`Date:`, 150, 40);
-      doc.text(`Due Date:`, 150, 45);
+      doc.text(`Invoice Number:`, 140, 35);
+      doc.text(`Date:`, 140, 40);
+      doc.text(`Due Date:`, 140, 45);
 
       doc.setFont('helvetica', 'normal');
       doc.text(invoice.id, 190, 35, { align: 'right' });
@@ -108,9 +113,9 @@ export default function InvoiceDownloadButton({ invoice, client, customer }: Inv
           return [
               item.description,
               item.quantity.toString(),
-              new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(item.rate),
-              new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(vat),
-              new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(total),
+              formatCurrency(item.rate),
+              formatCurrency(vat),
+              formatCurrency(total),
           ];
       });
 
@@ -134,17 +139,20 @@ export default function InvoiceDownloadButton({ invoice, client, customer }: Inv
       let finalY = (doc as any).lastAutoTable.finalY + 10;
       doc.setFontSize(10);
       doc.setTextColor(100);
-      doc.text('Subtotal (Excl):', 150, finalY);
-      doc.text(new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(invoice.subtotal), 190, finalY, { align: 'right' });
-      finalY += 6;
-      doc.text('Total VAT (15%):', 150, finalY);
-      doc.text(new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(invoice.vat), 190, finalY, { align: 'right' });
-      finalY += 10;
+      // Increased space between labels and values to prevent overlap
+      doc.text('Subtotal (Excl):', 130, finalY);
+      doc.text(formatCurrency(invoice.subtotal), 190, finalY, { align: 'right' });
+      
+      finalY += 7;
+      doc.text('Total VAT (15%):', 130, finalY);
+      doc.text(formatCurrency(invoice.vat), 190, finalY, { align: 'right' });
+      
+      finalY += 12;
       doc.setFontSize(14);
       doc.setTextColor(0);
       doc.setFont('helvetica', 'bold');
-      doc.text('Grand Total:', 150, finalY);
-      doc.text(new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(invoice.total), 190, finalY, { align: 'right' });
+      doc.text('Grand Total:', 130, finalY);
+      doc.text(formatCurrency(invoice.total), 190, finalY, { align: 'right' });
 
       // 7. Banking Details (Footerish)
       finalY += 20;
