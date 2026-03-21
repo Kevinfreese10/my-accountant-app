@@ -25,6 +25,7 @@ import {
   ChevronDown,
   FileUser,
   Presentation,
+  UsersRound,
 } from 'lucide-react';
 
 import {
@@ -96,6 +97,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
+    { href: '/admin/ai-payroll/clients', label: 'AI Payroll', icon: UsersRound, roles: ['admin', 'staff'] },
     { href: '/admin/services', label: 'Manage Products', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin', 'staff'] },
   ];

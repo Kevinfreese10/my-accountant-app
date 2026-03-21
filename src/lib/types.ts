@@ -246,8 +246,8 @@ export type User = {
   email: string;
   role: 'client' | 'admin' | 'staff' | 'partner' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor' | 'partner_staff';
   createdAt?: any;
-  source?: 'AI Accountant' | 'Client Management' | 'Partner Management';
-  clientSource?: 'admin' | 'partner' | 'ai_accountant';
+  source?: 'AI Accountant' | 'Client Management' | 'Partner Management' | 'AI Payroll';
+  clientSource?: 'admin' | 'partner' | 'ai_accountant' | 'ai_payroll';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP' | string;
   departments?: string[]; // Practice custom departments
   entityType?: 'Company' | 'Trust' | 'Individual';
@@ -379,7 +379,7 @@ export type Task = {
   type?: string;
   orderId?: string;
   clientId?: string;
-  clientSource?: 'admin' | 'partner' | 'ai_accountant' | 'system';
+  clientSource?: 'admin' | 'partner' | 'ai_accountant' | 'system' | 'ai_payroll';
   partnerId?: string; // Tracks which partner practice this task belongs to
   comments?: TaskComment[];
   tags?: string[];
@@ -548,6 +548,58 @@ export type DemoLead = {
   email: string;
   cell: string;
   createdAt: any;
+};
+
+export type Employee = {
+  id: string;
+  name: string;
+  surname: string;
+  idNumber: string;
+  jobTitle: string;
+  department: string;
+  joinDate: any; // Timestamp
+  taxNumber: string;
+  basicSalary: number;
+  paymentFrequency: 'Monthly' | 'Weekly' | 'Bi-Weekly';
+  bankingDetails: {
+    bankName: string;
+    accountNumber: string;
+    accountType: string;
+    branchCode: string;
+  };
+  status: 'Active' | 'Inactive';
+};
+
+export type Payslip = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  period: string; // e.g. "February 2024"
+  date: any; // Timestamp
+  earnings: {
+    basic: number;
+    overtime?: number;
+    bonus?: number;
+    allowances?: number;
+  };
+  deductions: {
+    paye: number;
+    uif: number;
+    sdl?: number;
+    pension?: number;
+    medicalAid?: number;
+  };
+  netPay: number;
+};
+
+export type LeaveRequest = {
+  id: string;
+  employeeId: string;
+  type: 'Annual' | 'Sick' | 'Family Responsibility' | 'Maternity' | 'Unpaid';
+  startDate: any;
+  endDate: any;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  reason?: string;
 };
 
 import { z } from 'zod';
