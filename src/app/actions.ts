@@ -62,9 +62,9 @@ export async function runPayrollAction({
         const skipped = results.filter(r => r?.skipped).length;
 
         return { success: true, created, skipped };
-    } catch (e) {
+    } catch (e: any) {
         console.error("Payroll run error:", e);
-        return { success: false, error: "An error occurred during processing." };
+        return { success: false, error: e.message || "An unexpected error occurred during processing." };
     }
 }
 
@@ -83,9 +83,9 @@ export async function generateEmployeePayslipAction({
     try {
         await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary);
         return { success: true };
-    } catch (e) {
+    } catch (e: any) {
         console.error("Payslip action failed:", e);
-        return { success: false, error: "Initial payslip generation failed." };
+        return { success: false, error: e.message || "Initial payslip generation failed." };
     }
 }
 
