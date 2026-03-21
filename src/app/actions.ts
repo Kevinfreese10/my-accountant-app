@@ -1,9 +1,8 @@
-
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, CVLead, DemoLead, Employee } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, CVLead, DemoLead, Employee, Payslip } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import React from 'react';
@@ -17,54 +16,79 @@ import { BankCleaner } from '@/lib/bank-cleaner';
 import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
 import { analyzeClientComment } from '@/ai/flows/analyze-client-comment';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
-import { format, addDays, addMonths, addYears } from 'date-fns';
+import { format, addDays, addMonths, addYears, parse } from 'date-fns';
 import { PayrollService } from '@/services/PayrollService';
 
 const db = getFirestore(firebaseApp);
 
 /**
- * Runs payroll for all active employees for a specific period.
+ * Updates an existing payslip with new values.
  */
-export async function runPayrollAction({
+export async function updatePayslipAction({
     clientId,
-    period
+    payslipId,
+    data
 }: {
     clientId: string,
-    period: string
+    payslipId: string,
+    data: Partial<Payslip>
 }) {
     try {
+        const docRef = doc(db, 'aiPayrollClients', clientId, 'payslips', payslipId);
+        await updateDoc(docRef, {
+            ...data,
+            updatedAt: serverTimestamp()
+        });
+        return { success: true };
+    } catch (e: any) {
+        console.error("Update payslip error:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * Rolls forward the payroll period for a client.
+ * Updates the current period and generates draft payslips for the new month.
+ */
+export async function rollForwardPayrollAction({
+    clientId
+}: {
+    clientId: string
+}) {
+    try {
+        const clientRef = doc(db, 'aiPayrollClients', clientId);
+        const clientSnap = await getDoc(clientRef);
+        if (!clientSnap.exists()) throw new Error("Client not found");
+        const client = clientSnap.data() as User;
+
+        const currentPeriod = client.firstProcessingMonth; // This is the active period
+        if (!currentPeriod) throw new Error("No active payroll period found to roll forward from.");
+
+        // Calculate next month
+        const parsedDate = parse(currentPeriod, 'MMMM yyyy', new Date());
+        const nextDate = addMonths(parsedDate, 1);
+        const nextPeriod = format(nextDate, 'MMMM yyyy');
+
+        // 1. Update client's active period
+        await updateDoc(clientRef, {
+            firstProcessingMonth: nextPeriod
+        });
+
+        // 2. Generate new draft payslips for all active employees
         const employeesRef = collection(db, 'aiPayrollClients', clientId, 'employees');
         const q = query(employeesRef, where('status', '==', 'Active'));
         const snap = await getDocs(q);
         
-        if (snap.empty) return { success: false, error: "No active employees found." };
-
         const results = await Promise.all(snap.docs.map(async (empDoc) => {
             const emp = empDoc.data() as Employee;
-            
-            // Check if payslip already exists for this exact period to prevent duplicates
-            const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
-            const pq = query(
-                payslipsRef, 
-                where('employeeId', '==', empDoc.id), 
-                where('period', '==', period)
-            );
-            const pSnap = await getDocs(pq);
-            
-            if (pSnap.empty) {
-                await PayrollService.generateInitialPayslip(clientId, empDoc.id, emp.basicSalary);
-                return { success: true };
-            }
-            return { skipped: true };
+            await PayrollService.generateInitialPayslip(clientId, empDoc.id, emp.basicSalary);
+            return true;
         }));
 
-        const created = results.filter(r => r?.success).length;
-        const skipped = results.filter(r => r?.skipped).length;
-
-        return { success: true, created, skipped };
+        return { success: true, nextPeriod, created: results.length };
     } catch (e: any) {
-        console.error("Payroll run error:", e);
-        return { success: false, error: e.message || "An unexpected error occurred during processing." };
+        console.error("Roll forward error:", e);
+        return { success: false, error: e.message };
     }
 }
 
@@ -81,8 +105,8 @@ export async function generateEmployeePayslipAction({
     basicSalary: number
 }) {
     try {
-        await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary);
-        return { success: true };
+        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary);
+        return { success: true, id: result.id };
     } catch (e: any) {
         console.error("Payslip action failed:", e);
         return { success: false, error: e.message || "Initial payslip generation failed." };
@@ -788,7 +812,7 @@ export async function proposeRegroups({
                         fromExamples: merchantGroups[keyA].slice(0, 3).map(tx => tx.description),
                         toExamples: merchantGroups[keyB].slice(0, 3).map(tx => tx.description),
                         fromTxIds: merchantGroups[keyA].map(tx => tx.id),
-                        toTxIds: merchantGroups[keyB].map(tx => tx.id),
+                        toKeyTxIds: merchantGroups[keyB].map(tx => tx.id),
                         confidence: score >= 0.95 ? 'High' : 'Medium'
                     });
                 }

@@ -1,7 +1,6 @@
-
 import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { User, Employee, Payslip } from '@/lib/types';
+import { User, Employee, Payslip, PayslipItem } from '@/lib/types';
 
 const db = getFirestore(firebaseApp);
 
@@ -29,7 +28,6 @@ export class PayrollService {
     const annualGross = monthlyBasic * 12;
     let annualTax = 0;
 
-    // Find applicable bracket
     const bracket = [...TAX_BRACKETS].reverse().find(b => annualGross > b.threshold);
     
     if (bracket) {
@@ -38,7 +36,6 @@ export class PayrollService {
       annualTax = annualGross * TAX_BRACKETS[0].rate;
     }
 
-    // Apply rebate and divide by 12
     const netAnnualTax = Math.max(0, annualTax - PRIMARY_REBATE);
     return parseFloat((netAnnualTax / 12).toFixed(2));
   }
@@ -52,7 +49,7 @@ export class PayrollService {
   }
 
   /**
-   * Generates and saves a payslip for an employee.
+   * Generates and saves a payslip for an employee using the new structured format.
    */
   static async generateInitialPayslip(clientId: string, employeeId: string, monthlyBasic: number) {
     try {
@@ -70,31 +67,47 @@ export class PayrollService {
       const uif = this.calculateUif(monthlyBasic);
       const sdl = client.excludeSdl ? 0 : parseFloat((monthlyBasic * 0.01).toFixed(2));
 
-      const netPay = monthlyBasic - paye - uif;
+      const earnings: PayslipItem[] = [
+          { label: 'Basic salary', amount: monthlyBasic }
+      ];
+
+      const deductions: PayslipItem[] = [
+          { label: 'Tax', amount: paye, isStatutory: true },
+          { label: 'Unemployment insurance fund', amount: uif, isStatutory: true }
+      ];
+
+      const contributions: PayslipItem[] = [
+          { label: 'Unemployment insurance fund', amount: uif, isStatutory: true }
+      ];
+
+      if (sdl > 0) {
+          contributions.push({ label: 'Skills development levy', amount: sdl, isStatutory: true });
+      }
+
+      const totalEarnings = earnings.reduce((s, i) => s + i.amount, 0);
+      const totalDeductions = deductions.reduce((s, i) => s + i.amount, 0);
 
       const payslipData: Omit<Payslip, 'id'> = {
         employeeId,
         employeeName: `${employee.name} ${employee.surname}`,
         period: client.firstProcessingMonth || 'Current Period',
         date: Timestamp.now(),
-        earnings: {
-          basic: monthlyBasic,
-        },
-        deductions: {
-          paye,
-          uif,
-          sdl: sdl > 0 ? sdl : undefined,
-        },
-        netPay: parseFloat(netPay.toFixed(2)),
+        earnings,
+        deductions,
+        contributions,
+        fringeBenefits: [],
+        grossPay: totalEarnings,
+        totalDeductions,
+        netPay: parseFloat((totalEarnings - totalDeductions).toFixed(2)),
       };
 
       const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
-      await addDoc(payslipsRef, {
+      const docRef = await addDoc(payslipsRef, {
         ...payslipData,
         createdAt: serverTimestamp(),
       });
 
-      return { success: true };
+      return { success: true, id: docRef.id };
     } catch (error) {
       console.error("Payslip generation failed:", error);
       throw error;

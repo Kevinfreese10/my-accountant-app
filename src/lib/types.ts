@@ -586,25 +586,24 @@ export type Employee = {
   status: 'Active' | 'Inactive';
 };
 
+export type PayslipItem = {
+    label: string;
+    amount: number;
+    isStatutory?: boolean;
+};
+
 export type Payslip = {
   id: string;
   employeeId: string;
   employeeName: string;
   period: string; // e.g. "February 2024"
   date: any; // Timestamp
-  earnings: {
-    basic: number;
-    overtime?: number;
-    bonus?: number;
-    allowances?: number;
-  };
-  deductions: {
-    paye: number;
-    uif: number;
-    sdl?: number;
-    pension?: number;
-    medicalAid?: number;
-  };
+  earnings: PayslipItem[];
+  deductions: PayslipItem[];
+  contributions: PayslipItem[];
+  fringeBenefits: PayslipItem[];
+  grossPay: number;
+  totalDeductions: number;
   netPay: number;
 };
 

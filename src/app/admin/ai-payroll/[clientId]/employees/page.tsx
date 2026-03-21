@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Search, Loader2, MoreHorizontal, Edit, Trash2, User as UserIcon, FileText } from 'lucide-react';
+import { PlusCircle, Search, Loader2, MoreHorizontal, Edit, Trash2, User as UserIcon, FileText, ReceiptText, Calculator } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { getFirestore, collection, addDoc, getDocs, query, orderBy, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, getDoc, where, limit } from 'firebase/firestore';
@@ -18,7 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { generateEmployeePayslipAction } from '@/app/actions';
-import PayslipPreview from '@/components/admin/PayslipPreview';
+import PayslipEditor from '@/components/admin/PayslipEditor';
 
 const db = getFirestore(firebaseApp);
 
@@ -35,9 +35,9 @@ export default function EmployeesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Payslip viewing states
-  const [isPayslipOpen, setIsPayslipOpen] = useState(false);
-  const [viewingPayslip, setViewingPayslip] = useState<Payslip | null>(null);
+  // Payslip editing states
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingPayslip, setEditingPayslip] = useState<Payslip | null>(null);
   const [payslipEmployee, setPayslipEmployee] = useState<Employee | null>(null);
   const [isFetchingPayslip, setIsFetchingPayslip] = useState(false);
 
@@ -91,13 +91,26 @@ export default function EmployeesPage() {
         });
         
         // AUTOMATIC PAYSLIP GENERATION
-        await generateEmployeePayslipAction({
+        const res = await generateEmployeePayslipAction({
             clientId,
             employeeId: newDocRef.id,
             basicSalary: values.basicSalary
         });
 
-        toast({ title: 'Employee Added', description: 'Initial payslip has been generated.' });
+        toast({ 
+            title: 'Employee Added', 
+            description: 'Draft payslip has been created. You can edit it now.' 
+        });
+
+        // Optionally open editor immediately for the new employee
+        if (res.success && res.id) {
+            const payslipSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'payslips', res.id));
+            if (payslipSnap.exists()) {
+                setEditingPayslip({ id: payslipSnap.id, ...payslipSnap.data() } as Payslip);
+                setPayslipEmployee({ id: newDocRef.id, ...employeeData } as Employee);
+                setIsEditorOpen(true);
+            }
+        }
       }
 
       setIsFormOpen(false);
@@ -114,7 +127,7 @@ export default function EmployeesPage() {
     }
   };
 
-  const handleViewPayslip = async (employee: Employee) => {
+  const handleEditPayslip = async (employee: Employee) => {
       setIsFetchingPayslip(true);
       setPayslipEmployee(employee);
       
@@ -123,21 +136,21 @@ export default function EmployeesPage() {
           const q = query(
               payslipsRef, 
               where('employeeId', '==', employee.id), 
-              orderBy('createdAt', 'desc'), 
+              where('period', '==', client?.firstProcessingMonth), // Only edit current active period
               limit(1)
           );
           
           const snap = await getDocs(q);
           if (!snap.empty) {
               const data = snap.docs[0].data();
-              setViewingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
-              setIsPayslipOpen(true);
+              setEditingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
+              setIsEditorOpen(true);
           } else {
-              toast({ title: "No Payslip Found", description: "This employee does not have any processed payslips yet.", variant: "warning" });
+              toast({ title: "No Draft Found", description: "This employee does not have a draft payslip for the current period.", variant: "warning" });
           }
       } catch (error) {
           console.error("Error fetching payslip:", error);
-          toast({ title: "Error", description: "Failed to retrieve the latest payslip.", variant: "destructive" });
+          toast({ title: "Error", description: "Failed to open payslip editor.", variant: "destructive" });
       } finally {
           setIsFetchingPayslip(false);
       }
@@ -163,12 +176,12 @@ export default function EmployeesPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Employees</h2>
-          <p className="text-sm text-muted-foreground">Manage your workforce and compensation details.</p>
+          <h2 className="text-xl font-bold text-slate-900">Employee Management</h2>
+          <p className="text-sm text-muted-foreground font-medium">Manage your workforce and compensation details.</p>
         </div>
         <Dialog open={isFormOpen} onOpenChange={(open) => { setIsFormOpen(open); if (!open) setSelectedEmployee(null); }}>
           <DialogTrigger asChild>
-            <Button onClick={() => setSelectedEmployee(null)}>
+            <Button onClick={() => setSelectedEmployee(null)} className="font-bold">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Employee
             </Button>
           </DialogTrigger>
@@ -189,16 +202,26 @@ export default function EmployeesPage() {
         </Dialog>
       </div>
 
-      {/* Payslip Viewer Dialog */}
-      <Dialog open={isPayslipOpen} onOpenChange={setIsPayslipOpen}>
-          <DialogContent className="sm:max-w-4xl p-0 overflow-hidden">
-              <DialogHeader className="p-6 pb-0">
-                  <DialogTitle className="flex items-center gap-2"><ReceiptText className="h-5 w-5 text-primary" /> Latest Payslip</DialogTitle>
-                  <DialogDescription>Viewing official payroll record for {payslipEmployee?.name} {payslipEmployee?.surname}.</DialogDescription>
+      {/* Payslip Editor Dialog */}
+      <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
+          <DialogContent className="sm:max-w-6xl p-0 overflow-hidden bg-[#F5F5F5]">
+              <DialogHeader className="p-6 bg-white border-b">
+                  <div className="flex justify-between items-center">
+                      <div>
+                        <DialogTitle className="flex items-center gap-2"><Calculator className="h-5 w-5 text-primary" /> Interactive Payslip Editor</DialogTitle>
+                        <DialogDescription>Current processing month: <strong>{client?.firstProcessingMonth}</strong></DialogDescription>
+                      </div>
+                      <Badge variant="outline" className="bg-muted border-none uppercase font-black text-[9px] tracking-widest px-3">Confidential Data</Badge>
+                  </div>
               </DialogHeader>
-              <div className="p-6">
-                {viewingPayslip && payslipEmployee && client && (
-                    <PayslipPreview payslip={viewingPayslip} employee={payslipEmployee} client={client} />
+              <div className="p-8">
+                {editingPayslip && payslipEmployee && client && (
+                    <PayslipEditor 
+                        payslip={editingPayslip} 
+                        employee={payslipEmployee} 
+                        client={client} 
+                        onSave={() => setIsEditorOpen(false)}
+                    />
                 )}
               </div>
           </DialogContent>
@@ -210,7 +233,7 @@ export default function EmployeesPage() {
             <div className="relative flex-grow">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Search by name, ID, or title..." 
+                placeholder="Search staff..." 
                 className="pl-8 max-w-sm h-10" 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -225,7 +248,7 @@ export default function EmployeesPage() {
             <div className="h-60 flex flex-col items-center justify-center border-2 border-dashed rounded-lg text-muted-foreground text-center p-8 mx-6 mb-6">
               <UserIcon className="h-12 w-12 opacity-20 mb-4" />
               <p className="font-semibold text-slate-900">No employees found.</p>
-              <p className="text-sm">Start by adding your first staff member to this company.</p>
+              <p className="text-sm">Start by adding your first staff member.</p>
             </div>
           ) : (
             <Table>
@@ -264,7 +287,7 @@ export default function EmployeesPage() {
                             variant="ghost" 
                             size="icon" 
                             className="h-8 w-8 text-primary"
-                            onClick={() => handleViewPayslip(emp)}
+                            onClick={() => handleEditPayslip(emp)}
                             disabled={isFetchingPayslip && payslipEmployee?.id === emp.id}
                         >
                             {isFetchingPayslip && payslipEmployee?.id === emp.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <ReceiptText className="h-4 w-4" />}
@@ -280,8 +303,8 @@ export default function EmployeesPage() {
                             <DropdownMenuItem onClick={() => { setSelectedEmployee(emp); setIsFormOpen(true); }}>
                                 <Edit className="mr-2 h-4 w-4" /> Edit Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleViewPayslip(emp)}>
-                                <FileText className="mr-2 h-4 w-4" /> View Latest Payslip
+                            <DropdownMenuItem onClick={() => handleEditPayslip(emp)}>
+                                <Calculator className="mr-2 h-4 w-4" /> Edit Current Payslip
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <AlertDialog>
@@ -294,7 +317,7 @@ export default function EmployeesPage() {
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                    This will permanently remove {emp.name} {emp.surname} from the payroll records. This action cannot be undone.
+                                    This will permanently remove {emp.name} {emp.surname} from the payroll records.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -319,5 +342,3 @@ export default function EmployeesPage() {
     </div>
   );
 }
-
-import { ReceiptText } from 'lucide-react';
