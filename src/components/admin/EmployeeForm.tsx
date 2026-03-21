@@ -8,7 +8,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Employee } from '@/lib/types';
-import { Loader2, User, Briefcase, Landmark, Calendar as CalendarIcon, Save } from 'lucide-react';
+import { Loader2, User, Briefcase, Landmark, Calendar as CalendarIcon, Save, MapPin, Phone, Mail, Hash } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -16,11 +16,20 @@ import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 
 const formSchema = z.object({
-  name: z.string().min(2, 'Name is required.'),
+  employeeCode: z.string().min(1, 'Employee code is required.'),
+  initials: z.string().min(1, 'Initials are required.'),
+  name: z.string().min(2, 'First name is required.'),
   surname: z.string().min(2, 'Surname is required.'),
-  idNumber: z.string().min(13, 'A valid 13-digit ID number is required.').max(13),
-  jobTitle: z.string().min(2, 'Job title is required.'),
-  department: z.string().min(2, 'Department is required.'),
+  idNumber: z.string().min(13, 'A valid 13-digit RSA ID number is required.').max(13),
+  address: z.object({
+    street: z.string().min(1, 'Street address is required.'),
+    suburb: z.string().optional(),
+    city: z.string().min(1, 'City is required.'),
+    province: z.string().optional(),
+    zip: z.string().optional(),
+  }),
+  cellNumber: z.string().min(10, 'A valid cell number is required.'),
+  email: z.string().email('A valid email address is required.'),
   joinDate: z.date({ required_error: 'Join date is required.' }),
   taxNumber: z.string().optional(),
   basicSalary: z.preprocess(val => Number(val), z.number().min(0, 'Salary must be a positive number.')),
@@ -31,6 +40,8 @@ const formSchema = z.object({
     accountType: z.string().min(2, 'Account type is required.'),
     branchCode: z.string().min(6, 'Branch code is required.'),
   }),
+  jobTitle: z.string().optional(),
+  department: z.string().optional(),
 });
 
 type EmployeeFormValues = z.infer<typeof formSchema>;
@@ -49,9 +60,20 @@ export default function EmployeeForm({
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      employeeCode: employee?.employeeCode || '',
+      initials: employee?.initials || '',
       name: employee?.name || '',
       surname: employee?.surname || '',
       idNumber: employee?.idNumber || '',
+      address: {
+        street: employee?.address?.street || '',
+        suburb: employee?.address?.suburb || '',
+        city: employee?.address?.city || '',
+        province: employee?.address?.province || '',
+        zip: employee?.address?.zip || '',
+      },
+      cellNumber: employee?.cellNumber || '',
+      email: employee?.email || '',
       jobTitle: employee?.jobTitle || '',
       department: employee?.department || '',
       joinDate: employee?.joinDate ? (employee.joinDate.toDate ? employee.joinDate.toDate() : new Date(employee.joinDate)) : new Date(),
@@ -69,29 +91,49 @@ export default function EmployeeForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
-        {/* Personal Details */}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[75vh] overflow-y-auto p-1 pr-4">
+        {/* Identity & Basic Info */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
-            <User className="h-4 w-4" /> Personal Details
+            <User className="h-4 w-4" /> Identity & Basic Information
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField control={form.control} name="employeeCode" render={({ field }) => ( <FormItem><FormLabel>Employee Code</FormLabel><FormControl><Input placeholder="e.g. EMP001" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="initials" render={({ field }) => ( <FormItem><FormLabel>Initials</FormLabel><FormControl><Input placeholder="e.g. J.D." {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="surname" render={({ field }) => ( <FormItem><FormLabel>Surname</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
           </div>
-          <FormField control={form.control} name="idNumber" render={({ field }) => ( <FormItem><FormLabel>ID Number</FormLabel><FormControl><Input placeholder="8801015000081" {...field} /></FormControl><FormMessage /></FormItem> )} />
+          <FormField control={form.control} name="idNumber" render={({ field }) => ( <FormItem><FormLabel>RSA ID Number</FormLabel><FormControl><Input placeholder="8801015000081" {...field} /></FormControl><FormMessage /></FormItem> )} />
         </section>
 
         <Separator />
 
-        {/* Employment Details */}
+        {/* Contact & Address */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
-            <Briefcase className="h-4 w-4" /> Employment & Compensation
+            <MapPin className="h-4 w-4" /> Contact & Address
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField control={form.control} name="jobTitle" render={({ field }) => ( <FormItem><FormLabel>Job Title</FormLabel><FormControl><Input placeholder="e.g. Sales Manager" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="department" render={({ field }) => ( <FormItem><FormLabel>Department</FormLabel><FormControl><Input placeholder="e.g. Operations" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" placeholder="john@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+          </div>
+          <div className="space-y-4 pt-2">
+            <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Street Address</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+            <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Suburb</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel className="text-xs">City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="address.province" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Province</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel className="text-xs">ZIP / Postal Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+            </div>
+          </div>
+        </section>
+
+        <Separator />
+
+        {/* Employment & Tax */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
+            <Briefcase className="h-4 w-4" /> Employment & Tax
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
@@ -99,7 +141,7 @@ export default function EmployeeForm({
               name="joinDate"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Join Date</FormLabel>
+                  <FormLabel>This employee started working on</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -117,6 +159,23 @@ export default function EmployeeForm({
                 </FormItem>
               )}
             />
+            <FormField control={form.control} name="taxNumber" render={({ field }) => ( <FormItem><FormLabel>Income Tax Number</FormLabel><FormControl><Input placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem> )} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField control={form.control} name="jobTitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Job Title (Optional)</FormLabel><FormControl><Input placeholder="e.g. Sales Manager" {...field} /></FormControl></FormItem> )} />
+            <FormField control={form.control} name="department" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Department (Optional)</FormLabel><FormControl><Input placeholder="e.g. Operations" {...field} /></FormControl></FormItem> )} />
+          </div>
+        </section>
+
+        <Separator />
+
+        {/* Compensation */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
+            <Landmark className="h-4 w-4" /> Compensation
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField control={form.control} name="basicSalary" render={({ field }) => ( <FormItem><FormLabel>Basic Salary (Gross)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="paymentFrequency" render={({ field }) => (
               <FormItem>
                 <FormLabel>Payment Frequency</FormLabel>
@@ -132,10 +191,6 @@ export default function EmployeeForm({
               </FormItem>
             )} />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField control={form.control} name="basicSalary" render={({ field }) => ( <FormItem><FormLabel>Basic Salary (Gross)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="taxNumber" render={({ field }) => ( <FormItem><FormLabel>Income Tax Number</FormLabel><FormControl><Input placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem> )} />
-          </div>
         </section>
 
         <Separator />
@@ -143,7 +198,7 @@ export default function EmployeeForm({
         {/* Banking Details */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
-            <Landmark className="h-4 w-4" /> Banking Details
+            <Hash className="h-4 w-4" /> Banking Details
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input placeholder="e.g. FNB" {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -172,7 +227,7 @@ export default function EmployeeForm({
           <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
           <Button type="submit" disabled={isLoading}>
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Employee
+            {employee?.id ? 'Update Employee' : 'Confirm & Save'}
           </Button>
         </div>
       </form>

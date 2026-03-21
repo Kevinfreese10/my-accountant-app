@@ -557,13 +557,24 @@ export type DemoLead = {
 
 export type Employee = {
   id: string;
-  name: string;
+  employeeCode: string;
+  initials: string;
+  name: string; // First Name
   surname: string;
-  idNumber: string;
+  idNumber: string; // RSA ID Number
+  address: {
+    street?: string;
+    suburb?: string;
+    city?: string;
+    province?: string;
+    zip?: string;
+  };
+  cellNumber: string;
+  email: string;
   jobTitle: string;
   department: string;
-  joinDate: any; // Timestamp
-  taxNumber: string;
+  joinDate: any; // Started working on (Timestamp)
+  taxNumber: string; // Income Tax Number
   basicSalary: number;
   paymentFrequency: 'Monthly' | 'Weekly' | 'Bi-Weekly';
   bankingDetails: {
