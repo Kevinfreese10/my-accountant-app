@@ -325,6 +325,10 @@ export type User = {
   landingPage?: PartnerLandingPageConfig;
   archivedNotificationsClient?: string[];
   monthlyRetainerFee?: number;
+  // Payroll specific fields
+  registrationNumber?: string;
+  payeReference?: string;
+  firstProcessingMonth?: string;
 };
 
 export type ClientCustomer = {

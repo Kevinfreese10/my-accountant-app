@@ -10,14 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { useState, useEffect } from 'react';
-import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar } from 'lucide-react';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { allVatTypes } from '@/lib/vat-types';
 import { chartOfAccounts as masterChartOfAccounts } from '@/lib/chart-of-accounts';
-import { Textarea } from '../ui/textarea';
 
 const db = getFirestore(firebaseApp);
 
@@ -40,6 +39,9 @@ const ruleSchema = z.object({
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client/Company name is required.'),
+  registrationNumber: z.string().optional(),
+  payeReference: z.string().optional(),
+  firstProcessingMonth: z.string().optional(),
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(['A', 'B', 'C']).optional().nullable(),
@@ -67,12 +69,14 @@ export default function ClientForm({
     client, 
     onSubmit, 
     onCancel, 
-    isAIClient = false 
+    isAIClient = false,
+    isPayrollClient = false,
 }: { 
     client: Partial<User> | null, 
     onSubmit: (data: any) => void, 
     onCancel: () => void, 
     isAIClient?: boolean,
+    isPayrollClient?: boolean,
 }) {
     const { toast } = useToast();
     const [isLoadingRules, setIsLoadingRules] = useState(false);
@@ -82,7 +86,10 @@ export default function ClientForm({
         defaultValues: {
             id: client?.id || '',
             name: client?.name || client?.companyName || '',
-            yearEnd: client?.yearEnd || undefined,
+            registrationNumber: client?.registrationNumber || '',
+            payeReference: client?.payeReference || '',
+            firstProcessingMonth: client?.firstProcessingMonth || 'February',
+            yearEnd: client?.yearEnd || 'February',
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
             vatNumber: client?.vatNumber || '',
@@ -115,7 +122,7 @@ export default function ClientForm({
     const useGlobalRules = form.watch('useGlobalRules');
 
     useEffect(() => {
-        if (!client?.id && isAIClient) {
+        if (!client?.id && isAIClient && !isPayrollClient) {
             const fetchGlobalRules = async () => {
                 setIsLoadingRules(true);
                 try {
@@ -142,10 +149,10 @@ export default function ClientForm({
             };
             fetchGlobalRules();
         }
-    }, [client?.id, isAIClient, replace, toast]);
+    }, [client?.id, isAIClient, isPayrollClient, replace, toast]);
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        const processedRules = values.useGlobalRules ? values.initialRules?.map(r => ({
+        const processedRules = (values.useGlobalRules && !isPayrollClient) ? values.initialRules?.map(r => ({
             ...r,
             keywords: r.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean),
             type: 'hard' as const,
@@ -164,48 +171,41 @@ export default function ClientForm({
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8 max-h-[75vh] overflow-y-auto p-1 pr-4">
                 <section className="space-y-4">
                     <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
-                        <Building className="h-4 w-4" /> Basic Information
+                        <Building className="h-4 w-4" /> Company Information
                     </div>
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    </div>
-                    <FormField control={form.control} name="logoUrl" render={({ field }) => ( <FormItem><FormLabel>Company Logo URL</FormLabel><FormControl><Input placeholder="https://example.com/logo.png" {...field} /></FormControl><FormDescription className="text-[10px]">Used on all generated invoices.</FormDescription><FormMessage /></FormItem>)} />
-                </section>
-
-                <Separator />
-
-                <section className="space-y-4">
-                    <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
-                        <Landmark className="h-4 w-4" /> Tax & VAT
-                    </div>
-                    <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                            <div className="space-y-0.5"><FormLabel>VAT Registered?</FormLabel></div>
-                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                        </FormItem>
-                    )} />
-                    {isVatRegistered && (
+                    
+                    {isPayrollClient && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
-                            <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input {...field} placeholder="e.g. 4123456789" /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="registrationNumber" render={({ field }) => ( <FormItem><FormLabel>Company Registration Number</FormLabel><FormControl><Input {...field} placeholder="e.g. 2024/123456/07" /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="payeReference" render={({ field }) => ( <FormItem><FormLabel>PAYE Reference Number</FormLabel><FormControl><Input {...field} placeholder="e.g. 7123456789" /></FormControl><FormMessage /></FormItem>)} />
                         </div>
                     )}
-                </section>
 
-                <Separator />
+                    {!isPayrollClient && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        </div>
+                    )}
 
-                <section className="space-y-4">
-                    <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
-                        <CreditCard className="h-4 w-4" /> Banking Details (For Invoicing)
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                    </div>
+                    {isPayrollClient && (
+                        <FormField control={form.control} name="firstProcessingMonth" render={({ field }) => ( 
+                            <FormItem className="animate-in fade-in slide-in-from-top-2">
+                                <FormLabel>1st Processing Month (Start Period)</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                    <SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <FormDescription className="text-[10px]">Select the first month you want to start processing payroll for.</FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                    )}
+
+                    {!isPayrollClient && (
+                        <FormField control={form.control} name="logoUrl" render={({ field }) => ( <FormItem><FormLabel>Company Logo URL</FormLabel><FormControl><Input placeholder="https://example.com/logo.png" {...field} /></FormControl><FormDescription className="text-[10px]">Used on all generated invoices.</FormDescription><FormMessage /></FormItem>)} />
+                    )}
                 </section>
 
                 <Separator />
@@ -214,16 +214,53 @@ export default function ClientForm({
                     <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
                         <ImageIcon className="h-4 w-4" /> Physical Address
                     </div>
-                    <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel className="text-xs">Street Address</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel>Suburb</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="address.province" render={({ field }) => ( <FormItem><FormLabel>Province</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel>ZIP / Postal Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Suburb</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel className="text-xs">City</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="address.province" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Province</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel className="text-xs">ZIP / Postal Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                     </div>
                 </section>
 
-                {isAIClient && !client?.id && (
+                {!isPayrollClient && (
+                    <>
+                    <Separator />
+                    <section className="space-y-4">
+                        <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
+                            <Landmark className="h-4 w-4" /> Tax & VAT
+                        </div>
+                        <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5"><FormLabel>VAT Registered?</FormLabel></div>
+                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            </FormItem>
+                        )} />
+                        {isVatRegistered && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                                <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input {...field} placeholder="e.g. 4123456789" /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            </div>
+                        )}
+                    </section>
+
+                    <Separator />
+
+                    <section className="space-y-4">
+                        <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
+                            <CreditCard className="h-4 w-4" /> Banking Details (For Invoicing)
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        </div>
+                    </section>
+                    </>
+                )}
+
+                {isAIClient && !client?.id && !isPayrollClient && (
                     <section className="space-y-4 border-t pt-6">
                         <div className="flex items-center justify-between">
                             <div>

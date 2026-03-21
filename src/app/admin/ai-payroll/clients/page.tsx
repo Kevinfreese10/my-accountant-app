@@ -97,7 +97,7 @@ export default function AIPayrollClientsPage() {
               client={selectedClient} 
               onSubmit={handleFormSubmit}
               onCancel={() => setIsFormOpen(false)}
-              isAIClient={true}
+              isPayrollClient={true}
             />
           </DialogContent>
         </Dialog>
@@ -115,6 +115,7 @@ export default function AIPayrollClientsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Company</TableHead>
+                  <TableHead>PAYE Ref</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -122,20 +123,31 @@ export default function AIPayrollClientsPage() {
               <TableBody>
                 {clients.map(client => (
                   <TableRow key={client.id}>
-                    <TableCell className="font-bold">{client.name}</TableCell>
+                    <TableCell>
+                        <div className="flex flex-col">
+                            <span className="font-bold">{client.name}</span>
+                            <span className="text-[10px] text-muted-foreground">{client.registrationNumber || 'No Reg Number'}</span>
+                        </div>
+                    </TableCell>
+                    <TableCell className="text-xs font-mono">{client.payeReference || 'N/A'}</TableCell>
                     <TableCell><Badge variant="outline">Active</Badge></TableCell>
                     <TableCell className="text-right">
-                      <Button asChild variant="ghost" size="sm">
-                        <Link href={`/admin/ai-payroll/${client.id}/dashboard`}>
-                          Manage Payroll <ArrowRight className="ml-2 h-4 w-4" />
-                        </Link>
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => { setSelectedClient(client); setIsFormOpen(true); }}>
+                            <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button asChild variant="ghost" size="sm">
+                            <Link href={`/admin/ai-payroll/${client.id}/dashboard`}>
+                            Manage Payroll <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
                 {clients.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
                       No payroll clients found. Create one to get started.
                     </TableCell>
                   </TableRow>
