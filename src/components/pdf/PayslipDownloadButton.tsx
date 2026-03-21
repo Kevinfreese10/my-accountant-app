@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Payslip, Employee, User, PayslipItem } from '@/lib/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { format } from 'date-fns';
 
 interface PayslipDownloadButtonProps {
   payslip: Payslip;
@@ -35,6 +36,9 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       const p = currentData || payslip; // Use current editor state if provided
       const primaryColor = [33, 67, 146]; // #214392
 
+      // Helper for clean currency formatting
+      const formatCurr = (num: number) => `R ${num.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
       // 1. Header & Branding
       doc.setTextColor(33, 67, 146);
       doc.setFontSize(22);
@@ -45,13 +49,37 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       doc.setTextColor(150);
       doc.text('PAYSLIP • CONFIDENTIAL', 190, 25, { align: 'right' });
 
-      // 2. Info Grid
+      // 2. Company Details (Left - Dynamic)
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.setFont('helvetica', 'normal');
+      let currentLeftY = 32;
+      
+      if (client.registrationNumber) {
+          doc.text(`Registration No: ${client.registrationNumber}`, 20, currentLeftY);
+          currentLeftY += 5;
+      }
+      if (client.payeReference) {
+          doc.text(`PAYE Ref: ${client.payeReference}`, 20, currentLeftY);
+          currentLeftY += 5;
+      }
+      if (client.address) {
+          const addr = client.address;
+          const addrLines = [addr.street, addr.suburb, addr.city, addr.zip].filter(Boolean);
+          if (addrLines.length > 0) {
+              const addrStr = addrLines.join(', ');
+              const splitAddr = doc.splitTextToSize(addrStr, 80);
+              doc.text(splitAddr, 20, currentLeftY);
+              currentLeftY += (splitAddr.length * 4);
+          }
+      }
+
+      // 3. Info Grid (Right)
       doc.setTextColor(100);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.text('PAY PERIOD:', 140, 35);
       doc.setFont('helvetica', 'normal');
-      // Fix: Use payslip.period explicitly as currentData doesn't contain it
       doc.text(String(payslip.period || 'N/A'), 190, 35, { align: 'right' });
 
       doc.setFont('helvetica', 'bold');
@@ -59,32 +87,42 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       doc.setFont('helvetica', 'normal');
       doc.text(String(new Date().toLocaleDateString('en-ZA')), 190, 40, { align: 'right' });
 
-      // Employee Column
+      // 4. Employee Column
+      const startY = Math.max(currentLeftY + 10, 55);
       doc.setTextColor(0);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${String(employee.name || '')} ${String(employee.surname || '')}`, 20, 45);
+      doc.text(`${String(employee.name || '')} ${String(employee.surname || '')}`, 20, startY);
       
       doc.setTextColor(100);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Employee Code: ${String(employee.employeeCode || 'N/A')}`, 20, 52);
-      doc.text(`ID Number: ${String(employee.idNumber || 'N/A')}`, 20, 57);
-      doc.text(`Job Title: ${String(employee.jobTitle || 'N/A')}`, 20, 62);
-      doc.text(`Department: ${String(employee.department || 'N/A')}`, 20, 67);
+      
+      const joinDate = employee.joinDate?.toDate ? employee.joinDate.toDate() : new Date(employee.joinDate);
+      const formattedJoinDate = !isNaN(joinDate.getTime()) ? format(joinDate, 'dd MMM yyyy') : 'N/A';
 
-      // 3. Tables
-      const formatCurr = (num: number) => `R ${num.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}`;
+      let empInfoY = startY + 7;
+      doc.text(`Employee Code: ${String(employee.employeeCode || 'N/A')}`, 20, empInfoY);
+      doc.text(`ID Number: ${String(employee.idNumber || 'N/A')}`, 20, empInfoY + 5);
+      doc.text(`Start Date: ${formattedJoinDate}`, 20, empInfoY + 10);
+      doc.text(`Job Title: ${String(employee.jobTitle || 'N/A')}`, 20, empInfoY + 15);
+      doc.text(`Department: ${String(employee.department || 'N/A')}`, 20, empInfoY + 20);
 
+      // 5. Tables
       // Earnings Table
       autoTable(doc, {
-          startY: 75,
+          startY: empInfoY + 30,
           head: [['Earnings', 'Amount']],
           body: p.earnings.map(i => [String(i.label), formatCurr(i.amount)]),
           theme: 'striped',
           headStyles: { fillColor: primaryColor, fontSize: 9 },
           columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
-          margin: { left: 20, right: 20 }
+          margin: { left: 20, right: 20 },
+          didParseCell: (data) => {
+              if (data.section === 'head' && data.column.index === 1) {
+                  data.cell.styles.halign = 'right';
+              }
+          }
       });
 
       // Deductions Table
@@ -95,10 +133,15 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
           theme: 'striped',
           headStyles: { fillColor: [185, 28, 28], fontSize: 9 }, // Red
           columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
-          margin: { left: 20, right: 20 }
+          margin: { left: 20, right: 20 },
+          didParseCell: (data) => {
+              if (data.section === 'head' && data.column.index === 1) {
+                  data.cell.styles.halign = 'right';
+              }
+          }
       });
 
-      // Contributions & Fringe Table (Combined for compact view)
+      // Contributions & Fringe Table
       const otherBody = [
           ...p.contributions.map(i => [`Employer: ${String(i.label)}`, formatCurr(i.amount)]),
           ...p.fringeBenefits.map(i => [`Fringe: ${String(i.label)}`, formatCurr(i.amount)])
@@ -112,14 +155,18 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
               theme: 'striped',
               headStyles: { fillColor: [75, 85, 99], fontSize: 9 }, // Gray
               columnStyles: { 1: { halign: 'right' } },
-              margin: { left: 20, right: 20 }
+              margin: { left: 20, right: 20 },
+              didParseCell: (data) => {
+                  if (data.section === 'head' && data.column.index === 1) {
+                      data.cell.styles.halign = 'right';
+                  }
+              }
           });
       }
 
-      // 4. Summary Box
+      // 6. Summary Box
       const finalY = (doc as any).lastAutoTable.finalY + 15;
       
-      // Background for Net Pay
       doc.setFillColor(33, 67, 146);
       doc.rect(20, finalY, 170, 20, 'F');
       
@@ -130,7 +177,7 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       doc.setFontSize(18);
       doc.text(formatCurr(p.netPay), 185, finalY + 13, { align: 'right' });
 
-      // 5. Banking
+      // 7. Banking
       const bankY = finalY + 35;
       doc.setTextColor(100);
       doc.setFontSize(8);
@@ -139,7 +186,7 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       doc.setFont('helvetica', 'normal');
       doc.text(`${String(employee.bankingDetails?.bankName || 'N/A')} • ${String(employee.bankingDetails?.accountNumber || '')} • ${String(employee.bankingDetails?.accountType || '')}`, 20, bankY + 5);
 
-      // 6. Footer
+      // 8. Footer
       doc.setFontSize(8);
       doc.setTextColor(180);
       doc.text(`Generated by My Accountant AI Payroll Engine on ${new Date().toLocaleString()}`, 105, 285, { align: 'center' });
