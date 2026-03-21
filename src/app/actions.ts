@@ -18,8 +18,30 @@ import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
 import { analyzeClientComment } from '@/ai/flows/analyze-client-comment';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { format, addDays, addMonths, addYears } from 'date-fns';
+import { PayrollService } from '@/services/PayrollService';
 
 const db = getFirestore(firebaseApp);
+
+/**
+ * Automatically generates a payslip for a new employee.
+ */
+export async function generateEmployeePayslipAction({
+    clientId,
+    employeeId,
+    basicSalary
+}: {
+    clientId: string,
+    employeeId: string,
+    basicSalary: number
+}) {
+    try {
+        await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary);
+        return { success: true };
+    } catch (e) {
+        console.error("Payslip action failed:", e);
+        return { success: false, error: "Initial payslip generation failed." };
+    }
+}
 
 export async function saveCvLead(data: Omit<CVLead, 'id' | 'createdAt'>) {
     try {

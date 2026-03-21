@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -17,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
+import { generateEmployeePayslipAction } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
 
@@ -71,11 +73,19 @@ export default function EmployeesPage() {
         await setDoc(doc(db, 'aiPayrollClients', clientId, 'employees', selectedEmployee.id), employeeData, { merge: true });
         toast({ title: 'Employee Updated' });
       } else {
-        await addDoc(employeesRef, {
+        const newDocRef = await addDoc(employeesRef, {
           ...employeeData,
           createdAt: serverTimestamp(),
         });
-        toast({ title: 'Employee Added' });
+        
+        // AUTOMATIC PAYSLIP GENERATION
+        await generateEmployeePayslipAction({
+            clientId,
+            employeeId: newDocRef.id,
+            basicSalary: values.basicSalary
+        });
+
+        toast({ title: 'Employee Added', description: 'Initial payslip has been generated.' });
       }
 
       setIsFormOpen(false);
