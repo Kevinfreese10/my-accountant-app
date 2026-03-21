@@ -1,16 +1,15 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Search, Loader2, MoreHorizontal, Edit, Trash2, User as UserIcon } from 'lucide-react';
+import { PlusCircle, Search, Loader2, MoreHorizontal, Edit, Trash2, User as UserIcon, FileText } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, getDoc, where, limit } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Employee } from '@/lib/types';
+import { Employee, Payslip, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import EmployeeForm from '@/components/admin/EmployeeForm';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { generateEmployeePayslipAction } from '@/app/actions';
+import PayslipPreview from '@/components/admin/PayslipPreview';
 
 const db = getFirestore(firebaseApp);
 
@@ -28,14 +28,26 @@ export default function EmployeesPage() {
   const { toast } = useToast();
   
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [client, setClient] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Payslip viewing states
+  const [isPayslipOpen, setIsPayslipOpen] = useState(false);
+  const [viewingPayslip, setViewingPayslip] = useState<Payslip | null>(null);
+  const [payslipEmployee, setPayslipEmployee] = useState<Employee | null>(null);
+  const [isFetchingPayslip, setIsFetchingPayslip] = useState(false);
+
   useEffect(() => {
     if (!clientId) return;
+
+    // Fetch client details
+    getDoc(doc(db, 'aiPayrollClients', clientId)).then(snap => {
+        if (snap.exists()) setClient({ id: snap.id, ...snap.data() } as User);
+    });
 
     const employeesRef = collection(db, 'aiPayrollClients', clientId, 'employees');
     const q = query(employeesRef, orderBy('surname'), orderBy('name'));
@@ -102,6 +114,35 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleViewPayslip = async (employee: Employee) => {
+      setIsFetchingPayslip(true);
+      setPayslipEmployee(employee);
+      
+      try {
+          const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+          const q = query(
+              payslipsRef, 
+              where('employeeId', '==', employee.id), 
+              orderBy('createdAt', 'desc'), 
+              limit(1)
+          );
+          
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+              const data = snap.docs[0].data();
+              setViewingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
+              setIsPayslipOpen(true);
+          } else {
+              toast({ title: "No Payslip Found", description: "This employee does not have any processed payslips yet.", variant: "warning" });
+          }
+      } catch (error) {
+          console.error("Error fetching payslip:", error);
+          toast({ title: "Error", description: "Failed to retrieve the latest payslip.", variant: "destructive" });
+      } finally {
+          setIsFetchingPayslip(false);
+      }
+  };
+
   const handleDeleteEmployee = async (employeeId: string) => {
     try {
       await deleteDoc(doc(db, 'aiPayrollClients', clientId, 'employees', employeeId));
@@ -122,7 +163,7 @@ export default function EmployeesPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-bold">Employees</h2>
+          <h2 className="text-xl font-bold text-slate-900">Employees</h2>
           <p className="text-sm text-muted-foreground">Manage your workforce and compensation details.</p>
         </div>
         <Dialog open={isFormOpen} onOpenChange={(open) => { setIsFormOpen(open); if (!open) setSelectedEmployee(null); }}>
@@ -148,6 +189,21 @@ export default function EmployeesPage() {
         </Dialog>
       </div>
 
+      {/* Payslip Viewer Dialog */}
+      <Dialog open={isPayslipOpen} onOpenChange={setIsPayslipOpen}>
+          <DialogContent className="sm:max-w-4xl p-0 overflow-hidden">
+              <DialogHeader className="p-6 pb-0">
+                  <DialogTitle className="flex items-center gap-2"><ReceiptText className="h-5 w-5 text-primary" /> Latest Payslip</DialogTitle>
+                  <DialogDescription>Viewing official payroll record for {payslipEmployee?.name} {payslipEmployee?.surname}.</DialogDescription>
+              </DialogHeader>
+              <div className="p-6">
+                {viewingPayslip && payslipEmployee && client && (
+                    <PayslipPreview payslip={viewingPayslip} employee={payslipEmployee} client={client} />
+                )}
+              </div>
+          </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
@@ -155,20 +211,20 @@ export default function EmployeesPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
                 placeholder="Search by name, ID, or title..." 
-                className="pl-8 max-w-sm" 
+                className="pl-8 max-w-sm h-10" 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary" /></div>
           ) : filteredEmployees.length === 0 ? (
-            <div className="h-60 flex flex-col items-center justify-center border-2 border-dashed rounded-lg text-muted-foreground text-center p-8">
+            <div className="h-60 flex flex-col items-center justify-center border-2 border-dashed rounded-lg text-muted-foreground text-center p-8 mx-6 mb-6">
               <UserIcon className="h-12 w-12 opacity-20 mb-4" />
-              <p className="font-semibold">No employees found.</p>
+              <p className="font-semibold text-slate-900">No employees found.</p>
               <p className="text-sm">Start by adding your first staff member to this company.</p>
             </div>
           ) : (
@@ -188,56 +244,70 @@ export default function EmployeesPage() {
                   <TableRow key={emp.id}>
                     <TableCell className="font-medium">
                       <div className="flex flex-col">
-                        <span>{emp.surname}, {emp.name}</span>
+                        <span className="text-slate-900 font-bold">{emp.surname}, {emp.name}</span>
                         <span className="text-[10px] text-muted-foreground">Joined: {emp.joinDate?.toDate ? format(emp.joinDate.toDate(), 'dd MMM yyyy') : 'N/A'}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{emp.idNumber}</TableCell>
-                    <TableCell>{emp.jobTitle}</TableCell>
+                    <TableCell className="font-mono text-xs text-slate-600">{emp.idNumber}</TableCell>
+                    <TableCell className="text-xs font-medium text-slate-700">{emp.jobTitle}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[10px] uppercase font-bold">{emp.department}</Badge>
+                      <Badge variant="outline" className="text-[9px] uppercase font-black tracking-tighter bg-muted/50">{emp.department}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={emp.status === 'Active' ? 'success' : 'secondary'} className="text-[10px] uppercase font-bold">
+                      <Badge variant={emp.status === 'Active' ? 'success' : 'secondary'} className="text-[10px] uppercase font-bold px-2 py-0">
                         {emp.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => { setSelectedEmployee(emp); setIsFormOpen(true); }}>
-                            <Edit className="mr-2 h-4 w-4" /> Edit Details
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>
-                                <Trash2 className="mr-2 h-4 w-4" /> Remove Employee
-                              </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will permanently remove {emp.name} {emp.surname} from the payroll records. This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteEmployee(emp.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                  Confirm Removal
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-primary"
+                            onClick={() => handleViewPayslip(emp)}
+                            disabled={isFetchingPayslip && payslipEmployee?.id === emp.id}
+                        >
+                            {isFetchingPayslip && payslipEmployee?.id === emp.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <ReceiptText className="h-4 w-4" />}
+                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => { setSelectedEmployee(emp); setIsFormOpen(true); }}>
+                                <Edit className="mr-2 h-4 w-4" /> Edit Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleViewPayslip(emp)}>
+                                <FileText className="mr-2 h-4 w-4" /> View Latest Payslip
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>
+                                    <Trash2 className="mr-2 h-4 w-4" /> Remove Employee
+                                </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                    This will permanently remove {emp.name} {emp.surname} from the payroll records. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteEmployee(emp.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                    Confirm Removal
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -249,3 +319,5 @@ export default function EmployeesPage() {
     </div>
   );
 }
+
+import { ReceiptText } from 'lucide-react';
