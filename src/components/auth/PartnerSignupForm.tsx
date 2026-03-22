@@ -16,12 +16,13 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Briefcase, CheckCircle2, UserPlus } from 'lucide-react';
+import { Loader2, Briefcase, CheckCircle2, UserPlus, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Service, User } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import PartnerWelcomeEmail from '../emails/PartnerWelcomeEmail';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -63,7 +64,7 @@ export default function PartnerSignupForm() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
-  const { login } = useAuth();
+  const { reauthenticate } = useAuth();
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [isServicesLoading, setIsServicesLoading] = useState(true);
@@ -165,6 +166,9 @@ export default function PartnerSignupForm() {
             }
         });
 
+        // Trigger manual re-auth logic to link the new doc
+        await reauthenticate(newFirebaseUser);
+
         // Send welcome email
         try {
             const emailHtml = render(<PartnerWelcomeEmail 
@@ -184,8 +188,6 @@ export default function PartnerSignupForm() {
             console.error("Welcome email failed", e);
         }
         
-        await login(values.email, values.password);
-
         toast({
             title: 'Welcome Aboard!',
             description: `Your BEI Practice account is active.`,
@@ -209,9 +211,18 @@ export default function PartnerSignupForm() {
       if (isValid) setStep(2);
   };
 
+  const onInvalid = (errors: any) => {
+      console.error("Partner Signup Validation Errors:", errors);
+      toast({
+          title: "Incomplete Details",
+          description: "Please check the form for missing requirements or required document uploads.",
+          variant: "destructive"
+      });
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-8">
         
         {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
@@ -246,18 +257,21 @@ export default function PartnerSignupForm() {
                         control={form.control}
                         name="wantsOutsourcedWork"
                         render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-muted/20">
-                            <FormControl>
-                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                                <FormLabel className="font-bold">
-                                    Apply for the Overflow Work Program?
-                                </FormLabel>
-                                <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-                                    We regularly have more work than our team can handle. If you are a member of a professional body, we can outsource overflow projects to your practice at wholesale rates.
-                                </p>
-                            </div>
+                            <FormItem className="flex flex-col space-y-3 rounded-md border p-4 bg-muted/20">
+                                <div className="flex flex-row items-start space-x-3">
+                                    <FormControl>
+                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                        <FormLabel className="font-bold cursor-pointer">
+                                            Apply for the Overflow Work Program?
+                                        </FormLabel>
+                                        <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                                            We regularly have more work than our team can handle. If you are a member of a professional body, we can outsource overflow projects to your practice at wholesale rates.
+                                        </p>
+                                    </div>
+                                </div>
+                                <FormMessage />
                             </FormItem>
                         )}
                     />
@@ -291,60 +305,52 @@ export default function PartnerSignupForm() {
                                     )}
                                 />
                             </div>
+                            
                             <FormField
-                            control={form.control}
-                            name="capableServices"
-                            render={() => (
-                                <FormItem>
-                                <div className="mb-4">
-                                    <FormLabel className="text-base">Service Expertise</FormLabel>
-                                    <p className="text-sm text-muted-foreground">
-                                    Select services you are qualified to handle for the network.
-                                    </p>
-                                </div>
-                                <div className="space-y-4 max-h-60 overflow-y-auto p-4 border rounded-lg bg-white">
-                                    {isServicesLoading ? (
-                                        <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                                    ) : (
-                                        categorizedServices.map(category => (
-                                            <div key={category.id}>
-                                                <h4 className="font-bold text-xs uppercase text-primary mb-3">{category.name}</h4>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                                                    {category.services.map((service) => (
-                                                        <FormField
-                                                            key={service.id}
-                                                            control={form.control}
-                                                            name="capableServices"
-                                                            render={({ field }) => (
-                                                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                                                <FormControl>
+                                control={form.control}
+                                name="capableServices"
+                                render={({ field: parentField }) => (
+                                    <FormItem>
+                                        <div className="mb-4">
+                                            <FormLabel className="text-base">Service Expertise</FormLabel>
+                                            <p className="text-sm text-muted-foreground">
+                                                Select services you are qualified to handle for the network.
+                                            </p>
+                                        </div>
+                                        <div className="space-y-4 max-h-60 overflow-y-auto p-4 border rounded-lg bg-white">
+                                            {isServicesLoading ? (
+                                                <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                                            ) : (
+                                                categorizedServices.map(category => (
+                                                    <div key={category.id}>
+                                                        <h4 className="font-bold text-[10px] uppercase text-primary mb-3 tracking-widest">{category.name}</h4>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                                                            {category.services.map((service) => (
+                                                                <div key={service.id} className="flex flex-row items-start space-x-3 space-y-0">
                                                                     <Checkbox
-                                                                    checked={field.value?.includes(service.id)}
-                                                                    onCheckedChange={(checked) => {
-                                                                        return checked
-                                                                        ? field.onChange([...(field.value || []), service.id])
-                                                                        : field.onChange(
-                                                                            field.value?.filter(
-                                                                                (value) => value !== service.id
-                                                                            )
-                                                                        )
-                                                                    }}
+                                                                        id={`check-${service.id}`}
+                                                                        checked={parentField.value?.includes(service.id)}
+                                                                        onCheckedChange={(checked) => {
+                                                                            const current = parentField.value || [];
+                                                                            const updated = checked
+                                                                                ? [...current, service.id]
+                                                                                : current.filter(val => val !== service.id);
+                                                                            parentField.onChange(updated);
+                                                                        }}
                                                                     />
-                                                                </FormControl>
-                                                                <FormLabel className="font-normal text-xs cursor-pointer">
-                                                                    {service.title}
-                                                                </FormLabel>
-                                                                </FormItem>
-                                                            )}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                                </FormItem>
-                            )}
+                                                                    <Label htmlFor={`check-${service.id}`} className="font-normal text-xs cursor-pointer leading-tight">
+                                                                        {service.title}
+                                                                    </Label>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
                             />
                         </div>
                     )}
@@ -357,7 +363,7 @@ export default function PartnerSignupForm() {
                         <CheckCircle2 className="h-5 w-5" />
                         Zero Setup Fees
                     </h3>
-                    <p className="text-sm text-green-700">
+                    <p className="text-sm text-green-700 font-medium">
                         Joining the Bookkeeper Empowerment Initiative is free for all practitioners. You only need credits when you choose to outsource an order to our team.
                     </p>
                 </div>
@@ -366,22 +372,24 @@ export default function PartnerSignupForm() {
                     control={form.control}
                     name="agreeTerms"
                     render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                        <FormControl>
-                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                            <FormLabel className="cursor-pointer">
-                                I agree to the <Link href="/terms" className="underline" target="_blank">terms and conditions</Link> and understand that I will need to maintain a credit balance only for outsourced services.
-                            </FormLabel>
+                        <FormItem className="flex flex-col space-y-3">
+                            <div className="flex flex-row items-start space-x-3 space-y-0">
+                                <FormControl>
+                                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                    <FormLabel className="cursor-pointer font-medium">
+                                        I agree to the <Link href="/terms" className="underline font-bold" target="_blank">terms and conditions</Link> and understand that I will need to maintain a credit balance only for outsourced services.
+                                    </FormLabel>
+                                </div>
+                            </div>
                             <FormMessage />
-                        </div>
                         </FormItem>
                     )}
                 />
                 
                 <div className="flex gap-2">
-                    <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-1/3 h-12 font-bold">Back</Button>
+                    <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-1/3 h-12 font-bold" disabled={isLoading}>Back</Button>
                     <Button type="submit" className="w-2/3 h-12 text-lg font-black shadow-xl" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {isLoading ? 'Processing...' : 'Complete Registration'}

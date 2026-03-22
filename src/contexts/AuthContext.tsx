@@ -100,9 +100,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                  setIsAuthenticated(true);
                  return foundUser;
             } else {
-                console.warn(`User document not found for UID: ${firebaseUser.uid} in any collection.`)
-                await signOut(auth);
-                return 'invalid_credentials';
+                // Patient handling during signup: if the doc isn't found, 
+                // we don't sign out immediately. We allow the app to be "Authenticated" 
+                // but without a profile for a short period while the doc is being created.
+                console.warn(`User document not found for UID: ${firebaseUser.uid} in any collection. Still authenticated via Firebase Auth.`);
+                updateUser(null);
+                setIsAuthenticated(true);
+                return undefined;
             }
 
         } catch (serverError: any) {
