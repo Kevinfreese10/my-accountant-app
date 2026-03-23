@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -17,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
-import { generateEmployeePayslipAction } from '@/app/actions';
+import { generateEmployeePayslipAction, syncEmployeeSalaryToActivePayslipAction } from '@/app/actions';
 import PayslipEditor from '@/components/admin/PayslipEditor';
 
 const db = getFirestore(firebaseApp);
@@ -82,9 +83,22 @@ export default function EmployeesPage() {
       };
 
       if (selectedEmployee?.id) {
+        // UPDATE EXISTING
         await setDoc(doc(db, 'aiPayrollClients', clientId, 'employees', selectedEmployee.id), employeeData, { merge: true });
-        toast({ title: 'Employee Updated' });
+        
+        // SYNC SALARY TO PAYSLIP IF CHANGED
+        if (selectedEmployee.basicSalary !== values.basicSalary) {
+            await syncEmployeeSalaryToActivePayslipAction({
+                clientId,
+                employeeId: selectedEmployee.id,
+                newSalary: values.basicSalary
+            });
+            toast({ title: 'Record Updated', description: 'Employee details and active payslip have been synchronized.' });
+        } else {
+            toast({ title: 'Employee Updated' });
+        }
       } else {
+        // CREATE NEW
         const newDocRef = await addDoc(employeesRef, {
           ...employeeData,
           createdAt: serverTimestamp(),

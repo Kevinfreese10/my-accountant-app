@@ -48,6 +48,85 @@ export async function updatePayslipAction({
 }
 
 /**
+ * Syncs employee basic salary to the active draft payslip.
+ * Recalculates statutory deductions.
+ */
+export async function syncEmployeeSalaryToActivePayslipAction({
+    clientId,
+    employeeId,
+    newSalary
+}: {
+    clientId: string,
+    employeeId: string,
+    newSalary: number
+}) {
+    try {
+        const clientRef = doc(db, 'aiPayrollClients', clientId);
+        const clientSnap = await getDoc(clientRef);
+        if (!clientSnap.exists()) throw new Error("Client not found");
+        const client = clientSnap.data() as User;
+        const currentPeriod = client.firstProcessingMonth;
+
+        if (!currentPeriod) return { success: true, message: "No active period" };
+
+        const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+        const q = query(
+            payslipsRef, 
+            where('employeeId', '==', employeeId), 
+            where('period', '==', currentPeriod), 
+            limit(1)
+        );
+        const snap = await getDocs(q);
+
+        if (snap.empty) return { success: true, message: "No draft payslip to sync" };
+
+        const payslipDoc = snap.docs[0];
+        const payslip = payslipDoc.data() as Payslip;
+
+        // Recalculate based on new salary
+        const paye = PayrollService.calculatePaye(newSalary);
+        const uif = PayrollService.calculateUif(newSalary);
+        const sdl = client.excludeSdl ? 0 : parseFloat((newSalary * 0.01).toFixed(2));
+
+        const updatedEarnings = payslip.earnings.map(e => 
+            e.label.toLowerCase() === 'basic salary' ? { ...e, amount: newSalary } : e
+        );
+
+        const updatedDeductions = payslip.deductions.map(d => {
+            if (!d.isStatutory) return d;
+            if (d.label === 'Tax') return { ...d, amount: paye };
+            if (d.label === 'Unemployment insurance fund') return { ...d, amount: uif };
+            return d;
+        });
+
+        const updatedContributions = payslip.contributions.map(c => {
+            if (!c.isStatutory) return c;
+            if (c.label === 'Unemployment insurance fund') return { ...c, amount: uif };
+            if (c.label === 'Skills development levy') return { ...c, amount: sdl };
+            return c;
+        });
+
+        const totalEarnings = updatedEarnings.reduce((s, i) => s + i.amount, 0);
+        const totalDeductions = updatedDeductions.reduce((s, i) => s + i.amount, 0);
+
+        await updateDoc(payslipDoc.ref, {
+            earnings: updatedEarnings,
+            deductions: updatedDeductions,
+            contributions: updatedContributions,
+            grossPay: totalEarnings,
+            totalDeductions: totalDeductions,
+            netPay: parseFloat((totalEarnings - totalDeductions).toFixed(2)),
+            updatedAt: serverTimestamp()
+        });
+
+        return { success: true };
+    } catch (e: any) {
+        console.error("Sync salary error:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+/**
  * Rolls back the payroll period to the previous month.
  * Clears all payslips from the current month being rolled back from.
  */
