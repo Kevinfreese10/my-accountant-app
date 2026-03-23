@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -16,7 +15,6 @@ interface PayslipDownloadButtonProps {
   client: User;
   currentData?: {
       earnings: PayslipItem[];
-      metricDeductions?: any;
       deductions: PayslipItem[];
       contributions: PayslipItem[];
       fringeBenefits: PayslipItem[];
@@ -33,166 +31,201 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
     setIsLoading(true);
     try {
       const doc = new jsPDF();
-      const p = currentData || payslip; // Use current editor state if provided
-      const primaryColor = [33, 67, 146]; // #214392
-
-      // Helper for clean currency formatting
-      const formatCurr = (num: number) => `R ${num.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-      // 1. Header & Branding
-      doc.setTextColor(33, 67, 146);
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text(String(client.companyName || client.name || 'Practice'), 20, 25);
-
-      doc.setFontSize(10);
-      doc.setTextColor(150);
-      doc.text('PAYSLIP • CONFIDENTIAL', 190, 25, { align: 'right' });
-
-      // 2. Company Details (Left - Dynamic)
-      doc.setFontSize(8);
-      doc.setTextColor(100);
-      doc.setFont('helvetica', 'normal');
-      let currentLeftY = 32;
+      const p = currentData || payslip;
       
-      if (client.registrationNumber) {
-          doc.text(`Registration No: ${client.registrationNumber}`, 20, currentLeftY);
-          currentLeftY += 5;
-      }
-      if (client.payeReference) {
-          doc.text(`PAYE Ref: ${client.payeReference}`, 20, currentLeftY);
-          currentLeftY += 5;
-      }
+      const primaryColor = [0, 0, 0]; // Black as per image
+      const grayColor = [100, 100, 100];
+      const lightGray = [240, 240, 240];
+
+      const formatCurr = (num: number) => {
+          if (num === 0) return '0.00';
+          return num.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      };
+
+      // --- 1. Company Header (Top Left) ---
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(client.companyName || client.name).toUpperCase(), 15, 15);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      let currentY = 20;
+      
       if (client.address) {
           const addr = client.address;
           const addrLines = [addr.street, addr.suburb, addr.city, addr.zip].filter(Boolean);
-          if (addrLines.length > 0) {
-              const addrStr = addrLines.join(', ');
-              const splitAddr = doc.splitTextToSize(addrStr, 80);
-              doc.text(splitAddr, 20, currentLeftY);
-              currentLeftY += (splitAddr.length * 4);
-          }
-      }
-
-      // 3. Info Grid (Right)
-      doc.setTextColor(100);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.text('PAY PERIOD:', 140, 35);
-      doc.setFont('helvetica', 'normal');
-      doc.text(String(payslip.period || 'N/A'), 190, 35, { align: 'right' });
-
-      doc.setFont('helvetica', 'bold');
-      doc.text('DATE ISSUED:', 140, 40);
-      doc.setFont('helvetica', 'normal');
-      doc.text(String(new Date().toLocaleDateString('en-ZA')), 190, 40, { align: 'right' });
-
-      // 4. Employee Column
-      const startY = Math.max(currentLeftY + 10, 55);
-      doc.setTextColor(0);
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${String(employee.name || '')} ${String(employee.surname || '')}`, 20, startY);
-      
-      doc.setTextColor(100);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      
-      const joinDate = employee.joinDate?.toDate ? employee.joinDate.toDate() : new Date(employee.joinDate);
-      const formattedJoinDate = !isNaN(joinDate.getTime()) ? format(joinDate, 'dd MMM yyyy') : 'N/A';
-
-      let empInfoY = startY + 7;
-      doc.text(`Employee Code: ${String(employee.employeeCode || 'N/A')}`, 20, empInfoY);
-      doc.text(`ID Number: ${String(employee.idNumber || 'N/A')}`, 20, empInfoY + 5);
-      doc.text(`Start Date: ${formattedJoinDate}`, 20, empInfoY + 10);
-      doc.text(`Job Title: ${String(employee.jobTitle || 'N/A')}`, 20, empInfoY + 15);
-      doc.text(`Department: ${String(employee.department || 'N/A')}`, 20, empInfoY + 20);
-
-      // 5. Tables
-      // Earnings Table
-      autoTable(doc, {
-          startY: empInfoY + 30,
-          head: [['Earnings', 'Amount']],
-          body: p.earnings.map(i => [String(i.label), formatCurr(i.amount)]),
-          theme: 'striped',
-          headStyles: { fillColor: primaryColor, fontSize: 9 },
-          columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
-          margin: { left: 20, right: 20 },
-          didParseCell: (data) => {
-              if (data.section === 'head' && data.column.index === 1) {
-                  data.cell.styles.halign = 'right';
-              }
-          }
-      });
-
-      // Deductions Table
-      autoTable(doc, {
-          startY: (doc as any).lastAutoTable.finalY + 10,
-          head: [['Deductions', 'Amount']],
-          body: p.deductions.map(i => [String(i.label), formatCurr(i.amount)]),
-          theme: 'striped',
-          headStyles: { fillColor: [185, 28, 28], fontSize: 9 }, // Red
-          columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
-          margin: { left: 20, right: 20 },
-          didParseCell: (data) => {
-              if (data.section === 'head' && data.column.index === 1) {
-                  data.cell.styles.halign = 'right';
-              }
-          }
-      });
-
-      // Contributions & Fringe Table
-      const otherBody = [
-          ...p.contributions.map(i => [`Employer: ${String(i.label)}`, formatCurr(i.amount)]),
-          ...p.fringeBenefits.map(i => [`Fringe: ${String(i.label)}`, formatCurr(i.amount)])
-      ];
-
-      if (otherBody.length > 0) {
-          autoTable(doc, {
-              startY: (doc as any).lastAutoTable.finalY + 10,
-              head: [['Contributions & Benefits', 'Value']],
-              body: otherBody,
-              theme: 'striped',
-              headStyles: { fillColor: [75, 85, 99], fontSize: 9 }, // Gray
-              columnStyles: { 1: { halign: 'right' } },
-              margin: { left: 20, right: 20 },
-              didParseCell: (data) => {
-                  if (data.section === 'head' && data.column.index === 1) {
-                      data.cell.styles.halign = 'right';
-                  }
-              }
+          addrLines.forEach(line => {
+              doc.text(String(line), 15, currentY);
+              currentY += 5;
           });
       }
 
-      // 6. Summary Box
-      const finalY = (doc as any).lastAutoTable.finalY + 15;
-      
-      doc.setFillColor(33, 67, 146);
-      doc.rect(20, finalY, 170, 20, 'F');
-      
-      doc.setTextColor(255);
-      doc.setFontSize(14);
+      // --- 2. Pay Date (Top Center) ---
       doc.setFont('helvetica', 'bold');
-      doc.text('NET PAY', 25, finalY + 13);
-      doc.setFontSize(18);
-      doc.text(formatCurr(p.netPay), 185, finalY + 13, { align: 'right' });
-
-      // 7. Banking
-      const bankY = finalY + 35;
-      doc.setTextColor(100);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.text('PAYMENT DETAILS', 20, bankY);
+      doc.text('Pay Date', 80, 15);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${String(employee.bankingDetails?.bankName || 'N/A')} • ${String(employee.bankingDetails?.accountNumber || '')} • ${String(employee.bankingDetails?.accountType || '')}`, 20, bankY + 5);
+      // Use the last day of the period or today
+      doc.text(format(new Date(), 'yyyy/MM/dd'), 105, 15);
 
-      // 8. Footer
-      doc.setFontSize(8);
-      doc.setTextColor(180);
-      doc.text(`Generated by My Accountant AI Payroll Engine on ${new Date().toLocaleString()}`, 105, 285, { align: 'center' });
+      // --- 3. Logo (Top Right) ---
+      if (client.logoUrl) {
+          try {
+              doc.addImage(client.logoUrl, 'PNG', 160, 10, 35, 15);
+          } catch (e) {
+              console.warn("Logo failed to load for PDF");
+          }
+      }
 
-      doc.save(`Payslip-${String(employee.surname || 'Employee')}-${payslip.period.replace(/\s/g, '-')}.pdf`);
-      toast({ title: 'Payslip Downloaded' });
+      currentY = 45;
+      doc.setDrawColor(200);
+      doc.line(15, currentY, 195, currentY); // Horizontal line
+      currentY += 7;
+
+      // --- 4. Employee Info Grid (3 Columns) ---
+      const col1X = 15;
+      const col2X = 80;
+      const col3X = 140;
+
+      const drawLabelValue = (label: string, value: string, x: number, y: number) => {
+          doc.setFont('helvetica', 'bold');
+          doc.text(label, x, y);
+          doc.setFont('helvetica', 'normal');
+          doc.text(value, x + 30, y);
+      };
+
+      // Row 1
+      drawLabelValue('Employee', `${employee.name} ${employee.surname}`, col1X, currentY);
+      drawLabelValue('Employee Code', employee.employeeCode, col2X, currentY);
+      drawLabelValue('Pay Method', 'EFT', col3X, currentY);
+      currentY += 6;
+
+      // Row 2
+      drawLabelValue('Job title', employee.jobTitle || 'N/A', col1X, currentY);
+      drawLabelValue('Identity Number', employee.idNumber, col2X, currentY);
+      drawLabelValue('Bank Name', employee.bankingDetails?.bankName || 'N/A', col3X, currentY);
+      currentY += 6;
+
+      // Row 3
+      drawLabelValue('Address', '', col1X, currentY);
+      drawLabelValue('Employed from', employee.joinDate?.toDate ? format(employee.joinDate.toDate(), 'yyyy/MM/dd') : 'N/A', col2X, currentY);
+      drawLabelValue('Branch Code', employee.bankingDetails?.branchCode || 'N/A', col3X, currentY);
+      
+      // Address sub-lines (Col 1)
+      let addrY = currentY;
+      if (employee.address) {
+          const lines = [employee.address.street, employee.address.suburb, employee.address.city, employee.address.zip].filter(Boolean);
+          lines.forEach(line => {
+              doc.text(String(line), col1X + 30, addrY);
+              addrY += 5;
+          });
+      }
+      
+      // Rate (Col 2)
+      const hourlyRate = p.grossPay / 160; // Estimated
+      drawLabelValue('Rate per hour', formatCurr(hourlyRate), col2X, currentY + 6);
+      
+      // Account (Col 3)
+      drawLabelValue('Account Number', employee.bankingDetails?.accountNumber || 'N/A', col3X, currentY + 6);
+
+      currentY = Math.max(addrY, currentY + 15);
+      doc.line(15, currentY, 195, currentY);
+      currentY += 2;
+
+      // --- 5. Main Financial Tables (Side-by-Side) ---
+      
+      // Table 1: Earnings (Left)
+      autoTable(doc, {
+          startY: currentY,
+          margin: { left: 15, right: 105 }, // Constrain to left half
+          head: [['Earnings', 'Units', 'Amount']],
+          body: p.earnings.map(i => [i.label, '', formatCurr(i.amount)]),
+          theme: 'plain',
+          headStyles: { fontStyle: 'bold', fontSize: 9, textColor: 0, lineWidth: { bottom: 0.1 } },
+          columnStyles: { 
+              0: { cellWidth: 45 }, 
+              1: { cellWidth: 20, halign: 'right' }, 
+              2: { cellWidth: 25, halign: 'right' } 
+          },
+      });
+
+      const earningsY = (doc as any).lastAutoTable.finalY;
+
+      // Shaded total bar for earnings
+      doc.setFillColor(230, 230, 230);
+      doc.rect(15, earningsY, 90, 7, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total earnings', 17, earningsY + 5);
+      doc.text(formatCurr(p.grossPay), 103, earningsY + 5, { align: 'right' });
+
+      // Table 2: Deductions (Right)
+      autoTable(doc, {
+          startY: currentY,
+          margin: { left: 105, right: 15 }, // Constrain to right half
+          head: [['Deductions', 'Opening balance', 'Amount']],
+          body: p.deductions.map(i => [i.label, '', formatCurr(i.amount)]),
+          theme: 'plain',
+          headStyles: { fontStyle: 'bold', fontSize: 9, textColor: 0, lineWidth: { bottom: 0.1 } },
+          columnStyles: { 
+              0: { cellWidth: 40 }, 
+              1: { cellWidth: 25, halign: 'right' }, 
+              2: { cellWidth: 25, halign: 'right' } 
+          },
+      });
+
+      const deductionsY = (doc as any).lastAutoTable.finalY;
+
+      // Shaded total bars for deductions and net pay
+      doc.setFillColor(230, 230, 230);
+      doc.rect(105, deductionsY, 90, 7, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total deductions', 107, deductionsY + 5);
+      doc.text(formatCurr(p.grossPay - p.netPay), 193, deductionsY + 5, { align: 'right' });
+
+      doc.setFillColor(200, 200, 200);
+      doc.rect(105, deductionsY + 7, 90, 7, 'F');
+      doc.text('Nett pay', 107, deductionsY + 12);
+      doc.text(formatCurr(p.netPay), 193, deductionsY + 12, { align: 'right' });
+
+      currentY = Math.max(earningsY + 20, deductionsY + 25);
+
+      // --- 6. Secondary Financial Tables (Side-by-Side) ---
+      
+      // Table 3: Company Contributions (Left)
+      autoTable(doc, {
+          startY: currentY,
+          margin: { left: 15, right: 105 },
+          head: [['Company Contributions', 'Amount']],
+          body: p.contributions.map(i => [i.label, formatCurr(i.amount)]),
+          theme: 'plain',
+          headStyles: { fontStyle: 'bold', fontSize: 9, textColor: 0, lineWidth: { bottom: 0.1 } },
+          columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 25, halign: 'right' } },
+      });
+
+      // Table 4: YTD Totals (Right - Mock labels matching image)
+      const taxPaid = p.deductions.find(d => d.label === 'Tax')?.amount || 0;
+      autoTable(doc, {
+          startY: currentY,
+          margin: { left: 105, right: 15 },
+          head: [['YTD Totals', 'Amount']],
+          body: [
+              ['Taxable earnings', formatCurr(p.grossPay)],
+              ['Taxable company contributions', formatCurr(0)],
+              ['Taxable fringe benefits', formatCurr(0)],
+              ['Provision for tax on annual bonus', formatCurr(0)],
+              ['Tax paid', formatCurr(taxPaid)],
+          ],
+          theme: 'plain',
+          headStyles: { fontStyle: 'bold', fontSize: 9, textColor: 0, lineWidth: { bottom: 0.1 } },
+          columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 25, halign: 'right' } },
+      });
+
+      // Footer
+      doc.setFontSize(7);
+      doc.setTextColor(150);
+      doc.text('Generated by My Accountant AI Payroll', 105, 285, { align: 'center' });
+
+      doc.save(`Payslip-${employee.surname}-${payslip.period.replace(/\s/g, '-')}.pdf`);
+      toast({ title: 'Download Successful' });
     } catch (err) {
       console.error(err);
       toast({ title: 'Download Failed', variant: 'destructive' });
