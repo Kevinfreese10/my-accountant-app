@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -33,13 +34,17 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       const doc = new jsPDF();
       const p = currentData || payslip;
       
-      const primaryColor = [0, 0, 0]; // Black as per image
+      const primaryColor = [0, 0, 0];
       const grayColor = [100, 100, 100];
       const lightGray = [240, 240, 240];
 
       const formatCurr = (num: number) => {
           if (num === 0) return '0.00';
-          return num.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          // South African formatting: R 100 000,00 (space for thousands, comma for decimals)
+          return num.toLocaleString('en-ZA', { 
+              minimumFractionDigits: 2, 
+              maximumFractionDigits: 2 
+          }).replace(',', ' ').replace('.', ',');
       };
 
       // --- 1. Company Header (Top Left) ---
@@ -64,7 +69,6 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       doc.setFont('helvetica', 'bold');
       doc.text('Pay Date', 80, 15);
       doc.setFont('helvetica', 'normal');
-      // Use the last day of the period or today
       doc.text(format(new Date(), 'yyyy/MM/dd'), 105, 15);
 
       // --- 3. Logo (Top Right) ---
@@ -78,7 +82,7 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
 
       currentY = 45;
       doc.setDrawColor(200);
-      doc.line(15, currentY, 195, currentY); // Horizontal line
+      doc.line(15, currentY, 195, currentY);
       currentY += 7;
 
       // --- 4. Employee Info Grid (3 Columns) ---
@@ -110,7 +114,6 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       drawLabelValue('Employed from', employee.joinDate?.toDate ? format(employee.joinDate.toDate(), 'yyyy/MM/dd') : 'N/A', col2X, currentY);
       drawLabelValue('Branch Code', employee.bankingDetails?.branchCode || 'N/A', col3X, currentY);
       
-      // Address sub-lines (Col 1)
       let addrY = currentY;
       if (employee.address) {
           const lines = [employee.address.street, employee.address.suburb, employee.address.city, employee.address.zip].filter(Boolean);
@@ -120,23 +123,21 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
           });
       }
       
-      // Rate (Col 2)
-      const hourlyRate = p.grossPay / 160; // Estimated
+      const hourlyRate = p.grossPay / 160;
       drawLabelValue('Rate per hour', formatCurr(hourlyRate), col2X, currentY + 6);
-      
-      // Account (Col 3)
       drawLabelValue('Account Number', employee.bankingDetails?.accountNumber || 'N/A', col3X, currentY + 6);
 
       currentY = Math.max(addrY, currentY + 15);
       doc.line(15, currentY, 195, currentY);
       currentY += 2;
 
-      // --- 5. Main Financial Tables (Side-by-Side) ---
-      
+      // --- 5. Main Financial Tables ---
+      const tableStartY = currentY;
+
       // Table 1: Earnings (Left)
       autoTable(doc, {
-          startY: currentY,
-          margin: { left: 15, right: 105 }, // Constrain to left half
+          startY: tableStartY,
+          margin: { left: 15, right: 105 },
           head: [['Earnings', 'Units', 'Amount']],
           body: p.earnings.map(i => [i.label, '', formatCurr(i.amount)]),
           theme: 'plain',
@@ -150,8 +151,7 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
 
       const earningsY = (doc as any).lastAutoTable.finalY;
 
-      // Shaded total bar for earnings
-      doc.setFillColor(230, 230, 230);
+      doc.setFillColor(240, 240, 240);
       doc.rect(15, earningsY, 90, 7, 'F');
       doc.setFont('helvetica', 'bold');
       doc.text('Total earnings', 17, earningsY + 5);
@@ -159,8 +159,8 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
 
       // Table 2: Deductions (Right)
       autoTable(doc, {
-          startY: currentY,
-          margin: { left: 105, right: 15 }, // Constrain to right half
+          startY: tableStartY,
+          margin: { left: 105, right: 15 },
           head: [['Deductions', 'Opening balance', 'Amount']],
           body: p.deductions.map(i => [i.label, '', formatCurr(i.amount)]),
           theme: 'plain',
@@ -174,21 +174,20 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
 
       const deductionsY = (doc as any).lastAutoTable.finalY;
 
-      // Shaded total bars for deductions and net pay
-      doc.setFillColor(230, 230, 230);
+      doc.setFillColor(240, 240, 240);
       doc.rect(105, deductionsY, 90, 7, 'F');
       doc.setFont('helvetica', 'bold');
       doc.text('Total deductions', 107, deductionsY + 5);
       doc.text(formatCurr(p.grossPay - p.netPay), 193, deductionsY + 5, { align: 'right' });
 
-      doc.setFillColor(200, 200, 200);
+      doc.setFillColor(220, 220, 220);
       doc.rect(105, deductionsY + 7, 90, 7, 'F');
       doc.text('Nett pay', 107, deductionsY + 12);
       doc.text(formatCurr(p.netPay), 193, deductionsY + 12, { align: 'right' });
 
       currentY = Math.max(earningsY + 20, deductionsY + 25);
 
-      // --- 6. Secondary Financial Tables (Side-by-Side) ---
+      // --- 6. Secondary Financial Tables ---
       
       // Table 3: Company Contributions (Left)
       autoTable(doc, {
@@ -201,7 +200,7 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
           columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 25, halign: 'right' } },
       });
 
-      // Table 4: YTD Totals (Right - Mock labels matching image)
+      // Table 4: YTD Totals (Right)
       const taxPaid = p.deductions.find(d => d.label === 'Tax')?.amount || 0;
       autoTable(doc, {
           startY: currentY,
@@ -224,7 +223,7 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       doc.setTextColor(150);
       doc.text('Generated by My Accountant AI Payroll', 105, 285, { align: 'center' });
 
-      doc.save(`Payslip-${employee.surname}-${payslip.period.replace(/\s/g, '-')}.pdf`);
+      doc.save(`Payslip-${employee.surname}-${(p.period || 'Current').replace(/\s/g, '-')}.pdf`);
       toast({ title: 'Download Successful' });
     } catch (err) {
       console.error(err);
