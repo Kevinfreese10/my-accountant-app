@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -20,6 +19,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format } from 'date-fns';
 import { generateEmployeePayslipAction, syncEmployeeSalaryToActivePayslipAction } from '@/app/actions';
 import PayslipEditor from '@/components/admin/PayslipEditor';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const db = getFirestore(firebaseApp);
 
@@ -60,9 +61,12 @@ export default function EmployeesPage() {
       } as Employee));
       setEmployees(fetchedEmployees);
       setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching employees:", error);
-      toast({ title: "Error", description: "Could not load employee data.", variant: "destructive" });
+    }, async (error) => {
+      const permissionError = new FirestorePermissionError({
+        path: employeesRef.path,
+        operation: 'list',
+      } satisfies SecurityRuleContext);
+      errorEmitter.emit('permission-error', permissionError);
       setIsLoading(false);
     });
 
@@ -73,72 +77,58 @@ export default function EmployeesPage() {
     if (!clientId) return;
     setIsSaving(true);
 
-    try {
-      const employeesRef = collection(db, 'aiPayrollClients', clientId, 'employees');
-      
-      const employeeData = {
-        ...values,
-        status: 'Active',
-        updatedAt: serverTimestamp(),
-      };
+    const employeeRef = selectedEmployee?.id 
+      ? doc(db, 'aiPayrollClients', clientId, 'employees', selectedEmployee.id)
+      : doc(collection(db, 'aiPayrollClients', clientId, 'employees'));
 
-      if (selectedEmployee?.id) {
-        // UPDATE EXISTING
-        await setDoc(doc(db, 'aiPayrollClients', clientId, 'employees', selectedEmployee.id), employeeData, { merge: true });
-        
-        // SYNC SALARY TO PAYSLIP IF CHANGED
-        if (selectedEmployee.basicSalary !== values.basicSalary) {
-            await syncEmployeeSalaryToActivePayslipAction({
-                clientId,
-                employeeId: selectedEmployee.id,
-                newSalary: values.basicSalary
-            });
-            toast({ title: 'Record Updated', description: 'Employee details and active payslip have been synchronized.' });
+    const employeeData = {
+      ...values,
+      status: 'Active',
+      updatedAt: serverTimestamp(),
+      ...(selectedEmployee?.id ? {} : { createdAt: serverTimestamp() })
+    };
+
+    setDoc(employeeRef, employeeData, { merge: true })
+      .then(async () => {
+        if (selectedEmployee?.id) {
+          // SYNC SALARY TO PAYSLIP IF CHANGED
+          if (selectedEmployee.basicSalary !== values.basicSalary) {
+              await syncEmployeeSalaryToActivePayslipAction({
+                  clientId,
+                  employeeId: selectedEmployee.id,
+                  newSalary: values.basicSalary,
+                  isNetSalary: values.isNetSalary
+              });
+              toast({ title: 'Record Updated', description: 'Employee details and active payslip have been synchronized.' });
+          } else {
+              toast({ title: 'Employee Updated' });
+          }
         } else {
-            toast({ title: 'Employee Updated' });
+          // NEW EMPLOYEE: AUTOMATIC PAYSLIP GENERATION
+          const res = await generateEmployeePayslipAction({
+              clientId,
+              employeeId: employeeRef.id,
+              basicSalary: values.basicSalary
+          });
+
+          toast({ 
+              title: 'Employee Added', 
+              description: 'Draft payslip has been created.' 
+          });
         }
-      } else {
-        // CREATE NEW
-        const newDocRef = await addDoc(employeesRef, {
-          ...employeeData,
-          createdAt: serverTimestamp(),
-        });
-        
-        // AUTOMATIC PAYSLIP GENERATION
-        const res = await generateEmployeePayslipAction({
-            clientId,
-            employeeId: newDocRef.id,
-            basicSalary: values.basicSalary
-        });
-
-        toast({ 
-            title: 'Employee Added', 
-            description: 'Draft payslip has been created. You can edit it now.' 
-        });
-
-        // Optionally open editor immediately for the new employee
-        if (res.success && res.id) {
-            const payslipSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'payslips', res.id));
-            if (payslipSnap.exists()) {
-                setEditingPayslip({ id: payslipSnap.id, ...payslipSnap.data() } as Payslip);
-                setPayslipEmployee({ id: newDocRef.id, ...employeeData } as Employee);
-                setIsEditorOpen(true);
-            }
-        }
-      }
-
-      setIsFormOpen(false);
-      setSelectedEmployee(null);
-    } catch (error: any) {
-      console.error("Error saving employee:", error);
-      toast({ 
-        title: 'Error', 
-        description: error.message || 'Failed to save employee details.', 
-        variant: 'destructive' 
+        setIsFormOpen(false);
+        setSelectedEmployee(null);
+        setIsSaving(false);
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: employeeRef.path,
+          operation: selectedEmployee?.id ? 'update' : 'create',
+          requestResourceData: employeeData,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        setIsSaving(false);
       });
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleEditPayslip = async (employee: Employee) => {
@@ -150,7 +140,7 @@ export default function EmployeesPage() {
           const q = query(
               payslipsRef, 
               where('employeeId', '==', employee.id), 
-              where('period', '==', client?.firstProcessingMonth), // Only edit current active period
+              where('period', '==', client?.firstProcessingMonth),
               limit(1)
           );
           
@@ -160,7 +150,7 @@ export default function EmployeesPage() {
               setEditingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
               setIsEditorOpen(true);
           } else {
-              toast({ title: "No Draft Found", description: "This employee does not have a draft payslip for the current period.", variant: "warning" });
+              toast({ title: "No Draft Found", description: "This employee does not have a draft payslip for the current period.", variant: "destructive" });
           }
       } catch (error) {
           console.error("Error fetching payslip:", error);
@@ -171,13 +161,18 @@ export default function EmployeesPage() {
   };
 
   const handleDeleteEmployee = async (employeeId: string) => {
-    try {
-      await deleteDoc(doc(db, 'aiPayrollClients', clientId, 'employees', employeeId));
-      toast({ title: 'Employee Removed', variant: 'destructive' });
-    } catch (error) {
-      console.error("Error deleting employee:", error);
-      toast({ title: 'Delete Failed', variant: 'destructive' });
-    }
+    const employeeRef = doc(db, 'aiPayrollClients', clientId, 'employees', employeeId);
+    deleteDoc(employeeRef)
+      .then(() => {
+        toast({ title: 'Employee Removed', variant: 'destructive' });
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: employeeRef.path,
+          operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   const filteredEmployees = employees.filter(emp => 
@@ -216,7 +211,6 @@ export default function EmployeesPage() {
         </Dialog>
       </div>
 
-      {/* Payslip Editor Dialog */}
       <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
           <DialogContent className="sm:max-w-6xl p-0 overflow-hidden bg-[#F5F5F5]">
               <DialogHeader className="p-6 bg-white border-b">
