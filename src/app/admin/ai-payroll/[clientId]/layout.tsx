@@ -2,12 +2,14 @@
 
 import { ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { useParams } from 'next/navigation';
+import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronDown, Users, Calculator, CalendarCheck, FileText, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronDown, Loader2, CalendarDays } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Menubar,
   MenubarContent,
@@ -27,18 +29,20 @@ export default function AIPayrollClientLayout({ children }: { children: ReactNod
 
   useEffect(() => {
     if (clientId) {
-      getDoc(doc(db, 'aiPayrollClients', clientId)).then(snap => {
+      // Real-time listener ensures the period updates instantly when rolled forward/back
+      const unsub = onSnapshot(doc(db, 'aiPayrollClients', clientId), (snap) => {
         if (snap.exists()) setClient({ id: snap.id, ...snap.data() } as User);
         setIsLoading(false);
       });
+      return () => unsub();
     }
   }, [clientId]);
 
-  if (isLoading) return <div className="p-8"><Loader2 className="animate-spin h-8 w-8 mx-auto" /></div>;
+  if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex items-start justify-between gap-4 flex-wrap border-b pb-6">
         <div>
           <Button variant="outline" size="sm" asChild className="mb-4">
             <Link href="/admin/ai-payroll/clients">
@@ -46,9 +50,25 @@ export default function AIPayrollClientLayout({ children }: { children: ReactNod
               Back to Payroll Clients
             </Link>
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight">{client?.name || 'Loading...'}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">{client?.name || 'Loading...'}</h1>
           <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold">AI Payroll Module</p>
         </div>
+
+        {client?.firstProcessingMonth && (
+            <Card className="border-2 border-primary/10 shadow-sm bg-primary/5 min-w-[200px]">
+                <CardContent className="p-3 flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 border border-primary/10 shadow-inner">
+                        <CalendarDays className="h-5 w-5" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest leading-none mb-1">Active Period</span>
+                        <Badge className="bg-primary hover:bg-primary text-white font-black uppercase tracking-wider px-3 py-0.5 text-xs border-none shadow-md w-fit">
+                            {client.firstProcessingMonth}
+                        </Badge>
+                    </div>
+                </CardContent>
+            </Card>
+        )}
       </div>
 
       <Menubar className="w-full bg-card">
@@ -109,5 +129,3 @@ export default function AIPayrollClientLayout({ children }: { children: ReactNod
     </div>
   );
 }
-
-import { Loader2 } from 'lucide-react';
