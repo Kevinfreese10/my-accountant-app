@@ -143,10 +143,15 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
           theme: 'plain',
           headStyles: { fontStyle: 'bold', fontSize: 9, textColor: 0, lineWidth: { bottom: 0.1 } },
           columnStyles: { 
-              0: { cellWidth: 45 }, 
+              0: { cellWidth: 45, halign: 'left' }, 
               1: { cellWidth: 20, halign: 'right' }, 
               2: { cellWidth: 25, halign: 'right' } 
           },
+          didParseCell: (data) => {
+              if (data.section === 'head' && data.column.index >= 1) {
+                  data.cell.styles.halign = 'right';
+              }
+          }
       });
 
       const earningsY = (doc as any).lastAutoTable.finalY;
@@ -166,10 +171,15 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
           theme: 'plain',
           headStyles: { fontStyle: 'bold', fontSize: 9, textColor: 0, lineWidth: { bottom: 0.1 } },
           columnStyles: { 
-              0: { cellWidth: 40 }, 
+              0: { cellWidth: 40, halign: 'left' }, 
               1: { cellWidth: 25, halign: 'right' }, 
               2: { cellWidth: 25, halign: 'right' } 
           },
+          didParseCell: (data) => {
+              if (data.section === 'head' && data.column.index >= 1) {
+                  data.cell.styles.halign = 'right';
+              }
+          }
       });
 
       const deductionsY = (doc as any).lastAutoTable.finalY;
@@ -197,7 +207,15 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
           body: p.contributions.map(i => [i.label, formatCurr(i.amount)]),
           theme: 'plain',
           headStyles: { fontStyle: 'bold', fontSize: 9, textColor: 0, lineWidth: { bottom: 0.1 } },
-          columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 25, halign: 'right' } },
+          columnStyles: { 
+              0: { cellWidth: 65, halign: 'left' }, 
+              1: { cellWidth: 25, halign: 'right' } 
+          },
+          didParseCell: (data) => {
+              if (data.section === 'head' && data.column.index === 1) {
+                  data.cell.styles.halign = 'right';
+              }
+          }
       });
 
       // Table 4: YTD Totals (Right)
@@ -215,7 +233,15 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
           ],
           theme: 'plain',
           headStyles: { fontStyle: 'bold', fontSize: 9, textColor: 0, lineWidth: { bottom: 0.1 } },
-          columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 25, halign: 'right' } },
+          columnStyles: { 
+              0: { cellWidth: 65, halign: 'left' }, 
+              1: { cellWidth: 25, halign: 'right' } 
+          },
+          didParseCell: (data) => {
+              if (data.section === 'head' && data.column.index === 1) {
+                  data.cell.styles.halign = 'right';
+              }
+          }
       });
 
       // Footer
