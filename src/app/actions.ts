@@ -87,12 +87,12 @@ export async function syncEmployeeSalaryToActivePayslipAction({
 
         // Determine the effective gross salary
         const effectiveGross = isNetSalary 
-            ? PayrollService.calculateGrossFromNet(newSalary)
+            ? PayrollService.calculateGrossFromNet(newSalary, currentPeriod)
             : newSalary;
 
-        // Recalculate based on effective gross
-        const paye = PayrollService.calculatePaye(effectiveGross);
-        const uif = PayrollService.calculateUif(effectiveGross);
+        // Recalculate based on effective gross and current period scales
+        const paye = PayrollService.calculatePaye(effectiveGross, currentPeriod);
+        const uif = PayrollService.calculateUif(effectiveGross, currentPeriod);
         const sdl = client.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
 
         const updatedEarnings = payslip.earnings.map(e => 
