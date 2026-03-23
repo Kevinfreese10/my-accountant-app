@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Payslip, PayslipItem, Employee, User } from "@/lib/types";
-import { Plus, Trash2, Loader2, Save, Calculator, Landmark, ShieldCheck, User as UserIcon, Briefcase } from 'lucide-react';
+import { Plus, Trash2, Loader2, Save, Calculator, Landmark, ShieldCheck, User as UserIcon, Briefcase, RefreshCw } from 'lucide-react';
 import { Separator } from "@/components/ui/separator";
 import { PayrollService } from '@/services/PayrollService';
 import { useToast } from '@/hooks/use-toast';
@@ -41,6 +41,7 @@ export default function PayslipEditor({
     // Dynamic Recalculation logic
     const totals = useMemo(() => {
         const gross = earnings.reduce((sum, item) => sum + item.amount, 0);
+        const period = client.firstProcessingMonth;
         
         // Auto-calculate statutory items if they exist
         const updatedDeductions = [...deductions];
@@ -51,9 +52,9 @@ export default function PayslipEditor({
         const uifContribIdx = updatedContributions.findIndex(c => c.label === 'Unemployment insurance fund' && c.isStatutory);
         const sdlIdx = updatedContributions.findIndex(c => c.label === 'Skills development levy' && c.isStatutory);
 
-        if (payeIdx > -1) updatedDeductions[payeIdx].amount = PayrollService.calculatePaye(gross);
-        if (uifIdx > -1) updatedDeductions[uifIdx].amount = PayrollService.calculateUif(gross);
-        if (uifContribIdx > -1) updatedContributions[uifContribIdx].amount = PayrollService.calculateUif(gross);
+        if (payeIdx > -1) updatedDeductions[payeIdx].amount = PayrollService.calculatePaye(gross, period);
+        if (uifIdx > -1) updatedDeductions[uifIdx].amount = PayrollService.calculateUif(gross, period);
+        if (uifContribIdx > -1) updatedContributions[uifContribIdx].amount = PayrollService.calculateUif(gross, period);
         if (sdlIdx > -1) updatedContributions[sdlIdx].amount = parseFloat((gross * 0.01).toFixed(2));
 
         const totalDeductions = updatedDeductions.reduce((sum, item) => sum + item.amount, 0);
@@ -69,7 +70,31 @@ export default function PayslipEditor({
             updatedDeductions,
             updatedContributions
         };
-    }, [earnings, deductions, contributions, fringeBenefits]);
+    }, [earnings, deductions, contributions, fringeBenefits, client.firstProcessingMonth]);
+
+    const handleRecalculate = () => {
+        const gross = earnings.reduce((sum, item) => sum + item.amount, 0);
+        const period = client.firstProcessingMonth;
+
+        setDeductions(prev => prev.map(d => {
+            if (!d.isStatutory) return d;
+            if (d.label === 'Tax') return { ...d, amount: PayrollService.calculatePaye(gross, period) };
+            if (d.label === 'Unemployment insurance fund') return { ...d, amount: PayrollService.calculateUif(gross, period) };
+            return d;
+        }));
+
+        setContributions(prev => prev.map(c => {
+            if (!c.isStatutory) return c;
+            if (c.label === 'Unemployment insurance fund') return { ...c, amount: PayrollService.calculateUif(gross, period) };
+            if (c.label === 'Skills development levy') return { ...c, amount: parseFloat((gross * 0.01).toFixed(2)) };
+            return c;
+        }));
+
+        toast({ 
+            title: "Recalculated", 
+            description: `Statutory deductions refreshed for ${period}.` 
+        });
+    };
 
     const handleAddItem = (type: 'earning' | 'deduction' | 'contribution' | 'fringe') => {
         const newItem = { label: 'New item', amount: 0 };
@@ -179,9 +204,20 @@ export default function PayslipEditor({
                         </div>
                     </div>
                 </div>
-                <div className="text-right">
-                    <Badge variant="outline" className="mb-1 font-bold uppercase tracking-widest text-[9px]">{payslip.period}</Badge>
-                    <p className="text-sm font-black text-slate-900">RSA ID: {employee.idNumber}</p>
+                <div className="flex items-center gap-4">
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleRecalculate} 
+                        className="h-9 font-bold border-primary/20 text-primary gap-2"
+                    >
+                        <RefreshCw className="h-4 w-4" />
+                        Recalculate Statutory
+                    </Button>
+                    <div className="text-right">
+                        <Badge variant="outline" className="mb-1 font-bold uppercase tracking-widest text-[9px]">{payslip.period}</Badge>
+                        <p className="text-sm font-black text-slate-900">RSA ID: {employee.idNumber}</p>
+                    </div>
                 </div>
             </div>
 
