@@ -1,4 +1,3 @@
-
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
@@ -48,17 +47,20 @@ export async function updatePayslipAction({
 }
 
 /**
- * Syncs employee basic salary to the active draft payslip.
+ * Syncs employee salary settings to the active draft payslip.
+ * Handles gross-up calculation if isNetSalary is true.
  * Recalculates statutory deductions.
  */
 export async function syncEmployeeSalaryToActivePayslipAction({
     clientId,
     employeeId,
-    newSalary
+    newSalary,
+    isNetSalary
 }: {
     clientId: string,
     employeeId: string,
-    newSalary: number
+    newSalary: number,
+    isNetSalary: boolean
 }) {
     try {
         const clientRef = doc(db, 'aiPayrollClients', clientId);
@@ -83,13 +85,18 @@ export async function syncEmployeeSalaryToActivePayslipAction({
         const payslipDoc = snap.docs[0];
         const payslip = payslipDoc.data() as Payslip;
 
-        // Recalculate based on new salary
-        const paye = PayrollService.calculatePaye(newSalary);
-        const uif = PayrollService.calculateUif(newSalary);
-        const sdl = client.excludeSdl ? 0 : parseFloat((newSalary * 0.01).toFixed(2));
+        // Determine the effective gross salary
+        const effectiveGross = isNetSalary 
+            ? PayrollService.calculateGrossFromNet(newSalary)
+            : newSalary;
+
+        // Recalculate based on effective gross
+        const paye = PayrollService.calculatePaye(effectiveGross);
+        const uif = PayrollService.calculateUif(effectiveGross);
+        const sdl = client.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
 
         const updatedEarnings = payslip.earnings.map(e => 
-            e.label.toLowerCase() === 'basic salary' ? { ...e, amount: newSalary } : e
+            e.label.toLowerCase() === 'basic salary' ? { ...e, amount: effectiveGross } : e
         );
 
         const updatedDeductions = payslip.deductions.map(d => {

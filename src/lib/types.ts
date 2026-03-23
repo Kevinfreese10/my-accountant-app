@@ -576,6 +576,7 @@ export type Employee = {
   joinDate: any; // Started working on (Timestamp)
   taxNumber: string; // Income Tax Number
   basicSalary: number;
+  isNetSalary: boolean; // New field
   paymentFrequency: 'Monthly' | 'Weekly' | 'Bi-Weekly';
   bankingDetails: {
     bankName: string;

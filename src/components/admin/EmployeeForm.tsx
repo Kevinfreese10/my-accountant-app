@@ -14,6 +14,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '../ui/switch';
 
 const formSchema = z.object({
   employeeCode: z.string().min(1, 'Employee code is required.'),
@@ -33,6 +34,7 @@ const formSchema = z.object({
   joinDate: z.date({ required_error: 'Join date is required.' }),
   taxNumber: z.string().optional(),
   basicSalary: z.preprocess(val => Number(val), z.number().min(0, 'Salary must be a positive number.')),
+  isNetSalary: z.boolean().default(false),
   paymentFrequency: z.enum(['Monthly', 'Weekly', 'Bi-Weekly']).default('Monthly'),
   bankingDetails: z.object({
     bankName: z.string().min(2, 'Bank name is required.'),
@@ -79,6 +81,7 @@ export default function EmployeeForm({
       joinDate: employee?.joinDate ? (employee.joinDate.toDate ? employee.joinDate.toDate() : new Date(employee.joinDate)) : new Date(),
       taxNumber: employee?.taxNumber || '',
       basicSalary: employee?.basicSalary || 0,
+      isNetSalary: employee?.isNetSalary || false,
       paymentFrequency: employee?.paymentFrequency || 'Monthly',
       bankingDetails: {
         bankName: employee?.bankingDetails?.bankName || '',
@@ -174,8 +177,20 @@ export default function EmployeeForm({
           <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
             <Landmark className="h-4 w-4" /> Compensation
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+            <FormField control={form.control} name="basicSalary" render={({ field }) => ( <FormItem><FormLabel>Salary Amount</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="isNetSalary" render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm h-10">
+                    <div className="space-y-0.5">
+                        <FormLabel className="text-xs font-bold">Enter as Net Salary?</FormLabel>
+                    </div>
+                    <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                </FormItem>
+            )} />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField control={form.control} name="basicSalary" render={({ field }) => ( <FormItem><FormLabel>Basic Salary (Gross)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="paymentFrequency" render={({ field }) => (
               <FormItem>
                 <FormLabel>Payment Frequency</FormLabel>

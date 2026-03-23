@@ -49,6 +49,36 @@ export class PayrollService {
   }
 
   /**
+   * Calculates Gross from a desired Net amount using iterative approximation.
+   */
+  static calculateGrossFromNet(targetNet: number): number {
+    if (targetNet <= 0) return 0;
+    
+    let low = targetNet;
+    let high = targetNet * 2; // High enough for most tax brackets
+    let mid = (low + high) / 2;
+    let iterations = 0;
+    
+    // Iterative search since tax calculation is non-linear
+    while (iterations < 50) {
+      const currentPaye = this.calculatePaye(mid);
+      const currentUif = this.calculateUif(mid);
+      const currentNet = mid - currentPaye - currentUif;
+      
+      if (Math.abs(currentNet - targetNet) < 0.01) break;
+      
+      if (currentNet < targetNet) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+      mid = (low + high) / 2;
+      iterations++;
+    }
+    return parseFloat(mid.toFixed(2));
+  }
+
+  /**
    * Generates and saves a payslip for an employee using the new structured format.
    */
   static async generateInitialPayslip(clientId: string, employeeId: string, monthlyBasic: number) {
@@ -63,12 +93,18 @@ export class PayrollService {
       if (!employeeSnap.exists()) throw new Error("Employee not found");
       const employee = employeeSnap.data() as Employee;
 
-      const paye = this.calculatePaye(monthlyBasic);
-      const uif = this.calculateUif(monthlyBasic);
-      const sdl = client.excludeSdl ? 0 : parseFloat((monthlyBasic * 0.01).toFixed(2));
+      // Handle gross-up if employee is on Net Salary agreement
+      let effectiveGross = monthlyBasic;
+      if (employee.isNetSalary) {
+          effectiveGross = this.calculateGrossFromNet(monthlyBasic);
+      }
+
+      const paye = this.calculatePaye(effectiveGross);
+      const uif = this.calculateUif(effectiveGross);
+      const sdl = client.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
 
       const earnings: PayslipItem[] = [
-          { label: 'Basic salary', amount: monthlyBasic }
+          { label: 'Basic salary', amount: effectiveGross }
       ];
 
       const deductions: PayslipItem[] = [
