@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -138,7 +137,7 @@ export default function PayslipsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Payroll Processing</h2>
-          <p className="text-sm text-muted-foreground font-medium">Currently processing: <Badge className="ml-2 bg-primary font-black uppercase tracking-widest">{client?.firstProcessingMonth || 'N/A'}</Badge></p>
+          <p className="text-sm text-muted-foreground font-medium">Review and adjust staff payments for the active cycle.</p>
         </div>
         <div className="flex gap-2">
             <AlertDialog>
