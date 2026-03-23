@@ -34,13 +34,9 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       const doc = new jsPDF();
       const p = currentData || payslip;
       
-      const primaryColor = [0, 0, 0];
-      const grayColor = [100, 100, 100];
-      const lightGray = [240, 240, 240];
-
       const formatCurr = (num: number) => {
           if (num === 0) return '0.00';
-          // South African formatting: R 100 000,00 (space for thousands, comma for decimals)
+          // South African formatting: 100 000,00 (space for thousands, comma for decimals)
           return num.toLocaleString('en-ZA', { 
               minimumFractionDigits: 2, 
               maximumFractionDigits: 2 
@@ -138,17 +134,16 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       autoTable(doc, {
           startY: tableStartY,
           margin: { left: 15, right: 105 },
-          head: [['Earnings', 'Units', 'Amount']],
-          body: p.earnings.map(i => [i.label, '', formatCurr(i.amount)]),
+          head: [['Earnings', 'Amount']],
+          body: p.earnings.map(i => [i.label, formatCurr(i.amount)]),
           theme: 'plain',
           headStyles: { fontStyle: 'bold', fontSize: 9, textColor: 0, lineWidth: { bottom: 0.1 } },
           columnStyles: { 
-              0: { cellWidth: 45, halign: 'left' }, 
-              1: { cellWidth: 20, halign: 'right' }, 
-              2: { cellWidth: 25, halign: 'right' } 
+              0: { cellWidth: 65, halign: 'left' }, 
+              1: { cellWidth: 25, halign: 'right' } 
           },
           didParseCell: (data) => {
-              if (data.section === 'head' && data.column.index >= 1) {
+              if (data.section === 'head' && data.column.index === 1) {
                   data.cell.styles.halign = 'right';
               }
           }
@@ -166,17 +161,16 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       autoTable(doc, {
           startY: tableStartY,
           margin: { left: 105, right: 15 },
-          head: [['Deductions', 'Opening balance', 'Amount']],
-          body: p.deductions.map(i => [i.label, '', formatCurr(i.amount)]),
+          head: [['Deductions', 'Amount']],
+          body: p.deductions.map(i => [i.label, formatCurr(i.amount)]),
           theme: 'plain',
           headStyles: { fontStyle: 'bold', fontSize: 9, textColor: 0, lineWidth: { bottom: 0.1 } },
           columnStyles: { 
-              0: { cellWidth: 40, halign: 'left' }, 
-              1: { cellWidth: 25, halign: 'right' }, 
-              2: { cellWidth: 25, halign: 'right' } 
+              0: { cellWidth: 65, halign: 'left' }, 
+              1: { cellWidth: 25, halign: 'right' } 
           },
           didParseCell: (data) => {
-              if (data.section === 'head' && data.column.index >= 1) {
+              if (data.section === 'head' && data.column.index === 1) {
                   data.cell.styles.halign = 'right';
               }
           }
