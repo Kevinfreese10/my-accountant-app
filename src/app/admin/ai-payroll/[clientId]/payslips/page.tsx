@@ -1,18 +1,20 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calculator, Loader2, FileText, ReceiptText, CheckCircle2, AlertCircle, ArrowRightLeft, CalendarClock, ChevronRight } from 'lucide-react';
+import { Calculator, Loader2, FileText, ReceiptText, CheckCircle2, AlertCircle, ArrowRightLeft, CalendarClock, ChevronRight, RotateCcw } from 'lucide-react';
 import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, getDocs, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Payslip, Employee, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
-import { rollForwardPayrollAction } from '@/app/actions';
+import { rollForwardPayrollAction, rollBackPayrollAction } from '@/app/actions';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import PayslipEditor from '@/components/admin/PayslipEditor';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -29,6 +31,7 @@ export default function PayslipsPage() {
   const [client, setClient] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRolling, setIsRolling] = useState(false);
+  const [isRollingBack, setIsRollingBack] = useState(false);
 
   // Editor states
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -91,6 +94,27 @@ export default function PayslipsPage() {
     }
   };
 
+  const handleRollBack = async () => {
+    if (!client) return;
+    setIsRollingBack(true);
+    
+    try {
+        const res = await rollBackPayrollAction({ clientId });
+        if (res.success) {
+            toast({ 
+                title: "Month Rolled Back", 
+                description: `Successfully moved back to ${res.prevPeriod}. Deleted ${res.deletedCount} draft records.` 
+            });
+        } else {
+            toast({ title: "Roll Back Failed", description: res.error, variant: "destructive" });
+        }
+    } catch (e) {
+        toast({ title: "Error", description: "Internal server error.", variant: "destructive" });
+    } finally {
+        setIsRollingBack(false);
+    }
+  };
+
   const handleEditPayslip = (payslip: Payslip) => {
       const employee = employees.find(e => e.id === payslip.employeeId);
       if (!employee) {
@@ -117,6 +141,33 @@ export default function PayslipsPage() {
           <p className="text-sm text-muted-foreground font-medium">Currently processing: <Badge className="ml-2 bg-primary font-black uppercase tracking-widest">{client?.firstProcessingMonth || 'N/A'}</Badge></p>
         </div>
         <div className="flex gap-2">
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button 
+                        variant="outline"
+                        className="font-bold border-destructive/20 text-destructive hover:bg-destructive/5"
+                        disabled={isRollingBack || isLoading}
+                    >
+                        {isRollingBack ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                        Roll Back Period
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will return the system to the previous month and **PERMANENTLY DELETE** all payslips and changes made in the current period ({client?.firstProcessingMonth}). This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleRollBack} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Confirm Roll Back
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <Button 
                 variant="outline"
                 className="font-bold border-primary/20 text-primary hover:bg-primary/5"

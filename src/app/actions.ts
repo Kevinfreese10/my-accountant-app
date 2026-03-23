@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
@@ -16,7 +17,7 @@ import { BankCleaner } from '@/lib/bank-cleaner';
 import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
 import { analyzeClientComment } from '@/ai/flows/analyze-client-comment';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
-import { format, addDays, addMonths, addYears, parse } from 'date-fns';
+import { format, addDays, addMonths, addYears, parse, subMonths } from 'date-fns';
 import { PayrollService } from '@/services/PayrollService';
 
 const db = getFirestore(firebaseApp);
@@ -42,6 +43,54 @@ export async function updatePayslipAction({
         return { success: true };
     } catch (e: any) {
         console.error("Update payslip error:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * Rolls back the payroll period to the previous month.
+ * Clears all payslips from the current month being rolled back from.
+ */
+export async function rollBackPayrollAction({
+    clientId
+}: {
+    clientId: string
+}) {
+    try {
+        const clientRef = doc(db, 'aiPayrollClients', clientId);
+        const clientSnap = await getDoc(clientRef);
+        if (!clientSnap.exists()) throw new Error("Client not found");
+        const client = clientSnap.data() as User;
+
+        const currentPeriod = client.firstProcessingMonth;
+        if (!currentPeriod) throw new Error("No active payroll period found to roll back from.");
+
+        // Calculate previous month
+        const parsedDate = parse(currentPeriod, 'MMMM yyyy', new Date());
+        const prevDate = subMonths(parsedDate, 1);
+        const prevPeriod = format(prevDate, 'MMMM yyyy');
+
+        const batch = writeBatch(db);
+
+        // 1. Delete all payslips for the CURRENT period (the one we are rolling back from)
+        const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+        const q = query(payslipsRef, where('period', '==', currentPeriod));
+        const snap = await getDocs(q);
+        
+        snap.docs.forEach(d => {
+            batch.delete(d.ref);
+        });
+
+        // 2. Update client's active period to the previous month
+        batch.update(clientRef, {
+            firstProcessingMonth: prevPeriod
+        });
+
+        await batch.commit();
+
+        return { success: true, prevPeriod, deletedCount: snap.size };
+    } catch (e: any) {
+        console.error("Roll back error:", e);
         return { success: false, error: e.message };
     }
 }
