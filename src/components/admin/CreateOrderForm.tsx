@@ -156,9 +156,9 @@ export default function CreateOrderForm() {
   const handleServiceChange = (serviceId: string, index: number) => {
     const selectedService = allServices.find(s => s.id === serviceId);
     if (selectedService) {
-        form.setValue('items.' + index + '.description', selectedService.title);
-        form.setValue('items.' + index + '.price', selectedService.price);
-        form.trigger('items.' + index);
+        form.setValue(`items.${index}.description`, selectedService.title);
+        form.setValue(`items.${index}.price`, selectedService.price);
+        form.trigger(`items.${index}`);
     }
   };
 

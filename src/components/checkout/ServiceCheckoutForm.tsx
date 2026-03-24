@@ -63,6 +63,7 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
   // Automatic user lookup when email is entered
   useEffect(() => {
     const lookupUser = async () => {
+        // Don't lookup if user is already logged in
         if (user || !watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
             setLinkedUser(null);
             return;
