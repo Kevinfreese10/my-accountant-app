@@ -45,8 +45,16 @@ export default function PaymentSuccessPage() {
                 if (orderSnap.exists()) {
                     const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
                     
+                    // Fetch reseller details if it's a white-label order
+                    let resellerData: User | undefined;
+                    if (orderData.resellerId) {
+                        const resellerSnap = await getDoc(doc(db, 'users', orderData.resellerId));
+                        if (resellerSnap.exists()) {
+                            resellerData = { ...resellerSnap.data(), id: resellerSnap.id } as User;
+                        }
+                    }
+
                     // CHECK IF NOTIFICATION HAS BEEN SENT
-                    // Use the presence of the log note as the source of truth to avoid duplicates
                     const alreadyNotified = orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`);
 
                     if (!alreadyNotified) {
@@ -55,7 +63,14 @@ export default function PaymentSuccessPage() {
                             return { ...item, service };
                         }).filter(item => item.service) as { service: Service }[];
 
-                        const emailHtml = render(<DocumentRequestEmail order={orderData} items={itemsWithServices} replyTo="info@myacc.co.za" />);
+                        const emailHtml = render(
+                            <DocumentRequestEmail 
+                                order={orderData} 
+                                items={itemsWithServices} 
+                                reseller={resellerData}
+                                replyTo={resellerData?.email || "info@myacc.co.za"} 
+                            />
+                        );
                         
                         const attachments = itemsWithServices
                             .filter(item => item.service.attachmentUrl)
@@ -64,7 +79,6 @@ export default function PaymentSuccessPage() {
                                 path: item.service.attachmentUrl!,
                             }));
                         
-                        // CRITICAL: Determine correct recipient for white-labeling
                         const recipientEmail = orderData.resellerId && orderData.endCustomerEmail 
                             ? orderData.endCustomerEmail 
                             : orderData.customerEmail;
@@ -78,7 +92,7 @@ export default function PaymentSuccessPage() {
                                 resellerId: orderData.resellerId || undefined,
                             });
                              const emailNote: OrderNote = {
-                                text: `Sent "Request Documents" email to ${recipientEmail} (User redirected to success page).`,
+                                text: `Sent "Request Documents" email to ${recipientEmail} (Payment Successful).`,
                                 date: Timestamp.now(),
                                 authorId: 'system',
                                 type: 'email',
@@ -144,7 +158,7 @@ export default function PaymentSuccessPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                       We have received your order. Please remember to complete your payment via EFT.
+                       We have received your order. Please complete your payment to begin processing.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -169,7 +183,7 @@ export default function PaymentSuccessPage() {
                              <Separator />
                             <div className="flex justify-between font-bold text-lg">
                                 <p>Total Due</p>
-                                <p>{formatPrice(order.total)}</p>
+                                <p>{formatPrice(order.clientTotal || order.total)}</p>
                             </div>
                         </div>
                     </section>
@@ -196,7 +210,7 @@ export default function PaymentSuccessPage() {
                     <div className="text-center pt-4">
                         <Button asChild size="lg">
                             <Link href={orderUrl}>
-                                View Order & Upload Documents
+                                Go to My Dashboard
                             </Link>
                         </Button>
                     </div>

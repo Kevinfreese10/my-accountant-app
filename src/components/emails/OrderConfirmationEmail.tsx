@@ -124,50 +124,48 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
 
                 {isNewUser && generatedPassword && (
                     <Section style={{ border: '1px solid #e6ebf1', borderRadius: '5px', padding: '20px', backgroundColor: '#f0f7ff', marginTop: '20px', marginBottom: '20px' }}>
-                        <Text style={{ ...paragraph, fontWeight: 'bold', color: '#214392', marginBottom: '10px' }}>Your Login Credentials</Text>
-                        <Text style={paragraph}>An account has been created for you to track your order and upload documents.</Text>
+                        <Text style={{ ...paragraph, fontWeight: 'bold', color: '#214392', marginBottom: '10px' }}>Your Client Portal Access</Text>
+                        <Text style={paragraph}>An account has been created for you to track your order and upload required documents.</Text>
                         <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Login Email:</strong> {order.customerEmail}</Text>
                         <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Temporary Password:</strong> {generatedPassword}</Text>
                         <Text style={{ ...paragraph, fontSize: '12px', fontStyle: 'italic', marginTop: '10px' }}>Please change your password after logging in for the first time.</Text>
                     </Section>
                 )}
 
-                {!isNewUser && !reseller && (
-                    <Text style={paragraph}>
-                        You can log in to your existing account using your email <strong>{order.customerEmail}</strong> to view your order status.
-                    </Text>
-                )}
-
                 <Text style={paragraph}>
                     Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed.
                 </Text>
                 
-                {!reseller ? (
+                {(!reseller || !reseller.bankingDetails?.bankName) ? (
                     <>
                         <Text style={paragraph}>
                             {showPaymentButton 
-                                ? "Please click the button below to complete your payment." 
-                                : "You will be redirected to PayFast to complete your payment."}
+                                ? "Please click the button below to complete your payment via PayFast." 
+                                : "Your order is currently awaiting payment confirmation."}
                         </Text>
 
-                        {showPaymentButton && (
-                            <Button style={button} href={`${siteUrl}/order-confirmation/${order.id}`}>
-                                Pay Now
-                            </Button>
-                        )}
+                        <Button style={button} href={`${siteUrl}/order-confirmation/${order.id}`}>
+                            {showPaymentButton ? 'Pay Now' : 'View Order Details'}
+                        </Button>
                     </>
                 ) : (
-                    reseller.bankingDetails?.bankName && (
-                        <Section style={{ border: '1px solid #e6ebf1', borderRadius: '5px', padding: '20px', backgroundColor: '#fafafa', marginTop: '20px' }}>
-                            <Text style={{ ...paragraph, fontWeight: 'bold', marginBottom: '10px' }}>Payment Instructions (EFT):</Text>
-                            <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Bank:</strong> {reseller.bankingDetails.bankName}</Text>
-                            <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Account Holder:</strong> {reseller.bankingDetails.accountHolder}</Text>
-                            <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Account Number:</strong> {reseller.bankingDetails.accountNumber}</Text>
-                            <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Branch Code:</strong> {reseller.bankingDetails.branchCode}</Text>
-                            <Text style={{ ...paragraph, margin: '10px 0 0 0', color: '#c00', fontSize: '14px', fontWeight: 'bold' }}><strong>EFT Reference:</strong> {order.id}</Text>
-                        </Section>
-                    )
+                    <Section style={{ border: '1px solid #e6ebf1', borderRadius: '5px', padding: '20px', backgroundColor: '#fafafa', marginTop: '20px' }}>
+                        <Text style={{ ...paragraph, fontWeight: 'bold', marginBottom: '10px' }}>Payment Instructions (EFT):</Text>
+                        <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Bank:</strong> {reseller.bankingDetails.bankName}</Text>
+                        <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Account Holder:</strong> {reseller.bankingDetails.accountHolder}</Text>
+                        <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Account Number:</strong> {reseller.bankingDetails.accountNumber}</Text>
+                        <Text style={{ ...paragraph, margin: '0 0 4px 0', fontSize: '14px' }}><strong>Branch Code:</strong> {reseller.bankingDetails.branchCode}</Text>
+                        <Text style={{ ...paragraph, margin: '10px 0 0 0', color: '#c00', fontSize: '14px', fontWeight: 'bold' }}><strong>EFT Reference:</strong> {order.id}</Text>
+                    </Section>
                 )}
+
+                <Text style={{...paragraph, marginTop: '20px'}}>
+                    Once your payment is confirmed, please log in to your dashboard to upload the information needed to process your order.
+                </Text>
+
+                <Button style={{ ...button, backgroundColor: '#4b5563', marginTop: '10px' }} href={`${siteUrl}/dashboard/orders/${order.id}`}>
+                    Go to My Dashboard
+                </Button>
                 
                 <Hr style={hr} />
                 <Text style={{ ...paragraph, fontWeight: 'bold' }}>

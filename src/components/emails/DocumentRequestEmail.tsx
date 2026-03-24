@@ -1,4 +1,3 @@
-
 import {
   Body,
   Container,
@@ -9,8 +8,6 @@ import {
   Preview,
   Section,
   Text,
-  Row,
-  Column,
   Link,
   Button,
 } from '@react-email/components';
@@ -88,7 +85,12 @@ export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: Docume
 
     const companyName = reseller?.companyName || 'My Accountant';
     const companyEmail = reseller?.email || 'info@myacc.co.za';
-    const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : '369 Oak Avenue, Ferndale, Randburg';
+    
+    let companyAddress = '369 Oak Avenue, Ferndale, Randburg';
+    if (reseller?.address) {
+        const addr = reseller.address;
+        companyAddress = [addr.street, addr.suburb, addr.city, addr.province, addr.zip].filter(Boolean).join(', ');
+    }
 
     return (
         <Html>
@@ -97,16 +99,19 @@ export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: Docume
         <Body style={main}>
             <Container style={container}>
             <Section style={box}>
-                <Heading style={heading}>Your Order is Being Processed</Heading>
+                <Heading style={heading}>Finalize Your Order Details</Heading>
                 <Text style={paragraph}>
-                    Hi {order.customerName.split(' ')[0]},
+                    Hi {(order.endCustomerName || order.customerName).split(' ')[0]},
                 </Text>
                 <Text style={paragraph}>
-                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, please log in to your dashboard to securely upload the required documents.
+                    We have received payment confirmation for your order <strong style={{color: '#214392'}}>#{order.id}</strong>.
+                </Text>
+                <Text style={paragraph}>
+                    To begin processing your request, please click the button below to log in to your dashboard and securely upload the required documents.
                 </Text>
                 
                 <Button style={button} href={`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${order.id}`}>
-                    Go to My Order
+                    Go to My Dashboard
                 </Button>
                 
                 <Hr style={hr} />
