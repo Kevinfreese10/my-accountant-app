@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { PlusCircle, Loader2, ArrowRight, Edit, Users } from 'lucide-react';
+import { PlusCircle, Loader2, ArrowRight, Edit, Users, CalendarDays } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { collection, getDocs, query, orderBy, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -85,7 +85,7 @@ export default function AIPayrollClientsPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">AI Payroll Clients</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950">AI Payroll Clients</h1>
           <p className="text-muted-foreground">Manage companies and employees for payroll processing.</p>
         </div>
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
@@ -122,6 +122,7 @@ export default function AIPayrollClientsPage() {
                 <TableRow>
                   <TableHead>Company</TableHead>
                   <TableHead>PAYE Ref</TableHead>
+                  <TableHead>Active Period</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -136,6 +137,16 @@ export default function AIPayrollClientsPage() {
                         </div>
                     </TableCell>
                     <TableCell className="text-xs font-mono">{client.payeReference || 'N/A'}</TableCell>
+                    <TableCell>
+                        {client.firstProcessingMonth ? (
+                            <div className="flex items-center gap-2">
+                                <CalendarDays className="h-3 w-3 text-primary opacity-70" />
+                                <span className="text-xs font-bold text-slate-700">{client.firstProcessingMonth}</span>
+                            </div>
+                        ) : (
+                            <span className="text-[10px] text-muted-foreground italic font-medium uppercase tracking-tighter">Not set</span>
+                        )}
+                    </TableCell>
                     <TableCell><Badge variant="outline" className="text-[10px] font-bold uppercase">{client.status || 'Active'}</Badge></TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -153,7 +164,7 @@ export default function AIPayrollClientsPage() {
                 ))}
                 {!isLoading && clients.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                       No payroll clients found. Create one to get started.
                     </TableCell>
                   </TableRow>
