@@ -1,18 +1,17 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Download, FileText, Landmark, Calculator, ReceiptText, Users, ArrowRight, Printer } from 'lucide-react';
-import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, where } from 'firebase/firestore';
+import { Loader2, Download, Landmark, Calculator, Users } from 'lucide-react';
+import { getFirestore, collection, query, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Payslip, Employee, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import * as XLSX from 'xlsx';
 
@@ -34,6 +33,7 @@ export default function Emp201ReportPage() {
     
     const [client, setClient] = useState<User | null>(null);
     const [payslips, setPayslips] = useState<Payslip[]>([]);
+    const [employees, setEmployees] = useState<Employee[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedPeriod, setSelectedPeriod] = useState<string>('');
 
@@ -57,12 +57,20 @@ export default function Emp201ReportPage() {
         const unsubPayslips = onSnapshot(q, (snapshot) => {
             const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payslip));
             setPayslips(fetched);
+        });
+
+        // 3. Fetch All Employees (to filter for active ones)
+        const employeesRef = collection(db, 'aiPayrollClients', clientId, 'employees');
+        const unsubEmployees = onSnapshot(employeesRef, (snapshot) => {
+            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            setEmployees(fetched);
             setIsLoading(false);
         });
 
         return () => {
             unsubClient();
             unsubPayslips();
+            unsubEmployees();
         };
     }, [clientId, selectedPeriod]);
 
@@ -76,7 +84,14 @@ export default function Emp201ReportPage() {
 
     // Calculations for the selected period
     const reportData = useMemo(() => {
-        const periodPayslips = payslips.filter(ps => ps.period === selectedPeriod);
+        // Find active employees
+        const activeEmployeeIds = new Set(employees.filter(e => e.status === 'Active').map(e => e.id));
+        
+        // Filter payslips by period AND by whether the employee is still active
+        const periodPayslips = payslips.filter(ps => 
+            ps.period === selectedPeriod && 
+            activeEmployeeIds.has(ps.employeeId)
+        );
         
         let totalPaye = 0;
         let totalUifEmployee = 0;
@@ -119,7 +134,7 @@ export default function Emp201ReportPage() {
                 payable: totalPayable
             }
         };
-    }, [payslips, selectedPeriod]);
+    }, [payslips, employees, selectedPeriod]);
 
     const handleDownloadExcel = () => {
         if (!client || !reportData) return;
