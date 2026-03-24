@@ -6,8 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Service, Order, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Loader2, LogIn, UserPlus, Contact, Mail, User as UserIcon, Phone } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, getDoc, serverTimestamp } from 'firebase/firestore';
+import { Loader2, LogIn, UserPlus, Contact, Mail, User as UserIcon, Phone, CheckCircle2 } from 'lucide-react';
+import { getFirestore, doc, setDoc, Timestamp, getDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
 import { getNextOrderId } from '@/lib/sequence';
@@ -22,7 +22,7 @@ import { Input } from '../ui/input';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { customAlphabet } from 'nanoid';
 
 const db = getFirestore(firebaseApp);
@@ -43,6 +43,8 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
   const { user, reauthenticate } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [linkedUser, setLinkedUser] = useState<{name: string, id: string} | null>(null);
+  const [isCheckingUser, setIsCheckingUser] = useState(false);
 
   const form = useForm<z.infer<typeof checkoutSchema>>({
       resolver: zodResolver(checkoutSchema),
@@ -56,7 +58,48 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
       }
   });
 
-  // Critical: Reset form defaults when user context is loaded to ensure hidden fields pass validation
+  const watchedEmail = form.watch('email');
+
+  // Automatic user lookup when email is entered
+  useEffect(() => {
+    const lookupUser = async () => {
+        if (user || !watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
+            setLinkedUser(null);
+            return;
+        }
+        
+        setIsCheckingUser(true);
+        try {
+            const usersQ = query(collection(db, 'users'), where("email", "==", watchedEmail.toLowerCase().trim()));
+            const userSnap = await getDocs(usersQ);
+            
+            if (!userSnap.empty) {
+                const userData = userSnap.docs[0].data();
+                setLinkedUser({ 
+                    name: userData.name, 
+                    id: userSnap.docs[0].id 
+                });
+
+                // Auto-populate fields
+                const nameParts = userData.name.split(' ');
+                form.setValue('firstName', nameParts[0]);
+                form.setValue('lastName', nameParts.slice(1).join(' '));
+                form.setValue('phone', userData.contactNumber || '');
+                form.trigger();
+            } else {
+                setLinkedUser(null);
+            }
+        } catch (e) {
+            console.error("User lookup failed:", e);
+        } finally {
+            setIsCheckingUser(false);
+        }
+    };
+
+    const timer = setTimeout(lookupUser, 600);
+    return () => clearTimeout(timer);
+  }, [watchedEmail, user, form]);
+
   useEffect(() => {
     if (user) {
       form.reset({
@@ -90,11 +133,11 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
     });
 
     try {
-        let finalUserId = user?.uid || null;
+        let finalUserId = user?.uid || linkedUser?.id || null;
         let isNewUser = false;
         let generatedPassword = null;
 
-        // 1. Create account if guest
+        // 1. Create account if truly a new guest
         if (!finalUserId) {
             isNewUser = true;
             generatedPassword = nanoid();
@@ -128,11 +171,10 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
                     setIsLoading(false);
                     return;
                 }
-                throw authError; // Re-throw other errors to be caught by main catch
+                throw authError;
             }
         }
 
-        // 2. Fetch Partner Details for White-Labeling
         let resellerData: User | undefined;
         if (partnerId) {
             const partnerSnap = await getDoc(doc(db, 'users', partnerId));
@@ -141,7 +183,6 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
             }
         }
 
-        // 3. Create Order
         const orderId = await getNextOrderId();
         const orderData: Order = {
             id: orderId,
@@ -163,7 +204,6 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
 
         await setDoc(doc(db, 'orders', orderId), orderData);
         
-        // 4. Send Confirmation Email
         const emailHtml = render(
             <OrderConfirmationEmail 
                 order={orderData} 
@@ -214,12 +254,30 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
                     <div className="flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground tracking-widest mb-2">
                         <UserIcon className="h-3 w-3" /> Personal Details
                     </div>
+                    
+                    <FormField control={form.control} name="email" render={({ field }) => ( 
+                        <FormItem>
+                            <FormLabel className="text-xs">Email Address</FormLabel>
+                            <FormControl>
+                                <div className="relative">
+                                    <Input type="email" placeholder="Start here..." {...field} className="h-10 border-primary/20 focus-visible:ring-primary font-medium" />
+                                    {isCheckingUser && <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />}
+                                </div>
+                            </FormControl>
+                            {linkedUser && (
+                                <div className="flex items-center gap-2 text-[10px] text-green-600 font-bold bg-green-50 p-2 rounded border border-green-100 mt-1">
+                                    <CheckCircle2 className="h-3 w-3" /> Matched: {linkedUser.name}
+                                </div>
+                            )}
+                            <FormMessage />
+                        </FormItem> 
+                    )} />
+
                     <div className="grid grid-cols-2 gap-3">
-                        <FormField control={form.control} name="firstName" render={({ field }) => ( <FormItem><FormControl><Input placeholder="First Name" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="lastName" render={({ field }) => ( <FormItem><FormControl><Input placeholder="Last Name" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="firstName" render={({ field }) => ( <FormItem><FormLabel className="text-xs">First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="lastName" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
                     </div>
-                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormControl><Input type="email" placeholder="Email Address" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="phone" render={({ field }) => ( <FormItem><FormControl><Input placeholder="Phone Number" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="phone" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Phone Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
                     <Separator />
                 </div>
             )}
