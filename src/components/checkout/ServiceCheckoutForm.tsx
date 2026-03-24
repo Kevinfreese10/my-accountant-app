@@ -99,23 +99,36 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
             isNewUser = true;
             generatedPassword = nanoid();
             
-            const userCredential = await createUserWithEmailAndPassword(auth, values.email, generatedPassword);
-            finalUserId = userCredential.user.uid;
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, values.email, generatedPassword);
+                finalUserId = userCredential.user.uid;
 
-            const userDocRef = doc(db, 'users', finalUserId);
-            await setDoc(userDocRef, {
-                id: finalUserId,
-                uid: finalUserId,
-                name: `${values.firstName} ${values.lastName}`,
-                email: values.email.toLowerCase().trim(),
-                contactNumber: values.phone,
-                role: 'client',
-                source: partnerId ? 'Partner Landing Page' : 'Website',
-                createdAt: serverTimestamp(),
-            });
+                const userDocRef = doc(db, 'users', finalUserId);
+                await setDoc(userDocRef, {
+                    id: finalUserId,
+                    uid: finalUserId,
+                    name: `${values.firstName} ${values.lastName}`,
+                    email: values.email.toLowerCase().trim(),
+                    contactNumber: values.phone,
+                    role: 'client',
+                    source: partnerId ? 'Partner Landing Page' : 'Website',
+                    createdAt: serverTimestamp(),
+                });
 
-            if (auth.currentUser) {
-                await reauthenticate(auth.currentUser);
+                if (auth.currentUser) {
+                    await reauthenticate(auth.currentUser);
+                }
+            } catch (authError: any) {
+                if (authError.code === 'auth/email-already-in-use') {
+                    toast({
+                        title: 'Account Exists',
+                        description: 'An account already exists with this email address. Please log in to your existing account to continue.',
+                        variant: 'destructive',
+                    });
+                    setIsLoading(false);
+                    return;
+                }
+                throw authError; // Re-throw other errors to be caught by main catch
             }
         }
 

@@ -193,25 +193,38 @@ export default function CreateOrderForm() {
             generatedPassword = nanoid();
             
             // Create Firebase Auth Account
-            const userCredential = await createUserWithEmailAndPassword(auth, values.customerEmail, generatedPassword);
-            finalUserId = userCredential.user.uid;
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, values.customerEmail, generatedPassword);
+                finalUserId = userCredential.user.uid;
 
-            // Create Firestore Profile
-            const userDocRef = doc(db, 'users', finalUserId);
-            await setDoc(userDocRef, {
-                id: finalUserId,
-                uid: finalUserId,
-                name: `${values.customerFirstName} ${values.customerLastName}`,
-                email: values.customerEmail.toLowerCase().trim(),
-                contactNumber: values.customerPhone,
-                role: 'client',
-                source: 'Staff Order',
-                createdAt: serverTimestamp(),
-            });
+                // Create Firestore Profile
+                const userDocRef = doc(db, 'users', finalUserId);
+                await setDoc(userDocRef, {
+                    id: finalUserId,
+                    uid: finalUserId,
+                    name: `${values.customerFirstName} ${values.customerLastName}`,
+                    email: values.customerEmail.toLowerCase().trim(),
+                    contactNumber: values.customerPhone,
+                    role: 'client',
+                    source: 'Staff Order',
+                    createdAt: serverTimestamp(),
+                });
 
-            // Re-authenticate admin to prevent auth state switch
-            if (auth.currentUser) {
-                await reauthenticate(auth.currentUser);
+                // Re-authenticate admin to prevent auth state switch
+                if (auth.currentUser) {
+                    await reauthenticate(auth.currentUser);
+                }
+            } catch (authError: any) {
+                if (authError.code === 'auth/email-already-in-use') {
+                    toast({
+                        title: 'Account Exists',
+                        description: 'A user account already exists with this email address. Please link the order to the existing user instead.',
+                        variant: 'destructive',
+                    });
+                    setIsLoading(false);
+                    return;
+                }
+                throw authError;
             }
         }
 
