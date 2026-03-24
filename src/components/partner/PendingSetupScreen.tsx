@@ -68,7 +68,7 @@ export function PendingSetupScreen({ user }: { user: User }) {
                 email_address: user.email,
                 m_payment_id: setupOrder.id,
                 amount: setupOrder.total.toFixed(2),
-                item_name: `Partner Setup Fee & R5000 Credits`,
+                item_name: `BEI Practice Setup & R2,475 Credits`,
             };
 
             for (const key in data) {
@@ -103,22 +103,22 @@ export function PendingSetupScreen({ user }: { user: User }) {
                 <div className="bg-primary/5 p-6 rounded-xl border border-primary/10 space-y-4">
                     <h3 className="font-bold flex items-center gap-2 text-slate-900">
                         <Wallet2 className="h-5 w-5 text-primary" />
-                        R5000 Setup & Starting Credits
+                        R4,950 Setup & Onboarding
                     </h3>
                     <div className="space-y-2 text-sm text-muted-foreground leading-relaxed">
-                        <p>To begin using the Bookkeeper Empowerment Initiative, a <strong>R5000</strong> activation fee is required.</p>
+                        <p>To begin using the Bookkeeper Empowerment Initiative, a <strong>R4,950</strong> activation fee is required. This includes:</p>
                         <ul className="space-y-2 mt-4">
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                                <span>The full R5000 is loaded as <strong>Practice Credits</strong> in your wallet.</span>
+                                <span><strong>R2,475 (50%)</strong> is immediately added to your wallet as credits.</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                                <span>Includes your white-label landing page and dashboard access.</span>
+                                <span>Platform setup and white-label branding configuration.</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                                <span>Includes 3 additional staff user accounts.</span>
+                                <span>onboarding and professional platform training.</span>
                             </li>
                         </ul>
                     </div>
@@ -130,8 +130,8 @@ export function PendingSetupScreen({ user }: { user: User }) {
                         disabled={isProcessing} 
                         className="w-full h-14 text-lg font-bold shadow-lg"
                     >
-                        {isProcessing ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
-                        Complete Setup & Pay R5000
+                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
+                        Complete Setup & Pay R4,950
                     </Button>
                     <p className="text-center text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
                         Secure Payment via PayFast

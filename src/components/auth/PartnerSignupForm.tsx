@@ -17,13 +17,14 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Briefcase, CheckCircle2, UserPlus, AlertCircle } from 'lucide-react';
+import { Loader2, Briefcase, CheckCircle2, UserPlus, Wallet2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Service, User } from '@/lib/types';
+import { Service, Order } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import PartnerWelcomeEmail from '../emails/PartnerWelcomeEmail';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { getNextOrderId } from '@/lib/sequence';
+import { Timestamp } from 'firebase/firestore';
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -146,6 +147,7 @@ export default function PartnerSignupForm() {
         
         const contactPersonFullName = `${values.name} ${values.surname}`;
 
+        // 1. Create the User Document
         const newUserDocRef = doc(db, "users", authUid);
         await setDoc(newUserDocRef, {
             ...partnerData,
@@ -155,22 +157,46 @@ export default function PartnerSignupForm() {
             id: authUid,
             uid: authUid,
             role: 'partner',
-            status: 'Active',
+            status: 'Pending Setup Payment', // User is inactive until R4950 is paid
             creditBalance: 0,
             createdAt: serverTimestamp(),
             cvUrl: cvUrl,
             certificateUrl: certificateUrl,
             subscription: {
-                monthlyTotal: 0,
+                monthlyTotal: 499,
                 subscriptionStatus: 'active',
                 lastBillingDate: serverTimestamp(),
             }
         });
 
-        // Trigger manual re-auth logic to link the new doc
+        // 2. Create the Setup Order
+        const orderId = await getNextOrderId();
+        const setupOrder: Order = {
+            id: orderId,
+            userId: authUid,
+            customerName: contactPersonFullName,
+            customerEmail: values.email,
+            customerPhone: values.contactNumber,
+            items: [{
+                id: 'partner_setup_fee',
+                title: 'BEI Practice Setup, Onboarding & R2,475 Credits',
+                price: 4950,
+                quantity: 1,
+            }],
+            total: 4950,
+            discountCode: null,
+            discountAmount: null,
+            status: 'Pending Payment',
+            date: Timestamp.now(),
+            source: 'Partner',
+            resellerId: authUid,
+        };
+        await setDoc(doc(db, 'orders', orderId), setupOrder);
+
+        // 3. Trigger manual re-auth logic to link the new doc
         await reauthenticate(newFirebaseUser);
 
-        // Send welcome email
+        // 4. Send welcome email (credentials)
         try {
             const emailHtml = render(<PartnerWelcomeEmail 
                 partnerName={values.name} 
@@ -182,7 +208,7 @@ export default function PartnerSignupForm() {
             await sendEmail({
                 to: values.email,
                 cc: 'kev@thinkestry.co.za',
-                subject: `Welcome to the My Accountant Partner Program!`,
+                subject: `Practice Account Registered: #${orderId}`,
                 html: emailHtml,
             });
         } catch (e) {
@@ -190,11 +216,12 @@ export default function PartnerSignupForm() {
         }
         
         toast({
-            title: 'Welcome Aboard!',
-            description: `Your BEI Practice account is active.`,
+            title: 'Account Created',
+            description: `Redirecting to payment for setup fee.`,
         });
         
-        router.push('/partner/dashboard');
+        // Redirect to order confirmation for the setup fee
+        router.push(`/order-confirmation/${orderId}`);
 
     } catch (error: any) {
         console.error("Partner signup error:", error);
@@ -212,18 +239,9 @@ export default function PartnerSignupForm() {
       if (isValid) setStep(2);
   };
 
-  const onInvalid = (errors: any) => {
-      console.error("Partner Signup Validation Errors:", errors);
-      toast({
-          title: "Incomplete Details",
-          description: "Please check the form for missing requirements or required document uploads.",
-          variant: "destructive"
-      });
-  };
-
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         
         {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
@@ -359,14 +377,19 @@ export default function PartnerSignupForm() {
 
                 <Separator />
 
-                <div className="bg-green-50 p-6 rounded-lg border border-green-100 space-y-4">
-                    <h3 className="text-lg font-bold flex items-center gap-2 text-green-800">
-                        <CheckCircle2 className="h-5 w-5" />
-                        Zero Setup Fees
+                <div className="bg-primary/5 p-6 rounded-lg border border-primary/10 space-y-4">
+                    <h3 className="text-lg font-bold flex items-center gap-2 text-slate-900">
+                        <Wallet2 className="h-5 w-5 text-primary" />
+                        Setup Fee: R4,950
                     </h3>
-                    <p className="text-sm text-green-700 font-medium">
-                        Joining the Bookkeeper Empowerment Initiative is free for all practitioners. You only need credits when you choose to outsource an order to our team.
-                    </p>
+                    <div className="space-y-2 text-sm text-muted-foreground leading-relaxed">
+                        <p>Joining the BEI involves a mandatory setup fee which includes:</p>
+                        <ul className="space-y-1 list-disc pl-5">
+                            <li>White-label platform & landing page configuration</li>
+                            <li>Personalized onboarding & re-branding training</li>
+                            <li><strong>R2,475 Practice Credits</strong> loaded to your wallet</li>
+                        </ul>
+                    </div>
                 </div>
 
                 <FormField
@@ -380,7 +403,7 @@ export default function PartnerSignupForm() {
                                 </FormControl>
                                 <div className="space-y-1 leading-none">
                                     <FormLabel className="cursor-pointer font-medium">
-                                        I agree to the <Link href="/terms" className="underline font-bold" target="_blank">terms and conditions</Link> and understand that I will need to maintain a credit balance only for outsourced services.
+                                        I agree to the <Link href="/terms" className="underline font-bold" target="_blank">terms and conditions</Link> and understand that the R4,950 setup fee is required to activate my account.
                                     </FormLabel>
                                 </div>
                             </div>
@@ -393,7 +416,7 @@ export default function PartnerSignupForm() {
                     <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-1/3 h-12 font-bold" disabled={isLoading}>Back</Button>
                     <Button type="submit" className="w-2/3 h-12 text-lg font-black shadow-xl" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isLoading ? 'Processing...' : 'Complete Registration'}
+                        {isLoading ? 'Processing...' : 'Complete & Pay Setup Fee'}
                     </Button>
                 </div>
             </div>

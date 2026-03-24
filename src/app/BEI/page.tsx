@@ -120,8 +120,8 @@ const featureBenefits = [
     },
     {
         icon: GraduationCap,
-        feature: 'Mentorship & Professional Support',
-        benefit: 'Direct access to senior Chartered Accountants and tax experts to help you navigate complex client queries and technical hurdles.',
+        feature: 'Onboarding & Professional Support',
+        benefit: 'Full setup, training, and direct access to senior Chartered Accountants to help you navigate complex technical hurdles.',
     },
     {
         icon: ClipboardList,
@@ -141,8 +141,8 @@ const faqs = [
         answer: "When you have an order you want us to handle, you submit it through your dashboard. We charge you the discounted wholesale price (25% off our retail rates), and we complete the work behind the scenes. You remain the primary contact for your client."
     },
     {
-        question: "Is it really free to join?",
-        answer: "Yes! There are no setup fees or monthly subscription costs to join the Bookkeeper Empowerment Initiative. We provide the professional dashboard and white-label tools for free."
+        question: "What is the setup fee?",
+        answer: "Joining the Bookkeeper Empowerment Initiative requires a R4,950 once-off setup fee. This fee covers your white-label platform configuration, onboarding session, and professional training.\n\nMore importantly, 50% of this fee (R2,475) is immediately loaded into your Practice Wallet as credits to use for outsourcing."
     },
     {
         question: "Do I need to be a registered accountant?",
@@ -323,9 +323,10 @@ export default function BEIPage() {
                 </div>
             </div>
 
-            <div className="mt-16 text-center">
+            <div className="mt-16 text-center space-y-4">
+                <p className="text-sm text-muted-foreground font-medium italic">Onboarding includes full platform setup, re-branding training, and R2,475 starting credits.</p>
                 <Button asChild size="lg" className="h-14 px-12 text-lg font-black shadow-xl">
-                    <Link href="/partner-signup">Join for Free</Link>
+                    <Link href="/partner-signup">Join the BEI Network</Link>
                 </Button>
             </div>
         </div>
@@ -349,11 +350,11 @@ export default function BEIPage() {
         <div className="max-w-2xl mx-auto space-y-8">
             <h2 className="text-4xl font-bold tracking-tight text-slate-900">Ready to Empower Your Practice?</h2>
             <p className="text-xl text-muted-foreground">
-                Join the Bookkeeper Empowerment Initiative today. No setup fees, no monthly costs — just pure growth.
+                Join the Bookkeeper Empowerment Initiative today. Start growing your revenue with our expert back-office team.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
-                    <Link href="/partner-signup">Register Now</Link>
+                    <Link href="/partner-signup">Register My Practice</Link>
                 </Button>
                 <BookDemoDialog />
             </div>

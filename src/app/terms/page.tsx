@@ -58,13 +58,16 @@ export default function TermsAndConditionsPage() {
                 </section>
                 <section>
                     <h2 className="text-xl font-semibold text-foreground mb-2">4. Program Fees & Practice Wallet</h2>
-                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">4.1 Free Entry Model</h3>
-                    <p>There is currently <strong>no setup fee or monthly subscription cost</strong> to join the BEI. Access to the full dashboard, landing pages, and white-label tools is provided free of charge to professional practitioners.</p>
+                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">4.1 Onboarding & Setup Fee</h3>
+                    <p>Joining the BEI requires a once-off setup and onboarding fee of <strong>R4,950</strong>. This fee covers the initial configuration of your white-label platform, landing page creation, and a professional training session.</p>
                     
-                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">4.2 Practice Credits</h3>
-                    <p>Partners load credits into a <strong>Practice Wallet</strong> via PayFast. These credits are used to pay for the wholesale cost of outsourced services. Credits do not expire but are non-refundable once loaded.</p>
+                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">4.2 Setup Credits</h3>
+                    <p>Upon successful payment of the setup fee, <strong>50% of the fee (R2,475)</strong> will be credited to your <strong>Practice Wallet</strong>. These credits can be used to pay for the wholesale cost of any outsourced services through the platform.</p>
 
-                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">4.3 Staff User Billing</h3>
+                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">4.3 Ongoing Hosting & Support</h3>
+                    <p>A monthly fee of <strong>R499</strong> is deducted from your practice credits for continuous platform hosting, AI tool access, and priority partner support. It is the Partner's responsibility to maintain a sufficient credit balance.</p>
+
+                    <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">4.4 Staff User Billing</h3>
                     <p>Every practice includes <strong>3 free additional staff users</strong>. Any staff members added beyond this limit cost <strong>R45 per user, per month</strong>, which is automatically deducted from your practice credits.</p>
                 </section>
                  <section>
@@ -80,6 +83,7 @@ export default function TermsAndConditionsPage() {
                 <section>
                     <h2 className="text-xl font-semibold text-foreground mb-2">6. Refunds & Cancellations</h2>
                     <ul className="list-disc pl-6 space-y-1 mt-2">
+                        <li>The R4,950 setup fee is non-refundable once the onboarding or platform configuration has commenced.</li>
                         <li>Outsourced services are non-refundable once work has commenced.</li>
                         <li>Refunds for services not yet started will be credited back to the Practice Wallet, minus a 10% processing fee.</li>
                     </ul>

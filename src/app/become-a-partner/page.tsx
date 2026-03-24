@@ -115,8 +115,8 @@ const featureBenefits = [
     },
     {
         icon: GraduationCap,
-        feature: 'Mentorship & Professional Support',
-        benefit: 'Direct access to senior Chartered Accountants and tax experts to help you navigate complex client queries and technical hurdles.',
+        feature: 'Onboarding & Professional Support',
+        benefit: 'Full setup, training, and direct access to senior Chartered Accountants and tax experts to help you navigate complex technical hurdles.',
     },
     {
         icon: ClipboardList,
@@ -179,7 +179,7 @@ const faqs = [
     },
     {
         question: "What does it cost to join?",
-        answer: "Joining requires a R5000 setup fee. This is not a 'lost' fee — the entire amount is immediately converted into R5000 credits in your practice wallet.\n\nFrom these credits, a monthly subscription of R499 is deducted for app hosting, AI tools, and priority support."
+        answer: "Joining requires a R4,950 once-off setup fee. This fee covers your white-label platform configuration, onboarding session, and professional training.\n\nMore importantly, 50% of this fee (R2,475) is immediately loaded into your Practice Wallet as credits to use for outsourcing."
     },
     {
         question: "How does the staff billing work?",
@@ -187,7 +187,7 @@ const faqs = [
     },
     {
         question: "How does the credit system work?",
-        answer: "Think of it like a prepaid mobile account. Your initial R5000 setup fee provides you with R5000 in starting credits. Your monthly subscription (R499) and any outsourced services are deducted from this balance. Once your credits are finished, you can top up your wallet to keep your services active."
+        answer: "Think of it like a prepaid mobile account. Your initial R4,950 setup fee provides you with R2,475 in starting credits. Your monthly hosting fee (R499) and any outsourced services are deducted from this balance. Once your credits are finished, you can top up your wallet."
     },
     {
         question: "How does the landing page work?",
@@ -404,11 +404,11 @@ export default function BecomeAPartnerPage() {
         <div className="max-w-2xl mx-auto space-y-8">
             <h2 className="text-4xl font-bold tracking-tight text-slate-900">Ready to Empower Your Practice?</h2>
             <p className="text-xl text-muted-foreground">
-                Join the Bookkeeper Empowerment Initiative and scale your firm 10× — without hiring additional staff.
+                Register now and complete your R4,950 onboarding to unlock your branded dashboard and R2,475 in wallet credits.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
-                    <Link href="/partner-signup">Sign up</Link>
+                    <Link href="/partner-signup">Register Now</Link>
                 </Button>
                 <BookDemoDialog />
             </div>

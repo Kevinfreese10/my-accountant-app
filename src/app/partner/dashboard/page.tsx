@@ -30,9 +30,6 @@ import { getNextOrderId } from '@/lib/sequence';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { render } from '@react-email/components';
-import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
-import { sendEmail } from '@/lib/email';
 import { Progress } from '@/components/ui/progress';
 
 const db = getFirestore(firebaseApp);
@@ -166,7 +163,6 @@ export default function PartnerDashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAssistingLoading, setIsAssistingLoading] = useState(false);
   const { toast } = useToast();
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
@@ -298,72 +294,6 @@ export default function PartnerDashboardPage() {
         if (total === 0) return 0;
         return Math.round((completed / total) * 100);
     }, [setupChecklist]);
-
-    const handleAssistedSetup = async () => {
-        if (!user) return;
-        setIsAssistingLoading(true);
-        toast({ title: "Creating Order...", description: "Connecting to secure payment gateway." });
-
-        try {
-            const orderId = await getNextOrderId();
-            const ASSISTED_SETUP_FEE = 4950;
-
-            const setupOrder: Order = {
-                id: orderId,
-                userId: user.uid,
-                customerName: user.companyName || user.name,
-                customerEmail: user.email,
-                items: [{
-                    id: 'assisted_setup_fee',
-                    title: 'Professional Practice Assisted Setup & Platform Demo (Once-off)',
-                    price: ASSISTED_SETUP_FEE,
-                    quantity: 1,
-                }],
-                total: ASSISTED_SETUP_FEE,
-                discountCode: null,
-                discountAmount: null,
-                status: 'Pending Payment',
-                date: Timestamp.now(),
-                source: 'Partner',
-                resellerId: user.uid,
-            };
-            
-            await setDoc(doc(db, 'orders', orderId), setupOrder);
-
-            const payfastUrl = 'https://www.payfast.co.za/eng/process';
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = payfastUrl;
-
-            const data: { [key: string]: string } = {
-                merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
-                merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
-                return_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`,
-                cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`,
-                notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
-                name_first: user.name.split(' ')[0],
-                name_last: user.name.split(' ').slice(1).join(' '),
-                email_address: user.email,
-                m_payment_id: orderId,
-                amount: ASSISTED_SETUP_FEE.toFixed(2),
-                item_name: `Professional Practice Assisted Setup & Demo`,
-            };
-
-            for (const key in data) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = data[key];
-                form.appendChild(input);
-            }
-            
-            document.body.appendChild(form);
-            form.submit();
-        } catch (e) {
-            toast({ title: "Setup Failed", variant: "destructive" });
-            setIsAssistingLoading(false);
-        }
-    };
 
     const notifications = useMemo(() => {
         if (!user || outsourcedOrders.length === 0) return [];
@@ -532,50 +462,6 @@ export default function PartnerDashboardPage() {
                 </div>
 
                 <div className="lg:col-span-4 space-y-8">
-                    {progressPercentage < 100 && (
-                        <Card className="border-2 border-dashed border-primary shadow-lg overflow-hidden">
-                            <CardHeader className="bg-primary pb-4 text-white">
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    <Sparkles className="h-4 w-4 fill-current" />
-                                    Don't Have Time?
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="pt-6 space-y-4">
-                                <p className="text-sm font-medium leading-relaxed">
-                                    Want us to handle your technical setup, white-labeling, pricing configuration, and <strong>Platform Demo</strong> for you?
-                                </p>
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-2 text-xs">
-                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                        <span>SMTP & Email Integration</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-xs">
-                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                        <span>Landing Page Customization</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-xs">
-                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                        <span>Service Pricing & AI Setup</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-xs">
-                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                        <span>Full Platform Walkthrough Demo</span>
-                                    </div>
-                                </div>
-                                <Button 
-                                    className="w-full font-bold shadow-md h-12" 
-                                    variant="default"
-                                    onClick={handleAssistedSetup}
-                                    disabled={isAssistingLoading}
-                                >
-                                    {isAssistingLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                    Assisted Setup & Demo (R4,950)
-                                </Button>
-                                <p className="text-[10px] text-center text-muted-foreground uppercase font-bold tracking-tighter">Secure Payment via PayFast</p>
-                            </CardContent>
-                        </Card>
-                    )}
-
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-lg">Quick Actions</CardTitle>

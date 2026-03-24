@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
         if (data.payment_status === 'COMPLETE') {
           await updateDoc(orderRef, { status: 'Processing' });
           
-          // Handle Partner Credit Top-ups
+          // Handle Partner Credit Top-ups & Setup Fees
           const isSetup = currentOrderData.items.some(i => i.id === 'partner_setup_fee');
           const isTopup = currentOrderData.items.some(i => i.id === 'partner_credit_topup');
           
@@ -156,7 +156,8 @@ export async function POST(req: NextRequest) {
               const partnerId = currentOrderData.resellerId || currentOrderData.userId;
               if (partnerId) {
                   const partnerRef = doc(db, 'users', partnerId);
-                  const creditAmount = isSetup ? 5000 : currentOrderData.total;
+                  // Setup logic: R4950 setup adds R2475 (50%) to wallet
+                  const creditAmount = isSetup ? 2475 : currentOrderData.total;
                   await updateDoc(partnerRef, {
                       creditBalance: increment(creditAmount),
                       status: 'Active'
