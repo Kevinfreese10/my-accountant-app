@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -54,6 +55,32 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
           agreedToRefundPolicy: false,
       }
   });
+
+  // Critical: Reset form defaults when user context is loaded to ensure hidden fields pass validation
+  useEffect(() => {
+    if (user) {
+      form.reset({
+        firstName: user.name?.split(' ')[0] || '',
+        lastName: user.name?.split(' ').slice(1).join(' ') || '',
+        email: user.email || '',
+        phone: user.contactNumber || '',
+        hasPrerequisites: form.getValues('hasPrerequisites'),
+        agreedToRefundPolicy: form.getValues('agreedToRefundPolicy'),
+      });
+    }
+  }, [user, form]);
+
+  const onError = (errors: any) => {
+    console.error("Checkout Validation Errors:", errors);
+    const firstError = Object.values(errors)[0] as any;
+    if (firstError) {
+        toast({
+            title: "Action Required",
+            description: firstError.message || "Please complete all required fields.",
+            variant: "destructive"
+        });
+    }
+  };
 
   async function handleCheckout(values: z.infer<typeof checkoutSchema>) {
     setIsLoading(true);
@@ -168,7 +195,7 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
 
   return (
     <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleCheckout)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(handleCheckout, onError)} className="space-y-6">
             {!user && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                     <div className="flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground tracking-widest mb-2">

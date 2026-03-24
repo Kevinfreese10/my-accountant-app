@@ -203,7 +203,6 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
             <Card className="partner-card border-2 overflow-hidden shadow-xl">
               <CardHeader style={{ backgroundColor: lp?.secondaryColor || 'rgba(0,0,0,0.03)' }}>
                 <CardTitle className="text-lg">Place Order</CardTitle>
-                <CardDescription>Secure payment via My Accountant network</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
                 <ServiceCheckoutForm service={service} partnerId={partner.id} />
