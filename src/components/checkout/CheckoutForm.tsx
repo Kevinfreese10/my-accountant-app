@@ -26,9 +26,9 @@ const nanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 10);
 
 const formSchema = z.object({
   firstName: z.string().min(2, 'First name is required.'),
-  lastName: z.string().min(2, 'Last name is required.'),
+  lastName: z.string().min(2, 'Surname is required.'),
   email: z.string().email('Please enter a valid email.'),
-  phone: z.string().min(10, 'Please enter a valid phone number.'),
+  phone: z.string().min(10, 'Please enter a valid cell number.'),
 });
 
 const formatPrice = (price: number) => {
@@ -53,17 +53,17 @@ export default function CheckoutForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
+      firstName: (user?.role === 'client' ? user?.name?.split(' ')[0] : '') || '',
+      lastName: (user?.role === 'client' ? user?.name?.split(' ').slice(1).join(' ') : '') || '',
+      email: (user?.role === 'client' ? user?.email : '') || '',
+      phone: (user?.role === 'client' ? user?.contactNumber : '') || '',
     },
   });
 
   const watchedEmail = form.watch('email');
 
   useEffect(() => {
-    if (user) {
+    if (user && user.role === 'client') {
       form.reset({
         firstName: user.name?.split(' ')[0] || '',
         lastName: user.name?.split(' ').slice(1).join(' ') || '',
@@ -76,7 +76,7 @@ export default function CheckoutForm() {
   // Automatic user lookup when email is entered
   useEffect(() => {
     const lookupUser = async () => {
-        if (user || !watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
+        if ((user && user.role === 'client') || !watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
             setLinkedUser(null);
             return;
         }
@@ -115,9 +115,9 @@ export default function CheckoutForm() {
   
   const submitToPayFast = (order: Order) => {
     const payfastUrl = 'https://www.payfast.co.za/eng/process';
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = payfastUrl;
+    const formElement = document.createElement('form');
+    formElement.method = 'POST';
+    formElement.action = payfastUrl;
 
     const data: { [key: string]: string } = {
         merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
@@ -140,11 +140,11 @@ export default function CheckoutForm() {
         input.type = 'hidden';
         input.name = key;
         input.value = data[key];
-        form.appendChild(input);
+        formElement.appendChild(input);
     }
     
-    document.body.appendChild(form);
-    form.submit();
+    document.body.appendChild(formElement);
+    formElement.submit();
   }
 
 
@@ -156,7 +156,7 @@ export default function CheckoutForm() {
     });
 
     try {
-        let finalUserId = user?.uid || linkedUser?.id || null;
+        let finalUserId = (user?.role === 'client' ? user?.uid : null) || linkedUser?.id || null;
         let isNewUser = false;
         let generatedPassword = null;
 
@@ -221,9 +221,7 @@ export default function CheckoutForm() {
 
         await setDoc(doc(db, 'orders', orderId), orderData);
         
-        // Note: The confirmation email with credentials would normally be sent here 
-        // using the same logic as ServiceCheckoutForm. For brevity in this multi-item form, 
-        // we'll focus on the core flow.
+        // Note: The confirmation email logic would follow here similarly to ServiceCheckoutForm.
 
         clearCart();
         submitToPayFast(orderData);
@@ -284,7 +282,7 @@ export default function CheckoutForm() {
             name="lastName"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Last Name</FormLabel>
+                <FormLabel>Surname</FormLabel>
                 <FormControl><Input placeholder="Doe" {...field} /></FormControl>
                 <FormMessage />
                 </FormItem>
@@ -297,7 +295,7 @@ export default function CheckoutForm() {
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Phone Number</FormLabel>
+              <FormLabel>Cell Number</FormLabel>
               <FormControl><Input type="tel" placeholder="082 123 4567" {...field} /></FormControl>
               <FormMessage />
             </FormItem>

@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Service, Order, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Loader2, LogIn, UserPlus, Contact, Mail, User as UserIcon, Phone, CheckCircle2 } from 'lucide-react';
+import { Loader2, Mail, User as UserIcon, CheckCircle2 } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, getDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
@@ -18,7 +18,7 @@ import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { sendEmail } from '@/lib/email';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { Input } from '../ui/input';
+import { Input } from '@/components/ui/input';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -31,9 +31,9 @@ const nanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 10);
 
 const checkoutSchema = z.object({
     firstName: z.string().min(2, "First name is required"),
-    lastName: z.string().min(2, "Last name is required"),
+    lastName: z.string().min(2, "Surname is required"),
     email: z.string().email("A valid email is required"),
-    phone: z.string().min(10, "A valid phone number is required"),
+    phone: z.string().min(10, "A valid cell number is required"),
     hasPrerequisites: z.boolean().refine(v => v === true, { message: "You must confirm prerequisites" }),
     agreedToRefundPolicy: z.boolean().refine(v => v === true, { message: "You must agree to the refund policy" }),
 });
@@ -49,10 +49,10 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
   const form = useForm<z.infer<typeof checkoutSchema>>({
       resolver: zodResolver(checkoutSchema),
       defaultValues: {
-          firstName: user?.name?.split(' ')[0] || '',
-          lastName: user?.name?.split(' ').slice(1).join(' ') || '',
-          email: user?.email || '',
-          phone: user?.contactNumber || '',
+          firstName: (user?.role === 'client' ? user?.name?.split(' ')[0] : '') || '',
+          lastName: (user?.role === 'client' ? user?.name?.split(' ').slice(1).join(' ') : '') || '',
+          email: (user?.role === 'client' ? user?.email : '') || '',
+          phone: (user?.role === 'client' ? user?.contactNumber : '') || '',
           hasPrerequisites: false,
           agreedToRefundPolicy: false,
       }
@@ -63,8 +63,8 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
   // Automatic user lookup when email is entered
   useEffect(() => {
     const lookupUser = async () => {
-        // Don't lookup if user is already logged in
-        if (user || !watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
+        // Don't lookup if user is already logged in as a client
+        if ((user && user.role === 'client') || !watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
             setLinkedUser(null);
             return;
         }
@@ -102,7 +102,7 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
   }, [watchedEmail, user, form]);
 
   useEffect(() => {
-    if (user) {
+    if (user && user.role === 'client') {
       form.reset({
         firstName: user.name?.split(' ')[0] || '',
         lastName: user.name?.split(' ').slice(1).join(' ') || '',
@@ -130,11 +130,11 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
     setIsLoading(true);
     toast({
       title: 'Placing Your Order...',
-      description: 'Please wait while we set up your profile and create your order.',
+      description: 'Please wait while we prepare your order.',
     });
 
     try {
-        let finalUserId = user?.uid || linkedUser?.id || null;
+        let finalUserId = (user?.role === 'client' ? user?.uid : null) || linkedUser?.id || null;
         let isNewUser = false;
         let generatedPassword = null;
 
@@ -238,7 +238,7 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
   if (service.isPriceTbc) {
       return (
           <Alert>
-              <Contact className="h-4 w-4" />
+              <Mail className="h-4 w-4" />
               <AlertTitle>Price on Request</AlertTitle>
               <AlertDescription>
                   Please <Link href="/contact" className="font-semibold underline">contact us</Link> for pricing information for this service.
@@ -250,7 +250,7 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
   return (
     <Form {...form}>
         <form onSubmit={form.handleSubmit(handleCheckout, onError)} className="space-y-6">
-            {!user && (
+            {(!user || user.role !== 'client') && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                     <div className="flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground tracking-widest mb-2">
                         <UserIcon className="h-3 w-3" /> Personal Details
@@ -276,9 +276,9 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
 
                     <div className="grid grid-cols-2 gap-3">
                         <FormField control={form.control} name="firstName" render={({ field }) => ( <FormItem><FormLabel className="text-xs">First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="lastName" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="lastName" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Surname</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
                     </div>
-                    <FormField control={form.control} name="phone" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Phone Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="phone" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
                     <Separator />
                 </div>
             )}
