@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -65,7 +64,7 @@ export default function ClientOrderDetailsPage() {
       if (!id) return;
       setIsLoading(true);
       try {
-        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin', 'partner', 'partner_staff', 'ai_accountant']));
         const staffSnapshot = await getDocs(staffQuery);
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User));
         setAllStaff(fetchedStaff);
@@ -304,35 +303,28 @@ export default function ClientOrderDetailsPage() {
 
   const getStatusVariant = (status: Order['status']) => {
     switch (status) {
-      case 'Completed':
-        return 'success';
-      case 'Processing':
-        return 'info';
-      case 'Pending Payment':
-        return 'warning';
-      case 'Cancelled':
-        return 'destructive';
-      default:
-        return 'secondary';
+      case 'Completed': return 'success';
+      case 'Processing': return 'info';
+      case 'Pending Payment': return 'warning';
+      case 'Cancelled': return 'destructive';
+      default: return 'secondary';
     }
   };
 
-  const getAuthor = (authorId: string): User | undefined => {
+  const getAuthor = (authorId: string): { name: string } | undefined => {
+    if (authorId === 'system') return { name: 'My Accountant (System)' };
     if (currentUser?.uid === authorId) return currentUser;
-    return allStaff.find(u => u.uid === authorId || u.id === authorId);
+    if (order && authorId === order.userId) return { name: order.customerName };
+    const staff = allStaff.find(u => u.uid === authorId || u.id === authorId);
+    if (staff) return staff;
+    return undefined;
   }
   
   if (isLoading) {
-    return (
-        <div className="flex justify-center items-center h-screen">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        </div>
-    );
+    return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
 
-  if (!order) {
-    return notFound();
-  }
+  if (!order) return notFound();
 
    const orderedItemsWithServices = order.items.map(item => {
         const serviceDetails = allServices.find(s => s.id === item.id);
@@ -368,9 +360,7 @@ export default function ClientOrderDetailsPage() {
                         {orderedItemsWithServices.map((item, index) => (
                             <div key={item.id}>
                                 <div className="flex justify-between items-center">
-                                    <div>
-                                        <p className="font-semibold text-lg">{item.title}</p>
-                                    </div>
+                                    <div><p className="font-semibold text-lg">{item.title}</p></div>
                                     <p className="font-semibold text-lg">{formatPrice(item.price)}</p>
                                 </div>
                                 {item.service && item.service.informationToProvide && item.service.informationToProvide.length > 0 && (
@@ -384,53 +374,9 @@ export default function ClientOrderDetailsPage() {
 
                                             return (
                                             <div key={infoIndex} className="space-y-2 p-3 rounded-md border">
-                                                <div className="flex justify-between items-center">
-                                                  <label className="text-sm font-medium flex items-center gap-2">
-                                                      <ClipboardCheck className="h-4 w-4" />
-                                                      {info.label}
-                                                  </label>
-                                                  {upload && (
-                                                    <Badge variant={upload.status === 'approved' ? 'success' : upload.status === 'rejected' ? 'destructive' : 'warning'}>
-                                                      {upload.status === 'approved' && <CheckCircle className="mr-1 h-3 w-3" />}
-                                                      {upload.status === 'rejected' && <AlertTriangle className="mr-1 h-3 w-3" />}
-                                                      {upload.status.charAt(0).toUpperCase() + upload.status.slice(1).replace('_', ' ')}
-                                                    </Badge>
-                                                  )}
-                                                </div>
-
-                                                {isRejected && (
-                                                    <p className="text-xs text-destructive mt-1 italic">Reason: {upload.rejectionReason}</p>
-                                                )}
-                                                
-                                                {isRejected || !upload ? (
-                                                  <>
-                                                    {isUploading ? (
-                                                        <div className="flex items-center gap-2">
-                                                          <Loader2 className="h-4 w-4 animate-spin"/>
-                                                          <p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p>
-                                                        </div>
-                                                    ) : (
-                                                      info.type === 'pdf' ? (
-                                                        <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
-                                                      ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <Input 
-                                                                type="text" 
-                                                                className="h-9" 
-                                                                placeholder="Enter information here..."
-                                                                value={textInputs[info.label] || ''}
-                                                                onChange={(e) => handleTextChange(info.label, e.target.value)}
-                                                            />
-                                                            <Button size="sm" onClick={() => handleTextSubmit(item.service!.id, info.label)}>Save</Button>
-                                                        </div>
-                                                      )
-                                                    )}
-                                                  </>
-                                                ) : (
-                                                   <div className="p-2 bg-green-50 text-green-800 rounded-md border border-green-200 text-sm">
-                                                      {upload.type === 'file' ? `Submitted: ${upload.fileName}` : `Submitted: "${upload.textValue}"`}
-                                                   </div>
-                                                )}
+                                                <div className="flex justify-between items-center"><label className="text-sm font-medium flex items-center gap-2"><ClipboardCheck className="h-4 w-4" />{info.label}</label>{upload && ( <Badge variant={upload.status === 'approved' ? 'success' : upload.status === 'rejected' ? 'destructive' : 'warning'}>{upload.status === 'approved' && <CheckCircle className="mr-1 h-3 w-3" />}{upload.status === 'rejected' && <AlertTriangle className="mr-1 h-3 w-3" />}{upload.status.charAt(0).toUpperCase() + upload.status.slice(1).replace('_', ' ')}</Badge> )}</div>
+                                                {isRejected && ( <p className="text-xs text-destructive mt-1 italic">Reason: {upload.rejectionReason}</p> )}
+                                                {isRejected || !upload ? ( <> {isUploading ? ( <div className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin"/><p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p></div> ) : ( info.type === 'pdf' ? ( <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} /> ) : ( <div className="flex items-center gap-2"><Input type="text" className="h-9" placeholder="Enter information here..." value={textInputs[info.label] || ''} onChange={(e) => handleTextChange(info.label, e.target.value)} /><Button size="sm" onClick={() => handleTextSubmit(item.service!.id, info.label)}>Save</Button></div> ) )} </> ) : ( <div className="p-2 bg-green-50 text-green-800 rounded-md border border-green-200 text-sm">{upload.type === 'file' ? `Submitted: ${upload.fileName}` : `Submitted: "${upload.textValue}"`}</div> )}
                                             </div>
                                         )})}
                                     </div>
@@ -438,27 +384,13 @@ export default function ClientOrderDetailsPage() {
                                 {index < orderedItemsWithServices.length - 1 && <Separator className="my-6" />}
                             </div>
                         ))}
-                         <Separator className="my-4" />
-                        <div className="flex justify-between font-bold text-xl">
-                            <span>Total</span>
-                            <span>{formatPrice(order.total)}</span>
-                        </div>
+                         <Separator className="my-4" /><div className="flex justify-between font-bold text-xl"><span>Total</span><span>{formatPrice(order.total)}</span></div>
                     </CardContent>
-                    {allRequirements.length > 0 && (
-                        <CardFooter>
-                            <Button onClick={handleNotifyConsultant} disabled={isSubmitting || !allSubmitted}>
-                                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                                Notify Consultant of All Submissions
-                            </Button>
-                        </CardFooter>
-                    )}
+                    {allRequirements.length > 0 && ( <CardFooter><Button onClick={handleNotifyConsultant} disabled={isSubmitting || !allSubmitted}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}Notify Consultant of All Submissions</Button></CardFooter> )}
                 </Card>
                 
                  <Card>
-                    <CardHeader>
-                        <CardTitle>Communication History</CardTitle>
-                        <CardDescription>Internal notes and sent emails for this order.</CardDescription>
-                    </CardHeader>
+                    <CardHeader><CardTitle>Communication History</CardTitle><CardDescription>Notes and messages regarding this order.</CardDescription></CardHeader>
                     <CardContent className="space-y-4">
                          <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                             {order.notes && order.notes.length > 0 ? (
@@ -468,69 +400,19 @@ export default function ClientOrderDetailsPage() {
                                     return (
                                         <div key={index} className="flex items-start gap-3">
                                             <div className="p-3 rounded-lg w-full bg-muted">
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <p className="text-xs font-semibold">{author?.name || 'System'}</p>
-                                                    <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd/MM/yyyy, HH:mm')}</p>
-                                                </div>
-                                                 {isEmail ? (
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <Mail className="h-4 w-4 text-muted-foreground" />
-                                                            <p className="text-sm font-semibold">{note.subject}</p>
-                                                        </div>
-                                                        <p className="text-sm italic text-muted-foreground">"{note.text}"</p>
-                                                    </div>
-                                                 ) : (
-                                                    <p className="text-sm" dangerouslySetInnerHTML={{ __html: note.text.replace(/\n/g, '<br />') }} />
-                                                 )}
-                                                 {note.attachments && note.attachments.length > 0 && (
-                                                        <div className="mt-2 space-y-1">
-                                                            {note.attachments.map((att, i) => (
-                                                                <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
-                                                                    <Paperclip className="h-4 w-4"/>
-                                                                    {att.name}
-                                                                </a>
-                                                            ))}
-                                                        </div>
-                                                    )}
+                                                <div className="flex justify-between items-center mb-1"><p className="text-xs font-semibold">{author?.name || 'System'}</p><p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd/MM/yyyy, HH:mm')}</p></div>
+                                                 {isEmail ? ( <div><div className="flex items-center gap-2 mb-1"><Mail className="h-4 w-4 text-muted-foreground" /><p className="text-sm font-semibold">{note.subject}</p></div><p className="text-sm italic text-muted-foreground">"{note.text}"</p></div> ) : ( <p className="text-sm" dangerouslySetInnerHTML={{ __html: note.text.replace(/\n/g, '<br />') }} /> )}
+                                                 {note.attachments && note.attachments.length > 0 && ( <div className="mt-2 space-y-1">{note.attachments.map((att, i) => ( <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1"><Paperclip className="h-4 w-4"/>{att.name}</a> ))}</div> )}
                                             </div>
                                         </div>
                                     );
                                 })
-                            ) : (
-                                <p className="text-xs text-muted-foreground text-center py-4">No notes for this order yet.</p>
-                            )}
+                            ) : ( <p className="text-xs text-muted-foreground text-center py-4">No notes for this order yet.</p> )}
                         </div>
                          <Form {...noteForm}>
                             <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4 pt-4">
-                                <FormField
-                                    control={noteForm.control}
-                                    name="noteText"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <Textarea placeholder="Add a new note..." {...field} rows={3} />
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <div className="flex items-center gap-2">
-                                    <FormField
-                                        control={noteForm.control}
-                                        name="attachment"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormControl>
-                                                    <Input type="file" onChange={(e) => field.onChange(e.target.files)} className="max-w-xs" />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <Button type="submit" size="sm" disabled={isSubmitting}>
-                                      <Send className="h-4 w-4 mr-2" />
-                                      Post Note
-                                    </Button>
-                                </div>
+                                <FormField control={noteForm.control} name="noteText" render={({ field }) => ( <FormItem><FormControl><Textarea placeholder="Add a new note..." {...field} rows={3} /></FormControl><FormMessage /></FormItem> )} />
+                                <div className="flex items-center gap-2"><FormField control={noteForm.control} name="attachment" render={({ field }) => ( <FormItem><FormControl><Input type="file" onChange={(e) => field.onChange(e.target.files)} className="max-w-xs" /></FormControl><FormMessage /></FormItem> )} /><Button type="submit" size="sm" disabled={isSubmitting}><Send className="h-4 w-4 mr-2" />Post Note</Button></div>
                             </form>
                         </Form>
                     </CardContent>

@@ -406,8 +406,12 @@ export default function PartnerOrderDetailsPage() {
     }
   };
 
-  const getAuthor = (authorId: string): User | undefined => {
-    return allStaff.find(u => u.uid === authorId || u.id === authorId);
+  const getAuthor = (authorId: string): { name: string } | undefined => {
+    if (authorId === 'system') return { name: currentUser?.companyName || 'Practice System' };
+    if (order && authorId === order.userId) return { name: order.endCustomerName || order.customerName };
+    const staff = allStaff.find(u => u.uid === authorId || u.id === authorId);
+    if (staff) return staff;
+    return undefined;
   }
 
   const getStatusVariant = (status: Order['status']) => {
@@ -610,7 +614,7 @@ export default function PartnerOrderDetailsPage() {
                             <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('docs')}><FileText className="h-4 w-4 mr-2"/>Request Documents</Button>
                             <Button size="sm" variant="outline" onClick={() => generateNoteTemplate('review')}><Star className="h-4 w-4 mr-2"/>Request Review</Button>
                             <Button size="sm" variant="outline" onClick={handleGenerateDiscount} disabled={isGeneratingDiscount || !!order.discountCode}>
-                                {isGeneratingDiscount ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Percent className="h-4 w-4 mr-2"/>}
+                                {isGeneratingDiscount ? <Loader2 className="mr-2 h-4 w-4 animate-spin mr-2" /> : <Percent className="h-4 w-4 mr-2"/>}
                                 {order.discountCode ? 'Discount Generated' : 'Generate 10% Discount'}
                             </Button>
                         </div>
