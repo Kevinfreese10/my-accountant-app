@@ -12,7 +12,7 @@ import { getFirestore, collection, query, where, getDocs, doc, setDoc, serverTim
 import { firebaseApp } from '@/lib/firebase';
 import { Employee } from '@/lib/types';
 import Papa from 'papaparse';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { generateEmployeePayslipAction } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
@@ -83,6 +83,7 @@ export default function EmployeeImportDialog({
 
                     for (const row of rows) {
                         const code = row['Code']?.trim();
+                        // Still need a code to match or create
                         if (!code) continue;
 
                         const existingId = existingMap.get(code);
@@ -90,8 +91,15 @@ export default function EmployeeImportDialog({
                             ? doc(db, 'aiPayrollClients', clientId, 'employees', existingId)
                             : doc(collection(db, 'aiPayrollClients', clientId, 'employees'));
 
-                        const joinDateStr = row['Join Date (YYYY-MM-DD)'] || format(new Date(), 'yyyy-MM-dd');
-                        const joinDate = Timestamp.fromDate(new Date(joinDateStr));
+                        // Resilient Date Parsing
+                        let joinDate;
+                        const joinDateStr = row['Join Date (YYYY-MM-DD)']?.trim();
+                        if (joinDateStr) {
+                            const parsed = new Date(joinDateStr);
+                            joinDate = isValid(parsed) ? Timestamp.fromDate(parsed) : Timestamp.fromDate(new Date());
+                        } else {
+                            joinDate = Timestamp.fromDate(new Date());
+                        }
 
                         const employeeData: any = {
                             employeeCode: code,
@@ -141,7 +149,7 @@ export default function EmployeeImportDialog({
                                 clientId,
                                 employeeId: targetRef.id,
                                 basicSalary: baseValue
-                            });
+                            }).catch(e => console.error("Initial payslip generation skipped for row due to action failure:", e));
                         }
                     }
 
@@ -152,7 +160,7 @@ export default function EmployeeImportDialog({
                     onOpenChange(false);
                 } catch (error) {
                     console.error("Import failed:", error);
-                    toast({ title: "Import Failed", description: "Please check your file format.", variant: "destructive" });
+                    toast({ title: "Import Failed", description: "An unexpected error occurred. Please check your data format.", variant: "destructive" });
                 } finally {
                     setIsImporting(false);
                 }
