@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Search, Loader2, MoreHorizontal, Edit, Trash2, User as UserIcon, FileText, ReceiptText, Calculator } from 'lucide-react';
+import { PlusCircle, Search, Loader2, MoreHorizontal, Edit, Trash2, User as UserIcon, ReceiptText, Calculator, FileUp } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, getDoc, where, limit } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, getDoc, where, limit, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Employee, Payslip, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +21,7 @@ import { generateEmployeePayslipAction, syncEmployeeSalaryToActivePayslipAction 
 import PayslipEditor from '@/components/admin/PayslipEditor';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import EmployeeImportDialog from '@/components/admin/EmployeeImportDialog';
 
 const db = getFirestore(firebaseApp);
 
@@ -33,6 +34,7 @@ export default function EmployeesPage() {
   const [client, setClient] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -105,7 +107,7 @@ export default function EmployeesPage() {
           }
         } else {
           // NEW EMPLOYEE: AUTOMATIC PAYSLIP GENERATION
-          const res = await generateEmployeePayslipAction({
+          await generateEmployeePayslipAction({
               clientId,
               employeeId: employeeRef.id,
               basicSalary: values.basicSalary
@@ -188,28 +190,39 @@ export default function EmployeesPage() {
           <h2 className="text-xl font-bold text-slate-900">Employee Management</h2>
           <p className="text-sm text-muted-foreground font-medium">Manage your workforce and compensation details.</p>
         </div>
-        <Dialog open={isFormOpen} onOpenChange={(open) => { setIsFormOpen(open); if (!open) setSelectedEmployee(null); }}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setSelectedEmployee(null)} className="font-bold">
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Employee
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>{selectedEmployee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
-              <DialogDescription>
-                Enter the employee's personal and payroll details to register them in the system.
-              </DialogDescription>
-            </DialogHeader>
-            <EmployeeForm 
-              employee={selectedEmployee}
-              onSubmit={handleFormSubmit}
-              onCancel={() => setIsFormOpen(false)}
-              isLoading={isSaving}
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setIsImportOpen(true)} className="font-bold border-primary/20 text-primary">
+            <FileUp className="mr-2 h-4 w-4" /> Import CSV
+          </Button>
+          <Dialog open={isFormOpen} onOpenChange={(open) => { setIsFormOpen(open); if (!open) setSelectedEmployee(null); }}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setSelectedEmployee(null)} className="font-bold">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Employee
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>{selectedEmployee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
+                <DialogDescription>
+                  Enter the employee's personal and payroll details to register them in the system.
+                </DialogDescription>
+              </DialogHeader>
+              <EmployeeForm 
+                employee={selectedEmployee}
+                onSubmit={handleFormSubmit}
+                onCancel={() => setIsFormOpen(false)}
+                isLoading={isSaving}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      <EmployeeImportDialog 
+        open={isImportOpen} 
+        onOpenChange={setIsImportOpen} 
+        clientId={clientId} 
+      />
 
       <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
           <DialogContent className="sm:max-w-6xl p-0 overflow-hidden bg-[#F5F5F5]">
@@ -275,7 +288,10 @@ export default function EmployeesPage() {
                   <TableRow key={emp.id}>
                     <TableCell className="font-medium">
                       <div className="flex flex-col">
-                        <span className="text-slate-900 font-bold">{emp.surname}, {emp.name}</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-slate-900 font-bold">{emp.surname}, {emp.name}</span>
+                            <Badge variant="outline" className="text-[9px] font-mono">{emp.employeeCode}</Badge>
+                        </div>
                         <span className="text-[10px] text-muted-foreground">Joined: {emp.joinDate?.toDate ? format(emp.joinDate.toDate(), 'dd MMM yyyy') : 'N/A'}</span>
                       </div>
                     </TableCell>
