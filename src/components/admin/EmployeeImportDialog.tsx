@@ -5,13 +5,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Download, Upload, CheckCircle2, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { getFirestore, collection, query, where, getDocs, doc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Employee } from '@/lib/types';
 import Papa from 'papaparse';
-import { parse } from 'date-fns';
+import { format } from 'date-fns';
 import { generateEmployeePayslipAction } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
