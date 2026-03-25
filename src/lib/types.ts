@@ -330,6 +330,8 @@ export type User = {
   payeReference?: string;
   firstProcessingMonth?: string;
   excludeSdl?: boolean;
+  payrollFrequency?: 'Monthly' | 'Weekly' | 'Fortnightly';
+  firstRunStartDate?: any;
 };
 
 export type ClientCustomer = {
@@ -576,8 +578,10 @@ export type Employee = {
   joinDate: any; // Started working on (Timestamp)
   taxNumber: string; // Income Tax Number
   basicSalary: number;
+  hourlyRate: number;
+  payType: 'Salary' | 'Hourly';
   isNetSalary: boolean; // New field
-  paymentFrequency: 'Monthly' | 'Weekly' | 'Bi-Weekly';
+  paymentFrequency: 'Monthly' | 'Weekly' | 'Fortnightly';
   bankingDetails: {
     bankName: string;
     accountNumber: string;
@@ -597,7 +601,7 @@ export type Payslip = {
   id: string;
   employeeId: string;
   employeeName: string;
-  period: string; // e.g. "February 2024"
+  period: string; // e.g. "February 2024" or "March 2026 - Run 1"
   date: any; // Timestamp
   earnings: PayslipItem[];
   deductions: PayslipItem[];
@@ -606,6 +610,9 @@ export type Payslip = {
   grossPay: number;
   totalDeductions: number;
   netPay: number;
+  hoursWorked?: number;
+  runNumber?: 1 | 2;
+  frequency: 'Monthly' | 'Weekly' | 'Fortnightly';
 };
 
 export type LeaveRequest = {

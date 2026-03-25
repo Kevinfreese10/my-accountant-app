@@ -42,6 +42,8 @@ const formSchema = z.object({
   registrationNumber: z.string().optional(),
   payeReference: z.string().optional(),
   firstProcessingMonth: z.string().optional(),
+  payrollFrequency: z.enum(['Monthly', 'Weekly', 'Fortnightly']).default('Monthly'),
+  firstRunStartDate: z.string().optional(),
   excludeSdl: z.boolean().default(false),
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
@@ -90,6 +92,8 @@ export default function ClientForm({
             registrationNumber: client?.registrationNumber || '',
             payeReference: client?.payeReference || '',
             firstProcessingMonth: client?.firstProcessingMonth || '',
+            payrollFrequency: client?.payrollFrequency || 'Monthly',
+            firstRunStartDate: client?.firstRunStartDate || '',
             excludeSdl: client?.excludeSdl || false,
             yearEnd: client?.yearEnd || 'February',
             isVatRegistered: client?.isVatRegistered || false,
@@ -121,6 +125,7 @@ export default function ClientForm({
     });
 
     const isVatRegistered = form.watch('isVatRegistered');
+    const payrollFrequency = form.watch('payrollFrequency');
     const useGlobalRules = form.watch('useGlobalRules');
 
     const processingPeriods = useMemo(() => {
@@ -208,19 +213,46 @@ export default function ClientForm({
 
                     {isPayrollClient && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                            <FormField control={form.control} name="firstProcessingMonth" render={({ field }) => ( 
-                                <FormItem>
-                                    <FormLabel>1st Processing Month (Start Period)</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="Select start period..." /></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            {processingPeriods.map(period => <SelectItem key={period} value={period}>{period}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormDescription className="text-[10px]">Tax rates for PAYE and UIF will be determined based on this year.</FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                            )} />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField control={form.control} name="firstProcessingMonth" render={({ field }) => ( 
+                                    <FormItem>
+                                        <FormLabel>1st Processing Month (Start Period)</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Select start period..." /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                {processingPeriods.map(period => <SelectItem key={period} value={period}>{period}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+
+                                <FormField control={form.control} name="payrollFrequency" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Payroll Cycle Frequency</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="Monthly">Monthly</SelectItem>
+                                                <SelectItem value="Fortnightly">Fortnightly</SelectItem>
+                                                <SelectItem value="Weekly">Weekly</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                            </div>
+
+                            {payrollFrequency !== 'Monthly' && (
+                                <FormField control={form.control} name="firstRunStartDate" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Run 1 Start Date (First Period)</FormLabel>
+                                        <FormControl><Input type="date" {...field} /></FormControl>
+                                        <FormDescription className="text-[10px]">e.g. If the first run is on Friday 6th March, select 2026-03-06.</FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                            )}
 
                             <FormField control={form.control} name="excludeSdl" render={({ field }) => (
                                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-muted/20">
@@ -248,7 +280,7 @@ export default function ClientForm({
                     <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel className="text-xs">Street Address</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Suburb</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel className="text-xs">City</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel className="text-xs">City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="address.province" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Province</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                         <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel className="text-xs">ZIP / Postal Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                     </div>

@@ -67,65 +67,72 @@ export async function syncEmployeeSalaryToActivePayslipAction({
         const clientSnap = await getDoc(clientRef);
         if (!clientSnap.exists()) throw new Error("Client not found");
         const client = clientSnap.data() as User;
-        const currentPeriod = client.firstProcessingMonth;
+        const basePeriod = client.firstProcessingMonth;
 
-        if (!currentPeriod) return { success: true, message: "No active period" };
+        if (!basePeriod) return { success: true, message: "No active period" };
 
         const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+        // Find ALL payslips for the current period (could be multiple runs)
         const q = query(
             payslipsRef, 
             where('employeeId', '==', employeeId), 
-            where('period', '==', currentPeriod), 
-            limit(1)
+            where('period', '>=', basePeriod), 
+            where('period', '<=', `${basePeriod}\uf8ff`)
         );
         const snap = await getDocs(q);
 
         if (snap.empty) return { success: true, message: "No draft payslip to sync" };
 
-        const payslipDoc = snap.docs[0];
-        const payslip = payslipDoc.data() as Payslip;
+        const frequency = client.payrollFrequency === 'Monthly' ? 12 : client.payrollFrequency === 'Fortnightly' ? 26 : 52;
 
-        // Determine the effective gross salary
-        const effectiveGross = isNetSalary 
-            ? PayrollService.calculateGrossFromNet(newSalary, currentPeriod)
-            : newSalary;
+        const batch = writeBatch(db);
 
-        // Recalculate based on effective gross and current period scales
-        const paye = PayrollService.calculatePaye(effectiveGross, currentPeriod);
-        const uif = PayrollService.calculateUif(effectiveGross, currentPeriod);
-        const sdl = client.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
+        snap.docs.forEach(payslipDoc => {
+            const payslip = payslipDoc.data() as Payslip;
+            
+            // Determine the effective gross salary
+            const effectiveGross = isNetSalary 
+                ? PayrollService.calculateGrossFromNet(newSalary, basePeriod, frequency)
+                : newSalary;
 
-        const updatedEarnings = payslip.earnings.map(e => 
-            e.label.toLowerCase() === 'basic salary' ? { ...e, amount: effectiveGross } : e
-        );
+            // Recalculate based on effective gross and current period scales
+            const paye = PayrollService.calculatePaye(effectiveGross, basePeriod, frequency);
+            const uif = PayrollService.calculateUif(effectiveGross, basePeriod);
+            const sdl = client.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
 
-        const updatedDeductions = payslip.deductions.map(d => {
-            if (!d.isStatutory) return d;
-            if (d.label === 'Tax') return { ...d, amount: paye };
-            if (d.label === 'Unemployment insurance fund') return { ...d, amount: uif };
-            return d;
+            const updatedEarnings = payslip.earnings.map(e => 
+                (e.label.toLowerCase() === 'basic salary' || e.label.toLowerCase().includes('hourly rate')) ? { ...e, amount: effectiveGross } : e
+            );
+
+            const updatedDeductions = payslip.deductions.map(d => {
+                if (!d.isStatutory) return d;
+                if (d.label === 'Tax') return { ...d, amount: paye };
+                if (d.label === 'Unemployment insurance fund') return { ...d, amount: uif };
+                return d;
+            });
+
+            const updatedContributions = payslip.contributions.map(c => {
+                if (!c.isStatutory) return c;
+                if (c.label === 'Unemployment insurance fund') return { ...c, amount: uif };
+                if (c.label === 'Skills development levy') return { ...c, amount: sdl };
+                return c;
+            });
+
+            const totalEarnings = updatedEarnings.reduce((s, i) => s + i.amount, 0);
+            const totalDeductions = updatedDeductions.reduce((s, i) => s + i.amount, 0);
+
+            batch.update(payslipDoc.ref, {
+                earnings: updatedEarnings,
+                deductions: updatedDeductions,
+                contributions: updatedContributions,
+                grossPay: totalEarnings,
+                totalDeductions: totalDeductions,
+                netPay: parseFloat((totalEarnings - totalDeductions).toFixed(2)),
+                updatedAt: serverTimestamp()
+            });
         });
 
-        const updatedContributions = payslip.contributions.map(c => {
-            if (!c.isStatutory) return c;
-            if (c.label === 'Unemployment insurance fund') return { ...c, amount: uif };
-            if (c.label === 'Skills development levy') return { ...c, amount: sdl };
-            return c;
-        });
-
-        const totalEarnings = updatedEarnings.reduce((s, i) => s + i.amount, 0);
-        const totalDeductions = updatedDeductions.reduce((s, i) => s + i.amount, 0);
-
-        await updateDoc(payslipDoc.ref, {
-            earnings: updatedEarnings,
-            deductions: updatedDeductions,
-            contributions: updatedContributions,
-            grossPay: totalEarnings,
-            totalDeductions: totalDeductions,
-            netPay: parseFloat((totalEarnings - totalDeductions).toFixed(2)),
-            updatedAt: serverTimestamp()
-        });
-
+        await batch.commit();
         return { success: true };
     } catch (e: any) {
         console.error("Sync salary error:", e);
@@ -134,8 +141,8 @@ export async function syncEmployeeSalaryToActivePayslipAction({
 }
 
 /**
- * Rolls back the payroll period to the previous month.
- * Clears all payslips from the current month being rolled back from.
+ * Rolls back the payroll period.
+ * For Fortnightly: Run 2 rolls back to Run 1. Run 1 rolls back to Prev Month Run 2.
  */
 export async function rollBackPayrollAction({
     clientId
@@ -148,33 +155,48 @@ export async function rollBackPayrollAction({
         if (!clientSnap.exists()) throw new Error("Client not found");
         const client = clientSnap.data() as User;
 
-        const currentPeriod = client.firstProcessingMonth;
-        if (!currentPeriod) throw new Error("No active payroll period found to roll back from.");
+        const currentPeriodLabel = client.firstProcessingMonth;
+        if (!currentPeriodLabel) throw new Error("No active payroll period found.");
 
-        // Calculate previous month
-        const parsedDate = parse(currentPeriod, 'MMMM yyyy', new Date());
-        const prevDate = subMonths(parsedDate, 1);
-        const prevPeriod = format(prevDate, 'MMMM yyyy');
+        let nextPeriodLabel = '';
+        const isFortnightly = client.payrollFrequency === 'Fortnightly';
+
+        if (isFortnightly) {
+            const isRun2 = currentPeriodLabel.includes('Run 2');
+            if (isRun2) {
+                nextPeriodLabel = currentPeriodLabel.replace('Run 2', 'Run 1');
+            } else {
+                // Roll back to previous month Run 2
+                const baseMonthStr = currentPeriodLabel.split(' - ')[0];
+                const parsedDate = parse(baseMonthStr, 'MMMM yyyy', new Date());
+                const prevDate = subMonths(parsedDate, 1);
+                nextPeriodLabel = `${format(prevDate, 'MMMM yyyy')} - Run 2`;
+            }
+        } else {
+            const parsedDate = parse(currentPeriodLabel, 'MMMM yyyy', new Date());
+            const prevDate = subMonths(parsedDate, 1);
+            nextPeriodLabel = format(prevDate, 'MMMM yyyy');
+        }
 
         const batch = writeBatch(db);
 
-        // 1. Delete all payslips for the CURRENT period (the one we are rolling back from)
+        // 1. Delete all payslips for the CURRENT label being rolled back from
         const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
-        const q = query(payslipsRef, where('period', '==', currentPeriod));
+        const q = query(payslipsRef, where('period', '==', currentPeriodLabel));
         const snap = await getDocs(q);
         
         snap.docs.forEach(d => {
             batch.delete(d.ref);
         });
 
-        // 2. Update client's active period to the previous month
+        // 2. Update client's active period
         batch.update(clientRef, {
-            firstProcessingMonth: prevPeriod
+            firstProcessingMonth: nextPeriodLabel
         });
 
         await batch.commit();
 
-        return { success: true, prevPeriod, deletedCount: snap.size };
+        return { success: true, prevPeriod: nextPeriodLabel, deletedCount: snap.size };
     } catch (e: any) {
         console.error("Roll back error:", e);
         return { success: false, error: e.message };
@@ -183,7 +205,7 @@ export async function rollBackPayrollAction({
 
 /**
  * Rolls forward the payroll period for a client.
- * Updates the current period and generates draft payslips for the new month.
+ * For Fortnightly: Run 1 moves to Run 2. Run 2 moves to Next Month Run 1.
  */
 export async function rollForwardPayrollAction({
     clientId
@@ -196,17 +218,34 @@ export async function rollForwardPayrollAction({
         if (!clientSnap.exists()) throw new Error("Client not found");
         const client = clientSnap.data() as User;
 
-        const currentPeriod = client.firstProcessingMonth; // This is the active period
-        if (!currentPeriod) throw new Error("No active payroll period found to roll forward from.");
+        const currentPeriodLabel = client.firstProcessingMonth;
+        if (!currentPeriodLabel) throw new Error("No active payroll period found.");
 
-        // Calculate next month
-        const parsedDate = parse(currentPeriod, 'MMMM yyyy', new Date());
-        const nextDate = addMonths(parsedDate, 1);
-        const nextPeriod = format(nextDate, 'MMMM yyyy');
+        let nextPeriodLabel = '';
+        let nextRunNumber = 1;
+        const isFortnightly = client.payrollFrequency === 'Fortnightly';
+
+        if (isFortnightly) {
+            const isRun1 = currentPeriodLabel.includes('Run 1');
+            if (isRun1) {
+                nextPeriodLabel = currentPeriodLabel.replace('Run 1', 'Run 2');
+                nextRunNumber = 2;
+            } else {
+                const baseMonthStr = currentPeriodLabel.split(' - ')[0];
+                const parsedDate = parse(baseMonthStr, 'MMMM yyyy', new Date());
+                const nextDate = addMonths(parsedDate, 1);
+                nextPeriodLabel = `${format(nextDate, 'MMMM yyyy')} - Run 1`;
+                nextRunNumber = 1;
+            }
+        } else {
+            const parsedDate = parse(currentPeriodLabel, 'MMMM yyyy', new Date());
+            const nextDate = addMonths(parsedDate, 1);
+            nextPeriodLabel = format(nextDate, 'MMMM yyyy');
+        }
 
         // 1. Update client's active period
         await updateDoc(clientRef, {
-            firstProcessingMonth: nextPeriod
+            firstProcessingMonth: nextPeriodLabel
         });
 
         // 2. Generate new draft payslips for all active employees
@@ -216,11 +255,12 @@ export async function rollForwardPayrollAction({
         
         const results = await Promise.all(snap.docs.map(async (empDoc) => {
             const emp = empDoc.data() as Employee;
-            await PayrollService.generateInitialPayslip(clientId, empDoc.id, emp.basicSalary);
+            const baseValue = emp.payType === 'Hourly' ? emp.hourlyRate : emp.basicSalary;
+            await PayrollService.generateInitialPayslip(clientId, empDoc.id, baseValue, nextRunNumber);
             return true;
         }));
 
-        return { success: true, nextPeriod, created: results.length };
+        return { success: true, nextPeriod: nextPeriodLabel, created: results.length };
     } catch (e: any) {
         console.error("Roll forward error:", e);
         return { success: false, error: e.message };
@@ -240,7 +280,12 @@ export async function generateEmployeePayslipAction({
     basicSalary: number
 }) {
     try {
-        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary);
+        const clientSnap = await getDoc(doc(db, 'aiPayrollClients', clientId));
+        const client = clientSnap.data() as User;
+        const isFortnightly = client.payrollFrequency === 'Fortnightly';
+        const runNumber = (isFortnightly && client.firstProcessingMonth?.includes('Run 2')) ? 2 : 1;
+
+        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary, runNumber);
         return { success: true, id: result.id };
     } catch (e: any) {
         console.error("Payslip action failed:", e);

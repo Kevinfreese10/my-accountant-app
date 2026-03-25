@@ -59,11 +59,12 @@ export class PayrollService {
   }
 
   /**
-   * Calculates monthly PAYE based on basic salary and period.
+   * Calculates PAYE based on earnings and frequency.
+   * Frequency: 12 (Monthly), 26 (Fortnightly), 52 (Weekly)
    */
-  static calculatePaye(monthlyBasic: number, period?: string): number {
+  static calculatePaye(periodEarnings: number, period?: string, frequency: number = 12): number {
     const config = this.getTaxConfig(period);
-    const annualGross = monthlyBasic * 12;
+    const annualGross = periodEarnings * frequency;
     let annualTax = 0;
 
     const bracket = [...config.brackets].reverse().find(b => annualGross > b.threshold);
@@ -75,22 +76,23 @@ export class PayrollService {
     }
 
     const netAnnualTax = Math.max(0, annualTax - config.rebate);
-    return parseFloat((netAnnualTax / 12).toFixed(2));
+    return parseFloat((netAnnualTax / frequency).toFixed(2));
   }
 
   /**
-   * Calculates monthly UIF (1% of gross, capped).
+   * Calculates UIF (1% of gross, capped).
+   * Note: As per user request, we use the monthly limit for all runs.
    */
-  static calculateUif(monthlyBasic: number, period?: string): number {
+  static calculateUif(periodEarnings: number, period?: string): number {
     const config = this.getTaxConfig(period);
-    const uif = monthlyBasic * 0.01;
+    const uif = periodEarnings * 0.01;
     return parseFloat(Math.min(uif, config.uifLimit).toFixed(2));
   }
 
   /**
    * Calculates Gross from a desired Net amount using iterative approximation.
    */
-  static calculateGrossFromNet(targetNet: number, period?: string): number {
+  static calculateGrossFromNet(targetNet: number, period?: string, frequency: number = 12): number {
     if (targetNet <= 0) return 0;
     
     let low = targetNet;
@@ -99,7 +101,7 @@ export class PayrollService {
     let iterations = 0;
     
     while (iterations < 50) {
-      const currentPaye = this.calculatePaye(mid, period);
+      const currentPaye = this.calculatePaye(mid, period, frequency);
       const currentUif = this.calculateUif(mid, period);
       const currentNet = mid - currentPaye - currentUif;
       
@@ -119,31 +121,46 @@ export class PayrollService {
   /**
    * Generates and saves a payslip for an employee using the new structured format.
    */
-  static async generateInitialPayslip(clientId: string, employeeId: string, monthlyBasic: number) {
+  static async generateInitialPayslip(clientId: string, employeeId: string, baseValue: number, runNumber: number = 1) {
     try {
       const clientRef = doc(db, 'aiPayrollClients', clientId);
       const clientSnap = await getDoc(clientRef);
       if (!clientSnap.exists()) throw new Error("Client not found");
-      const client = clientSnap.data() as User;
-      const period = client.firstProcessingMonth;
+      const clientData = clientSnap.data() as User;
+      const basePeriod = clientData.firstProcessingMonth || 'March 2026';
+      
+      const frequencyLabel = clientData.payrollFrequency || 'Monthly';
+      const frequency = frequencyLabel === 'Monthly' ? 12 : frequencyLabel === 'Fortnightly' ? 26 : 52;
+      
+      const periodLabel = frequencyLabel === 'Fortnightly' 
+        ? `${basePeriod} - Run ${runNumber}` 
+        : basePeriod;
 
       const employeeRef = doc(db, 'aiPayrollClients', clientId, 'employees', employeeId);
       const employeeSnap = await getDoc(employeeRef);
       if (!employeeSnap.exists()) throw new Error("Employee not found");
       const employee = employeeSnap.data() as Employee;
 
-      // Handle gross-up if employee is on Net Salary agreement
-      let effectiveGross = monthlyBasic;
-      if (employee.isNetSalary) {
-          effectiveGross = this.calculateGrossFromNet(monthlyBasic, period);
+      // Calculate base earnings
+      let effectiveGross = 0;
+      let hoursWorked = undefined;
+
+      if (employee.payType === 'Hourly') {
+          hoursWorked = 80; // Default for a fortnight
+          effectiveGross = (employee.hourlyRate || 0) * hoursWorked;
+      } else {
+          effectiveGross = baseValue;
+          if (employee.isNetSalary) {
+              effectiveGross = this.calculateGrossFromNet(baseValue, basePeriod, frequency);
+          }
       }
 
-      const paye = this.calculatePaye(effectiveGross, period);
-      const uif = this.calculateUif(effectiveGross, period);
-      const sdl = client.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
+      const paye = this.calculatePaye(effectiveGross, basePeriod, frequency);
+      const uif = this.calculateUif(effectiveGross, basePeriod);
+      const sdl = clientData.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
 
       const earnings: PayslipItem[] = [
-          { label: 'Basic salary', amount: effectiveGross }
+          { label: employee.payType === 'Hourly' ? 'Hourly Rate pay' : 'Basic salary', amount: effectiveGross }
       ];
 
       const deductions: PayslipItem[] = [
@@ -165,7 +182,7 @@ export class PayrollService {
       const payslipData: Omit<Payslip, 'id'> = {
         employeeId,
         employeeName: `${employee.name} ${employee.surname}`,
-        period: period || 'Current Period',
+        period: periodLabel,
         date: Timestamp.now(),
         earnings,
         deductions,
@@ -174,6 +191,9 @@ export class PayrollService {
         grossPay: totalEarnings,
         totalDeductions,
         netPay: parseFloat((totalEarnings - totalDeductions).toFixed(2)),
+        hoursWorked,
+        runNumber: frequencyLabel === 'Fortnightly' ? (runNumber as 1 | 2) : undefined,
+        frequency: frequencyLabel
       };
 
       const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');

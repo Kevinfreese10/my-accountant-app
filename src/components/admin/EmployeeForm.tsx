@@ -8,13 +8,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Employee } from '@/lib/types';
-import { Loader2, User, Briefcase, Landmark, Calendar as CalendarIcon, Save, MapPin, Phone, Mail, Hash } from 'lucide-react';
+import { Loader2, User, Briefcase, Landmark, Calendar as CalendarIcon, Save, MapPin, Phone, Mail, Hash, BadgeDollarSign } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '../ui/switch';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { Label } from '../ui/label';
 
 const formSchema = z.object({
   employeeCode: z.string().min(1, 'Employee code is required.'),
@@ -33,9 +35,11 @@ const formSchema = z.object({
   email: z.string().email('A valid email address is required.'),
   joinDate: z.date({ required_error: 'Join date is required.' }),
   taxNumber: z.string().optional(),
+  payType: z.enum(['Salary', 'Hourly']).default('Salary'),
   basicSalary: z.preprocess(val => Number(val), z.number().min(0, 'Salary must be a positive number.')),
+  hourlyRate: z.preprocess(val => Number(val), z.number().min(0, 'Rate must be a positive number.')),
   isNetSalary: z.boolean().default(false),
-  paymentFrequency: z.enum(['Monthly', 'Weekly', 'Bi-Weekly']).default('Monthly'),
+  paymentFrequency: z.enum(['Monthly', 'Weekly', 'Fortnightly']).default('Monthly'),
   bankingDetails: z.object({
     bankName: z.string().min(2, 'Bank name is required.'),
     accountNumber: z.string().min(5, 'Account number is required.'),
@@ -80,7 +84,9 @@ export default function EmployeeForm({
       department: employee?.department || '',
       joinDate: employee?.joinDate ? (employee.joinDate.toDate ? employee.joinDate.toDate() : new Date(employee.joinDate)) : new Date(),
       taxNumber: employee?.taxNumber || '',
+      payType: employee?.payType || 'Salary',
       basicSalary: employee?.basicSalary || 0,
+      hourlyRate: employee?.hourlyRate || 0,
       isNetSalary: employee?.isNetSalary || false,
       paymentFrequency: employee?.paymentFrequency || 'Monthly',
       bankingDetails: {
@@ -91,6 +97,8 @@ export default function EmployeeForm({
       },
     },
   });
+
+  const payType = form.watch('payType');
 
   return (
     <Form {...form}>
@@ -177,35 +185,81 @@ export default function EmployeeForm({
           <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
             <Landmark className="h-4 w-4" /> Compensation
           </div>
+
+          <FormField
+            control={form.control}
+            name="payType"
+            render={({ field }) => (
+                <FormItem className="space-y-3">
+                    <FormLabel>Payment Structure</FormLabel>
+                    <FormControl>
+                        <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex gap-4"
+                        >
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="Salary" id="pay-salary" />
+                                <Label htmlFor="pay-salary" className="font-medium cursor-pointer">Fixed Salary</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="Hourly" id="pay-hourly" />
+                                <Label htmlFor="pay-hourly" className="font-medium cursor-pointer">Hourly Rated</Label>
+                            </div>
+                        </RadioGroup>
+                    </FormControl>
+                </FormItem>
+            )}
+          />
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-            <FormField control={form.control} name="basicSalary" render={({ field }) => ( <FormItem><FormLabel>Salary Amount</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            {payType === 'Salary' ? (
+                <FormField control={form.control} name="basicSalary" render={({ field }) => ( 
+                    <FormItem>
+                        <FormLabel>Monthly Basic Salary</FormLabel>
+                        <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                        <FormMessage />
+                    </FormItem> 
+                )} />
+            ) : (
+                <FormField control={form.control} name="hourlyRate" render={({ field }) => ( 
+                    <FormItem>
+                        <FormLabel>Rate Per Hour (R)</FormLabel>
+                        <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                        <FormMessage />
+                    </FormItem> 
+                )} />
+            )}
+
             <FormField control={form.control} name="isNetSalary" render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm h-10">
+                <FormItem className={cn(
+                    "flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm h-10",
+                    payType === 'Hourly' && "opacity-50 pointer-events-none"
+                )}>
                     <div className="space-y-0.5">
-                        <FormLabel className="text-xs font-bold">Enter as Net Salary?</FormLabel>
+                        <FormLabel className="text-xs font-bold">Gross-up Net Salary?</FormLabel>
                     </div>
                     <FormControl>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        <Switch checked={field.value} onCheckedChange={field.onChange} disabled={payType === 'Hourly'} />
                     </FormControl>
                 </FormItem>
             )} />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField control={form.control} name="paymentFrequency" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Payment Frequency</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    <SelectItem value="Monthly">Monthly</SelectItem>
-                    <SelectItem value="Weekly">Weekly</SelectItem>
-                    <SelectItem value="Bi-Weekly">Bi-Weekly</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
-          </div>
+
+          <FormField control={form.control} name="paymentFrequency" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Payment Frequency</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                <SelectContent>
+                  <SelectItem value="Monthly">Monthly</SelectItem>
+                  <SelectItem value="Fortnightly">Fortnightly</SelectItem>
+                  <SelectItem value="Weekly">Weekly</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )} />
         </section>
 
         <Separator />
