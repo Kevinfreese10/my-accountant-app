@@ -2,7 +2,7 @@
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, CVLead, DemoLead, Employee, Payslip } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, CVLead, DemoLead, Employee, Payslip, PayslipItem } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import React from 'react';
@@ -47,9 +47,97 @@ export async function updatePayslipAction({
 }
 
 /**
+ * Updates a draft payslip based on uploaded hours.
+ */
+export async function updateDraftPayslipHoursAction({
+    clientId,
+    employeeId,
+    hours
+}: {
+    clientId: string,
+    employeeId: string,
+    hours: {
+        normal?: number;
+        publicHoliday?: number;
+        overtime15?: number;
+        overtime20?: number;
+        standbyAllowance?: number;
+    }
+}) {
+    try {
+        const clientRef = doc(db, 'aiPayrollClients', clientId);
+        const clientSnap = await getDoc(clientRef);
+        if (!clientSnap.exists()) throw new Error("Client not found");
+        const client = clientSnap.data() as User;
+        const basePeriod = client.firstProcessingMonth;
+
+        if (!basePeriod) throw new Error("No active period set for client.");
+
+        const empSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'employees', employeeId));
+        if (!empSnap.exists()) throw new Error("Employee not found");
+        const employee = empSnap.data() as Employee;
+
+        const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+        const q = query(
+            payslipsRef, 
+            where('employeeId', '==', employeeId), 
+            where('period', '>=', basePeriod), 
+            where('period', '<=', `${basePeriod}\uf8ff`)
+        );
+        const snap = await getDocs(q);
+
+        if (snap.empty) throw new Error("No draft payslip found for this period. Generate payslips first.");
+
+        const frequency = client.payrollFrequency === 'Monthly' ? 12 : client.payrollFrequency === 'Fortnightly' ? 26 : 52;
+        const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0);
+
+        const batch = writeBatch(db);
+
+        snap.docs.forEach(payslipDoc => {
+            const earnings = PayrollService.calculateEarningsList(employee, baseValue, basePeriod || 'March 2026', frequency, hours);
+            const gross = earnings.reduce((s, i) => s + i.amount, 0);
+
+            const paye = PayrollService.calculatePaye(gross, basePeriod, frequency);
+            const uif = PayrollService.calculateUif(gross, basePeriod);
+            const sdl = client.excludeSdl ? 0 : parseFloat((gross * 0.01).toFixed(2));
+
+            const deductions: PayslipItem[] = [
+                { label: 'Tax', amount: paye, isStatutory: true },
+                { label: 'Unemployment insurance fund', amount: uif, isStatutory: true }
+            ];
+
+            const contributions: PayslipItem[] = [
+                { label: 'Unemployment insurance fund', amount: uif, isStatutory: true }
+            ];
+
+            if (sdl > 0) {
+                contributions.push({ label: 'Skills development levy', amount: sdl, isStatutory: true });
+            }
+
+            const totalDeductions = deductions.reduce((sum, i) => sum + i.amount, 0);
+
+            batch.update(payslipDoc.ref, {
+                earnings,
+                deductions,
+                contributions,
+                grossPay: gross,
+                totalDeductions,
+                netPay: parseFloat((gross - totalDeductions).toFixed(2)),
+                hoursWorked: hours.normal,
+                updatedAt: serverTimestamp()
+            });
+        });
+
+        await batch.commit();
+        return { success: true };
+    } catch (e: any) {
+        console.error("Update hours error:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+/**
  * Syncs employee salary settings to the active draft payslip.
- * Handles gross-up calculation if isNetSalary is true.
- * Recalculates statutory deductions.
  */
 export async function syncEmployeeSalaryToActivePayslipAction({
     clientId,
@@ -72,7 +160,6 @@ export async function syncEmployeeSalaryToActivePayslipAction({
         if (!basePeriod) return { success: true, message: "No active period" };
 
         const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
-        // Find ALL payslips for the current period (could be multiple runs)
         const q = query(
             payslipsRef, 
             where('employeeId', '==', employeeId), 
@@ -90,12 +177,10 @@ export async function syncEmployeeSalaryToActivePayslipAction({
         snap.docs.forEach(payslipDoc => {
             const payslip = payslipDoc.data() as Payslip;
             
-            // Determine the effective gross salary
             const effectiveGross = isNetSalary 
                 ? PayrollService.calculateGrossFromNet(newSalary, basePeriod, frequency)
                 : newSalary;
 
-            // Recalculate based on effective gross and current period scales
             const paye = PayrollService.calculatePaye(effectiveGross, basePeriod, frequency);
             const uif = PayrollService.calculateUif(effectiveGross, basePeriod);
             const sdl = client.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
@@ -142,7 +227,6 @@ export async function syncEmployeeSalaryToActivePayslipAction({
 
 /**
  * Rolls back the payroll period.
- * For Fortnightly: Run 2 rolls back to Run 1. Run 1 rolls back to Prev Month Run 2.
  */
 export async function rollBackPayrollAction({
     clientId
@@ -166,7 +250,6 @@ export async function rollBackPayrollAction({
             if (isRun2) {
                 nextPeriodLabel = currentPeriodLabel.replace('Run 2', 'Run 1');
             } else {
-                // Roll back to previous month Run 2
                 const baseMonthStr = currentPeriodLabel.split(' - ')[0];
                 const parsedDate = parse(baseMonthStr, 'MMMM yyyy', new Date());
                 const prevDate = subMonths(parsedDate, 1);
@@ -180,7 +263,6 @@ export async function rollBackPayrollAction({
 
         const batch = writeBatch(db);
 
-        // 1. Delete all payslips for the CURRENT label being rolled back from
         const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
         const q = query(payslipsRef, where('period', '==', currentPeriodLabel));
         const snap = await getDocs(q);
@@ -189,7 +271,6 @@ export async function rollBackPayrollAction({
             batch.delete(d.ref);
         });
 
-        // 2. Update client's active period
         batch.update(clientRef, {
             firstProcessingMonth: nextPeriodLabel
         });
@@ -205,7 +286,6 @@ export async function rollBackPayrollAction({
 
 /**
  * Rolls forward the payroll period for a client.
- * For Fortnightly: Run 1 moves to Run 2. Run 2 moves to Next Month Run 1.
  */
 export async function rollForwardPayrollAction({
     clientId
@@ -243,12 +323,10 @@ export async function rollForwardPayrollAction({
             nextPeriodLabel = format(nextDate, 'MMMM yyyy');
         }
 
-        // 1. Update client's active period
         await updateDoc(clientRef, {
             firstProcessingMonth: nextPeriodLabel
         });
 
-        // 2. Generate new draft payslips for all active employees
         const employeesRef = collection(db, 'aiPayrollClients', clientId, 'employees');
         const q = query(employeesRef, where('status', '==', 'Active'));
         const snap = await getDocs(q);
@@ -273,11 +351,13 @@ export async function rollForwardPayrollAction({
 export async function generateEmployeePayslipAction({
     clientId,
     employeeId,
-    basicSalary
+    basicSalary,
+    hours
 }: {
     clientId: string,
     employeeId: string,
-    basicSalary: number
+    basicSalary: number,
+    hours?: any
 }) {
     try {
         const clientSnap = await getDoc(doc(db, 'aiPayrollClients', clientId));
@@ -285,7 +365,7 @@ export async function generateEmployeePayslipAction({
         const isFortnightly = client.payrollFrequency === 'Fortnightly';
         const runNumber = (isFortnightly && client.firstProcessingMonth?.includes('Run 2')) ? 2 : 1;
 
-        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary, runNumber);
+        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary, runNumber, hours);
         return { success: true, id: result.id };
     } catch (e: any) {
         console.error("Payslip action failed:", e);
@@ -325,7 +405,6 @@ export async function saveDemoLead(data: Omit<DemoLead, 'id' | 'createdAt'>) {
 
 /**
  * Extracts data from a single PDF chunk.
- * Handled as a Server Action for security and API key management.
  */
 export async function extractStatementChunk({ 
     chunkBase64 
@@ -546,14 +625,10 @@ export async function bulkMoveTransactionsToNew({ clientId, transactionIds }: { 
                 merchantKey2: deleteField(),
                 smartAllocationResult: deleteField(),
                 allocationSource: deleteField(),
-                matchType: deleteField(),
-                matchedOn: deleteField(),
                 matchedRuleId: deleteField(),
-                matchedRuleDescription: deleteField(),
                 matchedKeyword: deleteField(),
-                allocatedTo: deleteField(),
-                vatType: deleteField(),
-                allocatedAt: deleteField()
+                matchType: deleteField(),
+                cleaningVersion: deleteField()
             });
         });
         await batch.commit();
@@ -606,8 +681,6 @@ export async function updateGlobalMerchantDb({ merchantKey, accountId, vatType }
 export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
     try {
         const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
-        // Updated query to include both 'new' and 'ai_review' statuses
-        // This allows items moved back from Reviewed to be picked up again
         const q = query(
             transRef, 
             where('bankAccountId', '==', bankAccountId), 

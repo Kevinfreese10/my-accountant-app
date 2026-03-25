@@ -7,13 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Download, Upload, CheckCircle2, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { Loader2, Download, FileSpreadsheet } from 'lucide-react';
 import { getFirestore, collection, query, where, getDocs, doc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Employee } from '@/lib/types';
 import Papa from 'papaparse';
-import { format, isValid } from 'date-fns';
-import { generateEmployeePayslipAction } from '@/app/actions';
+import { isValid } from 'date-fns';
+import { generateEmployeePayslipAction, updateDraftPayslipHoursAction } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
 
@@ -35,7 +35,8 @@ export default function EmployeeImportDialog({
             'Job Title', 'Department', 'Join Date (YYYY-MM-DD)', 'Tax Number', 
             'Pay Type (Salary/Hourly)', 'Basic Salary', 'Hourly Rate', 
             'Frequency (Monthly/Fortnightly/Weekly)', 'Bank', 'Acc Number', 'Acc Type', 'Branch', 
-            'Street', 'Suburb', 'City', 'Zip'
+            'Street', 'Suburb', 'City', 'Zip',
+            'Normal Hours', 'Public Holiday Hours', 'Overtime 1.5x Hours', 'Overtime 2x Hours', 'Standby Allowance'
         ];
         
         const exampleRow = [
@@ -43,7 +44,8 @@ export default function EmployeeImportDialog({
             'Sales Manager', 'Sales', '2024-03-01', '1234567890',
             'Salary', '25000', '0',
             'Monthly', 'FNB', '62000000000', 'Savings', '250655',
-            '123 Main Street', 'Sandton', 'Johannesburg', '2196'
+            '123 Main Street', 'Sandton', 'Johannesburg', '2196',
+            '160', '8', '10', '0', '500'
         ];
 
         const csvContent = Papa.unparse([headers, exampleRow]);
@@ -72,10 +74,9 @@ export default function EmployeeImportDialog({
                     let createCount = 0;
                     let updateCount = 0;
 
-                    // Fetch existing employees to match by code
                     const empRef = collection(db, 'aiPayrollClients', clientId, 'employees');
                     const empSnap = await getDocs(empRef);
-                    const existingMap = new Map<string, string>(); // code -> docId
+                    const existingMap = new Map<string, string>();
                     empSnap.docs.forEach(d => {
                         const data = d.data();
                         if (data.employeeCode) existingMap.set(data.employeeCode, d.id);
@@ -83,7 +84,6 @@ export default function EmployeeImportDialog({
 
                     for (const row of rows) {
                         const code = row['Code']?.trim();
-                        // Still need a code to match or create
                         if (!code) continue;
 
                         const existingId = existingMap.get(code);
@@ -91,7 +91,6 @@ export default function EmployeeImportDialog({
                             ? doc(db, 'aiPayrollClients', clientId, 'employees', existingId)
                             : doc(collection(db, 'aiPayrollClients', clientId, 'employees'));
 
-                        // Resilient Date Parsing
                         let joinDate;
                         const joinDateStr = row['Join Date (YYYY-MM-DD)']?.trim();
                         if (joinDateStr) {
@@ -133,34 +132,47 @@ export default function EmployeeImportDialog({
                             updatedAt: serverTimestamp(),
                         };
 
+                        const hours = {
+                            normal: parseFloat(row['Normal Hours']) || 0,
+                            publicHoliday: parseFloat(row['Public Holiday Hours']) || 0,
+                            overtime15: parseFloat(row['Overtime 1.5x Hours']) || 0,
+                            overtime20: parseFloat(row['Overtime 2x Hours']) || 0,
+                            standbyAllowance: parseFloat(row['Standby Allowance']) || 0,
+                        };
+
                         if (!existingId) {
                             employeeData.createdAt = serverTimestamp();
+                            await setDoc(targetRef, employeeData);
                             createCount++;
-                        } else {
-                            updateCount++;
-                        }
 
-                        await setDoc(targetRef, employeeData, { merge: true });
-
-                        // If new employee, generate initial payslip
-                        if (!existingId) {
                             const baseValue = employeeData.payType === 'Hourly' ? employeeData.hourlyRate : employeeData.basicSalary;
                             await generateEmployeePayslipAction({
                                 clientId,
                                 employeeId: targetRef.id,
-                                basicSalary: baseValue
-                            }).catch(e => console.error("Initial payslip generation skipped for row due to action failure:", e));
+                                basicSalary: baseValue,
+                                hours
+                            });
+                        } else {
+                            await setDoc(targetRef, employeeData, { merge: true });
+                            updateCount++;
+
+                            // Update existing draft payslip with new hours
+                            await updateDraftPayslipHoursAction({
+                                clientId,
+                                employeeId: existingId,
+                                hours
+                            }).catch(e => console.warn("Hours update failed for existing employee:", e.message));
                         }
                     }
 
                     toast({ 
                         title: "Import Successful", 
-                        description: `Created ${createCount} and updated ${updateCount} employees.` 
+                        description: `Created ${createCount} and updated ${updateCount} records with hours.` 
                     });
                     onOpenChange(false);
                 } catch (error) {
                     console.error("Import failed:", error);
-                    toast({ title: "Import Failed", description: "An unexpected error occurred. Please check your data format.", variant: "destructive" });
+                    toast({ title: "Import Failed", description: "An unexpected error occurred.", variant: "destructive" });
                 } finally {
                     setIsImporting(false);
                 }
@@ -174,10 +186,10 @@ export default function EmployeeImportDialog({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FileSpreadsheet className="h-5 w-5 text-primary" />
-                        Bulk Employee Import
+                        Bulk Employee & Hours Import
                     </DialogTitle>
                     <DialogDescription>
-                        Upload a CSV file to create or update employee records. Matching is based on the <strong>Employee Code</strong>.
+                        Upload a CSV to update employee records and <strong>bulk upload hours worked</strong> for the current period.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-6 space-y-6">
@@ -187,7 +199,7 @@ export default function EmployeeImportDialog({
                             <Download className="h-4 w-4 text-primary" />
                             <div className="text-left">
                                 <p className="text-sm font-bold">Download Example CSV</p>
-                                <p className="text-[10px] text-muted-foreground">Ensure your file matches these headers exactly.</p>
+                                <p className="text-[10px] text-muted-foreground">Includes columns for Normal Hours, Overtime, etc.</p>
                             </div>
                         </Button>
                     </div>

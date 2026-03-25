@@ -41,7 +41,6 @@ const MONTHS = [ "January", "February", "March", "April", "May", "June", "July",
 export class PayrollService {
   /**
    * Identifies the tax year based on the period string (e.g. "March 2026")
-   * SA Tax Year starts in March. March 2026 is the start of Tax Year 2027.
    */
   static getTaxConfig(period?: string) {
     if (period) {
@@ -50,7 +49,6 @@ export class PayrollService {
       const year = parseInt(parts[1]);
       
       if (monthIdx !== -1 && !isNaN(year)) {
-        // March or later belongs to the NEXT year's tax season
         const taxYear = monthIdx >= 2 ? (year + 1).toString() : year.toString();
         return TAX_YEAR_CONFIGS[taxYear] || TAX_YEAR_CONFIGS['2026'];
       }
@@ -60,7 +58,6 @@ export class PayrollService {
 
   /**
    * Calculates PAYE based on earnings and frequency.
-   * Frequency: 12 (Monthly), 26 (Fortnightly), 52 (Weekly)
    */
   static calculatePaye(periodEarnings: number, period?: string, frequency: number = 12): number {
     const config = this.getTaxConfig(period);
@@ -81,7 +78,6 @@ export class PayrollService {
 
   /**
    * Calculates UIF (1% of gross, capped).
-   * Note: As per user request, we use the monthly limit for all runs.
    */
   static calculateUif(periodEarnings: number, period?: string): number {
     const config = this.getTaxConfig(period);
@@ -119,9 +115,53 @@ export class PayrollService {
   }
 
   /**
-   * Generates and saves a payslip for an employee using the new structured format.
+   * Helper to build earnings list based on hours and rates.
    */
-  static async generateInitialPayslip(clientId: string, employeeId: string, baseValue: number, runNumber: number = 1) {
+  static calculateEarningsList(employee: Employee, baseValue: number, basePeriod: string, frequency: number, hours?: {
+      normal?: number;
+      publicHoliday?: number;
+      overtime15?: number;
+      overtime20?: number;
+      standbyAllowance?: number;
+  }): PayslipItem[] {
+      const earnings: PayslipItem[] = [];
+      const hourlyRate = employee.hourlyRate || 0;
+
+      // 1. Primary Pay
+      if (employee.payType === 'Hourly') {
+          const normalHours = hours?.normal ?? 80;
+          earnings.push({ label: 'Normal Hours pay', amount: parseFloat((hourlyRate * normalHours).toFixed(2)) });
+      } else {
+          let gross = baseValue;
+          if (employee.isNetSalary) {
+              gross = this.calculateGrossFromNet(baseValue, basePeriod, frequency);
+          }
+          earnings.push({ label: 'Basic salary', amount: gross });
+      }
+
+      // 2. Variable Pay (Additional Hours)
+      if (hours) {
+          if (hours.publicHoliday && hours.publicHoliday > 0) {
+              earnings.push({ label: 'Public Holidays (2x)', amount: parseFloat((hourlyRate * 2 * hours.publicHoliday).toFixed(2)) });
+          }
+          if (hours.overtime15 && hours.overtime15 > 0) {
+              earnings.push({ label: 'Overtime (1.5x)', amount: parseFloat((hourlyRate * 1.5 * hours.overtime15).toFixed(2)) });
+          }
+          if (hours.overtime20 && hours.overtime20 > 0) {
+              earnings.push({ label: 'Overtime (2x)', amount: parseFloat((hourlyRate * 2 * hours.overtime20).toFixed(2)) });
+          }
+          if (hours.standbyAllowance && hours.standbyAllowance > 0) {
+              earnings.push({ label: 'Standby Allowance', amount: hours.standbyAllowance });
+          }
+      }
+
+      return earnings;
+  }
+
+  /**
+   * Generates and saves a payslip for an employee.
+   */
+  static async generateInitialPayslip(clientId: string, employeeId: string, baseValue: number, runNumber: number = 1, hours?: any) {
     try {
       const clientRef = doc(db, 'aiPayrollClients', clientId);
       const clientSnap = await getDoc(clientRef);
@@ -141,27 +181,12 @@ export class PayrollService {
       if (!employeeSnap.exists()) throw new Error("Employee not found");
       const employee = employeeSnap.data() as Employee;
 
-      // Calculate base earnings
-      let effectiveGross = 0;
-      let hoursWorked = undefined;
+      const earnings = this.calculateEarningsList(employee, baseValue, basePeriod, frequency, hours);
+      const gross = earnings.reduce((sum, i) => sum + i.amount, 0);
 
-      if (employee.payType === 'Hourly') {
-          hoursWorked = 80; // Default for a fortnight
-          effectiveGross = (employee.hourlyRate || 0) * hoursWorked;
-      } else {
-          effectiveGross = baseValue;
-          if (employee.isNetSalary) {
-              effectiveGross = this.calculateGrossFromNet(baseValue, basePeriod, frequency);
-          }
-      }
-
-      const paye = this.calculatePaye(effectiveGross, basePeriod, frequency);
-      const uif = this.calculateUif(effectiveGross, basePeriod);
-      const sdl = clientData.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
-
-      const earnings: PayslipItem[] = [
-          { label: employee.payType === 'Hourly' ? 'Hourly Rate pay' : 'Basic salary', amount: effectiveGross }
-      ];
+      const paye = this.calculatePaye(gross, basePeriod, frequency);
+      const uif = this.calculateUif(gross, basePeriod);
+      const sdl = clientData.excludeSdl ? 0 : parseFloat((gross * 0.01).toFixed(2));
 
       const deductions: PayslipItem[] = [
           { label: 'Tax', amount: paye, isStatutory: true },
@@ -176,7 +201,6 @@ export class PayrollService {
           contributions.push({ label: 'Skills development levy', amount: sdl, isStatutory: true });
       }
 
-      const totalEarnings = earnings.reduce((sum, i) => sum + i.amount, 0);
       const totalDeductions = deductions.reduce((sum, i) => sum + i.amount, 0);
 
       const payslipData: Omit<Payslip, 'id'> = {
@@ -188,10 +212,10 @@ export class PayrollService {
         deductions,
         contributions,
         fringeBenefits: [],
-        grossPay: totalEarnings,
+        grossPay: gross,
         totalDeductions,
-        netPay: parseFloat((totalEarnings - totalDeductions).toFixed(2)),
-        hoursWorked,
+        netPay: parseFloat((gross - totalDeductions).toFixed(2)),
+        hoursWorked: hours?.normal,
         runNumber: frequencyLabel === 'Fortnightly' ? (runNumber as 1 | 2) : undefined,
         frequency: frequencyLabel
       };
