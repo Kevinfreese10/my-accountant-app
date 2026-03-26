@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -11,7 +10,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { websiteQAndA } from './website-q-and-a';
 
 const AttachmentSchema = z.object({
   filename: z.string().nullable(),
@@ -68,6 +66,7 @@ const categorizeSupportRequestFlow = ai.defineFlow(
     
      const prompt = ai.definePrompt({
       name: 'categorizeSupportRequestPrompt',
+      model: 'googleai/gemini-2.5-flash',
       input: {schema: CategorizeSupportRequestInputSchema},
       output: {schema: CategorizeSupportRequestOutputSchema},
       prompt: `You are an expert support agent and task manager for an accounting firm.
@@ -113,9 +112,6 @@ const categorizeSupportRequestFlow = ai.defineFlow(
 
     const {output} = await prompt(input);
     
-    // The logic to automatically draft a reply has been removed from this flow.
-    // The 'draft_reply' suggestion will now be handled by a separate user action in the UI.
-
     return output!;
   }
 );

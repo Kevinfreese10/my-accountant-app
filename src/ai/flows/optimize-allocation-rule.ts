@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for optimizing allocation rules by expanding and simplifying keywords.
@@ -29,6 +28,7 @@ export async function optimizeAllocationRule(
 
 const prompt = ai.definePrompt({
   name: 'optimizeAllocationRulePrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: OptimizeAllocationRuleInputSchema },
   output: { schema: OptimizeAllocationRuleOutputSchema },
   prompt: `You are an expert South African bookkeeping assistant. Your goal is to optimize automated bank transaction allocation rules by identifying high-impact "root" keywords.

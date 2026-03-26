@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for drafting email replies.
@@ -65,6 +64,7 @@ const generateEmailReplyFlow = ai.defineFlow(
 
     const prompt = ai.definePrompt({
         name: 'generateEmailReplyPrompt',
+        model: 'googleai/gemini-2.5-flash',
         input: { schema: GenerateEmailReplyInputSchema },
         output: { schema: GenerateEmailReplyOutputSchema },
         prompt: `You are an expert administrative assistant for an accounting firm called "My Accountant". Your name is Winifred Beukes.
@@ -72,7 +72,7 @@ const generateEmailReplyFlow = ai.defineFlow(
         Your task is to draft a professional and helpful reply to an email.
         
         **CRITICAL INSTRUCTIONS:**
-        1.  **NO HTML**: Your entire response MUST be plain text. Do NOT use any HTML tags like <p>, <h3>, <ul>, etc.
+        1.  **NO HTML**: Your entire response MUST be plain text. Do NOT use any HTML tags like <p>, <h3>, <section>, etc.
         2.  **MARKDOWN FORMATTING**: Use Markdown for any formatting. For paragraphs, use double newlines (\n\n). For lists, use a hyphen (-) for each bullet point.
         3.  **STRUCTURE**: The email MUST follow this exact structure:
             - Greeting (e.g., "Hi John,").

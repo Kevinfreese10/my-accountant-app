@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for analyzing blog post SEO.
@@ -73,6 +72,7 @@ export async function analyzeBlogPostSeo(
 
 const prompt = ai.definePrompt({
   name: 'analyzeBlogPostSeoPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: {schema: AnalyzeBlogPostSeoInputSchema},
   output: {schema: AnalyzeBlogPostSeoOutputSchema},
   prompt: `You are an expert SEO analyst. Your task is to analyze a blog post based on a provided checklist and return a structured report. For each item, you must determine if it passes and provide brief, specific feedback.

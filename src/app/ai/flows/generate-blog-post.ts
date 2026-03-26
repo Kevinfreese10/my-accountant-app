@@ -29,6 +29,7 @@ export async function generateBlogPost(
 
 const prompt = ai.definePrompt({
   name: 'generateBlogPostPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: {schema: GenerateBlogPostInputSchema},
   output: {schema: GenerateBlogPostOutputSchema},
   prompt: `You are an expert copywriter and SEO specialist for "My Accountant", a financial services company in South Africa. Your audience consists of individuals and SMEs.

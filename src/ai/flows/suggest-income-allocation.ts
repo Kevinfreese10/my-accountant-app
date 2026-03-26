@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for suggesting income transaction allocations to customer accounts.
@@ -32,6 +31,7 @@ export async function suggestIncomeAllocation(
 
 const prompt = ai.definePrompt({
   name: 'suggestIncomeAllocationPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: SuggestIncomeAllocationInputSchema },
   output: { schema: SuggestIncomeAllocationOutputSchema },
   prompt: `You are an expert accountant. Your task is to analyze a bank transaction description and identify which customer made the payment.

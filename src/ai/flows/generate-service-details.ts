@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for generating service details and SEO content.
@@ -10,7 +9,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
 
 const GenerateServiceDetailsInputSchema = z.object({
   title: z.string().describe('The title of the service.'),
@@ -38,6 +36,7 @@ export async function generateServiceDetails(
 
 const prompt = ai.definePrompt({
   name: 'generateServiceDetailsPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: {schema: GenerateServiceDetailsInputSchema},
   output: {schema: GenerateServiceDetailsOutputSchema},
   prompt: `You are an expert copywriter and SEO specialist for "My Accountant", a financial services company in South Africa.
