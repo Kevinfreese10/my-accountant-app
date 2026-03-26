@@ -152,7 +152,22 @@ export default function EmployeesPage() {
               setEditingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
               setIsEditorOpen(true);
           } else {
-              toast({ title: "No Draft Found", description: "This employee does not have a draft payslip for the current period.", variant: "destructive" });
+              // Automatically generate a draft if missing, ensuring the payslip shows even with no prior figures
+              const res = await generateEmployeePayslipAction({
+                  clientId,
+                  employeeId: employee.id,
+                  basicSalary: employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0)
+              });
+              
+              if (res.success && res.id) {
+                  const newSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'payslips', res.id));
+                  if (newSnap.exists()) {
+                      setEditingPayslip({ id: newSnap.id, ...newSnap.data() } as Payslip);
+                      setIsEditorOpen(true);
+                  }
+              } else {
+                  toast({ title: "Draft Creation Failed", description: "Could not create a draft payslip for this period.", variant: "destructive" });
+              }
           }
       } catch (error) {
           console.error("Error fetching payslip:", error);

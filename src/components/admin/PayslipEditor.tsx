@@ -46,12 +46,14 @@ export default function PayslipEditor({
     useEffect(() => {
         if (employee.payType === 'Hourly') {
             const calculatedBasic = (employee.hourlyRate || 0) * hoursWorked;
-            setEarnings(prev => prev.map(item => {
-                if (item.label.toLowerCase().includes('hourly rate')) {
-                    return { ...item, amount: calculatedBasic };
+            setEarnings(prev => {
+                const updated = [...prev];
+                const basicIdx = updated.findIndex(item => item.label.toLowerCase().includes('hourly rate') || item.label.toLowerCase().includes('normal hours'));
+                if (basicIdx > -1) {
+                    updated[basicIdx].amount = calculatedBasic;
                 }
-                return item;
-            }));
+                return updated;
+            });
         }
     }, [hoursWorked, employee.payType, employee.hourlyRate]);
 
@@ -88,13 +90,6 @@ export default function PayslipEditor({
             updatedContributions
         };
     }, [earnings, deductions, contributions, fringeBenefits, client.firstProcessingMonth, frequency]);
-
-    const handleRecalculate = () => {
-        toast({ 
-            title: "Recalculated", 
-            description: `Statutory deductions refreshed based on current earnings.` 
-        });
-    };
 
     const handleAddItem = (type: 'earning' | 'deduction' | 'contribution' | 'fringe') => {
         const newItem = { label: 'New item', amount: 0 };
@@ -167,7 +162,7 @@ export default function PayslipEditor({
             <Input 
                 value={item.label} 
                 onChange={(e) => handleUpdateItem(index, 'label', e.target.value, type)}
-                disabled={item.isStatutory || (type === 'earning' && employee.payType === 'Hourly' && item.label.toLowerCase().includes('hourly rate'))}
+                disabled={item.isStatutory || (type === 'earning' && employee.payType === 'Hourly' && (item.label.toLowerCase().includes('hourly rate') || item.label.toLowerCase().includes('normal hours')))}
                 className="h-7 text-[11px] border-none bg-transparent shadow-none focus-visible:ring-0 p-0 flex-grow font-medium"
             />
             <div className="flex items-center gap-1">
@@ -177,7 +172,7 @@ export default function PayslipEditor({
                     step="0.01"
                     value={item.amount}
                     onChange={(e) => handleUpdateItem(index, 'amount', e.target.value, type)}
-                    disabled={item.isStatutory || (type === 'earning' && employee.payType === 'Hourly' && item.label.toLowerCase().includes('hourly rate'))}
+                    disabled={item.isStatutory || (type === 'earning' && employee.payType === 'Hourly' && (item.label.toLowerCase().includes('hourly rate') || item.label.toLowerCase().includes('normal hours')))}
                     className="h-7 w-24 text-right text-[11px] border-none bg-transparent shadow-none focus-visible:ring-0 p-0 font-mono font-bold"
                 />
                 {!item.isStatutory && (
@@ -235,6 +230,13 @@ export default function PayslipEditor({
                         <ColumnHeader title="Earnings" onAdd={() => handleAddItem('earning')} />
                         <div className="flex-grow bg-white">
                             {earnings.map((item, i) => <ItemRow key={i} item={item} index={i} type="earning" />)}
+                            {earnings.length === 0 && (
+                                <div className="p-4 text-center">
+                                    <Button variant="ghost" size="sm" onClick={() => handleAddItem('earning')} className="text-[10px] uppercase font-bold text-muted-foreground">
+                                        <Plus className="h-3 w-3 mr-1" /> Add Manual Earning
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                         <div className="bg-[#F9F9F9] p-2 flex justify-between items-center border-t border-[#E5E5E5] text-[11px]">
                             <span className="font-bold text-[#666666]">Total</span>
@@ -247,6 +249,13 @@ export default function PayslipEditor({
                         <ColumnHeader title="Deductions" onAdd={() => handleAddItem('deduction')} />
                         <div className="flex-grow bg-white">
                             {totals.updatedDeductions.map((item, i) => <ItemRow key={i} item={item} index={i} type="deduction" />)}
+                            {totals.updatedDeductions.length === 0 && (
+                                <div className="p-4 text-center">
+                                    <Button variant="ghost" size="sm" onClick={() => handleAddItem('deduction')} className="text-[10px] uppercase font-bold text-muted-foreground">
+                                        <Plus className="h-3 w-3 mr-1" /> Add Manual Deduction
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                         <div className="bg-[#F9F9F9] p-2 flex justify-between items-center border-t border-[#E5E5E5] text-[11px]">
                             <span className="font-bold text-[#666666]">Total</span>
