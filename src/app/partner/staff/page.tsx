@@ -3,14 +3,14 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, Edit, Trash2, Crown, AlertCircle, Wallet2, Tags, Plus, X, CheckCircle2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, Edit, Trash2, Crown, Tags, Plus, X, CheckCircle2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { User } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, where, serverTimestamp, getDoc, updateDoc, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, where, serverTimestamp, getDoc, updateDoc, increment, arrayUnion, arrayRemove, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,11 +20,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
-import { format, startOfMonth, addMonths } from 'date-fns';
-import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { sendAiUserInvite } from '@/app/actions';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -116,7 +115,7 @@ function StaffForm({
                     </>
                 )}
 
-                <div className="flex justify-end gap-2 pt-4">
+                <div className="flex justify-end gap-2 pt-4 sticky bottom-0 bg-background pb-2 border-t">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit" disabled={isLoading || (!staffMember && isExtraChargeable && !canAfford)}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -141,31 +140,39 @@ export default function PartnerStaffPage() {
   const partnerId = currentUser?.role === 'partner' ? currentUser.uid : currentUser?.partnerId;
   const partnerDepartments = currentUser?.departments || ['General'];
 
-  const fetchStaff = async () => {
+  useEffect(() => {
     if (!partnerId) return;
     setIsLoading(true);
-    try {
+
+    const q = query(
+        collection(db, "users"), 
+        where("partnerId", "==", partnerId)
+    );
+
+    // Using onSnapshot for real-time updates and proper error handling
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
         const partnerDoc = await getDoc(doc(db, "users", partnerId));
         const staffList: User[] = [];
         if (partnerDoc.exists()) {
             staffList.push({ ...partnerDoc.data(), id: partnerDoc.id, uid: partnerDoc.id } as User);
         }
 
-        const q = query(collection(db, "users"), where("partnerId", "==", partnerId), where("role", "==", "partner_staff"));
-        const snapshot = await getDocs(q);
-        const fetchedStaff = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
+        const fetchedStaff = snapshot.docs
+            .map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User))
+            .filter(u => u.role === 'partner_staff');
         
         setStaff([...staffList, ...fetchedStaff]);
-    } catch (error) {
-        console.error("Error fetching staff:", error);
-        toast({ title: 'Error', description: 'Could not fetch practice staff.', variant: 'destructive'});
-    } finally {
         setIsLoading(false);
-    }
-  };
+    }, async (error) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'users',
+            operation: 'list',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        setIsLoading(false);
+    });
 
-  useEffect(() => {
-    fetchStaff();
+    return () => unsubscribe();
   }, [partnerId]);
 
   const calculateProRata = () => {
@@ -186,18 +193,39 @@ export default function PartnerStaffPage() {
 
     try {
         if (values.id) {
-            await updateDoc(doc(db, "users", values.id), { name: values.name, department: values.department });
-            toast({ title: 'Staff Member Updated' });
+            const userRef = doc(db, "users", values.id);
+            const updateData = { 
+                name: values.name, 
+                department: values.department,
+                updatedAt: serverTimestamp()
+            };
+
+            updateDoc(userRef, updateData)
+                .then(() => {
+                    toast({ title: 'Staff Member Updated' });
+                    setIsFormOpen(false);
+                })
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: userRef.path,
+                        operation: 'update',
+                        requestResourceData: updateData,
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                })
+                .finally(() => setIsLoading(false));
         } else {
             if (isExtraChargeable && !canAffordStaff) {
                 toast({ title: 'Insufficient Credits', description: `Need R${proRataAmount} in wallet.`, variant: 'destructive' });
+                setIsLoading(false);
                 return;
             }
 
             const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password!);
             const newUid = userCredential.user.uid;
 
-            await setDoc(doc(db, "users", newUid), {
+            const newUserRef = doc(db, "users", newUid);
+            const userData = {
                 id: newUid,
                 uid: newUid,
                 name: values.name,
@@ -207,88 +235,113 @@ export default function PartnerStaffPage() {
                 department: values.department,
                 status: 'Active',
                 createdAt: serverTimestamp(),
-            });
+            };
 
-            // Send invitation email
-            try {
-                await sendAiUserInvite(
-                    values.email,
-                    values.name,
-                    values.password!,
-                    currentUser.companyName || currentUser.name,
-                    partnerId,
-                    partnerId
-                );
-            } catch (emailError) {
-                console.error("Failed to send invite email:", emailError);
-                toast({ title: "Email notification failed", description: "The user was created but the invitation email could not be sent.", variant: "warning" });
-            }
+            setDoc(newUserRef, userData)
+                .then(async () => {
+                    // Send invitation email
+                    try {
+                        await sendAiUserInvite(
+                            values.email,
+                            values.name,
+                            values.password!,
+                            currentUser.companyName || currentUser.name,
+                            partnerId,
+                            partnerId
+                        );
+                    } catch (emailError) {
+                        console.error("Failed to send invite email:", emailError);
+                    }
 
-            if (isExtraChargeable) {
-                const partnerRef = doc(db, 'users', partnerId);
-                await updateDoc(partnerRef, {
-                    creditBalance: increment(-proRataAmount),
-                    'subscription.monthlyTotal': increment(BASE_STAFF_FEE),
-                });
-                toast({ title: 'Staff Member Added', description: `R${proRataAmount} pro-rata fee applied and invitation sent.` });
-            } else {
-                toast({ title: 'Staff Member Added', description: 'Free staff slot utilized and invitation sent.' });
-            }
+                    if (isExtraChargeable) {
+                        const partnerRef = doc(db, 'users', partnerId);
+                        updateDoc(partnerRef, {
+                            creditBalance: increment(-proRataAmount),
+                            'subscription.monthlyTotal': increment(BASE_STAFF_FEE),
+                        }).catch(e => console.error("Credit deduction failed", e));
+                        toast({ title: 'Staff Member Added', description: `R${proRataAmount} pro-rata fee applied.` });
+                    } else {
+                        toast({ title: 'Staff Member Added', description: 'Free staff slot utilized.' });
+                    }
+                    setIsFormOpen(false);
+                })
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: newUserRef.path,
+                        operation: 'create',
+                        requestResourceData: userData,
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                })
+                .finally(() => setIsLoading(false));
         }
-        fetchStaff();
-        setIsFormOpen(false);
     } catch (error: any) {
         toast({ title: 'Operation Failed', description: error.message, variant: 'destructive' });
-    } finally {
         setIsLoading(false);
     }
   };
 
   const handleAddDept = async () => {
       if (!newDeptName.trim() || !partnerId) return;
-      try {
-          const partnerRef = doc(db, 'users', partnerId);
-          await updateDoc(partnerRef, {
-              departments: arrayUnion(newDeptName.trim())
-          });
+      const partnerRef = doc(db, 'users', partnerId);
+      updateDoc(partnerRef, {
+          departments: arrayUnion(newDeptName.trim())
+      })
+      .then(() => {
           toast({ title: 'Department Added' });
           setNewDeptName('');
-      } catch (e) {
-          toast({ title: 'Error adding department', variant: 'destructive' });
-      }
+      })
+      .catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+              path: partnerRef.path,
+              operation: 'update',
+              requestResourceData: { departments: arrayUnion(newDeptName.trim()) },
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   const handleRemoveDept = async (dept: string) => {
       if (!partnerId) return;
-      try {
-          const partnerRef = doc(db, 'users', partnerId);
-          await updateDoc(partnerRef, {
-              departments: arrayRemove(dept)
-          });
+      const partnerRef = doc(db, 'users', partnerId);
+      updateDoc(partnerRef, {
+          departments: arrayRemove(dept)
+      })
+      .then(() => {
           toast({ title: 'Department Removed' });
-      } catch (e) {
-          toast({ title: 'Error removing department', variant: 'destructive' });
-      }
+      })
+      .catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+              path: partnerRef.path,
+              operation: 'update',
+              requestResourceData: { departments: arrayRemove(dept) },
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+      });
   }
 
   const handleDelete = async (staffMember: User) => {
-    try {
-        if (!partnerId) return;
-        await deleteDoc(doc(db, "users", staffMember.id));
-        
-        // If we were charging for this member, reduce the monthly total
-        if (staff.length > FREE_STAFF_LIMIT + 1) {
-            const partnerRef = doc(db, 'users', partnerId);
-            await updateDoc(partnerRef, {
-                'subscription.monthlyTotal': increment(-BASE_STAFF_FEE)
-            });
-        }
-        
-        fetchStaff();
-        toast({ title: 'Staff Member Removed', variant: 'destructive' });
-    } catch (error) {
-        toast({ title: 'Error', description: 'Could not remove member.', variant: 'destructive' });
-    }
+    if (!partnerId) return;
+    const userRef = doc(db, "users", staffMember.id);
+    
+    deleteDoc(userRef)
+        .then(async () => {
+            // If we were charging for this member, reduce the monthly total
+            if (staff.length > FREE_STAFF_LIMIT + 1) {
+                const partnerRef = doc(db, 'users', partnerId);
+                await updateDoc(partnerRef, {
+                    'subscription.monthlyTotal': increment(-BASE_STAFF_FEE)
+                });
+            }
+            toast({ title: 'Staff Member Removed', variant: 'destructive' });
+        })
+        .catch(async (error) => {
+            const permissionError = new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'delete',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+        });
   };
 
   return (
@@ -336,7 +389,7 @@ export default function PartnerStaffPage() {
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
                 <DialogTrigger asChild>
                     <Button onClick={() => setSelectedStaff(null)} className="gap-2">
-                        <PlusCircle className="h-4 w-4" /> Add Staff
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Staff
                     </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[500px]">
