@@ -296,7 +296,7 @@ export default function PartnerDashboardPage() {
             { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },
             { label: 'Branding & Theme', done: watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392'), description: 'Apply your custom colors and styling.' },
         ];
-    }, [user, overrideCount, watchedSmtp, watchedAiKey, watchedBanking, watchedLp]);
+    }, [user, overrideCount]);
 
     const progressPercentage = useMemo(() => {
         const completed = setupChecklist.filter(i => i.done).length;
