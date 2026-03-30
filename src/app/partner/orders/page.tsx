@@ -51,6 +51,8 @@ import React from 'react';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import { sendEmail } from '@/lib/email';
 import { getNextOrderId } from '@/lib/sequence';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 
 const db = getFirestore(firebaseApp);
@@ -123,6 +125,13 @@ export default function PartnerOrdersPage() {
         });
         setOrders(fetchedOrders.filter(order => order.status !== 'Cancelled'));
         setIsLoading(false);
+    }, async (error) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'orders',
+            operation: 'list',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        setIsLoading(false);
     });
 
     return () => unsubscribe();
@@ -194,20 +203,32 @@ export default function PartnerOrdersPage() {
               newOrderData.assignedTo = assignedStaff?.id ? [assignedStaff.id] : null;
             }
             
-            // 1. Deduct credits
-            await updateDoc(partnerRef, {
+            // USE BATCH TO ENSURE ATOMICITY
+            const batch = writeBatch(db);
+
+            // 1. Deduct credits from practice wallet
+            batch.update(partnerRef, {
                 creditBalance: increment(-cost)
             });
 
             // 2. Create the main store order
-            await setDoc(doc(db, 'orders', newOrderId), newOrderData);
+            batch.set(doc(db, 'orders', newOrderId), newOrderData);
     
-            // 3. Update original order
+            // 3. Update original order status
             const originalOrderRef = doc(db, 'orders', selectedOrderForOutsource.id);
-            await updateDoc(originalOrderRef, {
+            batch.update(originalOrderRef, {
                 isOutsourced: true,
                 status: 'Outsourced',
                 documentContact: docContactPreference,
+            });
+
+            // Commit Batch
+            batch.commit().catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'batch-outsource',
+                    operation: 'write',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
             });
 
             // 4. Notify Client (Document Request)
@@ -232,15 +253,24 @@ export default function PartnerOrdersPage() {
                     resellerId: partnerId,
                 });
 
-                await updateDoc(originalOrderRef, {
-                    notes: arrayUnion({
-                        text: `Order outsourced to My Accountant. Credits deducted: ${formatPrice(cost)}. Document request sent to ${emailTo}.`,
-                        date: Timestamp.now(),
-                        authorId: 'system',
-                        type: 'note',
-                        subject: null,
-                        attachments: null,
-                    })
+                // Add note to original order about the outsourcing
+                const note: OrderNote = {
+                    text: `Order outsourced to My Accountant. Credits deducted: ${formatPrice(cost)}. Document request sent to ${emailTo}.`,
+                    date: Timestamp.now(),
+                    authorId: 'system',
+                    type: 'note',
+                    subject: null,
+                    attachments: null,
+                };
+                updateDoc(originalOrderRef, {
+                    notes: arrayUnion(note)
+                }).catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: originalOrderRef.path,
+                        operation: 'update',
+                        requestResourceData: { notes: arrayUnion(note) }
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
                 });
             }
     
@@ -268,8 +298,15 @@ export default function PartnerOrdersPage() {
 
     try {
       const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
+      updateDoc(orderRef, {
         status: newStatus,
+      }).catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+              path: orderRef.path,
+              operation: 'update',
+              requestResourceData: { status: newStatus }
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
       });
 
       if (newStatus === 'Processing') {
@@ -288,7 +325,14 @@ export default function PartnerOrdersPage() {
                   comments: [],
                   createdAt: serverTimestamp(),
               };
-              await addDoc(collection(db, 'tasks'), taskData);
+              addDoc(collection(db, 'tasks'), taskData).catch(async (error) => {
+                  const permissionError = new FirestorePermissionError({
+                      path: 'tasks',
+                      operation: 'create',
+                      requestResourceData: taskData
+                  } satisfies SecurityRuleContext);
+                  errorEmitter.emit('permission-error', permissionError);
+              });
               toast({ title: 'Task Created', description: 'A task has been added to your dashboard for fulfillment.' });
           }
 
@@ -314,15 +358,23 @@ export default function PartnerOrdersPage() {
                   resellerId: partnerId,
               });
 
-              await updateDoc(orderRef, {
-                  notes: arrayUnion({
-                      text: `Sent "Payment Confirmed & Request Documents" email to ${emailTo}.`,
-                      date: Timestamp.now(),
-                      authorId: user.uid,
-                      type: 'email',
-                      subject: `Action Required for Your Order #${orderToUpdate.originalOrderId || orderToUpdate.id}`,
-                      attachments: null,
-                  })
+              const note: OrderNote = {
+                  text: `Sent "Payment Confirmed & Request Documents" email to ${emailTo}.`,
+                  date: Timestamp.now(),
+                  authorId: user.uid,
+                  type: 'email',
+                  subject: `Action Required for Your Order #${orderToUpdate.originalOrderId || orderToUpdate.id}`,
+                  attachments: null,
+              };
+              updateDoc(orderRef, {
+                  notes: arrayUnion(note)
+              }).catch(async (error) => {
+                  const permissionError = new FirestorePermissionError({
+                      path: orderRef.path,
+                      operation: 'update',
+                      requestResourceData: { notes: arrayUnion(note) }
+                  } satisfies SecurityRuleContext);
+                  errorEmitter.emit('permission-error', permissionError);
               });
           }
       }

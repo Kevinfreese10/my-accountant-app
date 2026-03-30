@@ -34,17 +34,6 @@ import { Progress } from '@/components/ui/progress';
 
 const db = getFirestore(firebaseApp);
 
-const userColors = [
-  'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
-  'bg-yellow-200 text-yellow-800', 'bg-purple-200 text-purple-800', 'bg-pink-200 text-pink-800',
-];
-
-const getUserColor = (userId: string) => {
-  if (!userId) return 'bg-gray-200 text-gray-800';
-  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return userColors[hash % userColors.length];
-};
-
 function TopUpDialog({ partner }: { partner: User }) {
     const [amount, setAmount] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -80,7 +69,15 @@ function TopUpDialog({ partner }: { partner: User }) {
                 resellerId: partner.uid,
             };
             
-            await setDoc(doc(db, 'orders', orderId), topupOrder);
+            const orderRef = doc(db, 'orders', orderId);
+            setDoc(orderRef, topupOrder).catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: orderRef.path,
+                    operation: 'create',
+                    requestResourceData: topupOrder,
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            });
 
             const payfastUrl = 'https://www.payfast.co.za/eng/process';
             const form = document.createElement('form');
@@ -167,6 +164,7 @@ export default function PartnerDashboardPage() {
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [overrideCount, setOverrideCount] = useState(0);
+  const [practiceProfile, setPracticeProfile] = useState<User | null>(null);
   
   const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
   const archivedNotifications = user?.archivedNotifications || [];
@@ -183,7 +181,7 @@ export default function PartnerDashboardPage() {
   const archiveNotification = async (noteId: string) => {
         if (!user) return;
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, {
+        updateDoc(userRef, {
             archivedNotifications: arrayUnion(noteId)
         }).catch(async (error) => {
             const permissionError = new FirestorePermissionError({
@@ -202,6 +200,17 @@ export default function PartnerDashboardPage() {
         return;
       };
       setIsLoading(true);
+
+      // Listen to Practice Profile for Wallet Balance
+      const unsubPractice = onSnapshot(doc(db, 'users', partnerId), (snap) => {
+          if (snap.exists()) setPracticeProfile({ ...snap.data(), id: snap.id } as User);
+      }, async (error) => {
+          const permissionError = new FirestorePermissionError({
+              path: `users/${partnerId}`,
+              operation: 'get',
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+      });
 
       const staffRef = collection(db, "users");
       const staffUnsubscribe = onSnapshot(query(staffRef, where('role', 'in', ['staff', 'admin'])), (snapshot) => {
@@ -264,6 +273,7 @@ export default function PartnerDashboardPage() {
       });
 
       return () => {
+          unsubPractice();
           staffUnsubscribe();
           unsubClientOrders();
           unsubOutsourcedOrders();
@@ -286,7 +296,7 @@ export default function PartnerDashboardPage() {
             { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },
             { label: 'Branding & Theme', done: watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392'), description: 'Apply your custom colors and styling.' },
         ];
-    }, [user, overrideCount]);
+    }, [user, overrideCount, watchedSmtp, watchedAiKey, watchedBanking, watchedLp]);
 
     const progressPercentage = useMemo(() => {
         const completed = setupChecklist.filter(i => i.done).length;
@@ -326,6 +336,8 @@ export default function PartnerDashboardPage() {
         }).format(price);
     };
 
+    const walletBalance = practiceProfile?.creditBalance || 0;
+
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
@@ -344,7 +356,7 @@ export default function PartnerDashboardPage() {
                         </CardHeader>
                         <CardContent className="pt-4 px-4 pb-4">
                             <p className="text-3xl font-bold text-primary tabular-nums">
-                                {formatPrice(user.role === 'partner' ? (user.creditBalance || 0) : (allStaff.find(s => s.id === partnerId)?.creditBalance || 0))}
+                                {formatPrice(walletBalance)}
                             </p>
                             <p className="text-[10px] text-muted-foreground mt-1 font-medium">Available Credits</p>
                         </CardContent>
