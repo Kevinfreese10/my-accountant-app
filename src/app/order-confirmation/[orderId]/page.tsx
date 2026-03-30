@@ -19,6 +19,8 @@ const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
     }).format(price);
 };
 
@@ -55,7 +57,10 @@ export default function OrderConfirmationPage() {
 
                     // If user is authenticated and lands here, redirect them to PayFast immediately.
                     // ONLY if it's not a reseller order (resellers use EFT)
-                    if (isAuthenticated && orderData.status === 'Pending Payment' && !orderData.resellerId) {
+                    // AND NOT a setup/topup fee (which always uses PayFast)
+                    const isSetupOrTopup = orderData.items.some(i => i.id === 'partner_setup_fee' || i.id === 'partner_credit_topup');
+                    
+                    if (isAuthenticated && orderData.status === 'Pending Payment' && (!orderData.resellerId || isSetupOrTopup)) {
                         handlePayNow(orderData);
                     }
                 } else {
@@ -119,7 +124,8 @@ export default function OrderConfirmationPage() {
         return notFound();
     }
     
-    const isPartnerOrder = !!order.resellerId;
+    const isSetupOrTopup = order.items.some(i => i.id === 'partner_setup_fee' || i.id === 'partner_credit_topup');
+    const showEft = !!order.resellerId && !isSetupOrTopup;
 
     return (
         <div className="container mx-auto px-4 py-12 max-w-4xl">
@@ -128,7 +134,7 @@ export default function OrderConfirmationPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                       {isPartnerOrder 
+                       {showEft 
                         ? "Please complete your payment via EFT using the details below." 
                         : "Please complete payment for your order using the secure PayFast button below."}
                     </CardDescription>
@@ -157,7 +163,7 @@ export default function OrderConfirmationPage() {
                     </section>
                     
                     <section className="text-center">
-                        {isPartnerOrder ? (
+                        {showEft ? (
                             <div className="space-y-6">
                                 {reseller?.bankingDetails?.bankName ? (
                                     <div className="bg-muted p-6 rounded-lg border text-left space-y-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">

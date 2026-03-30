@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -134,6 +135,11 @@ export default function EmployeesPage() {
   };
 
   const handleEditPayslip = async (employee: Employee) => {
+      if (!client?.firstProcessingMonth) {
+          toast({ title: "Client Loading", description: "Waiting for client data to sync. Please try again in a moment.", variant: "warning" });
+          return;
+      }
+
       setIsFetchingPayslip(true);
       setPayslipEmployee(employee);
       
@@ -142,7 +148,7 @@ export default function EmployeesPage() {
           const q = query(
               payslipsRef, 
               where('employeeId', '==', employee.id), 
-              where('period', '==', client?.firstProcessingMonth),
+              where('period', '==', client.firstProcessingMonth),
               limit(1)
           );
           
@@ -152,7 +158,7 @@ export default function EmployeesPage() {
               setEditingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
               setIsEditorOpen(true);
           } else {
-              // Automatically generate a draft if missing, ensuring the payslip shows even with no prior figures
+              // Automatically generate a draft if missing
               const res = await generateEmployeePayslipAction({
                   clientId,
                   employeeId: employee.id,
