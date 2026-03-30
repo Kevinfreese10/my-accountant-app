@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -68,6 +68,27 @@ function StaffForm({
             department: staffMember?.department || '',
         },
     });
+
+    // Reset form when staffMember changes
+    useEffect(() => {
+        if (staffMember) {
+            form.reset({
+                id: staffMember.id,
+                name: staffMember.name,
+                email: staffMember.email,
+                department: staffMember.department || '',
+                password: '',
+            });
+        } else {
+            form.reset({
+                id: '',
+                name: '',
+                email: '',
+                department: '',
+                password: '',
+            });
+        }
+    }, [staffMember, form]);
 
     return (
         <Form {...form}>
@@ -149,7 +170,6 @@ export default function PartnerStaffPage() {
         where("partnerId", "==", partnerId)
     );
 
-    // Using onSnapshot for real-time updates and proper error handling
     const unsubscribe = onSnapshot(q, async (snapshot) => {
         const partnerDoc = await getDoc(doc(db, "users", partnerId));
         const staffList: User[] = [];
@@ -239,7 +259,6 @@ export default function PartnerStaffPage() {
 
             setDoc(newUserRef, userData)
                 .then(async () => {
-                    // Send invitation email
                     try {
                         await sendAiUserInvite(
                             values.email,
@@ -326,7 +345,6 @@ export default function PartnerStaffPage() {
     
     deleteDoc(userRef)
         .then(async () => {
-            // If we were charging for this member, reduce the monthly total
             if (staff.length > FREE_STAFF_LIMIT + 1) {
                 const partnerRef = doc(db, 'users', partnerId);
                 await updateDoc(partnerRef, {
