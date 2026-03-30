@@ -37,7 +37,7 @@ const staffSchema = z.object({
 });
 
 const BASE_STAFF_FEE = 45;
-const FREE_STAFF_LIMIT = 3; // First 3 additional staff are free
+const FREE_STAFF_LIMIT = 3;
 
 function StaffForm({ 
     staffMember, 
@@ -69,7 +69,6 @@ function StaffForm({
         },
     });
 
-    // Reset form when staffMember changes
     useEffect(() => {
         if (staffMember) {
             form.reset({
@@ -216,14 +215,15 @@ export default function PartnerStaffPage() {
             const userRef = doc(db, "users", values.id);
             const updateData = { 
                 name: values.name, 
-                department: values.department,
+                department: values.department || "General",
                 updatedAt: serverTimestamp()
             };
 
-            updateDoc(userRef, updateData)
+            setDoc(userRef, updateData, { merge: true })
                 .then(() => {
                     toast({ title: 'Staff Member Updated' });
                     setIsFormOpen(false);
+                    setSelectedStaff(null);
                 })
                 .catch(async (error) => {
                     const permissionError = new FirestorePermissionError({
@@ -252,7 +252,7 @@ export default function PartnerStaffPage() {
                 email: values.email,
                 role: 'partner_staff',
                 partnerId: partnerId,
-                department: values.department,
+                department: values.department || "General",
                 status: 'Active',
                 createdAt: serverTimestamp(),
             };
@@ -283,6 +283,7 @@ export default function PartnerStaffPage() {
                         toast({ title: 'Staff Member Added', description: 'Free staff slot utilized.' });
                     }
                     setIsFormOpen(false);
+                    setSelectedStaff(null);
                 })
                 .catch(async (error) => {
                     const permissionError = new FirestorePermissionError({
@@ -366,7 +367,7 @@ export default function PartnerStaffPage() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-            <h1 className="text-3xl font-bold tracking-tight">Practice Team</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-950">Practice Team</h1>
             <p className="text-sm text-muted-foreground mt-1">Manage staff access and practice structure.</p>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
@@ -404,7 +405,7 @@ export default function PartnerStaffPage() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <Dialog open={isFormOpen} onOpenChange={(open) => { setIsFormOpen(open); if(!open) setSelectedStaff(null); }}>
                 <DialogTrigger asChild>
                     <Button onClick={() => setSelectedStaff(null)} className="gap-2">
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Staff
@@ -417,7 +418,7 @@ export default function PartnerStaffPage() {
                     <StaffForm 
                         staffMember={selectedStaff} 
                         onSubmit={handleFormSubmit}
-                        onCancel={() => setIsFormOpen(false)}
+                        onCancel={() => { setIsFormOpen(false); setSelectedStaff(null); }}
                         isLoading={isLoading}
                         canAfford={canAffordStaff}
                         proRata={proRataAmount}
