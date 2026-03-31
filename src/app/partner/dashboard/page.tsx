@@ -34,6 +34,17 @@ import { Progress } from '@/components/ui/progress';
 
 const db = getFirestore(firebaseApp);
 
+const userColors = [
+  'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
+  'bg-yellow-200 text-yellow-800', 'bg-purple-200 text-purple-800', 'bg-pink-200 text-pink-800',
+];
+
+const getUserColor = (userId: string) => {
+  if (!userId) return 'bg-gray-200 text-gray-800';
+  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return userColors[hash % userColors.length];
+};
+
 function TopUpDialog({ partner }: { partner: User }) {
     const [amount, setAmount] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -213,8 +224,8 @@ export default function PartnerDashboardPage() {
       });
 
       const staffRef = collection(db, "users");
-      const staffUnsubscribe = onSnapshot(query(staffRef, where('role', 'in', ['staff', 'admin'])), (snapshot) => {
-          setAllStaff(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User)));
+      const staffUnsubscribe = onSnapshot(query(staffRef, where('role', 'in', ['staff', 'admin', 'partner', 'partner_staff', 'ai_accountant'])), (snapshot) => {
+          setAllStaff(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User)));
       }, async (error) => {
           const permissionError = new FirestorePermissionError({
               path: 'users',
