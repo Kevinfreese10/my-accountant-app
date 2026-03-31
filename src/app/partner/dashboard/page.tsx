@@ -6,7 +6,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive, Wallet2, TrendingUp, Bot, AlertCircle, Sparkles, Settings, CheckCircle2, Circle, RefreshCw } from 'lucide-react';
+import { 
+  Loader2, 
+  ArrowRight, 
+  Banknote, 
+  Building, 
+  Clock, 
+  MoreHorizontal, 
+  PlusCircle, 
+  BrainCircuit, 
+  Briefcase, 
+  Users, 
+  CheckCircle, 
+  BadgeDollarSign, 
+  UserPlus, 
+  MessageSquare, 
+  Inbox, 
+  Archive, 
+  Wallet2, 
+  TrendingUp, 
+  Bot, 
+  AlertCircle, 
+  Sparkles, 
+  Settings, 
+  CheckCircle2, 
+  Circle, 
+  RefreshCw,
+  PartyPopper,
+  MessageSquareQuote,
+  Play,
+  RotateCcw
+} from 'lucide-react';
 import Image from 'next/image';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Order, Service, User, OrderNote, ImportedTransaction } from '@/lib/types';
