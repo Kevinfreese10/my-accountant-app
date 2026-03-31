@@ -45,6 +45,8 @@ import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
 import { Dialog } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 
 const db = getFirestore(firebaseApp);
@@ -235,6 +237,19 @@ export default function AdminOrdersPage() {
         status: newStatus,
         assignedTo: assignedStaffIds || null,
       });
+
+      // SYNC STATUS TO ORIGINAL ORDER IF OUTSOURCED
+      if (orderToUpdate.originalOrderId) {
+          const originalRef = doc(db, 'orders', orderToUpdate.originalOrderId);
+          updateDoc(originalRef, { status: newStatus }).catch(async (error) => {
+              const permissionError = new FirestorePermissionError({
+                  path: originalRef.path,
+                  operation: 'update',
+                  requestResourceData: { status: newStatus }
+              } satisfies SecurityRuleContext);
+              errorEmitter.emit('permission-error', permissionError);
+          });
+      }
 
       // Create a task if moving to processing and a staff member is assigned
       if (newStatus === 'Processing' && assignedStaffIds && assignedStaffIds.length > 0 && user.id) {

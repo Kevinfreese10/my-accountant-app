@@ -114,8 +114,13 @@ export default function AdminOrderDetailsPage() {
           } as Order;
           
           if (fetchedOrder.resellerId && !fetchedOrder.endCustomerEmail) {
-                fetchedOrder.endCustomerName = fetchedOrder.customerName;
-                fetchedOrder.endCustomerEmail = fetchedOrder.customerEmail;
+                const originalOrderRef = doc(db, 'orders', fetchedOrder.originalOrderId!);
+                const originalOrderSnap = await getDoc(originalOrderRef);
+                if (originalOrderSnap.exists()) {
+                    const originalOrderData = originalOrderSnap.data();
+                    fetchedOrder.endCustomerName = originalOrderData.customerName;
+                    fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
+                }
           }
 
           setOrder(fetchedOrder);

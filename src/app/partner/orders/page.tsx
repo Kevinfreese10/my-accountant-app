@@ -214,11 +214,11 @@ export default function PartnerOrdersPage() {
             // 2. Create the main store order
             batch.set(doc(db, 'orders', newOrderId), newOrderData);
     
-            // 3. Update original order status
+            // 3. Update original order status to Processing
             const originalOrderRef = doc(db, 'orders', selectedOrderForOutsource.id);
             batch.update(originalOrderRef, {
                 isOutsourced: true,
-                status: 'Outsourced',
+                status: 'Processing',
                 documentContact: docContactPreference,
             });
 
@@ -399,8 +399,6 @@ export default function PartnerOrdersPage() {
         case 'Completed':
             return 'success';
         case 'Processing':
-            return 'info';
-        case 'Outsourced':
             return 'info';
         case 'Pending Payment':
             return 'warning';
