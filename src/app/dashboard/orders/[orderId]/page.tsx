@@ -301,10 +301,12 @@ export default function ClientOrderDetailsPage() {
     }
   };
 
-  const getStatusVariant = (status: Order['status']) => {
+  const getStatusVariant = (status: Order['status'] | 'Outsourced') => {
     switch (status) {
       case 'Completed': return 'success';
-      case 'Processing': return 'info';
+      case 'Processing':
+      case 'Outsourced':
+        return 'info';
       case 'Pending Payment': return 'warning';
       case 'Cancelled': return 'destructive';
       default: return 'secondary';
@@ -353,7 +355,7 @@ export default function ClientOrderDetailsPage() {
                     <CardHeader>
                         <CardTitle>Order {order.id}</CardTitle>
                         <div className="text-sm text-muted-foreground">
-                        <span>Date: {format(new Date(order.date), 'dd MMMM yyyy')}</span> | <span>Status: </span><Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                        <span>Date: {format(new Date(order.date), 'dd MMMM yyyy')}</span> | <span>Status: </span><Badge variant={getStatusVariant(order.status)}>{order.status === 'Outsourced' ? 'Processing' : order.status}</Badge>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-6">

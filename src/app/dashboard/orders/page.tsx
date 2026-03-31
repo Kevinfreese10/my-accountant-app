@@ -56,10 +56,12 @@ export default function DashboardPage() {
         fetchOrders();
     }, [user]);
 
-    const getStatusVariant = (status: Order['status']) => {
+    const getStatusVariant = (status: Order['status'] | 'Outsourced') => {
         switch (status) {
             case 'Completed': return 'success';
-            case 'Processing': return 'info';
+            case 'Processing':
+            case 'Outsourced':
+                return 'info';
             case 'Pending Payment': return 'warning';
             case 'Cancelled': return 'destructive';
             default: return 'secondary';
@@ -143,7 +145,9 @@ export default function DashboardPage() {
                                         <TableCell className="font-medium">{order.id}</TableCell>
                                         <TableCell>{format(new Date(order.date), 'dd MMMM yyyy')}</TableCell>
                                         <TableCell>
-                                            <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                                            <Badge variant={getStatusVariant(order.status)}>
+                                                {order.status === 'Outsourced' ? 'Processing' : order.status}
+                                            </Badge>
                                         </TableCell>
                                         <TableCell className="text-right">{formatPrice(order.total)}</TableCell>
                                         <TableCell className="text-right">

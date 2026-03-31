@@ -84,11 +84,12 @@ export default function PartnerOutsourcedOrderDetailsPage() {
   }, [id, currentUser]);
 
 
-  const getStatusVariant = (status: Order['status']) => {
+  const getStatusVariant = (status: Order['status'] | 'Outsourced') => {
     switch (status) {
       case 'Completed':
         return 'success';
       case 'Processing':
+      case 'Outsourced':
         return 'info';
       case 'Pending Payment':
         return 'warning';
@@ -132,7 +133,7 @@ export default function PartnerOutsourcedOrderDetailsPage() {
                     <CardHeader>
                         <CardTitle>Order {order.id}</CardTitle>
                         <CardDescription>
-                        Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                        Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status === 'Outsourced' ? 'Processing' : order.status}</Badge>
                         </CardDescription>
                     </CardHeader>
                     <CardContent>

@@ -338,11 +338,12 @@ export default function AdminOrdersPage() {
     return allStaff.find(u => u.id === userId);
   }
 
-  const getStatusVariant = (status: Order['status']) => {
+  const getStatusVariant = (status: Order['status'] | 'Outsourced') => {
     switch (status) {
       case 'Completed':
         return 'success';
       case 'Processing':
+      case 'Outsourced':
         return 'info';
       case 'Pending Payment':
         return 'warning';
@@ -446,7 +447,7 @@ export default function AdminOrdersPage() {
                         </TableCell>
                         <TableCell>
                         <Badge variant={getStatusVariant(order.status)}>
-                            {order.status}
+                            {order.status === 'Outsourced' ? 'Processing' : order.status}
                         </Badge>
                         </TableCell>
                         <TableCell>

@@ -280,10 +280,12 @@ export default function AdminOrderDetailsPage() {
     }
   };
 
-  const getStatusVariant = (status: Order['status']) => {
+  const getStatusVariant = (status: Order['status'] | 'Outsourced') => {
     switch (status) {
       case 'Completed': return 'success';
-      case 'Processing': return 'info';
+      case 'Processing':
+      case 'Outsourced':
+        return 'info';
       case 'Pending Payment': return 'warning';
       case 'Cancelled': return 'destructive';
       default: return 'secondary';
@@ -464,7 +466,7 @@ export default function AdminOrderDetailsPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Order {order.originalOrderId || order.id}</CardTitle>
-                            <div className="text-sm text-muted-foreground">Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge></div>
+                            <div className="text-sm text-muted-foreground">Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status === 'Outsourced' ? 'Processing' : order.status}</Badge></div>
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -523,7 +525,7 @@ export default function AdminOrderDetailsPage() {
                             <Form {...noteForm}>
                             <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="space-y-4">
                                 <FormField control={noteForm.control} name="noteText" render={({ field }) => ( <FormItem><FormControl><Textarea placeholder="Add a new note..." {...field} rows={4} /></FormControl><FormMessage /></FormItem> )} />
-                                <FormField control={noteForm.control} name="attachments" render={({ field: { onChange, value, ...rest }}) => ( <FormItem><FormLabel>Attachments (optional)</FormLabel><FormControl><Input type="file" multiple onChange={(e) => onChange(e.target.files)} {...rest} /></FormControl><FormMessage /></FormItem> )} />
+                                <FormField control={form.control} name="attachments" render={({ field: { onChange, value, ...rest }}) => ( <FormItem><FormLabel>Attachments (optional)</FormLabel><FormControl><Input type="file" multiple onChange={(e) => onChange(e.target.files)} {...rest} /></FormControl><FormMessage /></FormItem> )} />
                                 <div className="flex justify-between items-center"><div className="flex gap-2"><Button type="submit" size="sm" disabled={isLoading}>{isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}Post Note</Button><Button type="button" variant="outline" size="sm" onClick={handleProofread} disabled={isProofreading}>{isProofreading ? <Loader2 className="mr-2 h-4 w-4 animate-spin mr-2" /> : <Sparkles className="mr-2" />}Proofread</Button></div></div>
                             </form>
                             </Form>

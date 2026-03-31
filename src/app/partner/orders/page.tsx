@@ -394,11 +394,12 @@ export default function PartnerOrdersPage() {
     }
   };
 
-    const getStatusVariant = (status: Order['status']) => {
+    const getStatusVariant = (status: Order['status'] | 'Outsourced') => {
         switch (status) {
         case 'Completed':
             return 'success';
         case 'Processing':
+        case 'Outsourced':
             return 'info';
         case 'Pending Payment':
             return 'warning';
@@ -556,7 +557,7 @@ export default function PartnerOrdersPage() {
                             </TableCell>
                             <TableCell>
                             <Badge variant={getStatusVariant(order.status)}>
-                                {order.status}
+                                {order.status === 'Outsourced' ? 'Processing' : order.status}
                             </Badge>
                             </TableCell>
                             <TableCell>
