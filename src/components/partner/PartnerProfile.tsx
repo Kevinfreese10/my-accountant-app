@@ -13,16 +13,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   Loader2, 
-  BrainCircuit, 
   Globe, 
   Layout, 
   Palette, 
   ExternalLink as ExternalLinkIcon, 
-  ShieldCheck, 
-  Mail, 
   Upload, 
   Image as ImageIcon, 
-  Info, 
   CheckCircle2, 
   Circle, 
   PartyPopper, 
@@ -39,9 +35,7 @@ import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { sendEmail } from '@/lib/email';
 import { Slider } from '../ui/slider';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 
@@ -56,13 +50,6 @@ const formSchema = z.object({
   surname: z.string().min(2, 'Contact surname is required.'),
   email: z.string().email('Please enter a valid email.'),
   contactNumber: z.string().min(10, 'A valid contact number is required.'),
-  geminiApiKey: z.string().optional(),
-  smtpDetails: z.object({
-      host: z.string().optional(),
-      port: z.string().optional(),
-      user: z.string().optional(),
-      pass: z.string().optional(),
-  }).optional(),
   address: z.object({
       street: z.string().optional(),
       suburb: z.string().optional(),
@@ -158,7 +145,6 @@ export default function PartnerProfile() {
   const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
-  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingHero, setIsUploadingHero] = useState(false);
   const [isUploadingServicesHero, setIsUploadingServicesHero] = useState(false);
@@ -172,13 +158,6 @@ export default function PartnerProfile() {
       surname: user?.name?.split(' ').slice(1).join(' ') || user?.contactPerson?.split(' ').slice(1).join(' ') || '',
       email: user?.email || '',
       contactNumber: user?.contactNumber || '',
-      geminiApiKey: user?.geminiApiKey || '',
-      smtpDetails: {
-          host: user?.smtpDetails?.host || '',
-          port: user?.smtpDetails?.port || '465',
-          user: user?.smtpDetails?.user || '',
-          pass: user?.smtpDetails?.pass || '',
-      },
       address: { 
           street: user?.address?.street || '', 
           suburb: user?.address?.suburb || '', 
@@ -232,8 +211,6 @@ export default function PartnerProfile() {
   });
 
   const { setValue, watch } = form;
-  const watchedSmtp = watch('smtpDetails');
-  const watchedAiKey = watch('geminiApiKey');
   const watchedBanking = watch('bankingDetails');
   const watchedLp = watch('landingPage');
   const themePreset = watch('landingPage.themePreset');
@@ -249,14 +226,12 @@ export default function PartnerProfile() {
 
   const checklist = useMemo(() => {
       return [
-          { label: 'Email SMTP Settings', done: !!(watchedSmtp?.host && watchedSmtp?.user && watchedSmtp?.pass), description: 'Required for white-label client notifications.' },
-          { label: 'AI Configuration & Quotas', done: !!watchedAiKey, description: 'Enable AI-powered transaction matching.' },
           { label: 'Update Pricing', done: overrideCount > 0, description: 'Set your markups in the Services tab.' },
           { label: 'Update Banking Details', done: !!(watchedBanking?.bankName && watchedBanking?.accountNumber), description: 'Required for client EFT payments.' },
           { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },
           { label: 'Branding & Theme', done: watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392'), description: 'Apply your custom colors and styling.' },
       ];
-  }, [watchedSmtp, watchedAiKey, watchedBanking, watchedLp, overrideCount]);
+  }, [watchedBanking, watchedLp, overrideCount]);
 
   const progressPercentage = useMemo(() => {
       const completed = checklist.filter(i => i.done).length;
@@ -307,8 +282,6 @@ export default function PartnerProfile() {
         const updateData = {
             companyName: values.companyName,
             contactNumber: values.contactNumber,
-            geminiApiKey: values.geminiApiKey || '',
-            smtpDetails: values.smtpDetails,
             address: values.address,
             bankingDetails: values.bankingDetails,
             name: `${values.name} ${values.surname}`,
@@ -323,29 +296,6 @@ export default function PartnerProfile() {
     } finally {
         setIsSaving(false);
     }
-  }
-
-  const handleTestSmtp = async () => {
-      const values = form.getValues();
-      if (!values.smtpDetails?.host || !values.smtpDetails?.user || !values.smtpDetails?.pass) {
-          toast({ title: 'Configuration Incomplete', variant: 'destructive' });
-          return;
-      }
-      setIsTestingSmtp(true);
-      try {
-          await sendEmail({
-              to: values.email,
-              subject: `SMTP Test from ${values.companyName}`,
-              html: `<p>This is a test email to confirm your practice's SMTP settings are working correctly.</p><p>Sent from: <strong>${values.companyName}</strong></p>`,
-              smtpOverride: { host: values.smtpDetails.host, port: values.smtpDetails.port || '465', user: values.smtpDetails.user, pass: values.smtpDetails.pass },
-              fromNameOverride: values.companyName
-          });
-          toast({ title: 'Test Successful!', description: `A test email has been sent to ${values.email}.` });
-      } catch (e: any) {
-          toast({ title: 'SMTP Test Failed', description: e.message || 'Could not connect.', variant: 'destructive' });
-      } finally {
-          setIsTestingSmtp(false);
-      }
   }
 
   const landingPageEnabled = watch('landingPage.enabled');
@@ -433,40 +383,12 @@ export default function PartnerProfile() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel className="text-xs">Street Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Suburb</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel className="text-xs">City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="address.province" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Province</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel className="text-xs">ZIP / Postal Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Suburb</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel className="text-xs">City</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="address.province" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Province</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel className="text-xs">ZIP / Postal Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                     </div>
                 </div>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-                <h3 className="text-xl font-bold flex items-center gap-2"><Mail className="h-5 w-5 text-primary" /> Email SMTP Settings</h3>
-                <Card className="bg-muted/30 border-2">
-                    <CardHeader>
-                        <CardTitle className="text-sm">Outgoing Mail Server</CardTitle>
-                        <Alert className="bg-blue-50 border-blue-200 text-blue-800 mt-2">
-                            <Info className="h-4 w-4" />
-                            <AlertTitle className="font-bold text-xs">Default Email Settings</AlertTitle>
-                            <AlertDescription className="text-[10px]">Leave blank to use <strong>no_reply@myacc.co.za</strong>. Your practice name will still show as the sender.</AlertDescription>
-                        </Alert>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                        <FormField control={form.control} name="smtpDetails.host" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Host</FormLabel><FormControl><Input placeholder="e.g. smtp.gmail.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="smtpDetails.port" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Port</FormLabel><FormControl><Input placeholder="e.g. 465" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="smtpDetails.user" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Username</FormLabel><FormControl><Input placeholder="your@email.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="smtpDetails.pass" render={({ field }) => ( <FormItem><FormLabel className="text-xs">SMTP Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    </CardContent>
-                    <CardFooter className="bg-muted/50 justify-between py-3">
-                        <p className="text-[10px] text-muted-foreground italic">Required for white-label notifications.</p>
-                        <Button type="button" variant="outline" size="sm" onClick={handleTestSmtp} disabled={isTestingSmtp} className="font-bold">
-                            {isTestingSmtp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Test SMTP
-                        </Button>
-                    </CardFooter>
-                </Card>
             </div>
 
             <Separator />
@@ -673,25 +595,6 @@ export default function PartnerProfile() {
             <Separator />
 
             <div className="space-y-4">
-                <h3 className="text-xl font-bold flex items-center gap-2"><BrainCircuit className="h-5 w-5 text-primary" /> AI Configuration</h3>
-                <Card className="border-primary/20 bg-primary/5 border-2 shadow-inner">
-                    <CardHeader><CardTitle className="text-sm">Gemini AI Integration</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                        <FormField control={form.control} name="geminiApiKey" render={({ field }) => ( 
-                            <FormItem>
-                                <FormLabel className="text-xs">Google Gemini API Key</FormLabel>
-                                <FormControl><Input type="password" placeholder="Enter key..." {...field} className="bg-white" /></FormControl>
-                                <FormDescription className="text-[10px]">Required for automated bank statement processing.</FormDescription>
-                                <FormMessage />
-                            </FormItem> 
-                        )} />
-                    </CardContent>
-                </Card>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
                 <h3 className="text-xl font-bold flex items-center gap-2">
                     <ImageIcon className="h-5 w-5 text-primary" />
                     Banking Details (For Client EFTs)
@@ -706,7 +609,7 @@ export default function PartnerProfile() {
             
             <Separator />
             <Button type="submit" disabled={isSaving} className="w-full h-14 text-lg font-black shadow-xl">
-                {isSaving && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save All Practice Settings
             </Button>
         </form>

@@ -22,6 +22,7 @@ import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import CreatePartnerOrderForm from '@/components/partner/CreatePartnerOrderForm';
 import { useRouter } from 'next/navigation';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -212,7 +213,6 @@ export default function PartnerDashboardPage() {
       };
       setIsLoading(true);
 
-      // Listen to Practice Profile for Wallet Balance
       const unsubPractice = onSnapshot(doc(db, 'users', partnerId), (snap) => {
           if (snap.exists()) setPracticeProfile({ ...snap.data(), id: snap.id } as User);
       }, async (error) => {
@@ -276,7 +276,6 @@ export default function PartnerDashboardPage() {
           errorEmitter.emit('permission-error', permissionError);
       });
 
-      // Count pending transactions for Partner's own chat
       const transRef = collection(db, 'aiAccountantClients', partnerId, 'transactions');
       const transQ = query(transRef, where('status', 'in', ['new', 'ai_review']));
       const unsubTrans = onSnapshot(transQ, (snap) => {
@@ -294,14 +293,10 @@ export default function PartnerDashboardPage() {
 
     const setupChecklist = useMemo(() => {
         if (!user) return [];
-        const watchedSmtp = user.smtpDetails;
-        const watchedAiKey = user.geminiApiKey;
         const watchedBanking = user.bankingDetails;
         const watchedLp = user.landingPage || {};
 
         return [
-            { label: 'Email SMTP Settings', done: !!(watchedSmtp?.host && watchedSmtp?.user && watchedSmtp?.pass), description: 'Required for white-label client notifications.' },
-            { label: 'AI Configuration & Quotas', done: !!watchedAiKey, description: 'Enable AI-powered transaction matching.' },
             { label: 'Update Pricing', done: overrideCount > 0, description: 'Set your markups in the Services tab.' },
             { label: 'Update Banking Details', done: !!(watchedBanking?.bankName && watchedBanking?.accountNumber), description: 'Required for client EFT payments.' },
             { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },

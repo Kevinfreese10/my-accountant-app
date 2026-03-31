@@ -22,8 +22,8 @@ type EmailPayload = {
 }
 
 /**
- * Sends an email using either global or partner-specific SMTP settings.
- * Ensures white-labeling by adjusting 'From' name and 'Reply-To' for partner orders.
+ * Sends an email using global store credentials.
+ * Ensures white-labeling by adjusting 'From' name and 'Reply-To' based on resellerId.
  */
 export async function sendEmail({ 
     to, 
@@ -54,12 +54,11 @@ export async function sendEmail({
   };
 
   let fromName = fromNameOverride || "My Accountant";
-  // Fallback to no_reply@myacc.co.za if env variable is not set
   let fromEmail = process.env.SMTP_USER || 'no_reply@myacc.co.za';
   let finalBcc = Array.isArray(bcc) ? [...bcc] : (bcc ? [bcc] : []);
   let finalReplyTo = replyTo;
 
-  // 2. Apply explicit SMTP overrides (e.g., from profile test button)
+  // 2. Apply explicit SMTP overrides (primarily for admin internal tests)
   if (smtpOverride && smtpOverride.host && smtpOverride.user && smtpOverride.pass) {
       transportConfig = {
           host: smtpOverride.host,
@@ -76,10 +75,9 @@ export async function sendEmail({
       fromEmail = smtpOverride.user;
   }
 
-  // 3. Handle Partner White-Labeling (If resellerId provided)
+  // 3. Handle Reseller White-Labeling
   if (resellerId && !smtpOverride) {
     try {
-      // Fetch partner profile to get branding and custom SMTP if available
       let partnerData: User | null = null;
       const userRef = doc(db, 'users', resellerId);
       const userSnap = await getDoc(userRef);
@@ -95,47 +93,29 @@ export async function sendEmail({
       }
       
       if (partnerData) {
-        // Set white-label Display Name
+        // Set white-label Display Name (e.g. "Acme Consulting")
         if (!fromNameOverride) {
             fromName = partnerData.companyName || partnerData.name;
         }
 
-        // Set Reply-To to partner email so client responses go to them
+        // Set Reply-To to partner email so client responses go to the partner, not the master store
         if (!finalReplyTo) {
             finalReplyTo = partnerData.email;
         }
         
-        // If partner has configured their own SMTP, use it for true white-label delivery
-        if (partnerData.smtpDetails?.host && partnerData.smtpDetails?.user && partnerData.smtpDetails?.pass) {
-          transportConfig = {
-            host: partnerData.smtpDetails.host,
-            port: Number(partnerData.smtpDetails.port || 465),
-            secure: String(partnerData.smtpDetails.port) === '465',
-            auth: {
-              user: partnerData.smtpDetails.user,
-              pass: partnerData.smtpDetails.pass,
-            },
-            tls: {
-              rejectUnauthorized: false
-            }
-          };
-          // Update the authenticated sender address
-          fromEmail = partnerData.smtpDetails.user;
-          
-          // Blind-copy the partner on their own client notifications for their records
-          if (!finalBcc.includes(partnerData.email)) {
+        // Use system SMTP for delivery (no_reply@myacc.co.za)
+        // But BCC the partner so they have a copy of the notification sent to their client
+        if (!finalBcc.includes(partnerData.email)) {
             finalBcc.push(partnerData.email);
-          }
         }
       }
     } catch (error) {
-      console.error('Error fetching partner details for email:', error);
-      // Non-blocking: falls back to default SMTP if lookup fails
+      console.error('Error fetching reseller details for email branding:', error);
     }
   }
   
   if (!transportConfig.host || !transportConfig.auth.user || !transportConfig.auth.pass) {
-      console.error('SMTP configuration is missing. Cannot send email.');
+      console.error('Master SMTP configuration is missing.');
       throw new Error('Email server is not configured.');
   }
 
@@ -153,7 +133,6 @@ export async function sendEmail({
           attachments: attachments,
           replyTo: finalReplyTo,
       });
-      console.log('Email sent successfully:', info.messageId, 'from:', fromAddress);
       return info;
   } catch (error: any) {
       console.error('Nodemailer Error:', error);
