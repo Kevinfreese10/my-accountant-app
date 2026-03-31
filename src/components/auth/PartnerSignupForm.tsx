@@ -147,7 +147,7 @@ export default function PartnerSignupForm() {
         
         const contactPersonFullName = `${values.name} ${values.surname}`;
 
-        // 1. Create the User Document
+        // 1. Create the User Document - Status is Active as it is now FREE to join
         const newUserDocRef = doc(db, "users", authUid);
         await setDoc(newUserDocRef, {
             ...partnerData,
@@ -157,46 +157,22 @@ export default function PartnerSignupForm() {
             id: authUid,
             uid: authUid,
             role: 'partner',
-            status: 'Pending Setup Payment', // User is inactive until R4950 is paid
+            status: 'Active', 
             creditBalance: 0,
             createdAt: serverTimestamp(),
             cvUrl: cvUrl,
             certificateUrl: certificateUrl,
             subscription: {
-                monthlyTotal: 499,
+                monthlyTotal: 0,
                 subscriptionStatus: 'active',
                 lastBillingDate: serverTimestamp(),
             }
         });
 
-        // 2. Create the Setup Order
-        const orderId = await getNextOrderId();
-        const setupOrder: Order = {
-            id: orderId,
-            userId: authUid,
-            customerName: contactPersonFullName,
-            customerEmail: values.email,
-            customerPhone: values.contactNumber,
-            items: [{
-                id: 'partner_setup_fee',
-                title: 'BEI Practice Setup, Onboarding & R2,475 Credits',
-                price: 4950,
-                quantity: 1,
-            }],
-            total: 4950,
-            discountCode: null,
-            discountAmount: null,
-            status: 'Pending Payment',
-            date: Timestamp.now(),
-            source: 'Partner',
-            resellerId: authUid,
-        };
-        await setDoc(doc(db, 'orders', orderId), setupOrder);
-
-        // 3. Trigger manual re-auth logic to link the new doc
+        // 2. Trigger manual re-auth logic to link the new doc
         await reauthenticate(newFirebaseUser);
 
-        // 4. Send welcome email (credentials)
+        // 3. Send welcome email (credentials)
         try {
             const emailHtml = render(<PartnerWelcomeEmail 
                 partnerName={values.name} 
@@ -208,7 +184,7 @@ export default function PartnerSignupForm() {
             await sendEmail({
                 to: values.email,
                 cc: 'kev@thinkestry.co.za',
-                subject: `Practice Account Registered: #${orderId}`,
+                subject: `Welcome to the My Accountant Partner Program!`,
                 html: emailHtml,
             });
         } catch (e) {
@@ -217,11 +193,10 @@ export default function PartnerSignupForm() {
         
         toast({
             title: 'Account Created',
-            description: `Redirecting to payment for setup fee.`,
+            description: `Welcome! Redirecting to your dashboard.`,
         });
         
-        // Redirect to order confirmation for the setup fee
-        router.push(`/order-confirmation/${orderId}`);
+        router.push(`/partner/dashboard`);
 
     } catch (error: any) {
         console.error("Partner signup error:", error);
@@ -377,21 +352,6 @@ export default function PartnerSignupForm() {
 
                 <Separator />
 
-                <div className="bg-primary/5 p-6 rounded-lg border border-primary/10 space-y-4">
-                    <h3 className="text-lg font-bold flex items-center gap-2 text-slate-900">
-                        <Wallet2 className="h-5 w-5 text-primary" />
-                        Setup Fee: R4,950
-                    </h3>
-                    <div className="space-y-2 text-sm text-muted-foreground leading-relaxed">
-                        <p>Joining the BEI involves a mandatory setup fee which includes:</p>
-                        <ul className="space-y-1 list-disc pl-5">
-                            <li>White-label platform & landing page configuration</li>
-                            <li>Personalized onboarding & re-branding training</li>
-                            <li><strong>R2,475 Practice Credits</strong> loaded to your wallet</li>
-                        </ul>
-                    </div>
-                </div>
-
                 <FormField
                     control={form.control}
                     name="agreeTerms"
@@ -403,7 +363,7 @@ export default function PartnerSignupForm() {
                                 </FormControl>
                                 <div className="space-y-1 leading-none">
                                     <FormLabel className="cursor-pointer font-medium">
-                                        I agree to the <Link href="/terms" className="underline font-bold" target="_blank">terms and conditions</Link> and understand that the R4,950 setup fee is required to activate my account.
+                                        I agree to the <Link href="/terms" className="underline font-bold" target="_blank">terms and conditions</Link> of the My Accountant Partner Program.
                                     </FormLabel>
                                 </div>
                             </div>
@@ -416,7 +376,7 @@ export default function PartnerSignupForm() {
                     <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-1/3 h-12 font-bold" disabled={isLoading}>Back</Button>
                     <Button type="submit" className="w-2/3 h-12 text-lg font-black shadow-xl" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isLoading ? 'Processing...' : 'Complete & Pay Setup Fee'}
+                        {isLoading ? 'Creating Account...' : 'Complete Registration'}
                     </Button>
                 </div>
             </div>
