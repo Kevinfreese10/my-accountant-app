@@ -1,9 +1,8 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
@@ -298,7 +297,11 @@ export default function PartnerDashboardPage() {
             { label: 'Update Pricing', done: overrideCount > 0, description: 'Set your markups in the Services tab.' },
             { label: 'Update Banking Details', done: !!(watchedBanking?.bankName && watchedBanking?.accountNumber), description: 'Required for client EFT payments.' },
             { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },
-            { label: 'Branding & Theme', done: watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392'), description: 'Apply your custom colors and styling.' },
+            { 
+                label: 'Branding & Theme', 
+                done: !!watchedLp.themePreset && (watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392')), 
+                description: 'Apply your custom colors and styling.' 
+            },
         ];
     }, [user, practiceProfile, overrideCount]);
 
@@ -380,6 +383,7 @@ export default function PartnerDashboardPage() {
                                     <CardTitle className="text-lg">Practice Setup Progress</CardTitle>
                                 </div>
                                 <Badge variant={progressPercentage === 100 ? "success" : "secondary"} className="font-bold">
+                                    {progressPercentage === 100 && <PartyPopper className="h-3 w-3 mr-1" />}
                                     {progressPercentage}% Complete
                                 </Badge>
                             </div>
@@ -390,7 +394,7 @@ export default function PartnerDashboardPage() {
                                 {setupChecklist.map((item, idx) => (
                                     <div key={idx} className={cn("p-3 rounded-lg border flex flex-col gap-1 transition-all", item.done ? "bg-green-50/50 border-green-200" : "bg-muted/30 border-muted opacity-70")}>
                                         <div className="flex items-center gap-2">
-                                            {item.done ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> : <Circle className="h-4 w-4 text-muted-foreground shrink-0 opacity-30" />}
+                                            {item.done ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> : <Circle className="h-4 w-4 text-muted-foreground shrink-0" />}
                                             <span className={cn("text-xs font-bold truncate", item.done ? "text-green-800" : "text-slate-600")}>{item.label}</span>
                                         </div>
                                         <p className="text-[9px] text-muted-foreground leading-tight italic ml-6">{item.description}</p>

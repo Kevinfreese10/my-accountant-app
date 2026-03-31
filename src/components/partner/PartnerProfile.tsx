@@ -1,4 +1,3 @@
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -234,7 +233,11 @@ export default function PartnerProfile() {
           { label: 'Update Pricing', done: overrideCount > 0, description: 'Set your markups in the Services tab.' },
           { label: 'Update Banking Details', done: !!(watchedBanking?.bankName && watchedBanking?.accountNumber), description: 'Required for client EFT payments.' },
           { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },
-          { label: 'Branding & Theme', done: watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392'), description: 'Apply your custom colors and styling.' },
+          { 
+              label: 'Branding & Theme', 
+              done: !!watchedLp.themePreset && (watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392')), 
+              description: 'Apply your custom colors and styling.' 
+          },
       ];
   }, [watchedBanking, watchedLp, overrideCount]);
 
@@ -395,6 +398,21 @@ export default function PartnerProfile() {
                         <FormField control={form.control} name="address.province" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Province</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                         <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel className="text-xs">ZIP / Postal Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                     </div>
+                </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-primary" />
+                    Banking Details (For Client EFTs)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                     <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
             </div>
 
@@ -599,21 +617,6 @@ export default function PartnerProfile() {
                 )}
             </div>
 
-            <Separator />
-
-            <div className="space-y-4">
-                <h3 className="text-xl font-bold flex items-center gap-2">
-                    <ImageIcon className="h-5 w-5 text-primary" />
-                    Banking Details (For Client EFTs)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                     <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                     <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                     <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                     <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-            </div>
-            
             <Separator />
             <Button type="submit" disabled={isSaving} className="w-full h-14 text-lg font-black shadow-xl">
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
