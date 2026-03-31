@@ -216,13 +216,14 @@ export default function PartnerProfile() {
   const themePreset = watch('landingPage.themePreset');
 
   useEffect(() => {
-      if (!user?.uid) return;
+      const pId = user?.role === 'partner' ? user.uid : user?.partnerId;
+      if (!pId) return;
       const fetchOverrides = async () => {
-          const snap = await getDocs(collection(db, 'users', user.uid, 'serviceOverrides'));
+          const snap = await getDocs(collection(db, 'users', pId, 'serviceOverrides'));
           setOverrideCount(snap.size);
       };
       fetchOverrides();
-  }, [user?.uid]);
+  }, [user]);
 
   const checklist = useMemo(() => {
       return [

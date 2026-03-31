@@ -215,12 +215,14 @@ export default function PartnerDashboardPage() {
 
       const unsubPractice = onSnapshot(doc(db, 'users', partnerId), (snap) => {
           if (snap.exists()) setPracticeProfile({ ...snap.data(), id: snap.id } as User);
+          setIsLoading(false);
       }, async (error) => {
           const permissionError = new FirestorePermissionError({
               path: `users/${partnerId}`,
               operation: 'get',
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
+          setIsLoading(false);
       });
 
       const staffRef = collection(db, "users");
@@ -247,14 +249,12 @@ export default function PartnerDashboardPage() {
             } as Order;
           });
           setOrders(clientOrders.filter(order => order.status !== 'Cancelled'));
-          setIsLoading(false);
       }, async (error) => {
           const permissionError = new FirestorePermissionError({
               path: 'orders',
               operation: 'list',
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
-          setIsLoading(false);
       });
 
       const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', partnerId), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
@@ -292,9 +292,11 @@ export default function PartnerDashboardPage() {
     }, [user?.uid, partnerId]);
 
     const setupChecklist = useMemo(() => {
-        if (!user) return [];
-        const watchedBanking = user.bankingDetails;
-        const watchedLp = user.landingPage || {};
+        const source = practiceProfile || user;
+        if (!source) return [];
+        
+        const watchedBanking = source.bankingDetails;
+        const watchedLp = source.landingPage || {};
 
         return [
             { label: 'Update Pricing', done: overrideCount > 0, description: 'Set your markups in the Services tab.' },
@@ -302,7 +304,7 @@ export default function PartnerDashboardPage() {
             { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },
             { label: 'Branding & Theme', done: watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392'), description: 'Apply your custom colors and styling.' },
         ];
-    }, [user, overrideCount]);
+    }, [user, practiceProfile, overrideCount]);
 
     const progressPercentage = useMemo(() => {
         const completed = setupChecklist.filter(i => i.done).length;
@@ -388,14 +390,15 @@ export default function PartnerDashboardPage() {
                                 </div>
                                 <Progress value={progressPercentage} className="h-2 mt-4" />
                             </CardHeader>
-                            <CardContent className="pt-4">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                            <CardContent className="pt-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                     {setupChecklist.map((item, idx) => (
-                                        <div key={idx} className="flex items-center gap-3">
-                                            {item.done ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> : <Circle className="h-4 w-4 text-muted-foreground shrink-0 opacity-30" />}
-                                            <div className="flex-1 overflow-hidden">
-                                                <p className={cn("text-xs font-bold truncate", item.done ? "text-green-800" : "text-muted-foreground")}>{item.label}</p>
+                                        <div key={idx} className={cn("p-3 rounded-lg border flex flex-col gap-1 transition-all", item.done ? "bg-green-50/50 border-green-200" : "bg-muted/30 border-muted opacity-70")}>
+                                            <div className="flex items-center gap-2">
+                                                {item.done ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> : <Circle className="h-4 w-4 text-muted-foreground shrink-0 opacity-30" />}
+                                                <span className={cn("text-xs font-bold truncate", item.done ? "text-green-800" : "text-slate-600")}>{item.label}</span>
                                             </div>
+                                            <p className="text-[9px] text-muted-foreground leading-tight italic ml-6">{item.description}</p>
                                         </div>
                                     ))}
                                 </div>

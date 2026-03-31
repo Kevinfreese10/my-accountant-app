@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -58,7 +57,6 @@ function PartnerProfileDialog({
                 
                 <ScrollArea className="flex-grow p-6">
                     <div className="space-y-8 pb-4">
-                        {/* Application Status */}
                         <section className="space-y-4">
                             <div className="flex items-center gap-2 text-primary font-bold uppercase text-[10px] tracking-widest">
                                 <Briefcase className="h-3.5 w-3.5" /> Outsourcing Application
@@ -86,7 +84,6 @@ function PartnerProfileDialog({
                             </div>
                         </section>
 
-                        {/* Verified Documents */}
                         {partner.wantsOutsourcedWork && (
                             <section className="space-y-4">
                                 <div className="flex items-center gap-2 text-primary font-bold uppercase text-[10px] tracking-widest">
@@ -123,7 +120,6 @@ function PartnerProfileDialog({
                             </section>
                         )}
 
-                        {/* Service Expertise */}
                         {expertise.length > 0 && (
                             <section className="space-y-4">
                                 <div className="flex items-center gap-2 text-primary font-bold uppercase text-[10px] tracking-widest">
@@ -141,7 +137,6 @@ function PartnerProfileDialog({
 
                         <Separator />
 
-                        {/* Contact & Banking */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <section className="space-y-3">
                                 <h4 className="text-xs font-black uppercase text-muted-foreground tracking-widest">Contact Details</h4>
@@ -298,11 +293,9 @@ export default function AdminPartnersPage() {
 
   const getSetupChecklist = (p: User) => {
       return [
-          { label: 'SMTP', done: !!(p.smtpDetails?.host && p.smtpDetails?.user) },
-          { label: 'AI Key', done: !!p.geminiApiKey },
           { label: 'Bank Info', done: !!(p.bankingDetails?.bankName && p.bankingDetails?.accountNumber) },
           { label: 'Landing Page', done: !!(p.landingPage?.enabled && p.landingPage?.slug) },
-          { label: 'Branding', done: p.landingPage?.themePreset !== 'custom' || p.landingPage?.primaryColor !== '#214392' },
+          { label: 'Branding', done: p.landingPage?.themePreset !== 'custom' || (p.landingPage?.primaryColor && p.landingPage?.primaryColor !== '#214392') },
           { label: 'Content', done: (p.landingPage?.aboutUs?.length || 0) > 50 },
       ];
   };
@@ -326,8 +319,8 @@ export default function AdminPartnersPage() {
                 <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
                     <p>Hi ${partner.contactPerson?.split(' ')[0] || partner.name.split(' ')[0]},</p>
                     <p>I hope you're having a great week.</p>
-                    <p>I noticed that your practice setup on the My Accountant BEI platform isn't quite complete yet. I'm reaching out to see if you need any assistance with the configuration, such as setting up your white-label SMTP server, your Gemini AI Key, or customizing your practice landing page.</p>
-                    <p>Our goal is to make sure you have everything you need to start scaling your firm efficiently. If you have any questions or would like a quick walkthrough of the dashboard features, please feel free to reply to this email or give us a call.</p>
+                    <p>I noticed that your practice setup on the My Accountant BEI platform isn't quite complete yet. I'm reaching out to see if you need any assistance with the configuration, such as setting up your practice banking details or customizing your landing page content.</p>
+                    <p>Our goal is to make sure you have everything you need to start scaling your firm efficiently. If you have any questions, please feel free to reply to this email.</p>
                     <br/>
                     <p>Regards,</p>
                     <p><strong>${currentUser.name}</strong><br/>My Accountant Support Team</p>
