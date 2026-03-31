@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Service } from '@/lib/types';
@@ -44,7 +45,7 @@ function EditServiceDialog({
       turnaroundTime: z.string().min(1, "Turnaround time is required"),
       metaTitle: z.string().optional(),
       metaDescription: z.string().optional(),
-      metaKeywords: z.array(z.string()).optional(),
+      metaKeywords: z.array(z.object({ value: z.string() })).optional(),
       whatsIncluded: z.array(z.object({ value: z.string().min(1, "Item cannot be empty") })),
       clientRequirements: z.array(z.object({ value: z.string().min(1, "Prerequisite cannot be empty") })),
     });
@@ -57,9 +58,9 @@ function EditServiceDialog({
             description: override?.description || service.description,
             longDescription: override?.longDescription || service.longDescription,
             turnaroundTime: override?.turnaroundTime || service.turnaroundTime,
-            metaTitle: override?.metaTitle || service.metaTitle || '',
-            metaDescription: override?.metaDescription || service.metaDescription || '',
-            metaKeywords: override?.metaKeywords || service.metaKeywords || [],
+            metaTitle: override?.metaTitle || service.metaTitle || `${service.title} | My Accountant`,
+            metaDescription: override?.metaDescription || service.metaDescription || service.description,
+            metaKeywords: (override?.metaKeywords || service.metaKeywords || []).map((v: string) => ({ value: v })),
             whatsIncluded: (override?.whatsIncluded || service.whatsIncluded || []).map((v: string) => ({ value: v })),
             clientRequirements: (override?.clientRequirements || service.clientRequirements || []).map((v: string) => ({ value: v })),
         },
@@ -82,6 +83,7 @@ function EditServiceDialog({
                 ...values,
                 whatsIncluded: values.whatsIncluded.map(v => v.value),
                 clientRequirements: values.clientRequirements.map(v => v.value),
+                metaKeywords: values.metaKeywords?.map(v => v.value) || [],
             };
             const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
             await setDoc(overrideRef, finalValues);
@@ -137,7 +139,6 @@ function EditServiceDialog({
                         
                         <Separator />
                         
-                        {/* Whats Included */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-bold uppercase tracking-wider text-primary">What's Included</h4>
@@ -164,7 +165,6 @@ function EditServiceDialog({
 
                         <Separator />
 
-                        {/* Prerequisites */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-bold uppercase tracking-wider text-primary">Prerequisites</h4>
@@ -243,7 +243,7 @@ export default function PartnerServicesPage() {
 
   useEffect(() => {
     fetchServices();
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     if (!partnerId) return;
@@ -261,59 +261,44 @@ export default function PartnerServicesPage() {
     const practiceName = user.companyName || user.name;
     
     setIsApplyingBranding(true);
-    toast({ title: 'Applying Branding...', description: `Replacing "My Accountant" with "${practiceName}" across all services and SEO metadata.` });
+    toast({ title: 'Applying Branding...', description: `Updating all services to display "${practiceName}" branding.` });
 
     try {
         const batch = writeBatch(db);
-        let count = 0;
+        const regex = /My Accountant/gi;
 
         services.forEach(service => {
             const currentOverride = overrides[service.id] || {};
             
-            // Text sources
             const title = currentOverride.title || service.title;
             const desc = currentOverride.description || service.description;
             const longDesc = currentOverride.longDescription || service.longDescription;
             const metaTitle = currentOverride.metaTitle || service.metaTitle || `${title} | My Accountant`;
             const metaDesc = currentOverride.metaDescription || service.metaDescription || desc;
 
-            // Simple case-insensitive search and replace
-            const regex = /My Accountant/gi;
-            const newTitle = title.replace(regex, practiceName);
-            const newDesc = desc.replace(regex, practiceName);
-            const newLongDesc = longDesc.replace(regex, practiceName);
-            const newMetaTitle = metaTitle.replace(regex, practiceName);
-            const newMetaDesc = metaDesc.replace(regex, practiceName);
+            const newValues = {
+                title: title.replace(regex, practiceName),
+                description: desc.replace(regex, practiceName),
+                longDescription: longDesc.replace(regex, practiceName),
+                metaTitle: metaTitle.replace(regex, practiceName),
+                metaDescription: metaDesc.replace(regex, practiceName),
+                // Mandatory fields for override schema
+                price: currentOverride.price ?? service.price,
+                turnaroundTime: currentOverride.turnaroundTime ?? service.turnaroundTime,
+                whatsIncluded: currentOverride.whatsIncluded || service.whatsIncluded || [],
+                clientRequirements: currentOverride.clientRequirements || service.clientRequirements || [],
+                metaKeywords: currentOverride.metaKeywords || service.metaKeywords || [],
+            };
 
-            // Only update if something changed
-            if (newTitle !== title || newDesc !== desc || newLongDesc !== longDesc || newMetaTitle !== metaTitle || newMetaDesc !== metaDesc) {
-                const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
-                batch.set(overrideRef, {
-                    ...currentOverride,
-                    title: newTitle,
-                    description: newDesc,
-                    longDescription: newLongDesc,
-                    metaTitle: newMetaTitle,
-                    metaDescription: newMetaDesc,
-                    // Ensure mandatory fields are present if it's a new override
-                    price: currentOverride.price ?? service.price,
-                    turnaroundTime: currentOverride.turnaroundTime ?? service.turnaroundTime,
-                    whatsIncluded: currentOverride.whatsIncluded || service.whatsIncluded || [],
-                    clientRequirements: currentOverride.clientRequirements || service.clientRequirements || [],
-                }, { merge: true });
-                count++;
-            }
+            const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
+            batch.set(overrideRef, newValues, { merge: true });
         });
 
-        if (count > 0) {
-            await batch.commit();
-            toast({ title: 'Branding Applied', description: `Successfully updated ${count} services including SEO metadata.` });
-        } else {
-            toast({ title: 'No Changes Needed', description: 'All services and metadata are already branded.' });
-        }
+        await batch.commit();
+        toast({ title: 'Branding Applied', description: `Successfully white-labeled all ${services.length} services.` });
     } catch (e) {
         console.error(e);
-        toast({ title: 'Branding Failed', description: 'Could not apply bulk branding. Please try again.', variant: 'destructive' });
+        toast({ title: 'Branding Failed', description: 'Could not apply bulk branding.', variant: 'destructive' });
     } finally {
         setIsApplyingBranding(false);
     }
@@ -392,7 +377,7 @@ export default function PartnerServicesPage() {
                   const override = overrides[service.id];
                   const displayPrice = override?.price ?? service.price;
                   const displayTitle = override?.title ?? service.title;
-                  const isBranded = !!override?.title && (override.title !== service.title || override.description !== service.description);
+                  const isBranded = !!overrides[service.id];
 
                   return (
                   <TableRow key={service.id}>
