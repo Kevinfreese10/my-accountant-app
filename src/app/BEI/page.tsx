@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Bot, Wallet, GraduationCap, CheckCircle2, LayoutDashboard, Percent, Globe, Scale, Loader2, ExternalLink, UserPlus, ClipboardList, CheckCircle, Users } from 'lucide-react';
+import { Bot, Wallet, GraduationCap, CheckCircle2, LayoutDashboard, Percent, Globe, Scale, Loader2, ExternalLink, UserPlus, ClipboardList, CheckCircle, Users, Zap } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamicImport from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -94,13 +94,13 @@ function BookDemoDialog() {
 const featureBenefits = [
     {
         icon: Percent,
-        feature: '25% Wholesale Discount',
+        feature: '10% Wholesale Discount',
         benefit: 'Increase your profit margins instantly. You buy services at wholesale rates and sell at retail prices, keeping 100% of the markup.',
     },
     {
         icon: LayoutDashboard,
         feature: 'White-Label Dashboard',
-        benefit: 'Manage your entire practice, staff, and client workflows from a single secure portal that carries your branding, not ours.',
+        benefit: 'Manage your client orders and project progress from a single secure portal that carries your branding, not ours.',
     },
     {
         icon: Globe,
@@ -114,19 +114,9 @@ const featureBenefits = [
         benefit: 'Never say "no" to a complex project again. Confidently scale your business capacity by leveraging our expert backend team.',
     },
     {
-        icon: UserPlus,
-        feature: 'Team & Staff Management',
-        benefit: 'Build your firm with up to 3 free additional staff users. Easily assign tasks, track progress, and manage internal project workflows.',
-    },
-    {
         icon: GraduationCap,
         feature: 'Onboarding & Professional Support',
         benefit: 'Full setup, training, and direct access to senior Chartered Accountants to help you navigate complex technical hurdles.',
-    },
-    {
-        icon: ClipboardList,
-        feature: 'Automated Compliance Roadmap',
-        benefit: 'Never miss a SARS or CIPC deadline again. The system automatically monitors your client requirements and creates tasks for your team.',
     },
     {
         icon: Scale,
@@ -138,11 +128,11 @@ const featureBenefits = [
 const faqs = [
     {
         question: "How does the outsourcing work?",
-        answer: "When you have an order you want us to handle, you submit it through your dashboard. We charge you the discounted wholesale price (25% off our retail rates), and we complete the work behind the scenes. You remain the primary contact for your client."
+        answer: "When you have an order you want us to handle, you submit it through your dashboard. We charge you the discounted wholesale price (10% off our retail rates), and we complete the work behind the scenes. You remain the primary contact for your client."
     },
     {
         question: "What is the setup fee?",
-        answer: "Joining the Bookkeeper Empowerment Initiative requires a R4,950 once-off setup fee. This fee covers your white-label platform configuration, onboarding session, and professional training.\n\nMore importantly, 50% of this fee (R2,475) is immediately loaded into your Practice Wallet as credits to use for outsourcing."
+        answer: "Joining the Bookkeeper Empowerment Initiative is now completely FREE. There are no once-off setup fees to get started with your white-labeled platform."
     },
     {
         question: "Do I need to be a registered accountant?",
@@ -168,7 +158,7 @@ export default function BEIPage() {
         </div>
         <div className="container mx-auto px-4 py-20 text-center relative z-10">
             <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl text-slate-900">
-                10X Your Practice — <span className="text-gradient">Without Hiring More Staff.</span>
+                10X Your Practice — <span className="text-gradient">No Overhead Required.</span>
             </h1>
             <p className="mt-6 text-xl text-slate-700 max-w-4xl mx-auto font-medium leading-relaxed">
                 Never lose a client because you lack capacity, specialised expertise, or time. With the Bookkeeper Empowerment Initiative (BEI), you can confidently outsource complex work while keeping full control of the client relationship and growing your revenue.
@@ -237,7 +227,7 @@ export default function BEIPage() {
                     BEI gives bookkeepers and accountants the tools to scale their practice immediately without hiring staff or investing thousands into technology.
                 </p>
                 <p>
-                    Through the program, partners receive access to a fully operational online accounting store and CRM platform, allowing them to start offering professional accounting, tax, and compliance services to their clients right away. There is no need to build a website, develop an ordering system, or create complex internal workflows — everything is already built and ready to use.
+                    Through the program, partners receive access to a fully operational online accounting store, allowing them to start offering professional accounting, tax, and compliance services to their clients right away. There is no need to build a website or develop an ordering system — everything is already built and ready to use.
                 </p>
                 <p>
                     <span className="font-bold text-slate-950">More importantly, BEI ensures that you never have to turn away work again.</span>
@@ -324,9 +314,9 @@ export default function BEIPage() {
             </div>
 
             <div className="mt-16 text-center space-y-4">
-                <p className="text-sm text-muted-foreground font-medium italic">Onboarding includes full platform setup, re-branding training, and R2,475 starting credits.</p>
+                <p className="text-sm text-muted-foreground font-medium italic">Joining is free. Complete your profile setup to unlock your re-branding toolkit.</p>
                 <Button asChild size="lg" className="h-14 px-12 text-lg font-black shadow-xl">
-                    <Link href="/partner-signup">Join the BEI Network</Link>
+                    <Link href="/partner-signup">Join the BEI Network for FREE</Link>
                 </Button>
             </div>
         </div>
@@ -354,7 +344,7 @@ export default function BEIPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
-                    <Link href="/partner-signup">Register My Practice</Link>
+                    <Link href="/partner-signup">Register My Practice (Free)</Link>
                 </Button>
                 <BookDemoDialog />
             </div>
