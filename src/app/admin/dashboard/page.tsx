@@ -4,18 +4,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format, isPast } from 'date-fns';
+import { format, isPast, isSameDay } from 'date-fns';
 import { Task, User, Order } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, CalendarIcon, Loader2, Repeat, Check, Eye, ClipboardList, Edit, CheckSquare, X, Filter } from 'lucide-react';
+import { PlusCircle, CalendarIcon, Loader2, Repeat, Check, Eye, ClipboardList, Edit, CheckSquare, X, Filter, AlertOctagon, ArrowRight } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, query, orderBy, where, onSnapshot, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 import { generateNextTaskOccurrence } from '@/app/actions';
 import TaskForm from '@/components/admin/TaskForm';
 import { cn } from '@/lib/utils';
@@ -81,12 +80,20 @@ export default function AdminDashboardPage() {
         };
     }, []);
 
+    const overdueTasks = useMemo(() => {
+        return tasks.filter(task => {
+            const dueDate = getTaskDate(task);
+            return isPast(dueDate) && !isSameDay(dueDate, new Date()) && task.status !== 'Done';
+        }).sort((a, b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
+    }, [tasks]);
+
     const myTasks = useMemo(() => {
         if (!user) return [];
         return tasks.filter(task => 
             Array.isArray(task.assignedTo) && 
             task.assignedTo.includes(user.id) &&
-            task.status !== 'Done'
+            task.status !== 'Done' &&
+            !isPast(getTaskDate(task))
         ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks, user]);
 
@@ -229,16 +236,98 @@ export default function AdminDashboardPage() {
                 </Dialog>
             </div>
 
-            <WeeklyTaskCalendar tasks={tasks} allStaff={assignableStaff} currentUser={user} onTaskUpdate={handleUpdate} onEdit={(t) => { setSelectedTask(t); setIsFormOpen(true); }} />
-
             <div className="space-y-8">
+                {overdueTasks.length > 0 && (
+                    <Card className="border-destructive/20 bg-destructive/5 shadow-md animate-in fade-in slide-in-from-top-4 duration-500">
+                        <CardHeader className="pb-3 border-b border-destructive/10">
+                            <div className="flex justify-between items-center">
+                                <CardTitle className="text-destructive flex items-center gap-2">
+                                    <AlertOctagon className="h-5 w-5" />
+                                    Overdue Tasks
+                                </CardTitle>
+                                <Badge variant="destructive" className="font-bold px-3">{overdueTasks.length} Overdue</Badge>
+                            </div>
+                            <CardDescription className="text-destructive/80 font-medium">Items requiring immediate attention across the practice.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader className="bg-destructive/5">
+                                    <TableRow>
+                                        <TableHead className="text-destructive font-bold">Task</TableHead>
+                                        <TableHead className="text-destructive font-bold text-center">Assigned To</TableHead>
+                                        <TableHead className="text-destructive font-bold">Due Date</TableHead>
+                                        <TableHead className="text-destructive font-bold text-right">Action</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {overdueTasks.slice(0, 10).map(task => (
+                                        <TableRow key={task.id} className="hover:bg-destructive/10 border-destructive/5">
+                                            <TableCell className="font-bold text-slate-900">
+                                                <div className="flex flex-col">
+                                                    <span>{task.title}</span>
+                                                    <span className="text-[10px] text-muted-foreground uppercase tracking-tighter">
+                                                        {task.type || 'Manual Task'}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex justify-center items-center -space-x-2">
+                                                    {task.assignedTo?.map(uid => {
+                                                        const staff = allUsers.find(u => u.uid === uid);
+                                                        if (!staff) return null;
+                                                        return (
+                                                            <TooltipProvider key={uid}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger>
+                                                                        <div className={cn("h-7 w-7 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-black shadow-sm", getUserColor(staff.uid))}>
+                                                                            {staff.name.charAt(0)}
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent><p>{staff.name}</p></TooltipContent>
+                                                                </Tooltip>
+                                                            </TooltipProvider>
+                                                        );
+                                                    })}
+                                                    {(!task.assignedTo || task.assignedTo.length === 0) && (
+                                                        <span className="text-[10px] text-destructive italic font-bold">UNASSIGNED</span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-xs font-black text-destructive tabular-nums">
+                                                {format(getTaskDate(task), 'dd MMM yyyy')}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-8 w-8 text-destructive hover:bg-destructive/20" 
+                                                    onClick={() => handleUpdate(task.id, { status: 'Done' })}
+                                                >
+                                                    <Check className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                            {overdueTasks.length > 10 && (
+                                <div className="p-3 text-center border-t border-destructive/10 bg-destructive/5">
+                                    <Button variant="link" size="sm" asChild className="text-destructive font-bold text-xs uppercase tracking-widest">
+                                        <Link href="/admin/tasks">View all {overdueTasks.length} overdue tasks <ArrowRight className="ml-2 h-3 w-3" /></Link>
+                                    </Button>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
+
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
+                        <CardTitle className="flex items-center gap-2 text-slate-950">
                             <ClipboardList className="h-5 w-5 text-primary" />
-                            My Tasks
+                            My Upcoming Tasks
                         </CardTitle>
-                        <CardDescription>Directly assigned to you.</CardDescription>
+                        <CardDescription>Directly assigned to you and due soon.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Table>
@@ -258,13 +347,13 @@ export default function AdminDashboardPage() {
                                             <p className="text-[10px] text-muted-foreground line-clamp-1">{task.description}</p>
                                         </TableCell>
                                         <TableCell className="text-xs">{format(getTaskDate(task), 'dd/MM/yyyy')}</TableCell>
-                                        <TableCell><Badge variant="secondary" className="text-[10px]">{task.status}</Badge></TableCell>
+                                        <TableCell><Badge variant="secondary" className="text-[10px] font-bold">{task.status}</Badge></TableCell>
                                         <TableCell className="text-right">
                                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUpdate(task.id, { status: 'Done' })}><Check className="h-4 w-4 text-green-600" /></Button>
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {myTasks.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs">No pending assigned tasks.</TableCell></TableRow>}
+                                {myTasks.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs font-medium">No upcoming assigned tasks.</TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </CardContent>
@@ -274,17 +363,17 @@ export default function AdminDashboardPage() {
                     <CardHeader>
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                             <div>
-                                <CardTitle className="flex items-center gap-2">
+                                <CardTitle className="flex items-center gap-2 text-slate-950">
                                     <Repeat className="h-5 w-5 text-primary" />
-                                    Compliance Roadmap
+                                    Practice Compliance Roadmap
                                 </CardTitle>
-                                <CardDescription>Practice-wide automated deadlines.</CardDescription>
+                                <CardDescription>Practice-wide automated deadlines across all clients.</CardDescription>
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
                                 <div className="flex items-center gap-2">
                                     <Filter className="h-4 w-4 text-muted-foreground" />
                                     <Select value={taskTypeFilter} onValueChange={(val) => { setTaskTypeFilter(val); setSelectedRoadmapIds([]); }}>
-                                        <SelectTrigger className="w-[200px] h-9 text-xs">
+                                        <SelectTrigger className="w-[200px] h-9 text-xs font-bold">
                                             <SelectValue placeholder="Filter by service..." />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -298,7 +387,7 @@ export default function AdminDashboardPage() {
 
                                 {selectedRoadmapIds.length > 0 && (
                                     <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
-                                        <Badge variant="secondary" className="px-3 h-9 gap-2">
+                                        <Badge variant="secondary" className="px-3 h-9 gap-2 font-bold">
                                             {selectedRoadmapIds.length} selected
                                             <X 
                                                 className="h-3 w-3 cursor-pointer hover:text-destructive" 
@@ -307,7 +396,7 @@ export default function AdminDashboardPage() {
                                         </Badge>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button size="sm" className="h-9 gap-2">
+                                                <Button size="sm" className="h-9 gap-2 font-bold">
                                                     <CheckSquare className="h-4 w-4" />
                                                     Bulk Assign To...
                                                 </Button>
@@ -340,7 +429,7 @@ export default function AdminDashboardPage() {
                                         />
                                     </TableHead>
                                     <TableHead>Service Task</TableHead>
-                                    <TableHead>Assigned To</TableHead>
+                                    <TableHead className="text-center">Assigned To</TableHead>
                                     <TableHead>Due Date</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
@@ -357,12 +446,12 @@ export default function AdminDashboardPage() {
                                         <TableCell className="font-medium align-top">
                                             <p className="line-clamp-1">{task.title}</p>
                                             <div className="flex gap-1.5 mt-1">
-                                                {task.recurrence && <Badge variant="outline" className="text-[9px] h-4 font-bold uppercase">{task.recurrence}</Badge>}
-                                                {task.type && <Badge variant="secondary" className="text-[9px] h-4 font-bold uppercase">{task.type}</Badge>}
+                                                {task.recurrence && <Badge variant="outline" className="text-[9px] h-4 font-black uppercase tracking-tighter">{task.recurrence}</Badge>}
+                                                {task.type && <Badge variant="secondary" className="text-[9px] h-4 font-black uppercase tracking-tighter">{task.type}</Badge>}
                                             </div>
                                         </TableCell>
                                         <TableCell className="align-top">
-                                            <div className="flex items-center -space-x-2">
+                                            <div className="flex justify-center items-center -space-x-2">
                                                 {task.assignedTo?.map(uid => {
                                                     const staff = allUsers.find(u => u.uid === uid);
                                                     if (!staff) return null;
@@ -370,7 +459,7 @@ export default function AdminDashboardPage() {
                                                         <TooltipProvider key={uid}>
                                                             <Tooltip>
                                                                 <TooltipTrigger>
-                                                                    <div className={cn("h-6 w-6 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-bold", getUserColor(staff.uid))}>
+                                                                    <div className={cn("h-6 w-6 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-bold shadow-sm", getUserColor(staff.uid))}>
                                                                         {staff.name.charAt(0)}
                                                                     </div>
                                                                 </TooltipTrigger>
@@ -380,11 +469,11 @@ export default function AdminDashboardPage() {
                                                     );
                                                 })}
                                                 {(!task.assignedTo || task.assignedTo.length === 0) && (
-                                                    <span className="text-[10px] text-muted-foreground italic">Unassigned</span>
+                                                    <span className="text-[10px] text-muted-foreground italic font-medium uppercase opacity-50">Unassigned</span>
                                                 )}
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-xs align-top">
+                                        <TableCell className="text-xs font-bold tabular-nums align-top">
                                             {format(getTaskDate(task), 'dd/MM/yyyy')}
                                         </TableCell>
                                         <TableCell className="text-right align-top">
