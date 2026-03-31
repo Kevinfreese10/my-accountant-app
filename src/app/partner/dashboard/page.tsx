@@ -1,15 +1,16 @@
+
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive, Wallet2, TrendingUp, Bot, AlertCircle, Sparkles, Settings, CheckCircle2, Circle } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus, MessageSquare, Inbox, Archive, Wallet2, TrendingUp, Bot, AlertCircle, Sparkles, Settings, CheckCircle2, Circle, RefreshCw } from 'lucide-react';
 import Image from 'next/image';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Order, Service, User, OrderNote } from '@/lib/types';
+import { Order, Service, User, OrderNote, ImportedTransaction } from '@/lib/types';
 import { getFirestore, doc, getDoc, collection, getDocs, orderBy, query, where, updateDoc, setDoc, Timestamp, onSnapshot, arrayUnion, increment } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -19,10 +20,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { services as allServices } from '@/lib/data';
-import { Separator } from '@/components/ui/separator';
-import CreatePartnerOrderForm from '@/components/partner/CreatePartnerOrderForm';
+import { Separator } from "@/components/ui/separator";
 import { useRouter } from 'next/navigation';
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -82,7 +81,7 @@ function TopUpDialog({ partner }: { partner: User }) {
             };
             
             const orderRef = doc(db, 'orders', orderId);
-            setDoc(orderRef, topupOrder).catch(async (error) => {
+            await setDoc(orderRef, topupOrder).catch(async (error) => {
                 const permissionError = new FirestorePermissionError({
                     path: orderRef.path,
                     operation: 'create',
@@ -168,7 +167,6 @@ function TopUpDialog({ partner }: { partner: User }) {
 export default function PartnerDashboardPage() {
   const { user, updateUser } = useAuth();
   const router = useRouter();
-  const { blogPosts, isLoading: isBlogLoading } = useBlog();
   const [orders, setOrders] = useState<Order[]>([]);
   const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -181,19 +179,10 @@ export default function PartnerDashboardPage() {
   const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
   const archivedNotifications = user?.archivedNotifications || [];
 
-  useEffect(() => {
-      if (!partnerId) return;
-      const fetchOverrides = async () => {
-          const snap = await getDocs(collection(db, 'users', partnerId, 'serviceOverrides'));
-          setOverrideCount(snap.size);
-      };
-      fetchOverrides();
-  }, [partnerId]);
-
   const archiveNotification = async (noteId: string) => {
         if (!user) return;
         const userRef = doc(db, 'users', user.uid);
-        updateDoc(userRef, {
+        await updateDoc(userRef, {
             archivedNotifications: arrayUnion(noteId)
         }).catch(async (error) => {
             const permissionError = new FirestorePermissionError({
@@ -282,12 +271,19 @@ export default function PartnerDashboardPage() {
           setPendingCount(snap.size);
       });
 
+      // REAL-TIME LISTENER FOR OVERRIDES (to update progress bar instantly)
+      const overridesRef = collection(db, 'users', partnerId, 'serviceOverrides');
+      const unsubOverrides = onSnapshot(overridesRef, (snap) => {
+          setOverrideCount(snap.size);
+      });
+
       return () => {
           unsubPractice();
           staffUnsubscribe();
           unsubClientOrders();
           unsubOutsourcedOrders();
           unsubTrans();
+          unsubOverrides();
       }
     }, [user?.uid, partnerId]);
 
@@ -374,43 +370,41 @@ export default function PartnerDashboardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-8 space-y-8">
-                    {progressPercentage < 100 && (
-                        <Card className="border-2 border-primary/20 bg-primary/5 shadow-md overflow-hidden animate-in fade-in slide-in-from-top-4">
-                            <CardHeader className="pb-2">
-                                <div className="flex justify-between items-center">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white">
-                                            <Settings className="h-4 w-4" />
-                                        </div>
-                                        <CardTitle className="text-lg">Practice Setup Progress</CardTitle>
+                    <Card className="border-2 border-primary/20 bg-primary/5 shadow-md overflow-hidden animate-in fade-in slide-in-from-top-4">
+                        <CardHeader className="pb-2">
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                    <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white">
+                                        <Settings className="h-4 w-4" />
                                     </div>
-                                    <Badge variant={progressPercentage > 70 ? "success" : "secondary"} className="font-bold">
-                                        {progressPercentage}% Complete
-                                    </Badge>
+                                    <CardTitle className="text-lg">Practice Setup Progress</CardTitle>
                                 </div>
-                                <Progress value={progressPercentage} className="h-2 mt-4" />
-                            </CardHeader>
-                            <CardContent className="pt-6">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                                    {setupChecklist.map((item, idx) => (
-                                        <div key={idx} className={cn("p-3 rounded-lg border flex flex-col gap-1 transition-all", item.done ? "bg-green-50/50 border-green-200" : "bg-muted/30 border-muted opacity-70")}>
-                                            <div className="flex items-center gap-2">
-                                                {item.done ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> : <Circle className="h-4 w-4 text-muted-foreground shrink-0 opacity-30" />}
-                                                <span className={cn("text-xs font-bold truncate", item.done ? "text-green-800" : "text-slate-600")}>{item.label}</span>
-                                            </div>
-                                            <p className="text-[9px] text-muted-foreground leading-tight italic ml-6">{item.description}</p>
+                                <Badge variant={progressPercentage === 100 ? "success" : "secondary"} className="font-bold">
+                                    {progressPercentage}% Complete
+                                </Badge>
+                            </div>
+                            <Progress value={progressPercentage} className="h-2 mt-4" />
+                        </CardHeader>
+                        <CardContent className="pt-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {setupChecklist.map((item, idx) => (
+                                    <div key={idx} className={cn("p-3 rounded-lg border flex flex-col gap-1 transition-all", item.done ? "bg-green-50/50 border-green-200" : "bg-muted/30 border-muted opacity-70")}>
+                                        <div className="flex items-center gap-2">
+                                            {item.done ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> : <Circle className="h-4 w-4 text-muted-foreground shrink-0 opacity-30" />}
+                                            <span className={cn("text-xs font-bold truncate", item.done ? "text-green-800" : "text-slate-600")}>{item.label}</span>
                                         </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                            <CardFooter className="bg-primary/10 border-t border-primary/5 py-3 flex justify-between items-center">
-                                <p className="text-[10px] text-primary font-bold uppercase tracking-widest italic">Complete your setup to scale faster.</p>
-                                <Button size="sm" asChild variant="link" className="text-primary font-black h-auto p-0">
-                                    <Link href="/partner/profile">Configure Settings <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                                </Button>
-                            </CardFooter>
-                        </Card>
-                    )}
+                                        <p className="text-[9px] text-muted-foreground leading-tight italic ml-6">{item.description}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                        <CardFooter className="bg-primary/10 border-t border-primary/5 py-3 flex justify-between items-center">
+                            <p className="text-[10px] text-primary font-bold uppercase tracking-widest italic">Complete your setup to scale faster.</p>
+                            <Button size="sm" asChild variant="link" className="text-primary font-black h-auto p-0">
+                                <Link href="/partner/profile">Configure Settings <ArrowRight className="ml-1 h-3 w-3" /></Link>
+                            </Button>
+                        </CardFooter>
+                    </Card>
 
                     {pendingCount > 0 && partnerId && (
                         <Alert className="bg-primary/10 border-primary/20 shadow-sm animate-in fade-in slide-in-from-top-4 border-2">

@@ -1,14 +1,15 @@
+
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus, CheckCircle2, Circle, Info, FileText, Download, Briefcase, GraduationCap, Globe, Mail, ExternalLink, XCircle } from 'lucide-react';
+import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus, CheckCircle2, Circle, Info, FileText, Download, Briefcase, GraduationCap, Globe, Mail, ExternalLink, XCircle, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { User, Service } from '@/lib/types';
-import { getFirestore, collection, getDocs, doc, deleteDoc, query, where, updateDoc, increment, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, deleteDoc, query, where, updateDoc, increment, orderBy, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -291,21 +292,6 @@ export default function AdminPartnersPage() {
     fetchInitialData();
   }, []);
 
-  const getSetupChecklist = (p: User) => {
-      return [
-          { label: 'Bank Info', done: !!(p.bankingDetails?.bankName && p.bankingDetails?.accountNumber) },
-          { label: 'Landing Page', done: !!(p.landingPage?.enabled && p.landingPage?.slug) },
-          { label: 'Branding', done: p.landingPage?.themePreset !== 'custom' || (p.landingPage?.primaryColor && p.landingPage?.primaryColor !== '#214392') },
-          { label: 'Content', done: (p.landingPage?.aboutUs?.length || 0) > 50 },
-      ];
-  };
-
-  const calculateProgress = (p: User) => {
-      const list = getSetupChecklist(p);
-      const completed = list.filter(i => i.done).length;
-      return Math.round((completed / list.length) * 100);
-  };
-
   const handleSendAssistanceEmail = async (partner: User) => {
     if (!currentUser) return;
     
@@ -400,18 +386,13 @@ export default function AdminPartnersPage() {
               <TableRow>
                 <TableHead>Company Name</TableHead>
                 <TableHead>Contact Person</TableHead>
-                <TableHead>Setup Progress</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Wallet Balance</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {partners.map(partner => {
-                const progress = calculateProgress(partner);
-                const checklist = getSetupChecklist(partner);
-                
-                return (
+              {partners.map(partner => (
                 <TableRow key={partner.uid}>
                   <TableCell className="font-medium">{partner.companyName}</TableCell>
                   <TableCell>
@@ -419,32 +400,6 @@ export default function AdminPartnersPage() {
                           <span>{partner.contactPerson || partner.name}</span>
                           <span className="text-[10px] text-muted-foreground">{partner.email}</span>
                       </div>
-                  </TableCell>
-                  <TableCell className="w-[200px]">
-                      <TooltipProvider>
-                          <Tooltip>
-                              <TooltipTrigger asChild>
-                                  <div className="space-y-1.5 cursor-help">
-                                      <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground uppercase">
-                                          <span>Configuration</span>
-                                          <span className={cn(progress === 100 ? "text-green-600" : "text-primary")}>{progress}%</span>
-                                      </div>
-                                      <Progress value={progress} className="h-1.5" />
-                                  </div>
-                              </TooltipTrigger>
-                              <TooltipContent className="w-64 p-0 overflow-hidden" side="bottom">
-                                  <div className="bg-muted/50 p-2 border-b text-[10px] font-black uppercase tracking-widest text-muted-foreground">Setup Checklist</div>
-                                  <div className="p-2 space-y-1.5">
-                                      {checklist.map((item, i) => (
-                                          <div key={i} className="flex items-center gap-2 text-xs">
-                                              {item.done ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <Circle className="h-3 w-3 text-muted-foreground opacity-30" />}
-                                              <span className={cn(item.done ? "text-foreground" : "text-muted-foreground")}>{item.label}</span>
-                                          </div>
-                                      ))}
-                                  </div>
-                              </TooltipContent>
-                          </Tooltip>
-                      </TooltipProvider>
                   </TableCell>
                   <TableCell>
                       <Badge variant={partner.status === 'Active' ? 'success' : 'secondary'} className="text-[10px] uppercase font-bold">
@@ -500,7 +455,7 @@ export default function AdminPartnersPage() {
                     </AlertDialog>
                   </TableCell>
                 </TableRow>
-              )})}
+              ))}
             </TableBody>
           </Table>
           )}

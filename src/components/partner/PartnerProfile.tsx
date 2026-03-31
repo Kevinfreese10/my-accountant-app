@@ -1,3 +1,4 @@
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -24,16 +25,17 @@ import {
   PartyPopper, 
   MapPin, 
   Building,
-  Gavel
+  Gavel,
+  Settings
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, doc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '@/lib/utils';
 import { Slider } from '../ui/slider';
 import { Badge } from '@/components/ui/badge';
@@ -218,11 +220,13 @@ export default function PartnerProfile() {
   useEffect(() => {
       const pId = user?.role === 'partner' ? user.uid : user?.partnerId;
       if (!pId) return;
-      const fetchOverrides = async () => {
-          const snap = await getDocs(collection(db, 'users', pId, 'serviceOverrides'));
+      
+      // REAL-TIME LISTENER FOR OVERRIDES
+      const overridesRef = collection(db, 'users', pId, 'serviceOverrides');
+      const unsubscribe = onSnapshot(overridesRef, (snap) => {
           setOverrideCount(snap.size);
-      };
-      fetchOverrides();
+      });
+      return () => unsubscribe();
   }, [user]);
 
   const checklist = useMemo(() => {
@@ -236,7 +240,9 @@ export default function PartnerProfile() {
 
   const progressPercentage = useMemo(() => {
       const completed = checklist.filter(i => i.done).length;
-      return Math.round((completed / checklist.length) * 100);
+      const total = checklist.length;
+      if (total === 0) return 0;
+      return Math.round((completed / total) * 100);
   }, [checklist]);
 
   useEffect(() => {
@@ -347,7 +353,7 @@ export default function PartnerProfile() {
                 <Progress value={progressPercentage} className="h-2.5 mt-4" />
             </CardHeader>
             <CardContent className="pt-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {checklist.map((item, idx) => (
                         <div key={idx} className={cn("p-3 rounded-lg border flex flex-col gap-1 transition-all", item.done ? "bg-green-50/50 border-green-200" : "bg-muted/30 border-muted opacity-70")}>
                             <div className="flex items-center gap-2">
