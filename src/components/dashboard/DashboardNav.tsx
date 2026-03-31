@@ -128,10 +128,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['partner', 'partner_staff'] },
     { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['partner', 'partner_staff'] },
     { href: '/partner/outsourced-orders', label: 'Outsourced Orders', icon: FileText, roles: ['partner', 'partner_staff'] },
-    { href: '/partner/clients', label: 'Manage Clients', icon: BookUser, roles: ['partner', 'partner_staff'] },
-    { href: '/partner/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['partner', 'partner_staff'] },
-    { href: '/partner/staff', label: 'Manage Staff', icon: Users, roles: ['partner'] },
-    { href: '/partner/tools', label: 'Tools', icon: Wrench, roles: ['partner', 'partner_staff'] },
     { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['partner', 'partner_staff'] },
   ];
 
