@@ -67,7 +67,7 @@ function BulkPriceAdjustmentDialog({
                     <DialogTitle>Bulk Price Adjustment</DialogTitle>
                     <DialogDescription>
                         Update the price of <strong>{servicesCount}</strong> products by a fixed amount. 
-                        Partner reseller prices (25% discount) will be auto-recalculated.
+                        Partner reseller prices will be auto-recalculated based on current settings.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
@@ -237,16 +237,17 @@ export default function AdminServicesPage() {
     document.body.removeChild(link);
   };
   
-    const handleUpdateDefaults = async () => {
+    const handleUpdateDefaults = async (discountPercentage: number) => {
         setIsUpdatingDefaults(true);
-        toast({ title: 'Updating Products...', description: 'This may take a moment.' });
+        const multiplier = (100 - discountPercentage) / 100;
+        toast({ title: 'Updating Products...', description: `Applying ${discountPercentage}% discount to partner prices.` });
         
         try {
             const batch = writeBatch(db);
             let updatedCount = 0;
 
             services.forEach(service => {
-                const newResellerPrice = service.price * 0.75;
+                const newResellerPrice = service.price * multiplier;
                 if (service.availability !== 'in_stock' || service.condition !== 'new' || Math.abs((service.resellerPrice || 0) - newResellerPrice) > 0.01) {
                     const serviceRef = doc(db, 'services', service.id);
                     batch.update(serviceRef, {
@@ -260,8 +261,8 @@ export default function AdminServicesPage() {
 
             if (updatedCount > 0) {
                 await batch.commit();
-                toast({ title: 'Success!', description: `${updatedCount} products were updated with default values and the 25% partner discount.` });
-                fetchServices(); // Refetch to show updated data
+                toast({ title: 'Success!', description: `${updatedCount} products were updated with default values and the ${discountPercentage}% partner discount.` });
+                fetchServices(); 
             } else {
                 toast({ title: 'No Updates Needed', description: 'All products already have the correct default values.' });
             }
@@ -383,6 +384,27 @@ export default function AdminServicesPage() {
                         <AlertDialogTrigger asChild>
                             <Button variant="outline" disabled={isUpdatingDefaults}>
                                 {isUpdatingDefaults ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                Sync 10% Discount
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Apply 10% Partner Discount?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will scan all products and update the `resellerPrice` to 90% of the public price. It also ensures availability is "in_stock" and condition is "new".
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleUpdateDefaults(10)}>Yes, Apply 10%</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="outline" disabled={isUpdatingDefaults}>
+                                {isUpdatingDefaults ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                                 Sync 25% Discount
                             </Button>
                         </AlertDialogTrigger>
@@ -395,7 +417,7 @@ export default function AdminServicesPage() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleUpdateDefaults}>Yes, Apply Discount</AlertDialogAction>
+                                <AlertDialogAction onClick={() => handleUpdateDefaults(25)}>Yes, Apply 25%</AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
@@ -416,7 +438,7 @@ export default function AdminServicesPage() {
                 <TableHead>Condition</TableHead>
                 <TableHead>Availability</TableHead>
                 <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Partner Cost (25% off)</TableHead>
+                <TableHead className="text-right">Partner Cost</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -463,7 +485,7 @@ export default function AdminServicesPage() {
                   <TableCell className="text-right">
                     {service.isPriceTbc ? 'TBC' : `R ${service.price.toFixed(2)}`}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right font-semibold">
                     {service.isPriceTbc ? 'TBC' : service.resellerPrice ? `R ${service.resellerPrice.toFixed(2)}` : 'N/A'}
                   </TableCell>
                   <TableCell className="text-right">
