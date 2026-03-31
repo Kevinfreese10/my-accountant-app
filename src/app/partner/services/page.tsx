@@ -1,11 +1,10 @@
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search, Edit3, RotateCcw, Save, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Loader2, Search, Edit3, RotateCcw, Save, Plus, Trash2, RefreshCw, Calculator } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { getFirestore, collection, query, orderBy, getDocs, doc, setDoc, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -15,12 +14,77 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
+import { allVatTypes } from '@/lib/vat-types';
 
 const db = getFirestore(firebaseApp);
+
+function BulkPriceIncreaseDialog({ 
+    servicesCount, 
+    onUpdate, 
+    isLoading 
+}: { 
+    servicesCount: number, 
+    onUpdate: (amount: number) => Promise<void>, 
+    isLoading: boolean 
+}) {
+    const [amount, setAmount] = useState<string>('');
+    const [isOpen, setIsOpen] = useState(false);
+
+    const handleApply = async () => {
+        const num = parseFloat(amount);
+        if (isNaN(num) || num === 0) return;
+        await onUpdate(num);
+        setIsOpen(false);
+        setAmount('');
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="font-bold border-primary/20 hover:bg-primary/5 text-primary w-full md:w-auto shadow-sm">
+                    <Calculator className="mr-2 h-4 w-4" /> Bulk Price Increase
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Bulk Price Increase</DialogTitle>
+                    <DialogDescription>
+                        Increase your selling price for all <strong>{servicesCount}</strong> services by a fixed amount.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="adj-amount">Increase Amount (ZAR)</Label>
+                        <Input 
+                            id="adj-amount"
+                            type="number"
+                            placeholder="e.g. 100"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                        />
+                        <p className="text-[10px] text-muted-foreground italic">
+                            Enter the amount to ADD to your current selling prices.
+                        </p>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleApply} disabled={isLoading || !amount}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Apply Increase
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function EditServiceDialog({ 
     service, 
@@ -282,7 +346,6 @@ export default function PartnerServicesPage() {
                 longDescription: longDesc.replace(regex, practiceName),
                 metaTitle: metaTitle.replace(regex, practiceName),
                 metaDescription: metaDesc.replace(regex, practiceName),
-                // Mandatory fields for override schema
                 price: currentOverride.price ?? service.price,
                 turnaroundTime: currentOverride.turnaroundTime ?? service.turnaroundTime,
                 whatsIncluded: currentOverride.whatsIncluded || service.whatsIncluded || [],
@@ -299,6 +362,43 @@ export default function PartnerServicesPage() {
     } catch (e) {
         console.error(e);
         toast({ title: 'Branding Failed', description: 'Could not apply bulk branding.', variant: 'destructive' });
+    } finally {
+        setIsApplyingBranding(false);
+    }
+  };
+
+  const handleBulkPriceIncrease = async (amount: number) => {
+    if (!partnerId) return;
+    setIsApplyingBranding(true);
+    toast({ title: 'Updating Prices...', description: `Increasing all service prices by R${amount}.` });
+
+    try {
+        const batch = writeBatch(db);
+        services.forEach(service => {
+            const currentOverride = overrides[service.id] || {};
+            const currentPrice = currentOverride.price ?? service.price;
+            const newPrice = Math.max(0, currentPrice + amount);
+
+            const newValues = {
+                ...currentOverride,
+                price: newPrice,
+                title: currentOverride.title || service.title,
+                description: currentOverride.description || service.description,
+                longDescription: currentOverride.longDescription || service.longDescription,
+                turnaroundTime: currentOverride.turnaroundTime || service.turnaroundTime,
+                whatsIncluded: currentOverride.whatsIncluded || service.whatsIncluded || [],
+                clientRequirements: currentOverride.clientRequirements || service.clientRequirements || [],
+            };
+
+            const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
+            batch.set(overrideRef, newValues, { merge: true });
+        });
+
+        await batch.commit();
+        toast({ title: 'Prices Updated', description: `Successfully adjusted prices for ${services.length} services.` });
+    } catch (e) {
+        console.error(e);
+        toast({ title: 'Adjustment Failed', variant: 'destructive' });
     } finally {
         setIsApplyingBranding(false);
     }
@@ -324,7 +424,7 @@ export default function PartnerServicesPage() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Our Services</h1>
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <Button 
                 variant="outline" 
                 onClick={handleBulkSearchReplace} 
@@ -334,6 +434,11 @@ export default function PartnerServicesPage() {
                 {isApplyingBranding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                 Apply Practice Branding
             </Button>
+            <BulkPriceIncreaseDialog 
+                servicesCount={services.length}
+                onUpdate={handleBulkPriceIncrease}
+                isLoading={isApplyingBranding}
+            />
         </div>
       </div>
 
