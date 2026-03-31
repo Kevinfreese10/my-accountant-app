@@ -562,7 +562,7 @@ export default function PartnerOrdersPage() {
                             </TableCell>
                             <TableCell>
                                 {order.isOutsourced ? (
-                                    <Badge variant="info">Outsourced</Badge>
+                                    <Badge variant="outsourced">Outsourced</Badge>
                                 ) : (
                                     <Badge variant="secondary">Internal</Badge>
                                 )}

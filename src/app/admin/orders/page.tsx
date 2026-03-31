@@ -462,7 +462,7 @@ export default function AdminOrdersPage() {
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent>
+                            <DropdownContent>
                                 <DropdownMenuItem asChild>
                                      <Link href={`/admin/orders/${order.id}`}>View Order</Link>
                                 </DropdownMenuItem>
@@ -511,7 +511,7 @@ export default function AdminOrdersPage() {
                                 >
                                     Cancel Order
                                 </DropdownMenuItem>
-                            </DropdownMenuContent>
+                            </DropdownContent>
                         </DropdownMenu>
                         </TableCell>
                     </TableRow>

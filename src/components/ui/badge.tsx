@@ -19,6 +19,7 @@ const badgeVariants = cva(
         info: "border-transparent bg-blue-500 text-white hover:bg-blue-500/80",
         warning: "border-transparent bg-yellow-500 text-white hover:bg-yellow-500/80",
         payment: "border-transparent bg-teal-600 text-white hover:bg-teal-600/80",
+        outsourced: "border-transparent bg-purple-600 text-white hover:bg-purple-600/80",
       },
     },
     defaultVariants: {
@@ -38,5 +39,3 @@ function Badge({ className, variant, ...props }: BadgeProps) {
 }
 
 export { Badge, badgeVariants }
-
-    
