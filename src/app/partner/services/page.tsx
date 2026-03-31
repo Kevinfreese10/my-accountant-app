@@ -4,20 +4,20 @@ import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search, Edit3, RotateCcw, Save, CheckCircle2, AlertCircle, Clock, RefreshCw } from 'lucide-react';
+import { Loader2, Search, Edit3, RotateCcw, Save, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { getFirestore, collection, query, orderBy, getDocs, doc, setDoc, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
@@ -45,6 +45,8 @@ function EditServiceDialog({
       metaTitle: z.string().optional(),
       metaDescription: z.string().optional(),
       metaKeywords: z.array(z.string()).optional(),
+      whatsIncluded: z.array(z.object({ value: z.string().min(1, "Item cannot be empty") })),
+      clientRequirements: z.array(z.object({ value: z.string().min(1, "Prerequisite cannot be empty") })),
     });
 
     const form = useForm<z.infer<typeof overrideSchema>>({
@@ -58,14 +60,31 @@ function EditServiceDialog({
             metaTitle: override?.metaTitle || '',
             metaDescription: override?.metaDescription || '',
             metaKeywords: override?.metaKeywords || [],
+            whatsIncluded: (override?.whatsIncluded || service.whatsIncluded || []).map((v: string) => ({ value: v })),
+            clientRequirements: (override?.clientRequirements || service.clientRequirements || []).map((v: string) => ({ value: v })),
         },
+    });
+
+    const { fields: includedFields, append: appendIncluded, remove: removeIncluded } = useFieldArray({
+        control: form.control,
+        name: "whatsIncluded"
+    });
+
+    const { fields: prereqFields, append: appendPrereq, remove: removePrereq } = useFieldArray({
+        control: form.control,
+        name: "clientRequirements"
     });
 
     const handleSave = async (values: z.infer<typeof overrideSchema>) => {
         setIsSaving(true);
         try {
+            const finalValues = {
+                ...values,
+                whatsIncluded: values.whatsIncluded.map(v => v.value),
+                clientRequirements: values.clientRequirements.map(v => v.value),
+            };
             const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
-            await setDoc(overrideRef, values);
+            await setDoc(overrideRef, finalValues);
             toast({ title: "Service Updated", description: "Changes will reflect on your public landing page." });
             onSuccess();
             setIsOpen(false);
@@ -116,6 +135,62 @@ function EditServiceDialog({
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Short Description</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="longDescription" render={({ field }) => ( <FormItem><FormLabel>Full Description</FormLabel><FormControl><Textarea {...field} rows={5} /></FormControl><FormMessage /></FormItem> )} />
                         
+                        <Separator />
+                        
+                        {/* Whats Included */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold uppercase tracking-wider text-primary">What's Included</h4>
+                                <Button type="button" variant="outline" size="sm" onClick={() => appendIncluded({ value: '' })}>
+                                    <Plus className="h-3 w-3 mr-1" /> Add Item
+                                </Button>
+                            </div>
+                            <div className="space-y-2">
+                                {includedFields.map((field, index) => (
+                                    <FormField
+                                        key={field.id}
+                                        control={form.control}
+                                        name={`whatsIncluded.${index}.value`}
+                                        render={({ field }) => (
+                                            <FormItem className="flex items-center gap-2">
+                                                <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                <Button type="button" variant="ghost" size="icon" onClick={() => removeIncluded(index)} className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4"/></Button>
+                                            </FormItem>
+                                        )}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        <Separator />
+
+                        {/* Prerequisites */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold uppercase tracking-wider text-primary">Prerequisites</h4>
+                                <Button type="button" variant="outline" size="sm" onClick={() => appendPrereq({ value: '' })}>
+                                    <Plus className="h-3 w-3 mr-1" /> Add Prerequisite
+                                </Button>
+                            </div>
+                            <div className="space-y-2">
+                                {prereqFields.map((field, index) => (
+                                    <FormField
+                                        key={field.id}
+                                        control={form.control}
+                                        name={`clientRequirements.${index}.value`}
+                                        render={({ field }) => (
+                                            <FormItem className="flex items-center gap-2">
+                                                <FormControl><Input {...field} className="h-8 text-xs" /></FormControl>
+                                                <Button type="button" variant="ghost" size="icon" onClick={() => removePrereq(index)} className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4"/></Button>
+                                            </FormItem>
+                                        )}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        <Separator />
+
                         <div className="pt-4 space-y-4">
                             <h4 className="text-sm font-bold uppercase tracking-wider text-primary">SEO Metadata</h4>
                             <FormField control={form.control} name="metaTitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Branded Meta Title</FormLabel><FormControl><Input {...field} placeholder="Catchy Title | Practice Name" /></FormControl></FormItem> )} />
@@ -223,6 +298,8 @@ export default function PartnerServicesPage() {
                     // Ensure mandatory fields are present if it's a new override
                     price: currentOverride.price ?? service.price,
                     turnaroundTime: currentOverride.turnaroundTime ?? service.turnaroundTime,
+                    whatsIncluded: currentOverride.whatsIncluded || service.whatsIncluded || [],
+                    clientRequirements: currentOverride.clientRequirements || service.clientRequirements || [],
                 }, { merge: true });
                 count++;
             }
