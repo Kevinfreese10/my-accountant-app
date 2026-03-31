@@ -4,9 +4,9 @@ import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search, Edit3, RotateCcw, Save, Sparkles, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Loader2, Search, Edit3, RotateCcw, Save, CheckCircle2, AlertCircle, Clock, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { getFirestore, collection, query, orderBy, getDocs, doc, setDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, getDocs, doc, setDoc, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -14,12 +14,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { brandService } from '@/ai/flows/brand-service';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
@@ -149,9 +146,7 @@ export default function PartnerServicesPage() {
   const [overrides, setOverrides] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isBulkBranding, setIsBulkBranding] = useState(false);
-  const [bulkStatus, setBulkStatus] = useState<Record<string, 'pending' | 'processing' | 'done' | 'error' | 'rate_limited'>>({});
-  const [servicesToProcessCount, setServicesToProcessCount] = useState(0);
+  const [isApplyingBranding, setIsApplyingBranding] = useState(false);
   const { toast } = useToast();
 
   const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
@@ -186,94 +181,58 @@ export default function PartnerServicesPage() {
     return () => unsubscribe();
   }, [partnerId]);
 
-  const handleBulkBrand = async () => {
-    if (!user?.geminiApiKey || !partnerId) {
-        toast({ title: "API Key Required", description: "Please configure your Gemini API Key in your profile settings.", variant: "destructive" });
-        return;
-    }
-
-    // Filter to only process unbranded items
-    const toProcess = services.filter(s => !overrides[s.id]);
-
-    if (toProcess.length === 0) {
-        toast({ title: "No action needed", description: "All products are already branded or customized." });
-        return;
-    }
-
-    setIsBulkBranding(true);
-    setServicesToProcessCount(toProcess.length);
-    const initialStatus: Record<string, any> = {};
-    toProcess.forEach(s => initialStatus[s.id] = 'pending');
-    setBulkStatus(initialStatus);
-
-    const processService = async (service: Service): Promise<'done' | 'error' | 'rate_limited'> => {
-        setBulkStatus(prev => ({ ...prev, [service.id]: 'processing' }));
-        
-        try {
-            const branded = await brandService({
-                service: {
-                    title: service.title,
-                    description: service.description,
-                    longDescription: service.longDescription,
-                },
-                partnerName: user.companyName || user.name,
-                apiKey: user.geminiApiKey!
-            });
-
-            const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
-            const currentOverride = overrides[service.id];
-            
-            await setDoc(overrideRef, {
-                ...branded,
-                price: currentOverride?.price ?? service.price,
-                turnaroundTime: currentOverride?.turnaroundTime ?? service.turnaroundTime
-            }, { merge: true });
-
-            setBulkStatus(prev => ({ ...prev, [service.id]: 'done' }));
-            return 'done';
-        } catch (err: any) {
-            console.error(`Branding failed for ${service.title}:`, err);
-            
-            // Handle Rate Limiting (429)
-            if (err.message?.includes('429')) {
-                setBulkStatus(prev => ({ ...prev, [service.id]: 'rate_limited' }));
-                return 'rate_limited';
-            }
-
-            setBulkStatus(prev => ({ ...prev, [service.id]: 'error' }));
-            return 'error';
-        }
-    };
+  const handleBulkSearchReplace = async () => {
+    if (!partnerId || !user) return;
+    const practiceName = user.companyName || user.name;
+    
+    setIsApplyingBranding(true);
+    toast({ title: 'Applying Branding...', description: `Replacing "My Accountant" with "${practiceName}" across all services.` });
 
     try {
-        for (const service of toProcess) {
-            const result = await processService(service);
-            
-            if (result === 'rate_limited') {
-                toast({ 
-                    title: "Rate Limit Reached", 
-                    description: "You exceeded your current Gemini API quota. Please upgrade to a paid version of Gemini or wait until later/tomorrow to continue.",
-                    variant: "destructive",
-                    duration: 10000,
-                });
-                break; // Stop the loop immediately
-            }
+        const batch = writeBatch(db);
+        let count = 0;
 
-            // Throttling: 3-second delay
-            await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-        
-        const completedCount = Object.values(bulkStatus).filter(s => s === 'done').length;
-        if (completedCount === toProcess.length) {
-            toast({ title: "Bulk Branding Complete", description: `${toProcess.length} services have been updated with your practice branding.` });
+        services.forEach(service => {
+            const currentOverride = overrides[service.id] || {};
+            
+            // Text sources
+            const title = currentOverride.title || service.title;
+            const desc = currentOverride.description || service.description;
+            const longDesc = currentOverride.longDescription || service.longDescription;
+
+            // Simple case-insensitive search and replace
+            const regex = /My Accountant/gi;
+            const newTitle = title.replace(regex, practiceName);
+            const newDesc = desc.replace(regex, practiceName);
+            const newLongDesc = longDesc.replace(regex, practiceName);
+
+            // Only update if something changed
+            if (newTitle !== title || newDesc !== desc || newLongDesc !== longDesc) {
+                const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
+                batch.set(overrideRef, {
+                    ...currentOverride,
+                    title: newTitle,
+                    description: newDesc,
+                    longDescription: newLongDesc,
+                    // Ensure mandatory fields are present if it's a new override
+                    price: currentOverride.price ?? service.price,
+                    turnaroundTime: currentOverride.turnaroundTime ?? service.turnaroundTime,
+                }, { merge: true });
+                count++;
+            }
+        });
+
+        if (count > 0) {
+            await batch.commit();
+            toast({ title: 'Branding Applied', description: `Successfully updated ${count} services with your practice name.` });
         } else {
-            toast({ title: "Process Stopped", description: `Branded ${completedCount} of ${toProcess.length} services before stopping.` });
+            toast({ title: 'No Changes Needed', description: 'All services are already branded or do not contain "My Accountant".' });
         }
     } catch (e) {
         console.error(e);
-        toast({ title: "Bulk Process Failed", variant: "destructive" });
+        toast({ title: 'Branding Failed', description: 'Could not apply bulk branding. Please try again.', variant: 'destructive' });
     } finally {
-        setIsBulkBranding(false);
+        setIsApplyingBranding(false);
     }
   };
 
@@ -293,13 +252,6 @@ export default function PartnerServicesPage() {
     }).format(price);
   };
 
-  const bulkProgress = useMemo(() => {
-      const total = servicesToProcessCount;
-      if (total === 0) return 0;
-      const completed = Object.values(bulkStatus).filter(s => s === 'done' || s === 'error' || s === 'rate_limited').length;
-      return (completed / total) * 100;
-  }, [bulkStatus, servicesToProcessCount]);
-
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -307,37 +259,15 @@ export default function PartnerServicesPage() {
         <div className="flex gap-2 w-full md:w-auto">
             <Button 
                 variant="outline" 
-                onClick={handleBulkBrand} 
-                disabled={isBulkBranding || !user?.geminiApiKey}
+                onClick={handleBulkSearchReplace} 
+                disabled={isApplyingBranding}
                 className="font-bold border-primary/20 hover:bg-primary/5 text-primary w-full md:w-auto shadow-sm"
             >
-                {isBulkBranding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
-                Bulk Brand with AI
+                {isApplyingBranding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Apply Practice Branding
             </Button>
         </div>
       </div>
-
-      {isBulkBranding && (
-          <Card className="border-primary bg-primary/5 animate-in fade-in slide-in-from-top-2 shadow-inner">
-              <CardContent className="p-4 space-y-3">
-                  <div className="flex justify-between items-center text-sm font-bold text-primary">
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Branding {servicesToProcessCount} Default Services...
-                      </span>
-                      <span>{Math.round(bulkProgress)}%</span>
-                  </div>
-                  <Progress value={bulkProgress} className="h-2" />
-                  <div className="flex gap-2 items-start">
-                    <Clock className="h-3 w-3 mt-0.5 text-muted-foreground" />
-                    <p className="text-[10px] text-muted-foreground leading-snug">
-                        AI Throttling Active: Applying a 3-second delay between items. 
-                        <strong> If you hit a rate limit</strong>, the process will stop to protect your quota.
-                    </p>
-                  </div>
-              </CardContent>
-          </Card>
-      )}
 
       <Card>
         <CardHeader>
@@ -379,10 +309,10 @@ export default function PartnerServicesPage() {
                   const override = overrides[service.id];
                   const displayPrice = override?.price ?? service.price;
                   const displayTitle = override?.title ?? service.title;
-                  const currentStatus = bulkStatus[service.id];
+                  const isBranded = !!override?.title && (override.title !== service.title || override.description !== service.description);
 
                   return (
-                  <TableRow key={service.id} className={cn(currentStatus === 'rate_limited' && "bg-yellow-50/50")}>
+                  <TableRow key={service.id}>
                     <TableCell className="font-medium">
                         <div className="flex flex-col">
                             <span className="font-bold text-slate-900">{displayTitle}</span>
@@ -390,14 +320,8 @@ export default function PartnerServicesPage() {
                         </div>
                     </TableCell>
                     <TableCell>
-                        {currentStatus === 'processing' ? (
-                            <Badge variant="outline" className="animate-pulse h-5 text-[10px]"><Loader2 className="h-2 w-2 mr-1 animate-spin"/> Processing</Badge>
-                        ) : currentStatus === 'rate_limited' ? (
-                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200 h-5 text-[10px] font-bold"><Clock className="h-2 w-2 mr-1"/> Rate Limited</Badge>
-                        ) : currentStatus === 'done' || override?.metaTitle ? (
+                        {isBranded ? (
                             <Badge variant="success" className="bg-green-100 text-green-800 border-green-200 h-5 text-[10px]">Branded</Badge>
-                        ) : currentStatus === 'error' ? (
-                            <Badge variant="destructive" className="h-5 text-[10px]">Error</Badge>
                         ) : (
                             <Badge variant="secondary" className="opacity-50 h-5 text-[10px]">Default</Badge>
                         )}
