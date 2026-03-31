@@ -186,7 +186,7 @@ export default function PartnerServicesPage() {
     const practiceName = user.companyName || user.name;
     
     setIsApplyingBranding(true);
-    toast({ title: 'Applying Branding...', description: `Replacing "My Accountant" with "${practiceName}" across all services.` });
+    toast({ title: 'Applying Branding...', description: `Replacing "My Accountant" with "${practiceName}" across all services and SEO metadata.` });
 
     try {
         const batch = writeBatch(db);
@@ -199,21 +199,27 @@ export default function PartnerServicesPage() {
             const title = currentOverride.title || service.title;
             const desc = currentOverride.description || service.description;
             const longDesc = currentOverride.longDescription || service.longDescription;
+            const metaTitle = currentOverride.metaTitle || service.metaTitle || `${title} | My Accountant`;
+            const metaDesc = currentOverride.metaDescription || service.metaDescription || desc;
 
             // Simple case-insensitive search and replace
             const regex = /My Accountant/gi;
             const newTitle = title.replace(regex, practiceName);
             const newDesc = desc.replace(regex, practiceName);
             const newLongDesc = longDesc.replace(regex, practiceName);
+            const newMetaTitle = metaTitle.replace(regex, practiceName);
+            const newMetaDesc = metaDesc.replace(regex, practiceName);
 
             // Only update if something changed
-            if (newTitle !== title || newDesc !== desc || newLongDesc !== longDesc) {
+            if (newTitle !== title || newDesc !== desc || newLongDesc !== longDesc || newMetaTitle !== metaTitle || newMetaDesc !== metaDesc) {
                 const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', service.id);
                 batch.set(overrideRef, {
                     ...currentOverride,
                     title: newTitle,
                     description: newDesc,
                     longDescription: newLongDesc,
+                    metaTitle: newMetaTitle,
+                    metaDescription: newMetaDesc,
                     // Ensure mandatory fields are present if it's a new override
                     price: currentOverride.price ?? service.price,
                     turnaroundTime: currentOverride.turnaroundTime ?? service.turnaroundTime,
@@ -224,9 +230,9 @@ export default function PartnerServicesPage() {
 
         if (count > 0) {
             await batch.commit();
-            toast({ title: 'Branding Applied', description: `Successfully updated ${count} services with your practice name.` });
+            toast({ title: 'Branding Applied', description: `Successfully updated ${count} services including SEO metadata.` });
         } else {
-            toast({ title: 'No Changes Needed', description: 'All services are already branded or do not contain "My Accountant".' });
+            toast({ title: 'No Changes Needed', description: 'All services and metadata are already branded.' });
         }
     } catch (e) {
         console.error(e);
