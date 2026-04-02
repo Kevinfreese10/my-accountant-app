@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -46,7 +45,7 @@ export default function Emp201ReportPage() {
             if (snap.exists()) {
                 const data = snap.data() as User;
                 setClient({ id: snap.id, ...data } as User);
-                if (!selectedPeriod) setSelectedPeriod(data.firstProcessingMonth || '');
+                if (!selectedPeriod && data.firstProcessingMonth) setSelectedPeriod(data.firstProcessingMonth);
             }
         });
 
@@ -78,7 +77,11 @@ export default function Emp201ReportPage() {
     const availablePeriods = useMemo(() => {
         const p = new Set<string>();
         if (client?.firstProcessingMonth) p.add(client.firstProcessingMonth);
-        payslips.forEach(ps => p.add(ps.period));
+        payslips.forEach(ps => {
+            if (ps.period && typeof ps.period === 'string') {
+                p.add(ps.period);
+            }
+        });
         return Array.from(p).sort((a, b) => b.localeCompare(a));
     }, [payslips, client]);
 
@@ -137,7 +140,7 @@ export default function Emp201ReportPage() {
     }, [payslips, employees, selectedPeriod]);
 
     const handleDownloadExcel = () => {
-        if (!client || !reportData) return;
+        if (!client || !reportData || !selectedPeriod) return;
 
         const wb = XLSX.utils.book_new();
         
@@ -187,7 +190,11 @@ export default function Emp201ReportPage() {
                             <SelectValue placeholder="Select Period" />
                         </SelectTrigger>
                         <SelectContent>
-                            {availablePeriods.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                            {availablePeriods.map(p => (
+                                <SelectItem key={p} value={p}>
+                                    {p}
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                     <Button variant="outline" className="h-10 gap-2 font-bold" onClick={handleDownloadExcel}>
