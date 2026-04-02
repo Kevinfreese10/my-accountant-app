@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -18,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
-import { generateEmployeePayslipAction, syncEmployeeSalaryToActivePayslipAction } from '@/app/actions';
+import { generateEmployeePayslipAction, syncEmployeeSalaryToActivePayslipAction, saveEmployeeAction } from '@/app/actions';
 import PayslipEditor from '@/components/admin/PayslipEditor';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -80,58 +79,44 @@ export default function EmployeesPage() {
     if (!clientId) return;
     setIsSaving(true);
 
-    const employeeRef = selectedEmployee?.id 
-      ? doc(db, 'aiPayrollClients', clientId, 'employees', selectedEmployee.id)
-      : doc(collection(db, 'aiPayrollClients', clientId, 'employees'));
+    try {
+        const res = await saveEmployeeAction({
+            clientId,
+            employeeId: selectedEmployee?.id,
+            data: values
+        });
 
-    const employeeData = {
-      ...values,
-      status: 'Active',
-      updatedAt: serverTimestamp(),
-      ...(selectedEmployee?.id ? {} : { createdAt: serverTimestamp() })
-    };
-
-    setDoc(employeeRef, employeeData, { merge: true })
-      .then(async () => {
-        if (selectedEmployee?.id) {
-          // SYNC SALARY TO PAYSLIP IF CHANGED
-          if (selectedEmployee.basicSalary !== values.basicSalary) {
-              await syncEmployeeSalaryToActivePayslipAction({
-                  clientId,
-                  employeeId: selectedEmployee.id,
-                  newSalary: values.basicSalary,
-                  isNetSalary: values.isNetSalary
-              });
-              toast({ title: 'Record Updated', description: 'Employee details and active payslip have been synchronized.' });
-          } else {
-              toast({ title: 'Employee Updated' });
-          }
+        if (res.success) {
+            if (selectedEmployee?.id) {
+                // SYNC SALARY TO PAYSLIP IF CHANGED
+                if (selectedEmployee.basicSalary !== values.basicSalary) {
+                    await syncEmployeeSalaryToActivePayslipAction({
+                        clientId,
+                        employeeId: selectedEmployee.id,
+                        newSalary: values.basicSalary,
+                        isNetSalary: values.isNetSalary
+                    });
+                    toast({ title: 'Record Updated', description: 'Employee details and active payslip have been synchronized.' });
+                } else {
+                    toast({ title: 'Employee Updated' });
+                }
+            } else {
+                toast({ 
+                    title: 'Employee Added', 
+                    description: 'Draft payslip has been created.' 
+                });
+            }
+            setIsFormOpen(false);
+            setSelectedEmployee(null);
         } else {
-          // NEW EMPLOYEE: AUTOMATIC PAYSLIP GENERATION
-          await generateEmployeePayslipAction({
-              clientId,
-              employeeId: employeeRef.id,
-              basicSalary: values.basicSalary
-          });
-
-          toast({ 
-              title: 'Employee Added', 
-              description: 'Draft payslip has been created.' 
-          });
+            toast({ title: 'Save Failed', description: res.error, variant: 'destructive' });
         }
-        setIsFormOpen(false);
-        setSelectedEmployee(null);
+    } catch (error: any) {
+        console.error("Employee save error:", error);
+        toast({ title: 'Error', description: 'An unexpected error occurred.', variant: 'destructive' });
+    } finally {
         setIsSaving(false);
-      })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: employeeRef.path,
-          operation: selectedEmployee?.id ? 'update' : 'create',
-          requestResourceData: employeeData,
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-        setIsSaving(false);
-      });
+    }
   };
 
   const handleEditPayslip = async (employee: Employee) => {

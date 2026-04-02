@@ -22,6 +22,47 @@ import { PayrollService } from '@/services/PayrollService';
 const db = getFirestore(firebaseApp);
 
 /**
+ * Saves or updates an employee and automatically triggers initial payslip generation for new records.
+ */
+export async function saveEmployeeAction({
+    clientId,
+    employeeId,
+    data
+}: {
+    clientId: string,
+    employeeId?: string,
+    data: any
+}) {
+    try {
+        const targetRef = employeeId 
+            ? doc(db, 'aiPayrollClients', clientId, 'employees', employeeId)
+            : doc(collection(db, 'aiPayrollClients', clientId, 'employees'));
+        
+        const finalId = targetRef.id;
+        const employeeData = {
+            ...data,
+            id: finalId,
+            status: 'Active',
+            updatedAt: serverTimestamp(),
+            ...(employeeId ? {} : { createdAt: serverTimestamp() })
+        };
+
+        await setDoc(targetRef, employeeData, { merge: true });
+
+        // If it's a new employee, generate the payslip immediately on the server
+        if (!employeeId) {
+            const baseValue = data.payType === 'Hourly' ? data.hourlyRate : data.basicSalary;
+            await PayrollService.generateInitialPayslip(clientId, finalId, baseValue);
+        }
+
+        return { success: true, id: finalId };
+    } catch (e: any) {
+        console.error("Save employee error:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+/**
  * Updates an existing payslip with new values.
  */
 export async function updatePayslipAction({
@@ -361,6 +402,7 @@ export async function generateEmployeePayslipAction({
 }) {
     try {
         const clientSnap = await getDoc(doc(db, 'aiPayrollClients', clientId));
+        if (!clientSnap.exists()) throw new Error("Client record not found.");
         const client = clientSnap.data() as User;
         const isFortnightly = client.payrollFrequency === 'Fortnightly';
         const runNumber = (isFortnightly && client.firstProcessingMonth?.includes('Run 2')) ? 2 : 1;
