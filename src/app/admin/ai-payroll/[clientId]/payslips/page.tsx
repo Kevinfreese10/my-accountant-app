@@ -1,22 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calculator, Loader2, FileText, ReceiptText, CheckCircle2, AlertCircle, ArrowRightLeft, CalendarClock, ChevronRight, RotateCcw } from 'lucide-react';
-import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, getDocs, where } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, getDocs, where, limit } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Payslip, Employee, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
-import { rollForwardPayrollAction, rollBackPayrollAction } from '@/app/actions';
+import { rollForwardPayrollAction, rollBackPayrollAction, generateEmployeePayslipAction } from '@/app/actions';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import PayslipEditor from '@/components/admin/PayslipEditor';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Timestamp } from 'firebase/firestore';
+import { PayrollService } from '@/services/PayrollService';
 
 const db = getFirestore(firebaseApp);
 
@@ -36,6 +38,7 @@ export default function PayslipsPage() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingPayslip, setEditingPayslip] = useState<Payslip | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [isFetchingPayslip, setIsFetchingPayslip] = useState(false);
 
   useEffect(() => {
     if (!clientId) return;
@@ -45,12 +48,13 @@ export default function PayslipsPage() {
         if (snap.exists()) setClient({ id: snap.id, ...snap.data() } as User);
     });
 
-    // Fetch employees - use a real-time listener to ensure status changes reflect immediately
+    // Fetch employees
     const empRef = collection(db, 'aiPayrollClients', clientId, 'employees');
     const unsubEmp = onSnapshot(empRef, (snap) => {
         setEmployees(snap.docs.map(d => ({ id: d.id, ...d.data() } as Employee)));
     });
 
+    // Fetch payslips
     const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
     const q = query(payslipsRef, orderBy('createdAt', 'desc'));
 
@@ -72,6 +76,18 @@ export default function PayslipsPage() {
         unsubEmp();
     };
   }, [clientId]);
+
+  // Derived data: Map active employees to their current period payslip
+  const activeEmployeesWithPayslips = useMemo(() => {
+      const active = employees.filter(e => e.status === 'Active');
+      return active.map(emp => {
+          const ps = payslips.find(p => p.employeeId === emp.id && p.period === client?.firstProcessingMonth);
+          return {
+              employee: emp,
+              payslip: ps || null
+          };
+      });
+  }, [employees, payslips, client?.firstProcessingMonth]);
 
   const handleRollForward = async () => {
     if (!client) return;
@@ -115,15 +131,77 @@ export default function PayslipsPage() {
     }
   };
 
-  const handleEditPayslip = (payslip: Payslip) => {
-      const employee = employees.find(e => e.id === payslip.employeeId);
-      if (!employee) {
-          toast({ title: "Employee Not Found", variant: "destructive" });
-          return;
-      }
-      setEditingPayslip(payslip);
+  const handleEditDetails = async (employee: Employee, existingPayslip: Payslip | null) => {
+      setIsFetchingPayslip(true);
       setEditingEmployee(employee);
-      setIsEditorOpen(true);
+      
+      const periodLabel = client?.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
+
+      try {
+          if (existingPayslip) {
+              setEditingPayslip(existingPayslip);
+          } else {
+              // Try to find it in the DB first just in case local state is lagging
+              const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+              const q = query(
+                  payslipsRef, 
+                  where('employeeId', '==', employee.id), 
+                  where('period', '==', periodLabel),
+                  limit(1)
+              );
+              
+              const snap = await getDocs(q);
+              if (!snap.empty) {
+                  const data = snap.docs[0].data();
+                  setEditingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
+              } else {
+                  // Truly missing, attempt generation
+                  const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0);
+                  const res = await generateEmployeePayslipAction({
+                      clientId,
+                      employeeId: employee.id,
+                      basicSalary: baseValue
+                  });
+                  
+                  if (res.success && res.id) {
+                      const newSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'payslips', res.id));
+                      if (newSnap.exists()) {
+                          setEditingPayslip({ id: newSnap.id, ...newSnap.data() } as Payslip);
+                      }
+                  } else {
+                      // Generation failed, provide manual stub
+                      const frequencyLabel = client?.payrollFrequency || 'Monthly';
+                      const freqNum = PayrollService.getFrequencyMultiplier(frequencyLabel);
+                      
+                      const initialEarnings = PayrollService.calculateEarningsList(employee, baseValue, periodLabel, freqNum);
+                      const initialGross = initialEarnings.reduce((s, i) => s + i.amount, 0);
+
+                      const stub: Payslip = {
+                          id: 'new',
+                          employeeId: employee.id,
+                          employeeName: `${employee.name} ${employee.surname}`,
+                          period: periodLabel,
+                          date: Timestamp.now(),
+                          earnings: initialEarnings,
+                          deductions: PayrollService.getInitialDeductions(initialGross, periodLabel, freqNum),
+                          contributions: PayrollService.getInitialContributions(initialGross, periodLabel, freqNum, !!client?.excludeSdl),
+                          fringeBenefits: [],
+                          grossPay: initialGross,
+                          totalDeductions: 0,
+                          netPay: 0,
+                          frequency: frequencyLabel
+                      };
+                      setEditingPayslip(stub);
+                  }
+              }
+          }
+          setIsEditorOpen(true);
+      } catch (error) {
+          console.error("Error fetching payslip:", error);
+          toast({ title: "Error", description: "Failed to load payslip data.", variant: "destructive" });
+      } finally {
+          setIsFetchingPayslip(false);
+      }
   };
 
   const formatPrice = (price: number) => {
@@ -132,15 +210,6 @@ export default function PayslipsPage() {
       currency: 'ZAR',
     }).format(price);
   };
-
-  // Filter current period payslips by employee status
-  const currentPeriodPayslips = payslips.filter(ps => {
-      const isCorrectPeriod = ps.period === client?.firstProcessingMonth;
-      if (!isCorrectPeriod) return false;
-      
-      const employee = employees.find(e => e.id === ps.employeeId);
-      return employee?.status === 'Active';
-  });
 
   return (
     <div className="space-y-6">
@@ -219,17 +288,17 @@ export default function PayslipsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>Draft Payslips - {client?.firstProcessingMonth}</CardTitle>
-                    <CardDescription>Review and finalize staff payments for active employees.</CardDescription>
+                    <CardDescription>Review and finalize staff payments for all active employees.</CardDescription>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
             {isLoading ? (
                 <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary" /></div>
-            ) : currentPeriodPayslips.length === 0 ? (
+            ) : activeEmployeesWithPayslips.length === 0 ? (
                 <div className="h-40 flex flex-col items-center justify-center border-2 border-dashed rounded-lg text-muted-foreground m-6 mt-0 p-8">
                     <ReceiptText className="h-10 w-10 opacity-20 mb-2" />
-                    <p className="font-semibold text-sm">No draft payslips found for active employees.</p>
-                    <p className="text-xs">Add active employees or roll forward to the next month to begin.</p>
+                    <p className="font-semibold text-sm">No active employees found.</p>
+                    <p className="text-xs">Add active employees to begin processing the current cycle.</p>
                 </div>
             ) : (
                 <Table>
@@ -239,20 +308,43 @@ export default function PayslipsPage() {
                     <TableHead className="text-right">Gross Earnings</TableHead>
                     <TableHead className="text-right">Tax (PAYE)</TableHead>
                     <TableHead className="text-right">Net Pay</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {currentPeriodPayslips.map((ps) => {
-                        const tax = ps.deductions.find(d => d.label === 'Tax')?.amount || 0;
+                    {activeEmployeesWithPayslips.map((row) => {
+                        const { employee, payslip } = row;
+                        const tax = payslip?.deductions.find(d => d.label === 'Tax')?.amount || 0;
+                        const isProcessing = isFetchingPayslip && editingEmployee?.id === employee.id;
+
                         return (
-                        <TableRow key={ps.id}>
-                            <TableCell className="font-bold text-slate-900">{ps.employeeName}</TableCell>
-                            <TableCell className="text-right font-mono text-xs">{formatPrice(ps.grossPay || 0)}</TableCell>
+                        <TableRow key={employee.id}>
+                            <TableCell className="font-bold text-slate-900">
+                                <div className="flex flex-col">
+                                    <span>{employee.name} {employee.surname}</span>
+                                    <span className="text-[10px] text-muted-foreground font-mono uppercase">{employee.employeeCode}</span>
+                                </div>
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs">{formatPrice(payslip?.grossPay || 0)}</TableCell>
                             <TableCell className="text-right font-mono text-xs text-destructive">{formatPrice(tax)}</TableCell>
-                            <TableCell className="text-right font-black text-primary font-mono">{formatPrice(ps.netPay)}</TableCell>
+                            <TableCell className="text-right font-black text-primary font-mono">{formatPrice(payslip?.netPay || 0)}</TableCell>
                             <TableCell className="text-right">
-                                <Button variant="secondary" size="sm" className="font-bold" onClick={() => handleEditPayslip(ps)}>
+                                {payslip ? (
+                                    <Badge variant="success" className="text-[9px] uppercase font-bold px-2 py-0.5">Finalized</Badge>
+                                ) : (
+                                    <Badge variant="secondary" className="text-[9px] uppercase font-bold px-2 py-0.5 opacity-50">Pending</Badge>
+                                )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                                <Button 
+                                    variant="secondary" 
+                                    size="sm" 
+                                    className="font-bold" 
+                                    onClick={() => handleEditDetails(employee, payslip)}
+                                    disabled={isProcessing}
+                                >
+                                    {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                                     Edit Details <ChevronRight className="h-4 w-4 ml-1" />
                                 </Button>
                             </TableCell>
