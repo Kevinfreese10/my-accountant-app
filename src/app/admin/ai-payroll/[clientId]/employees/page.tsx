@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, Search, Loader2, MoreHorizontal, Edit, Trash2, User as UserIcon, ReceiptText, Calculator, FileUp } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { getFirestore, collection, query, orderBy, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, getDoc, where, limit, getDocs, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, doc, onSnapshot, deleteDoc, getDoc, getDocs, where, limit, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Employee, Payslip, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +20,7 @@ import { format } from 'date-fns';
 import { generateEmployeePayslipAction, syncEmployeeSalaryToActivePayslipAction, saveEmployeeAction } from '@/app/actions';
 import PayslipEditor from '@/components/admin/PayslipEditor';
 import EmployeeImportDialog from '@/components/admin/EmployeeImportDialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const db = getFirestore(firebaseApp);
 
@@ -314,22 +315,31 @@ export default function EmployeesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-primary"
-                            onClick={() => handleEditPayslip(emp)}
-                            disabled={isFetchingPayslip && payslipEmployee?.id === emp.id}
-                        >
-                            {isFetchingPayslip && payslipEmployee?.id === emp.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <ReceiptText className="h-4 w-4" />}
-                        </Button>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 text-primary"
+                                        onClick={() => handleEditPayslip(emp)}
+                                        disabled={isFetchingPayslip && payslipEmployee?.id === emp.id}
+                                    >
+                                        {isFetchingPayslip && payslipEmployee?.id === emp.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <ReceiptText className="h-4 w-4" />}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Edit Current Payslip</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                             </DropdownMenuTrigger>
-                            <DropdownContent align="end">
+                            <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => { setSelectedEmployee(emp); setIsFormOpen(true); }}>
                                 <Edit className="mr-2 h-4 w-4" /> Edit Details
@@ -359,7 +369,7 @@ export default function EmployeesPage() {
                                 </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                            </DropdownContent>
+                            </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
                     </TableCell>
