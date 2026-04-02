@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { getFirestore, collection, onSnapshot, doc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Button } from '@/components/ui/button';
 import { Users, Banknote, CalendarCheck, TrendingUp, Loader2, UserPlus, ArrowRight } from 'lucide-react';
 import { Employee, Payslip, User } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
