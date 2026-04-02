@@ -48,7 +48,10 @@ export default function PayslipEditor({
             const calculatedBasic = (employee.hourlyRate || 0) * hoursWorked;
             setEarnings(prev => {
                 const updated = [...prev];
-                const basicIdx = updated.findIndex(item => item.label.toLowerCase().includes('hourly rate') || item.label.toLowerCase().includes('normal hours'));
+                const basicIdx = updated.findIndex(item => 
+                    item.label.toLowerCase().includes('hourly rate') || 
+                    item.label.toLowerCase().includes('normal hours')
+                );
                 if (basicIdx > -1) {
                     updated[basicIdx].amount = calculatedBasic;
                 }
@@ -57,12 +60,25 @@ export default function PayslipEditor({
         }
     }, [hoursWorked, employee.payType, employee.hourlyRate]);
 
+    const handleSyncFromProfile = () => {
+        const basePeriod = client.firstProcessingMonth || 'Current Period';
+        const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0);
+        
+        const freshEarnings = PayrollService.calculateEarningsList(employee, baseValue, basePeriod, frequency, { normal: hoursWorked });
+        setEarnings(freshEarnings);
+        
+        const gross = freshEarnings.reduce((s, i) => s + i.amount, 0);
+        setDeductions(PayrollService.getInitialDeductions(gross, basePeriod, frequency));
+        setContributions(PayrollService.getInitialContributions(gross, basePeriod, !!client.excludeSdl));
+        
+        toast({ title: "Synced with Profile", description: "Basic salary and statutory items refreshed." });
+    };
+
     // Dynamic Recalculation logic
     const totals = useMemo(() => {
         const gross = earnings.reduce((sum, item) => sum + item.amount, 0);
         const period = client.firstProcessingMonth;
         
-        // Auto-calculate statutory items if they exist
         const updatedDeductions = [...deductions];
         const updatedContributions = [...contributions];
 
@@ -186,7 +202,6 @@ export default function PayslipEditor({
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
-            {/* Context Info */}
             <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
                 <div className="flex items-center gap-4">
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
@@ -222,21 +237,12 @@ export default function PayslipEditor({
                 </div>
             </div>
 
-            {/* Main Editor Grid */}
             <Card className="border shadow-lg rounded-none overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-3 divide-x divide-[#CCCCCC]">
-                    {/* Earnings */}
                     <div className="flex flex-col min-h-[350px]">
                         <ColumnHeader title="Earnings" onAdd={() => handleAddItem('earning')} />
                         <div className="flex-grow bg-white">
                             {earnings.map((item, i) => <ItemRow key={i} item={item} index={i} type="earning" />)}
-                            {earnings.length === 0 && (
-                                <div className="p-4 text-center">
-                                    <Button variant="ghost" size="sm" onClick={() => handleAddItem('earning')} className="text-[10px] uppercase font-bold text-muted-foreground">
-                                        <Plus className="h-3 w-3 mr-1" /> Add Manual Earning
-                                    </Button>
-                                </div>
-                            )}
                         </div>
                         <div className="bg-[#F9F9F9] p-2 flex justify-between items-center border-t border-[#E5E5E5] text-[11px]">
                             <span className="font-bold text-[#666666]">Total</span>
@@ -244,18 +250,10 @@ export default function PayslipEditor({
                         </div>
                     </div>
 
-                    {/* Deductions */}
                     <div className="flex flex-col min-h-[350px]">
                         <ColumnHeader title="Deductions" onAdd={() => handleAddItem('deduction')} />
                         <div className="flex-grow bg-white">
                             {totals.updatedDeductions.map((item, i) => <ItemRow key={i} item={item} index={i} type="deduction" />)}
-                            {totals.updatedDeductions.length === 0 && (
-                                <div className="p-4 text-center">
-                                    <Button variant="ghost" size="sm" onClick={() => handleAddItem('deduction')} className="text-[10px] uppercase font-bold text-muted-foreground">
-                                        <Plus className="h-3 w-3 mr-1" /> Add Manual Deduction
-                                    </Button>
-                                </div>
-                            )}
                         </div>
                         <div className="bg-[#F9F9F9] p-2 flex justify-between items-center border-t border-[#E5E5E5] text-[11px]">
                             <span className="font-bold text-[#666666]">Total</span>
@@ -263,7 +261,6 @@ export default function PayslipEditor({
                         </div>
                     </div>
 
-                    {/* Contributions & Fringe Benefits */}
                     <div className="flex flex-col min-h-[350px]">
                         <ColumnHeader title="Company Contributions" onAdd={() => handleAddItem('contribution')} />
                         <div className="bg-white">
@@ -285,9 +282,8 @@ export default function PayslipEditor({
                     </div>
                 </div>
 
-                {/* Bottom Net Pay Row */}
                 <div className="bg-[#EFEFEF] border-t border-[#CCCCCC] p-3 flex justify-between items-center">
-                    <span className="text-sm font-black text-[#333333] uppercase italic tracking-tighter">Nett Pay</span>
+                    <span className="text-sm font-black text-[#333333] uppercase italic tracking-tighter">Nett pay</span>
                     <span className="text-2xl font-black text-slate-900 tabular-nums font-mono">
                         R {formatCurrency(totals.netPay)}
                     </span>
@@ -296,6 +292,9 @@ export default function PayslipEditor({
 
             <div className="flex justify-between items-center">
                 <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={handleSyncFromProfile} className="font-bold text-xs gap-2">
+                        <RefreshCw className="h-3 w-3" /> Sync with Profile
+                    </Button>
                     <PayslipDownloadButton 
                         client={client}
                         employee={employee}

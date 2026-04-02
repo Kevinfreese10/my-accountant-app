@@ -23,8 +23,8 @@ const TAX_YEAR_CONFIGS: Record<string, { rebate: number; uifLimit: number; brack
     ],
   },
   '2027': {
-    rebate: 18010, // Projected adjustment
-    uifLimit: 185.00, // Projected adjustment
+    rebate: 18010,
+    uifLimit: 185.00,
     brackets: [
       { threshold: 0, base: 0, rate: 0.18 },
       { threshold: 247750, base: 44595, rate: 0.26 },
@@ -128,9 +128,8 @@ export class PayrollService {
       const earnings: PayslipItem[] = [];
       const hourlyRate = employee.hourlyRate || 0;
 
-      // 1. Primary Pay
       if (employee.payType === 'Hourly') {
-          const normalHours = hours?.normal ?? 80;
+          const normalHours = hours?.normal ?? 160;
           earnings.push({ label: 'Normal Hours pay', amount: parseFloat((hourlyRate * normalHours).toFixed(2)) });
       } else {
           let gross = baseValue;
@@ -140,7 +139,6 @@ export class PayrollService {
           earnings.push({ label: 'Basic salary', amount: gross });
       }
 
-      // 2. Variable Pay (Additional Hours)
       if (hours) {
           if (hours.publicHoliday && hours.publicHoliday > 0) {
               earnings.push({ label: 'Public Holidays (2x)', amount: parseFloat((hourlyRate * 2 * hours.publicHoliday).toFixed(2)) });
@@ -157,6 +155,23 @@ export class PayrollService {
       }
 
       return earnings;
+  }
+
+  static getInitialDeductions(gross: number, period: string, frequency: number): PayslipItem[] {
+      return [
+          { label: 'Tax', amount: this.calculatePaye(gross, period, frequency), isStatutory: true },
+          { label: 'Unemployment insurance fund', amount: this.calculateUif(gross, period), isStatutory: true }
+      ];
+  }
+
+  static getInitialContributions(gross: number, period: string, excludeSdl: boolean): PayslipItem[] {
+      const contribs = [
+          { label: 'Unemployment insurance fund', amount: this.calculateUif(gross, period), isStatutory: true }
+      ];
+      if (!excludeSdl) {
+          contribs.push({ label: 'Skills development levy', amount: parseFloat((gross * 0.01).toFixed(2)), isStatutory: true });
+      }
+      return contribs;
   }
 
   /**
@@ -185,24 +200,10 @@ export class PayrollService {
       const earnings = this.calculateEarningsList(employee, baseValue, basePeriod, frequency, hours);
       const gross = earnings.reduce((sum, i) => sum + i.amount, 0);
 
-      const paye = this.calculatePaye(gross, basePeriod, frequency);
-      const uif = this.calculateUif(gross, basePeriod);
-      const sdl = clientData.excludeSdl ? 0 : parseFloat((gross * 0.01).toFixed(2));
+      const deductions = this.getInitialDeductions(gross, basePeriod, frequency);
+      const contributions = this.getInitialContributions(gross, basePeriod, !!clientData.excludeSdl);
 
-      const deductions: PayslipItem[] = [
-          { label: 'Tax', amount: paye, isStatutory: true },
-          { label: 'Unemployment insurance fund', amount: uif, isStatutory: true }
-      ];
-
-      const contributions: PayslipItem[] = [
-          { label: 'Unemployment insurance fund', amount: uif, isStatutory: true }
-      ];
-
-      if (sdl > 0) {
-          contributions.push({ label: 'Skills development levy', amount: sdl, isStatutory: true });
-      }
-
-      const totalDeductions = deductions.reduce((sum, i) => sum + i.amount, 0);
+      const totalDeductions = deductions.reduce((sum, item) => sum + item.amount, 0);
 
       const payslipData: Omit<Payslip, 'id'> = {
         employeeId,

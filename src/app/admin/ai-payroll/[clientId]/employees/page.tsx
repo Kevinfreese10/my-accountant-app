@@ -21,6 +21,7 @@ import { generateEmployeePayslipAction, syncEmployeeSalaryToActivePayslipAction,
 import PayslipEditor from '@/components/admin/PayslipEditor';
 import EmployeeImportDialog from '@/components/admin/EmployeeImportDialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PayrollService } from '@/services/PayrollService';
 
 const db = getFirestore(firebaseApp);
 
@@ -38,7 +39,6 @@ export default function EmployeesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Payslip editing states
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingPayslip, setEditingPayslip] = useState<Payslip | null>(null);
   const [payslipEmployee, setPayslipEmployee] = useState<Employee | null>(null);
@@ -47,7 +47,6 @@ export default function EmployeesPage() {
   useEffect(() => {
     if (!clientId) return;
 
-    // Fetch client details
     getDoc(doc(db, 'aiPayrollClients', clientId)).then(snap => {
         if (snap.exists()) setClient({ id: snap.id, ...snap.data() } as User);
     });
@@ -68,7 +67,7 @@ export default function EmployeesPage() {
     });
 
     return () => unsubscribe();
-  }, [clientId, toast]);
+  }, [clientId]);
 
   const handleFormSubmit = async (values: any) => {
     if (!clientId) return;
@@ -83,11 +82,11 @@ export default function EmployeesPage() {
 
         if (res.success) {
             if (selectedEmployee?.id) {
-                if (selectedEmployee.basicSalary !== values.basicSalary) {
+                if (selectedEmployee.basicSalary !== values.basicSalary || selectedEmployee.hourlyRate !== values.hourlyRate) {
                     await syncEmployeeSalaryToActivePayslipAction({
                         clientId,
                         employeeId: selectedEmployee.id,
-                        newSalary: values.basicSalary,
+                        newSalary: values.payType === 'Hourly' ? values.hourlyRate : values.basicSalary,
                         isNetSalary: values.isNetSalary
                     });
                     toast({ title: 'Record Updated', description: 'Employee details and active payslip have been synchronized.' });
@@ -119,22 +118,6 @@ export default function EmployeesPage() {
       
       const periodLabel = client?.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
 
-      const createStub = (): Payslip => ({
-          id: 'new',
-          employeeId: employee.id,
-          employeeName: `${employee.name} ${employee.surname}`,
-          period: periodLabel,
-          date: Timestamp.now(),
-          earnings: [],
-          deductions: [],
-          contributions: [],
-          fringeBenefits: [],
-          grossPay: 0,
-          totalDeductions: 0,
-          netPay: 0,
-          frequency: client?.payrollFrequency || 'Monthly'
-      });
-
       try {
           const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
           const q = query(
@@ -149,26 +132,47 @@ export default function EmployeesPage() {
               const data = snap.docs[0].data();
               setEditingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
           } else {
+              const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0);
               const res = await generateEmployeePayslipAction({
                   clientId,
                   employeeId: employee.id,
-                  basicSalary: employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0)
+                  basicSalary: baseValue
               });
               
               if (res.success && res.id) {
                   const newSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'payslips', res.id));
                   if (newSnap.exists()) {
                       setEditingPayslip({ id: newSnap.id, ...newSnap.data() } as Payslip);
-                  } else {
-                      setEditingPayslip(createStub());
                   }
               } else {
-                  setEditingPayslip(createStub());
+                  const frequencyLabel = client?.payrollFrequency || 'Monthly';
+                  const freqNum = frequencyLabel === 'Monthly' ? 12 : frequencyLabel === 'Fortnightly' ? 26 : 52;
+                  const basePeriod = client?.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
+                  
+                  const initialEarnings = PayrollService.calculateEarningsList(employee, baseValue, basePeriod, freqNum);
+                  const initialGross = initialEarnings.reduce((s, i) => s + i.amount, 0);
+
+                  const stub: Payslip = {
+                      id: 'new',
+                      employeeId: employee.id,
+                      employeeName: `${employee.name} ${employee.surname}`,
+                      period: periodLabel,
+                      date: Timestamp.now(),
+                      earnings: initialEarnings,
+                      deductions: PayrollService.getInitialDeductions(initialGross, basePeriod, freqNum),
+                      contributions: PayrollService.getInitialContributions(initialGross, basePeriod, !!client?.excludeSdl),
+                      fringeBenefits: [],
+                      grossPay: initialGross,
+                      totalDeductions: 0,
+                      netPay: 0,
+                      frequency: frequencyLabel
+                  };
+                  setEditingPayslip(stub);
               }
           }
       } catch (error) {
           console.error("Error fetching payslip:", error);
-          setEditingPayslip(createStub());
+          toast({ title: "Error", description: "Failed to load payslip data.", variant: "destructive" });
       } finally {
           setIsFetchingPayslip(false);
           setIsEditorOpen(true);
@@ -294,13 +298,15 @@ export default function EmployeesPage() {
               <TableBody>
                 {filteredEmployees.map((emp) => (
                   <TableRow key={emp.id}>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium text-slate-900">
                       <div className="flex flex-col">
                         <div className="flex items-center gap-2">
-                            <span className="text-slate-900 font-bold">{emp.surname}, {emp.name}</span>
+                            <span className="font-bold">{emp.surname}, {emp.name}</span>
                             <Badge variant="outline" className="text-[9px] font-mono">{emp.employeeCode}</Badge>
                         </div>
-                        <span className="text-[10px] text-muted-foreground">Joined: {emp.joinDate?.toDate ? format(emp.joinDate.toDate(), 'dd MMM yyyy') : 'N/A'}</span>
+                        <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter">
+                            Joined: {emp.joinDate?.toDate ? format(emp.joinDate.toDate(), 'dd MMM yyyy') : 'N/A'}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs text-slate-600">{emp.idNumber}</TableCell>
