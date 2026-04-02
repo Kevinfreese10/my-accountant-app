@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -80,8 +81,16 @@ export default function PayslipsPage() {
   // Derived data: Map active employees to their current period payslip
   const activeEmployeesWithPayslips = useMemo(() => {
       const active = employees.filter(e => e.status === 'Active');
+      const basePeriod = client?.firstProcessingMonth || '';
+      
       return active.map(emp => {
-          const ps = payslips.find(p => p.employeeId === emp.id && p.period === client?.firstProcessingMonth);
+          // Robust matching: Check if period starts with the base period label
+          // This handles "March 2026 - Run 1" matching "March 2026"
+          const ps = payslips.find(p => 
+            p.employeeId === emp.id && 
+            (p.period === basePeriod || p.period.startsWith(`${basePeriod} -`))
+          );
+          
           return {
               employee: emp,
               payslip: ps || null
@@ -146,7 +155,8 @@ export default function PayslipsPage() {
               const q = query(
                   payslipsRef, 
                   where('employeeId', '==', employee.id), 
-                  where('period', '==', periodLabel),
+                  where('period', '>=', periodLabel), 
+                  where('period', '<=', `${periodLabel}\uf8ff`),
                   limit(1)
               );
               
@@ -208,6 +218,8 @@ export default function PayslipsPage() {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(price);
   };
 
@@ -315,7 +327,29 @@ export default function PayslipsPage() {
                 <TableBody>
                     {activeEmployeesWithPayslips.map((row) => {
                         const { employee, payslip } = row;
-                        const tax = payslip?.deductions.find(d => d.label === 'Tax')?.amount || 0;
+                        
+                        // Calculate display values
+                        // If no saved payslip, use values from employee profile as a draft estimate
+                        let displayGross = 0;
+                        let displayTax = 0;
+                        let displayNet = 0;
+
+                        if (payslip) {
+                            displayGross = payslip.grossPay;
+                            displayTax = payslip.deductions.find(d => d.label === 'Tax')?.amount || 0;
+                            displayNet = payslip.netPay;
+                        } else {
+                            // Draft estimate from profile
+                            const frequency = PayrollService.getFrequencyMultiplier(client?.payrollFrequency);
+                            const period = client?.firstProcessingMonth;
+                            const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) * 160 : (employee.basicSalary || 0);
+                            
+                            // If it's a "Net" salary in profile, we need to gross it up
+                            displayGross = employee.isNetSalary ? PayrollService.calculateGrossFromNet(baseValue, period, frequency) : baseValue;
+                            displayTax = PayrollService.calculatePaye(displayGross, period, frequency);
+                            displayNet = displayGross - displayTax - PayrollService.calculateUif(displayGross, period, frequency);
+                        }
+
                         const isProcessing = isFetchingPayslip && editingEmployee?.id === employee.id;
 
                         return (
@@ -326,9 +360,15 @@ export default function PayslipsPage() {
                                     <span className="text-[10px] text-muted-foreground font-mono uppercase">{employee.employeeCode}</span>
                                 </div>
                             </TableCell>
-                            <TableCell className="text-right font-mono text-xs">{formatPrice(payslip?.grossPay || 0)}</TableCell>
-                            <TableCell className="text-right font-mono text-xs text-destructive">{formatPrice(tax)}</TableCell>
-                            <TableCell className="text-right font-black text-primary font-mono">{formatPrice(payslip?.netPay || 0)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs">
+                                {formatPrice(displayGross)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs text-destructive">
+                                {formatPrice(displayTax)}
+                            </TableCell>
+                            <TableCell className="text-right font-black text-primary font-mono">
+                                {formatPrice(displayNet)}
+                            </TableCell>
                             <TableCell className="text-right">
                                 {payslip ? (
                                     <Badge variant="success" className="text-[9px] uppercase font-bold px-2 py-0.5">Finalized</Badge>
