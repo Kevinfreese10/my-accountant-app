@@ -19,8 +19,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format } from 'date-fns';
 import { generateEmployeePayslipAction, syncEmployeeSalaryToActivePayslipAction, saveEmployeeAction } from '@/app/actions';
 import PayslipEditor from '@/components/admin/PayslipEditor';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import EmployeeImportDialog from '@/components/admin/EmployeeImportDialog';
 
 const db = getFirestore(firebaseApp);
@@ -63,12 +61,8 @@ export default function EmployeesPage() {
       } as Employee));
       setEmployees(fetchedEmployees);
       setIsLoading(false);
-    }, async (error) => {
-      const permissionError = new FirestorePermissionError({
-        path: employeesRef.path,
-        operation: 'list',
-      } satisfies SecurityRuleContext);
-      errorEmitter.emit('permission-error', permissionError);
+    }, (error) => {
+      console.error("Employee listener error:", error);
       setIsLoading(false);
     });
 
@@ -88,7 +82,6 @@ export default function EmployeesPage() {
 
         if (res.success) {
             if (selectedEmployee?.id) {
-                // SYNC SALARY TO PAYSLIP IF CHANGED
                 if (selectedEmployee.basicSalary !== values.basicSalary) {
                     await syncEmployeeSalaryToActivePayslipAction({
                         clientId,
@@ -125,6 +118,22 @@ export default function EmployeesPage() {
       
       const periodLabel = client?.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
 
+      const createStub = (): Payslip => ({
+          id: 'new',
+          employeeId: employee.id,
+          employeeName: `${employee.name} ${employee.surname}`,
+          period: periodLabel,
+          date: Timestamp.now(),
+          earnings: [],
+          deductions: [],
+          contributions: [],
+          fringeBenefits: [],
+          grossPay: 0,
+          totalDeductions: 0,
+          netPay: 0,
+          frequency: client?.payrollFrequency || 'Monthly'
+      });
+
       try {
           const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
           const q = query(
@@ -138,9 +147,7 @@ export default function EmployeesPage() {
           if (!snap.empty) {
               const data = snap.docs[0].data();
               setEditingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
-              setIsEditorOpen(true);
           } else {
-              // Try to generate
               const res = await generateEmployeePayslipAction({
                   clientId,
                   employeeId: employee.id,
@@ -151,67 +158,30 @@ export default function EmployeesPage() {
                   const newSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'payslips', res.id));
                   if (newSnap.exists()) {
                       setEditingPayslip({ id: newSnap.id, ...newSnap.data() } as Payslip);
-                      setIsEditorOpen(true);
+                  } else {
+                      setEditingPayslip(createStub());
                   }
               } else {
-                  // FAIL-SAFE: If generation fails, create a stub so the user can still edit
-                  const stub: Payslip = {
-                      id: 'new', // Flag for save action to use addDoc
-                      employeeId: employee.id,
-                      employeeName: `${employee.name} ${employee.surname}`,
-                      period: periodLabel,
-                      date: Timestamp.now(),
-                      earnings: [],
-                      deductions: [],
-                      contributions: [],
-                      fringeBenefits: [],
-                      grossPay: 0,
-                      totalDeductions: 0,
-                      netPay: 0,
-                      frequency: client?.payrollFrequency || 'Monthly'
-                  };
-                  setEditingPayslip(stub);
-                  setIsEditorOpen(true);
+                  setEditingPayslip(createStub());
               }
           }
       } catch (error) {
           console.error("Error fetching payslip:", error);
-          // FAIL-SAFE STUB
-          const stub: Payslip = {
-              id: 'new',
-              employeeId: employee.id,
-              employeeName: `${employee.name} ${employee.surname}`,
-              period: periodLabel,
-              date: Timestamp.now(),
-              earnings: [],
-              deductions: [],
-              contributions: [],
-              fringeBenefits: [],
-              grossPay: 0,
-              totalDeductions: 0,
-              netPay: 0,
-              frequency: client?.payrollFrequency || 'Monthly'
-          };
-          setEditingPayslip(stub);
-          setIsEditorOpen(true);
+          setEditingPayslip(createStub());
       } finally {
           setIsFetchingPayslip(false);
+          setIsEditorOpen(true);
       }
   };
 
   const handleDeleteEmployee = async (employeeId: string) => {
     const employeeRef = doc(db, 'aiPayrollClients', clientId, 'employees', employeeId);
-    deleteDoc(employeeRef)
-      .then(() => {
+    try {
+        await deleteDoc(employeeRef);
         toast({ title: 'Employee Removed', variant: 'destructive' });
-      })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: employeeRef.path,
-          operation: 'delete',
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    } catch (error) {
+        console.error("Delete failed:", error);
+    }
   };
 
   const filteredEmployees = employees.filter(emp => 
@@ -389,7 +359,7 @@ export default function EmployeesPage() {
                                 </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                            </DropdownMenuContent>
+                            </DropdownContent>
                         </DropdownMenu>
                       </div>
                     </TableCell>

@@ -149,7 +149,7 @@ export type Order = {
   notes?: OrderNote[];
   documentUploads?: DocumentUpload[];
   itnHistory?: ItnLog[];
-  source?: 'Client' | 'Staff' | 'Partner' | 'AI Accountant Signup' | 'Partner Landing Page';
+  source?: 'Client' | 'Staff' | 'Partner' | 'AI Accountant Signup' | 'Partner Landing Page' | 'Franchise';
   renewalForClientId?: string;
   documentContact?: 'partner' | 'client';
 };
@@ -238,15 +238,22 @@ export type PartnerLandingPageConfig = {
   servicesHeroTextPosition?: 'inside' | 'below';
 };
 
+export type FranchiseConfig = {
+    areaSlug: string;
+    areaName: string;
+    royaltyPercentage: number;
+    setupFeePaid: boolean;
+};
+
 export type User = {
   uid: string; // Firebase Authentication UID
   id: string; // Document ID
   name: string;
   surname?: string;
   email: string;
-  role: 'client' | 'admin' | 'staff' | 'partner' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor' | 'partner_staff';
+  role: 'client' | 'admin' | 'staff' | 'partner' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor' | 'partner_staff' | 'franchisee';
   createdAt?: any;
-  source?: 'AI Accountant' | 'Client Management' | 'Partner Management' | 'AI Payroll';
+  source?: 'AI Accountant' | 'Client Management' | 'Partner Management' | 'AI Payroll' | 'Franchise';
   clientSource?: 'admin' | 'partner' | 'ai_accountant' | 'ai_payroll';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP' | string;
   departments?: string[]; // Practice custom departments
@@ -332,6 +339,8 @@ export type User = {
   excludeSdl?: boolean;
   payrollFrequency?: 'Monthly' | 'Weekly' | 'Fortnightly';
   firstRunStartDate?: any;
+  // Franchisee specific
+  franchise?: FranchiseConfig;
 };
 
 export type ClientCustomer = {

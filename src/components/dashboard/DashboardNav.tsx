@@ -79,7 +79,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const basePath = user.role === 'client' || user.role === 'ai_accountant'
     ? '/dashboard'
-    : user.role === 'partner' || user.role === 'partner_staff'
+    : user.role === 'partner' || user.role === 'partner_staff' || user.role === 'franchisee'
     ? '/partner'
     : '/admin';
 
@@ -124,11 +124,11 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const partnerNavItems = [
-    { href: '/partner/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['partner', 'partner_staff'] },
-    { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['partner', 'partner_staff'] },
-    { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['partner', 'partner_staff'] },
-    { href: '/partner/outsourced-orders', label: 'Outsourced Orders', icon: FileText, roles: ['partner', 'partner_staff'] },
-    { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['partner', 'partner_staff'] },
+    { href: '/partner/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['partner', 'partner_staff', 'franchisee'] },
+    { href: '/partner/services', label: 'View Products', icon: Briefcase, roles: ['partner', 'partner_staff', 'franchisee'] },
+    { href: '/partner/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['partner', 'partner_staff', 'franchisee'] },
+    { href: '/partner/outsourced-orders', label: 'Outsourced Orders', icon: FileText, roles: ['partner', 'partner_staff', 'franchisee'] },
+    { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['partner', 'partner_staff', 'franchisee'] },
   ];
 
   const hasAIAccountantAccess = user.hasNumeraProfile || user.source === 'AI Accountant' || (user.sharedWith && user.sharedWith.length > 0);
@@ -204,7 +204,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuItem>
         ))}
 
-        {(user.role === 'partner' || user.role === 'partner_staff') && (
+        {(user.role === 'partner' || user.role === 'partner_staff' || user.role === 'franchisee') && (
             visiblePartnerNavItems.map((item) => (
                 <SidebarMenuItem key={item.label}>
                 <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>

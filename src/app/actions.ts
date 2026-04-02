@@ -22,6 +22,21 @@ import { PayrollService } from '@/services/PayrollService';
 const db = getFirestore(firebaseApp);
 
 /**
+ * Checks if a territory slug is available for a new franchisee.
+ */
+export async function checkTerritoryAvailability(slug: string) {
+    try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('franchise.areaSlug', '==', slug.toLowerCase().trim()));
+        const snap = await getDocs(q);
+        return { available: snap.empty };
+    } catch (e) {
+        console.error("Territory check failed:", e);
+        return { available: false, error: "System error" };
+    }
+}
+
+/**
  * Saves or updates an employee and automatically triggers initial payslip generation for new records.
  */
 export async function saveEmployeeAction({
@@ -979,6 +994,13 @@ export async function researchMerchantWithAi({
         console.error("Single merchant research failed:", error);
         throw error;
     }
+}
+
+export async function findStoryName(
+  input: FindStoryNameInput
+): Promise<FindStoryNameOutput> {
+  const { storyName } = await import('@/ai/flows/find-story-name');
+  return findStoryName(input);
 }
 
 export async function finalizeChatAllocation({
