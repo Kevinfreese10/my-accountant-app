@@ -1,6 +1,7 @@
 import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Employee, Payslip, PayslipItem } from '@/lib/types';
+import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 
@@ -167,7 +168,7 @@ export class PayrollService {
       const clientSnap = await getDoc(clientRef);
       if (!clientSnap.exists()) throw new Error("Client not found");
       const clientData = clientSnap.data() as User;
-      const basePeriod = clientData.firstProcessingMonth || 'March 2026';
+      const basePeriod = clientData.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
       
       const frequencyLabel = clientData.payrollFrequency || 'Monthly';
       const frequency = frequencyLabel === 'Monthly' ? 12 : frequencyLabel === 'Fortnightly' ? 26 : 52;

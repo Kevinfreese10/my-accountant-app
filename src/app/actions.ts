@@ -49,10 +49,14 @@ export async function saveEmployeeAction({
 
         await setDoc(targetRef, employeeData, { merge: true });
 
-        // If it's a new employee, generate the payslip immediately on the server
+        // If it's a new employee, try to generate payslip but don't crash the whole action if it fails
         if (!employeeId) {
             const baseValue = data.payType === 'Hourly' ? data.hourlyRate : data.basicSalary;
-            await PayrollService.generateInitialPayslip(clientId, finalId, baseValue);
+            try {
+                await PayrollService.generateInitialPayslip(clientId, finalId, baseValue);
+            } catch (err) {
+                console.warn("Initial payslip failed to generate automatically, user can create manually:", err);
+            }
         }
 
         return { success: true, id: finalId };
@@ -63,7 +67,7 @@ export async function saveEmployeeAction({
 }
 
 /**
- * Updates an existing payslip with new values.
+ * Updates or creates a payslip.
  */
 export async function updatePayslipAction({
     clientId,
@@ -75,6 +79,16 @@ export async function updatePayslipAction({
     data: Partial<Payslip>
 }) {
     try {
+        if (payslipId === 'new') {
+            const colRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+            const newDoc = await addDoc(colRef, {
+                ...data,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+            return { success: true, id: newDoc.id };
+        }
+
         const docRef = doc(db, 'aiPayrollClients', clientId, 'payslips', payslipId);
         await updateDoc(docRef, {
             ...data,

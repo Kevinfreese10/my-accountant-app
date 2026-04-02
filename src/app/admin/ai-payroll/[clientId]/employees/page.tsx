@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, Search, Loader2, MoreHorizontal, Edit, Trash2, User as UserIcon, ReceiptText, Calculator, FileUp } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { getFirestore, collection, query, orderBy, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, getDoc, where, limit, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp, getDoc, where, limit, getDocs, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Employee, Payslip, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -120,20 +120,17 @@ export default function EmployeesPage() {
   };
 
   const handleEditPayslip = async (employee: Employee) => {
-      if (!client?.firstProcessingMonth) {
-          toast({ title: "Client Loading", description: "Waiting for client data to sync. Please try again in a moment.", variant: "warning" });
-          return;
-      }
-
       setIsFetchingPayslip(true);
       setPayslipEmployee(employee);
       
+      const periodLabel = client?.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
+
       try {
           const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
           const q = query(
               payslipsRef, 
               where('employeeId', '==', employee.id), 
-              where('period', '==', client.firstProcessingMonth),
+              where('period', '==', periodLabel),
               limit(1)
           );
           
@@ -143,7 +140,7 @@ export default function EmployeesPage() {
               setEditingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
               setIsEditorOpen(true);
           } else {
-              // Automatically generate a draft if missing
+              // Try to generate
               const res = await generateEmployeePayslipAction({
                   clientId,
                   employeeId: employee.id,
@@ -157,12 +154,46 @@ export default function EmployeesPage() {
                       setIsEditorOpen(true);
                   }
               } else {
-                  toast({ title: "Draft Creation Failed", description: "Could not create a draft payslip for this period.", variant: "destructive" });
+                  // FAIL-SAFE: If generation fails, create a stub so the user can still edit
+                  const stub: Payslip = {
+                      id: 'new', // Flag for save action to use addDoc
+                      employeeId: employee.id,
+                      employeeName: `${employee.name} ${employee.surname}`,
+                      period: periodLabel,
+                      date: Timestamp.now(),
+                      earnings: [],
+                      deductions: [],
+                      contributions: [],
+                      fringeBenefits: [],
+                      grossPay: 0,
+                      totalDeductions: 0,
+                      netPay: 0,
+                      frequency: client?.payrollFrequency || 'Monthly'
+                  };
+                  setEditingPayslip(stub);
+                  setIsEditorOpen(true);
               }
           }
       } catch (error) {
           console.error("Error fetching payslip:", error);
-          toast({ title: "Error", description: "Failed to open payslip editor.", variant: "destructive" });
+          // FAIL-SAFE STUB
+          const stub: Payslip = {
+              id: 'new',
+              employeeId: employee.id,
+              employeeName: `${employee.name} ${employee.surname}`,
+              period: periodLabel,
+              date: Timestamp.now(),
+              earnings: [],
+              deductions: [],
+              contributions: [],
+              fringeBenefits: [],
+              grossPay: 0,
+              totalDeductions: 0,
+              netPay: 0,
+              frequency: client?.payrollFrequency || 'Monthly'
+          };
+          setEditingPayslip(stub);
+          setIsEditorOpen(true);
       } finally {
           setIsFetchingPayslip(false);
       }
@@ -236,7 +267,7 @@ export default function EmployeesPage() {
                   <div className="flex justify-between items-center">
                       <div>
                         <DialogTitle className="flex items-center gap-2"><Calculator className="h-5 w-5 text-primary" /> Interactive Payslip Editor</DialogTitle>
-                        <DialogDescription>Current processing month: <strong>{client?.firstProcessingMonth}</strong></DialogDescription>
+                        <DialogDescription>Current processing month: <strong>{client?.firstProcessingMonth || format(new Date(), 'MMMM yyyy')}</strong></DialogDescription>
                       </div>
                       <Badge variant="outline" className="bg-muted border-none uppercase font-black text-[9px] tracking-widest px-3">Confidential Data</Badge>
                   </div>
@@ -328,7 +359,7 @@ export default function EmployeesPage() {
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => { setSelectedEmployee(emp); setIsFormOpen(true); }}>
                                 <Edit className="mr-2 h-4 w-4" /> Edit Details
