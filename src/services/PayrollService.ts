@@ -24,7 +24,7 @@ const TAX_YEAR_CONFIGS: Record<string, { rebate: number; uifLimit: number; brack
   },
   '2027': {
     rebate: 18010,
-    uifLimit: 177.12, // UI Ceiling usually proclaimed separately, keeping at R177.12
+    uifLimit: 177.12, 
     brackets: [
       { threshold: 0, base: 0, rate: 0.18 },
       { threshold: 247750, base: 44595, rate: 0.26 },
@@ -41,6 +41,18 @@ const MONTHS = [ "January", "February", "March", "April", "May", "June", "July",
 
 export class PayrollService {
   /**
+   * Helper to convert frequency string to numeric multiplier.
+   */
+  static getFrequencyMultiplier(freq?: string): number {
+    if (!freq) return 12;
+    const f = freq.toLowerCase();
+    if (f === 'monthly') return 12;
+    if (f === 'fortnightly') return 26;
+    if (f === 'weekly') return 52;
+    return 12;
+  }
+
+  /**
    * Identifies the tax year based on the period string (e.g. "March 2026")
    */
   static getTaxConfig(period?: string) {
@@ -50,6 +62,8 @@ export class PayrollService {
       const year = parseInt(parts[1]);
       
       if (monthIdx !== -1 && !isNaN(year)) {
+        // South African tax year runs from March to Feb.
+        // e.g. March 2025 to Feb 2026 is the 2026 tax year.
         const taxYear = monthIdx >= 2 ? (year + 1).toString() : year.toString();
         return TAX_YEAR_CONFIGS[taxYear] || TAX_YEAR_CONFIGS['2026'];
       }
@@ -65,6 +79,7 @@ export class PayrollService {
     const annualGross = periodEarnings * frequency;
     let annualTax = 0;
 
+    // Find the highest bracket threshold that annualGross exceeds
     const bracket = [...config.brackets].reverse().find(b => annualGross > b.threshold);
     
     if (bracket) {
@@ -190,7 +205,7 @@ export class PayrollService {
       const basePeriod = clientData.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
       
       const frequencyLabel = clientData.payrollFrequency || 'Monthly';
-      const frequency = frequencyLabel === 'Monthly' ? 12 : frequencyLabel === 'Fortnightly' ? 26 : 52;
+      const frequency = this.getFrequencyMultiplier(frequencyLabel);
       
       const periodLabel = frequencyLabel === 'Fortnightly' 
         ? `${basePeriod} - Run ${runNumber}` 

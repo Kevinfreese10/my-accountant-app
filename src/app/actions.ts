@@ -158,7 +158,7 @@ export async function updateDraftPayslipHoursAction({
 
         if (snap.empty) throw new Error("No draft payslip found for this period. Generate payslips first.");
 
-        const frequency = client.payrollFrequency === 'Monthly' ? 12 : client.payrollFrequency === 'Fortnightly' ? 26 : 52;
+        const frequency = PayrollService.getFrequencyMultiplier(client.payrollFrequency);
         const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0);
 
         const batch = writeBatch(db);
@@ -167,22 +167,8 @@ export async function updateDraftPayslipHoursAction({
             const earnings = PayrollService.calculateEarningsList(employee, baseValue, basePeriod || 'March 2026', frequency, hours);
             const gross = earnings.reduce((s, i) => s + i.amount, 0);
 
-            const paye = PayrollService.calculatePaye(gross, basePeriod, frequency);
-            const uif = PayrollService.calculateUif(gross, basePeriod, frequency);
-            const sdl = client.excludeSdl ? 0 : parseFloat((gross * 0.01).toFixed(2));
-
-            const deductions: PayslipItem[] = [
-                { label: 'Tax', amount: paye, isStatutory: true },
-                { label: 'Unemployment insurance fund', amount: uif, isStatutory: true }
-            ];
-
-            const contributions: PayslipItem[] = [
-                { label: 'Unemployment insurance fund', amount: uif, isStatutory: true }
-            ];
-
-            if (sdl > 0) {
-                contributions.push({ label: 'Skills development levy', amount: sdl, isStatutory: true });
-            }
+            const deductions = PayrollService.getInitialDeductions(gross, basePeriod, frequency);
+            const contributions = PayrollService.getInitialContributions(gross, basePeriod, frequency, !!client.excludeSdl);
 
             const totalDeductions = deductions.reduce((sum, i) => sum + i.amount, 0);
 
@@ -240,7 +226,7 @@ export async function syncEmployeeSalaryToActivePayslipAction({
 
         if (snap.empty) return { success: true, message: "No draft payslip to sync" };
 
-        const frequency = client.payrollFrequency === 'Monthly' ? 12 : client.payrollFrequency === 'Fortnightly' ? 26 : 52;
+        const frequency = PayrollService.getFrequencyMultiplier(client.payrollFrequency);
 
         const batch = writeBatch(db);
 
@@ -251,35 +237,20 @@ export async function syncEmployeeSalaryToActivePayslipAction({
                 ? PayrollService.calculateGrossFromNet(newSalary, basePeriod, frequency)
                 : newSalary;
 
-            const paye = PayrollService.calculatePaye(effectiveGross, basePeriod, frequency);
-            const uif = PayrollService.calculateUif(effectiveGross, basePeriod, frequency);
-            const sdl = client.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
+            const deductions = PayrollService.getInitialDeductions(effectiveGross, basePeriod, frequency);
+            const contributions = PayrollService.getInitialContributions(effectiveGross, basePeriod, frequency, !!client.excludeSdl);
 
             const updatedEarnings = payslip.earnings.map(e => 
                 (e.label.toLowerCase() === 'basic salary' || e.label.toLowerCase().includes('hourly rate')) ? { ...e, amount: effectiveGross } : e
             );
 
-            const updatedDeductions = payslip.deductions.map(d => {
-                if (!d.isStatutory) return d;
-                if (d.label === 'Tax') return { ...d, amount: paye };
-                if (d.label === 'Unemployment insurance fund') return { ...d, amount: uif };
-                return d;
-            });
-
-            const updatedContributions = payslip.contributions.map(c => {
-                if (!c.isStatutory) return c;
-                if (c.label === 'Unemployment insurance fund') return { ...c, amount: uif };
-                if (c.label === 'Skills development levy') return { ...c, amount: sdl };
-                return c;
-            });
-
             const totalEarnings = updatedEarnings.reduce((s, i) => s + i.amount, 0);
-            const totalDeductions = updatedDeductions.reduce((s, i) => s + i.amount, 0);
+            const totalDeductions = deductions.reduce((sum, i) => sum + i.amount, 0);
 
             batch.update(payslipDoc.ref, {
                 earnings: updatedEarnings,
-                deductions: updatedDeductions,
-                contributions: updatedContributions,
+                deductions,
+                contributions,
                 grossPay: totalEarnings,
                 totalDeductions: totalDeductions,
                 netPay: parseFloat((totalEarnings - totalDeductions).toFixed(2)),

@@ -8,7 +8,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Employee } from '@/lib/types';
-import { Loader2, User, Briefcase, Landmark, Calendar as CalendarIcon, Save, MapPin, Phone, Mail, Hash, BadgeDollarSign } from 'lucide-react';
+import { Loader2, User, Briefcase, Landmark, Calendar as CalendarIcon, Save, MapPin, Phone, Mail, Hash, BadgeDollarSign, Clock } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -173,8 +173,8 @@ export default function EmployeeForm({
             <FormField control={form.control} name="taxNumber" render={({ field }) => ( <FormItem><FormLabel>Income Tax Number</FormLabel><FormControl><Input placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem> )} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField control={form.control} name="jobTitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Job Title (Optional)</FormLabel><FormControl><Input placeholder="e.g. Sales Manager" {...field} /></FormControl></FormItem> )} />
-            <FormField control={form.control} name="department" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Department (Optional)</FormLabel><FormControl><Input placeholder="e.g. Operations" {...field} /></FormControl></FormItem> )} />
+            <FormField control={form.control} name="jobTitle" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Job Title (Optional)</FormLabel><FormControl><Input placeholder="e.g. Senior Assistant" {...field} /></FormControl></FormItem> )} />
+            <FormField control={form.control} name="department" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Department (Optional)</FormLabel><FormControl><Input placeholder="e.g. Compliance" {...field} /></FormControl></FormItem> )} />
           </div>
         </section>
 
@@ -249,7 +249,7 @@ export default function EmployeeForm({
           <FormField control={form.control} name="paymentFrequency" render={({ field }) => (
             <FormItem>
               <FormLabel>Payment Frequency</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value || 'Monthly'}>
                 <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                 <SelectContent>
                   <SelectItem value="Monthly">Monthly</SelectItem>

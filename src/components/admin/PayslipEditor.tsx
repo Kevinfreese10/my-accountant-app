@@ -40,7 +40,7 @@ export default function PayslipEditor({
     const [hoursWorked, setHoursWorked] = useState<number>(payslip.hoursWorked || 0);
     const [isSaving, setIsSaving] = useState(false);
 
-    const frequency = payslip.frequency === 'Monthly' ? 12 : payslip.frequency === 'Fortnightly' ? 26 : 52;
+    const frequency = PayrollService.getFrequencyMultiplier(payslip.frequency);
 
     // Synchronize basic pay if hourly rated
     useEffect(() => {
