@@ -11,7 +11,7 @@ const db = getFirestore(firebaseApp);
 const TAX_YEAR_CONFIGS: Record<string, { rebate: number; uifLimit: number; brackets: { threshold: number; base: number; rate: number }[] }> = {
   '2026': {
     rebate: 17235,
-    uifLimit: 177.12,
+    uifLimit: 177.12, // Monthly cap (1% of R17,712)
     brackets: [
       { threshold: 0, base: 0, rate: 0.18 },
       { threshold: 237100, base: 42678, rate: 0.26 },
@@ -24,7 +24,7 @@ const TAX_YEAR_CONFIGS: Record<string, { rebate: number; uifLimit: number; brack
   },
   '2027': {
     rebate: 18010,
-    uifLimit: 185.00,
+    uifLimit: 177.12, // UI Ceiling usually proclaimed separately, keeping at R177.12
     brackets: [
       { threshold: 0, base: 0, rate: 0.18 },
       { threshold: 247750, base: 44595, rate: 0.26 },
@@ -79,11 +79,14 @@ export class PayrollService {
 
   /**
    * Calculates UIF (1% of gross, capped).
+   * @param frequency The number of pay periods in a year (12, 26, or 52)
    */
-  static calculateUif(periodEarnings: number, period?: string): number {
+  static calculateUif(periodEarnings: number, period?: string, frequency: number = 12): number {
     const config = this.getTaxConfig(period);
-    const uif = periodEarnings * 0.01;
-    return parseFloat(Math.min(uif, config.uifLimit).toFixed(2));
+    const uifRaw = periodEarnings * 0.01;
+    // Adjust the monthly cap to the current frequency
+    const effectiveLimit = (config.uifLimit * 12) / frequency;
+    return parseFloat(Math.min(uifRaw, effectiveLimit).toFixed(2));
   }
 
   /**
@@ -99,7 +102,7 @@ export class PayrollService {
     
     while (iterations < 50) {
       const currentPaye = this.calculatePaye(mid, period, frequency);
-      const currentUif = this.calculateUif(mid, period);
+      const currentUif = this.calculateUif(mid, period, frequency);
       const currentNet = mid - currentPaye - currentUif;
       
       if (Math.abs(currentNet - targetNet) < 0.01) break;
@@ -160,13 +163,14 @@ export class PayrollService {
   static getInitialDeductions(gross: number, period: string, frequency: number): PayslipItem[] {
       return [
           { label: 'Tax', amount: this.calculatePaye(gross, period, frequency), isStatutory: true },
-          { label: 'Unemployment insurance fund', amount: this.calculateUif(gross, period), isStatutory: true }
+          { label: 'Unemployment insurance fund', amount: this.calculateUif(gross, period, frequency), isStatutory: true }
       ];
   }
 
-  static getInitialContributions(gross: number, period: string, excludeSdl: boolean): PayslipItem[] {
+  static getInitialContributions(gross: number, period: string, frequency: number, excludeSdl: boolean): PayslipItem[] {
+      const uif = this.calculateUif(gross, period, frequency);
       const contribs = [
-          { label: 'Unemployment insurance fund', amount: this.calculateUif(gross, period), isStatutory: true }
+          { label: 'Unemployment insurance fund', amount: uif, isStatutory: true }
       ];
       if (!excludeSdl) {
           contribs.push({ label: 'Skills development levy', amount: parseFloat((gross * 0.01).toFixed(2)), isStatutory: true });
@@ -201,7 +205,7 @@ export class PayrollService {
       const gross = earnings.reduce((sum, i) => sum + i.amount, 0);
 
       const deductions = this.getInitialDeductions(gross, basePeriod, frequency);
-      const contributions = this.getInitialContributions(gross, basePeriod, !!clientData.excludeSdl);
+      const contributions = this.getInitialContributions(gross, basePeriod, frequency, !!clientData.excludeSdl);
 
       const totalDeductions = deductions.reduce((sum, item) => sum + item.amount, 0);
 

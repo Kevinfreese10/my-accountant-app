@@ -69,7 +69,7 @@ export default function PayslipEditor({
         
         const gross = freshEarnings.reduce((s, i) => s + i.amount, 0);
         setDeductions(PayrollService.getInitialDeductions(gross, basePeriod, frequency));
-        setContributions(PayrollService.getInitialContributions(gross, basePeriod, !!client.excludeSdl));
+        setContributions(PayrollService.getInitialContributions(gross, basePeriod, frequency, !!client.excludeSdl));
         
         toast({ title: "Synced with Profile", description: "Basic salary and statutory items refreshed." });
     };
@@ -88,8 +88,8 @@ export default function PayslipEditor({
         const sdlIdx = updatedContributions.findIndex(c => c.label === 'Skills development levy' && c.isStatutory);
 
         if (payeIdx > -1) updatedDeductions[payeIdx].amount = PayrollService.calculatePaye(gross, period, frequency);
-        if (uifIdx > -1) updatedDeductions[uifIdx].amount = PayrollService.calculateUif(gross, period);
-        if (uifContribIdx > -1) updatedContributions[uifContribIdx].amount = PayrollService.calculateUif(gross, period);
+        if (uifIdx > -1) updatedDeductions[uifIdx].amount = PayrollService.calculateUif(gross, period, frequency);
+        if (uifContribIdx > -1) updatedContributions[uifContribIdx].amount = PayrollService.calculateUif(gross, period, frequency);
         if (sdlIdx > -1) updatedContributions[sdlIdx].amount = parseFloat((gross * 0.01).toFixed(2));
 
         const totalDeductions = updatedDeductions.reduce((sum, item) => sum + item.amount, 0);

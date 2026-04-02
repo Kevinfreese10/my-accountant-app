@@ -168,7 +168,7 @@ export async function updateDraftPayslipHoursAction({
             const gross = earnings.reduce((s, i) => s + i.amount, 0);
 
             const paye = PayrollService.calculatePaye(gross, basePeriod, frequency);
-            const uif = PayrollService.calculateUif(gross, basePeriod);
+            const uif = PayrollService.calculateUif(gross, basePeriod, frequency);
             const sdl = client.excludeSdl ? 0 : parseFloat((gross * 0.01).toFixed(2));
 
             const deductions: PayslipItem[] = [
@@ -252,7 +252,7 @@ export async function syncEmployeeSalaryToActivePayslipAction({
                 : newSalary;
 
             const paye = PayrollService.calculatePaye(effectiveGross, basePeriod, frequency);
-            const uif = PayrollService.calculateUif(effectiveGross, basePeriod);
+            const uif = PayrollService.calculateUif(effectiveGross, basePeriod, frequency);
             const sdl = client.excludeSdl ? 0 : parseFloat((effectiveGross * 0.01).toFixed(2));
 
             const updatedEarnings = payslip.earnings.map(e => 
