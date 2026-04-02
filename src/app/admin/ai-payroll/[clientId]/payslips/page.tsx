@@ -45,9 +45,9 @@ export default function PayslipsPage() {
         if (snap.exists()) setClient({ id: snap.id, ...snap.data() } as User);
     });
 
-    // Fetch employees
+    // Fetch employees - use a real-time listener to ensure status changes reflect immediately
     const empRef = collection(db, 'aiPayrollClients', clientId, 'employees');
-    getDocs(empRef).then(snap => {
+    const unsubEmp = onSnapshot(empRef, (snap) => {
         setEmployees(snap.docs.map(d => ({ id: d.id, ...d.data() } as Employee)));
     });
 
@@ -69,6 +69,7 @@ export default function PayslipsPage() {
     return () => {
         unsubscribe();
         unsubClient();
+        unsubEmp();
     };
   }, [clientId]);
 
@@ -131,6 +132,15 @@ export default function PayslipsPage() {
       currency: 'ZAR',
     }).format(price);
   };
+
+  // Filter current period payslips by employee status
+  const currentPeriodPayslips = payslips.filter(ps => {
+      const isCorrectPeriod = ps.period === client?.firstProcessingMonth;
+      if (!isCorrectPeriod) return false;
+      
+      const employee = employees.find(e => e.id === ps.employeeId);
+      return employee?.status === 'Active';
+  });
 
   return (
     <div className="space-y-6">
@@ -209,17 +219,17 @@ export default function PayslipsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>Draft Payslips - {client?.firstProcessingMonth}</CardTitle>
-                    <CardDescription>Review and finalize staff payments before issuing.</CardDescription>
+                    <CardDescription>Review and finalize staff payments for active employees.</CardDescription>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
             {isLoading ? (
                 <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary" /></div>
-            ) : payslips.filter(p => p.period === client?.firstProcessingMonth).length === 0 ? (
+            ) : currentPeriodPayslips.length === 0 ? (
                 <div className="h-40 flex flex-col items-center justify-center border-2 border-dashed rounded-lg text-muted-foreground m-6 mt-0 p-8">
                     <ReceiptText className="h-10 w-10 opacity-20 mb-2" />
-                    <p className="font-semibold text-sm">No draft payslips found for this period.</p>
-                    <p className="text-xs">Add employees or roll forward to the next month to begin.</p>
+                    <p className="font-semibold text-sm">No draft payslips found for active employees.</p>
+                    <p className="text-xs">Add active employees or roll forward to the next month to begin.</p>
                 </div>
             ) : (
                 <Table>
@@ -233,7 +243,7 @@ export default function PayslipsPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {payslips.filter(p => p.period === client?.firstProcessingMonth).map((ps) => {
+                    {currentPeriodPayslips.map((ps) => {
                         const tax = ps.deductions.find(d => d.label === 'Tax')?.amount || 0;
                         return (
                         <TableRow key={ps.id}>
