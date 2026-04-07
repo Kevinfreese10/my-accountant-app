@@ -2,9 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Loader2, Download, Landmark, Calculator, Users } from 'lucide-react';
 import { getFirestore, collection, query, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Payslip, Employee, User } from '@/lib/types';
@@ -13,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import * as XLSX from 'xlsx';
+import { Loader2, Download, Users, Calculator } from 'lucide-react';
 
 const db = getFirestore(firebaseApp);
 
@@ -111,7 +109,7 @@ export default function Emp201ReportPage() {
         
         // Filter payslips by period (handling multi-run matches) AND by active status
         const periodPayslips = payslips.filter(ps => 
-            (ps.period === selectedPeriod || ps.period.startsWith(`${selectedPeriod} -`)) && 
+            ps.period && (ps.period === selectedPeriod || ps.period.startsWith(`${selectedPeriod} -`)) && 
             activeEmployeeIds.has(ps.employeeId)
         );
         
