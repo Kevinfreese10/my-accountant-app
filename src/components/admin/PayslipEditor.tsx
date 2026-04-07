@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Payslip, PayslipItem, Employee, User } from "@/lib/types";
-import { Plus, Trash2, Loader2, Save, Calculator, Landmark, ShieldCheck, User as UserIcon, Briefcase, RefreshCw, Clock } from 'lucide-react';
+import { Plus, Trash2, Loader2, Save, Calculator, Landmark, ShieldCheck, User as UserIcon, Briefcase, RefreshCw, Clock, History } from 'lucide-react';
 import { Separator } from "@/components/ui/separator";
 import { PayrollService } from '@/services/PayrollService';
 import { useToast } from '@/hooks/use-toast';
@@ -13,7 +13,8 @@ import { updatePayslipAction } from '@/app/actions';
 import { Badge } from "@/components/ui/badge";
 import PayslipDownloadButton from '@/components/pdf/PayslipDownloadButton';
 import { Label } from '../ui/label';
-import { Timestamp } from 'firebase/firestore';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { format } from 'date-fns';
 
 const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -26,11 +27,13 @@ export default function PayslipEditor({
     payslip, 
     employee, 
     client,
+    allPayslips = [],
     onSave 
 }: { 
     payslip: Payslip, 
     employee: Employee, 
     client: User,
+    allPayslips?: Payslip[],
     onSave: () => void 
 }) {
     const { toast } = useToast();
@@ -108,6 +111,17 @@ export default function PayslipEditor({
         };
     }, [earnings, deductions, contributions, fringeBenefits, client.firstProcessingMonth, frequency]);
 
+    const individualHistory = useMemo(() => {
+        return allPayslips
+            .filter(p => p.employeeId === employee.id && p.status === 'finalized' && p.period !== payslip.period)
+            .sort((a, b) => {
+                const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date || 0).getTime();
+                const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date || 0).getTime();
+                return dateB - dateA;
+            })
+            .slice(0, 5);
+    }, [allPayslips, employee.id, payslip.period]);
+
     const handleAddItem = (type: 'earning' | 'deduction' | 'contribution' | 'fringe') => {
         const newItem = { label: 'New item', amount: 0 };
         if (type === 'earning') setEarnings([...earnings, newItem]);
@@ -139,8 +153,6 @@ export default function PayslipEditor({
                 employeeId: employee.id,
                 employeeName: `${employee.name} ${employee.surname}`,
                 period: payslip.period,
-                // Server Actions don't support Firestore Timestamps being passed from the client.
-                // We pass an ISO string instead.
                 date: new Date().toISOString() as any,
                 frequency: 'Monthly',
                 earnings,
@@ -160,7 +172,7 @@ export default function PayslipEditor({
             });
 
             if (res.success) {
-                toast({ title: "Payslip Finalized", description: `Updated record for ${employee.name} ${employee.surname}. reports updated.` });
+                toast({ title: "Payslip Finalized", description: `Updated record for ${employee.name} ${employee.surname}. Reports updated.` });
                 onSave();
             } else {
                 toast({ title: "Save Failed", description: res.error, variant: "destructive" });
@@ -209,7 +221,7 @@ export default function PayslipEditor({
     );
 
     return (
-        <div className="space-y-6 max-w-6xl mx-auto">
+        <div className="space-y-6 max-w-6xl mx-auto pb-8">
             <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
                 <div className="flex items-center gap-4">
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
@@ -320,11 +332,50 @@ export default function PayslipEditor({
                 <div className="flex gap-3">
                     <Button variant="outline" className="font-bold" onClick={onSave}>Discard Changes</Button>
                     <Button className="font-black px-8 gap-2 shadow-lg" onClick={handleSave} disabled={isSaving}>
-                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         Save & Finalize Payslip
                     </Button>
                 </div>
             </div>
+
+            {individualHistory.length > 0 && (
+                <Card className="bg-muted/30 border-dashed border-2 mt-8">
+                    <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="text-sm flex items-center gap-2">
+                                <History className="h-4 w-4 text-primary" />
+                                Recent History for {employee.name}
+                            </CardTitle>
+                            <CardDescription className="text-[10px]">Previously finalized earnings records.</CardDescription>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <Table>
+                            <TableHeader className="text-[9px] uppercase font-black text-muted-foreground bg-white">
+                                <TableRow>
+                                    <TableHead>Period</TableHead>
+                                    <TableHead className="text-right">Gross</TableHead>
+                                    <TableHead className="text-right">Tax</TableHead>
+                                    <TableHead className="text-right">Net Pay</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {individualHistory.map((h) => {
+                                    const tax = h.deductions.find(d => d.label === 'Tax')?.amount || 0;
+                                    return (
+                                        <TableRow key={h.id} className="text-[11px] font-medium text-slate-600 bg-white/50">
+                                            <TableCell className="font-bold">{h.period}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatCurrency(h.grossPay)}</TableCell>
+                                            <TableCell className="text-right font-mono text-destructive">{formatCurrency(tax)}</TableCell>
+                                            <TableCell className="text-right font-bold text-primary">{formatCurrency(h.netPay)}</TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }

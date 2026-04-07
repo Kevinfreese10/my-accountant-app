@@ -31,6 +31,7 @@ export default function EmployeesPage() {
   const { toast } = useToast();
   
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [client, setClient] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -66,7 +67,16 @@ export default function EmployeesPage() {
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    // Also fetch payslips for the editor history
+    const psRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+    const unsubPs = onSnapshot(psRef, (snapshot) => {
+        setPayslips(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Payslip)));
+    });
+
+    return () => {
+        unsubscribe();
+        unsubPs();
+    };
   }, [clientId]);
 
   const handleFormSubmit = async (values: any) => {
@@ -248,12 +258,13 @@ export default function EmployeesPage() {
                       <Badge variant="outline" className="bg-muted border-none uppercase font-black text-[9px] tracking-widest px-3">Confidential Data</Badge>
                   </div>
               </DialogHeader>
-              <div className="p-8">
+              <div className="p-8 max-h-[80vh] overflow-y-auto">
                 {editingPayslip && payslipEmployee && client && (
                     <PayslipEditor 
                         payslip={editingPayslip} 
                         employee={payslipEmployee} 
                         client={client} 
+                        allPayslips={payslips}
                         onSave={() => setIsEditorOpen(false)}
                     />
                 )}

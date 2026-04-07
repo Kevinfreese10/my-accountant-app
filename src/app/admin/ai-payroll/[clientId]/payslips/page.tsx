@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calculator, Loader2, FileText, ReceiptText, CheckCircle2, AlertCircle, ArrowRightLeft, CalendarClock, ChevronRight, RotateCcw } from 'lucide-react';
+import { Calculator, Loader2, FileText, ReceiptText, CheckCircle2, AlertCircle, ArrowRightLeft, CalendarClock, ChevronRight, RotateCcw, History, Filter } from 'lucide-react';
 import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, getDocs, where, limit } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Payslip, Employee, User } from '@/lib/types';
@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import PayslipEditor from '@/components/admin/PayslipEditor';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PayrollService } from '@/services/PayrollService';
 
 const db = getFirestore(firebaseApp);
@@ -32,6 +32,7 @@ export default function PayslipsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRolling, setIsRolling] = useState(false);
   const [isRollingBack, setIsRollingBack] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<string>('all');
 
   // Editor states
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -93,6 +94,22 @@ export default function PayslipsPage() {
           };
       });
   }, [employees, payslips, client?.firstProcessingMonth]);
+
+  const filteredHistory = useMemo(() => {
+      const currentPeriod = client?.firstProcessingMonth;
+      return payslips
+        .filter(p => 
+            p.status === 'finalized' && 
+            p.period !== currentPeriod && 
+            (historyFilter === 'all' || p.employeeId === historyFilter)
+        )
+        .sort((a, b) => {
+            const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date || 0).getTime();
+            const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date || 0).getTime();
+            return dateB - dateA;
+        })
+        .slice(0, 10);
+  }, [payslips, client?.firstProcessingMonth, historyFilter]);
 
   const handleRollForward = async () => {
     if (!client) return;
@@ -173,8 +190,8 @@ export default function PayslipsPage() {
                           setEditingPayslip({ id: newSnap.id, ...newSnap.data() } as Payslip);
                       }
                   } else {
-                      const frequencyLabel = client?.payrollFrequency || 'Monthly';
-                      const freqNum = PayrollService.getFrequencyMultiplier(frequencyLabel);
+                      const frequencyLabel = 'Monthly';
+                      const freqNum = 12;
                       
                       const initialEarnings = PayrollService.calculateEarningsList(employee, baseValue, periodLabel, freqNum);
                       const initialGross = initialEarnings.reduce((s, i) => s + i.amount, 0);
@@ -215,6 +232,16 @@ export default function PayslipsPage() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(price);
+  };
+
+  const safeFormatDate = (date: any): string => {
+    if (!date) return 'N/A';
+    try {
+        const d = date?.toDate ? date.toDate() : new Date(date);
+        return isNaN(d.getTime()) ? 'N/A' : format(d, 'dd MMM yy');
+    } catch (e) {
+        return 'N/A';
+    }
   };
 
   return (
@@ -275,12 +302,13 @@ export default function PayslipsPage() {
                       <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest bg-muted border-none px-3 py-1">Confidential Payroll Data</Badge>
                   </div>
               </DialogHeader>
-              <div className="p-8">
+              <div className="p-8 overflow-y-auto max-h-[80vh]">
                 {editingPayslip && editingEmployee && client && (
                     <PayslipEditor 
                         payslip={editingPayslip} 
                         employee={editingEmployee} 
                         client={client} 
+                        allPayslips={payslips}
                         onSave={() => setIsEditorOpen(false)}
                     />
                 )}
@@ -386,12 +414,32 @@ export default function PayslipsPage() {
         </Card>
 
         <Card className="bg-muted/20">
-            <CardHeader>
-                <CardTitle className="text-sm">Historical Records</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+                <div>
+                    <CardTitle className="text-sm flex items-center gap-2">
+                        <History className="h-4 w-4 text-primary" />
+                        Historical Records
+                    </CardTitle>
+                    <CardDescription className="text-[10px]">Previously finalized runs for the practice.</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Filter className="h-3 w-3 text-muted-foreground" />
+                    <Select value={historyFilter} onValueChange={setHistoryFilter}>
+                        <SelectTrigger className="h-8 text-[10px] w-[180px] bg-white">
+                            <SelectValue placeholder="Filter by Employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Employees</SelectItem>
+                            {employees.map(emp => (
+                                <SelectItem key={emp.id} value={emp.id}>{emp.name} {emp.surname}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
             </CardHeader>
             <CardContent className="p-0">
                 <Table>
-                    <TableHeader className="text-[10px] uppercase font-bold text-muted-foreground">
+                    <TableHeader className="text-[10px] uppercase font-bold text-muted-foreground bg-muted/30">
                         <TableRow>
                             <TableHead>Period</TableHead>
                             <TableHead>Employee</TableHead>
@@ -400,14 +448,21 @@ export default function PayslipsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {payslips.filter(p => p.period !== client?.firstProcessingMonth).slice(0, 10).map((ps) => (
+                        {filteredHistory.map((ps) => (
                             <TableRow key={ps.id} className="opacity-70 grayscale hover:grayscale-0 transition-all">
-                                <TableCell className="text-xs font-bold">{ps.period}</TableCell>
-                                <TableCell className="text-xs font-medium">{ps.employeeName}</TableCell>
-                                <TableCell className="text-right text-xs font-mono">{formatPrice(ps.netPay)}</TableCell>
-                                <TableCell className="text-right text-[10px]">{ps.date?.toDate ? format(ps.date.toDate(), 'dd MMM yy') : (ps.date ? format(new Date(ps.date), 'dd MMM yy') : 'N/A')}</TableCell>
+                                <TableCell className="text-xs font-bold">{ps.period || 'N/A'}</TableCell>
+                                <TableCell className="text-xs font-medium">{ps.employeeName || 'Unknown Employee'}</TableCell>
+                                <TableCell className="text-right text-xs font-black text-primary font-mono">{formatPrice(ps.netPay)}</TableCell>
+                                <TableCell className="text-right text-[10px] font-medium">{safeFormatDate(ps.date)}</TableCell>
                             </TableRow>
                         ))}
+                        {filteredHistory.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic text-xs">
+                                    No finalized historical records found for the selected criteria.
+                                </TableCell>
+                            </TableRow>
+                        )}
                     </TableBody>
                 </Table>
             </CardContent>
