@@ -226,7 +226,8 @@ export class PayrollService {
         totalDeductions,
         netPay: parseFloat((gross - totalDeductions).toFixed(2)),
         hoursWorked: hours?.normal,
-        frequency: 'Monthly'
+        frequency: 'Monthly',
+        status: 'draft'
       };
 
       const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');

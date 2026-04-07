@@ -98,6 +98,7 @@ export async function updatePayslipAction({
             const colRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
             const newDoc = await addDoc(colRef, {
                 ...data,
+                status: 'finalized',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             });
@@ -107,6 +108,7 @@ export async function updatePayslipAction({
         const docRef = doc(db, 'aiPayrollClients', clientId, 'payslips', payslipId);
         await updateDoc(docRef, {
             ...data,
+            status: 'finalized',
             updatedAt: serverTimestamp()
         });
         return { success: true };

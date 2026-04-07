@@ -83,7 +83,7 @@ export default function Emp201ReportPage() {
         if (client?.firstProcessingMonth) p.add(client.firstProcessingMonth);
         
         payslips.forEach(ps => {
-            if (ps.period && typeof ps.period === 'string') {
+            if (ps.status === 'finalized' && ps.period && typeof ps.period === 'string') {
                 // If the period has a " - Run X" suffix, extract just the month part
                 const baseMonth = ps.period.split(' - ')[0];
                 if (baseMonth) p.add(baseMonth);
@@ -109,10 +109,12 @@ export default function Emp201ReportPage() {
         // Find active employees
         const activeEmployeeIds = new Set(employees.filter(e => e.status === 'Active').map(e => e.id));
         
-        // Filter payslips by period (handling multi-run matches) AND by active status
+        // Filter payslips by period (handling multi-run matches) AND by active status AND status finalized
         const periodPayslips = payslips.filter(ps => 
-            ps.period && (ps.period === selectedPeriod || ps.period.startsWith(`${selectedPeriod} -`)) && 
-            activeEmployeeIds.has(ps.employeeId)
+            ps.period && 
+            (ps.period === selectedPeriod || ps.period.startsWith(`${selectedPeriod} -`)) && 
+            activeEmployeeIds.has(ps.employeeId) &&
+            ps.status === 'finalized'
         );
         
         let totalPaye = 0;

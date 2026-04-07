@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -85,7 +84,6 @@ export default function PayslipsPage() {
       
       return active.map(emp => {
           // Robust matching: Check if period starts with the base period label
-          // This handles "March 2026 - Run 1" matching "March 2026"
           const ps = payslips.find(p => 
             p.employeeId === emp.id && 
             (p.period === basePeriod || p.period.startsWith(`${basePeriod} -`))
@@ -199,7 +197,8 @@ export default function PayslipsPage() {
                           grossPay: initialGross,
                           totalDeductions: 0,
                           netPay: 0,
-                          frequency: frequencyLabel
+                          frequency: 'Monthly',
+                          status: 'draft'
                       };
                       setEditingPayslip(stub);
                   }
@@ -329,7 +328,6 @@ export default function PayslipsPage() {
                         const { employee, payslip } = row;
                         
                         // Calculate display values
-                        // If no saved payslip, use values from employee profile as a draft estimate
                         let displayGross = 0;
                         let displayTax = 0;
                         let displayNet = 0;
@@ -340,7 +338,7 @@ export default function PayslipsPage() {
                             displayNet = payslip.netPay;
                         } else {
                             // Draft estimate from profile
-                            const frequency = PayrollService.getFrequencyMultiplier(client?.payrollFrequency);
+                            const frequency = 12;
                             const period = client?.firstProcessingMonth;
                             const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) * 160 : (employee.basicSalary || 0);
                             
@@ -370,7 +368,7 @@ export default function PayslipsPage() {
                                 {formatPrice(displayNet)}
                             </TableCell>
                             <TableCell className="text-right">
-                                {payslip ? (
+                                {payslip?.status === 'finalized' ? (
                                     <Badge variant="success" className="text-[9px] uppercase font-bold px-2 py-0.5">Finalized</Badge>
                                 ) : (
                                     <Badge variant="secondary" className="text-[9px] uppercase font-bold px-2 py-0.5 opacity-50">Pending</Badge>

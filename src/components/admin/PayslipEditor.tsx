@@ -13,6 +13,7 @@ import { updatePayslipAction } from '@/app/actions';
 import { Badge } from "@/components/ui/badge";
 import PayslipDownloadButton from '@/components/pdf/PayslipDownloadButton';
 import { Label } from '../ui/label';
+import { Timestamp } from 'firebase/firestore';
 
 const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -135,6 +136,11 @@ export default function PayslipEditor({
         setIsSaving(true);
         try {
             const finalData: Partial<Payslip> = {
+                employeeId: employee.id,
+                employeeName: `${employee.name} ${employee.surname}`,
+                period: payslip.period,
+                date: Timestamp.now(),
+                frequency: 'Monthly',
                 earnings,
                 deductions: totals.updatedDeductions,
                 contributions: totals.updatedContributions,
@@ -152,7 +158,7 @@ export default function PayslipEditor({
             });
 
             if (res.success) {
-                toast({ title: "Payslip Saved", description: `Updated record for ${employee.name} ${employee.surname}.` });
+                toast({ title: "Payslip Finalized", description: `Updated record for ${employee.name} ${employee.surname}. reports updated.` });
                 onSave();
             } else {
                 toast({ title: "Save Failed", description: res.error, variant: "destructive" });

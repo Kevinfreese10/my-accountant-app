@@ -622,6 +622,7 @@ export type Payslip = {
   hoursWorked?: number;
   runNumber?: 1 | 2;
   frequency: 'Monthly' | 'Weekly' | 'Fortnightly';
+  status?: 'draft' | 'finalized';
 };
 
 export type LeaveRequest = {
