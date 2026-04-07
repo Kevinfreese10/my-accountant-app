@@ -9,6 +9,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import * as XLSX from 'xlsx';
 import { Loader2, Download, Users, Calculator } from 'lucide-react';
 
@@ -90,7 +93,6 @@ export default function Emp201ReportPage() {
         return Array.from(p)
             .filter(Boolean)
             .sort((a, b) => {
-                // Better sort: try to parse as date, otherwise string compare
                 const dateA = new Date(a);
                 const dateB = new Date(b);
                 if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
