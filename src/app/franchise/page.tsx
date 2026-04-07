@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { CheckCircle2, TrendingUp, Wallet, ShieldCheck, Globe, Briefcase, Users, FileText, ArrowRight, Store, MapPin, Percent } from 'lucide-react';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+import { Separator } from '@/components/ui/separator';
 
 export default function FranchisePage() {
   const benefits = [
