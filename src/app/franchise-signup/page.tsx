@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
 import { checkTerritoryAvailability } from '@/app/actions';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
