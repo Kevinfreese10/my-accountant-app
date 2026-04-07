@@ -151,14 +151,13 @@ export async function updateDraftPayslipHoursAction({
         const q = query(
             payslipsRef, 
             where('employeeId', '==', employeeId), 
-            where('period', '>=', basePeriod), 
-            where('period', '<=', `${basePeriod}\uf8ff`)
+            where('period', '==', basePeriod)
         );
         const snap = await getDocs(q);
 
         if (snap.empty) throw new Error("No draft payslip found for this period. Generate payslips first.");
 
-        const frequency = PayrollService.getFrequencyMultiplier(client.payrollFrequency);
+        const frequency = 12; // Simplified to Monthly
         const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0);
 
         const batch = writeBatch(db);
@@ -219,14 +218,13 @@ export async function syncEmployeeSalaryToActivePayslipAction({
         const q = query(
             payslipsRef, 
             where('employeeId', '==', employeeId), 
-            where('period', '>=', basePeriod), 
-            where('period', '<=', `${basePeriod}\uf8ff`)
+            where('period', '==', basePeriod)
         );
         const snap = await getDocs(q);
 
         if (snap.empty) return { success: true, message: "No draft payslip to sync" };
 
-        const frequency = PayrollService.getFrequencyMultiplier(client.payrollFrequency);
+        const frequency = 12; // Simplified to Monthly
 
         const batch = writeBatch(db);
 
@@ -267,7 +265,7 @@ export async function syncEmployeeSalaryToActivePayslipAction({
 }
 
 /**
- * Rolls back the payroll period.
+ * Rolls back the payroll period. (Simplified to Monthly)
  */
 export async function rollBackPayrollAction({
     clientId
@@ -283,24 +281,9 @@ export async function rollBackPayrollAction({
         const currentPeriodLabel = client.firstProcessingMonth;
         if (!currentPeriodLabel) throw new Error("No active payroll period found.");
 
-        let nextPeriodLabel = '';
-        const isFortnightly = client.payrollFrequency === 'Fortnightly';
-
-        if (isFortnightly) {
-            const isRun2 = currentPeriodLabel.includes('Run 2');
-            if (isRun2) {
-                nextPeriodLabel = currentPeriodLabel.replace('Run 2', 'Run 1');
-            } else {
-                const baseMonthStr = currentPeriodLabel.split(' - ')[0];
-                const parsedDate = parse(baseMonthStr, 'MMMM yyyy', new Date());
-                const prevDate = subMonths(parsedDate, 1);
-                nextPeriodLabel = `${format(prevDate, 'MMMM yyyy')} - Run 2`;
-            }
-        } else {
-            const parsedDate = parse(currentPeriodLabel, 'MMMM yyyy', new Date());
-            const prevDate = subMonths(parsedDate, 1);
-            nextPeriodLabel = format(prevDate, 'MMMM yyyy');
-        }
+        const parsedDate = parse(currentPeriodLabel, 'MMMM yyyy', new Date());
+        const prevDate = subMonths(parsedDate, 1);
+        const nextPeriodLabel = format(prevDate, 'MMMM yyyy');
 
         const batch = writeBatch(db);
 
@@ -326,7 +309,7 @@ export async function rollBackPayrollAction({
 }
 
 /**
- * Rolls forward the payroll period for a client.
+ * Rolls forward the payroll period for a client. (Simplified to Monthly)
  */
 export async function rollForwardPayrollAction({
     clientId
@@ -342,27 +325,9 @@ export async function rollForwardPayrollAction({
         const currentPeriodLabel = client.firstProcessingMonth;
         if (!currentPeriodLabel) throw new Error("No active payroll period found.");
 
-        let nextPeriodLabel = '';
-        let nextRunNumber = 1;
-        const isFortnightly = client.payrollFrequency === 'Fortnightly';
-
-        if (isFortnightly) {
-            const isRun1 = currentPeriodLabel.includes('Run 1');
-            if (isRun1) {
-                nextPeriodLabel = currentPeriodLabel.replace('Run 1', 'Run 2');
-                nextRunNumber = 2;
-            } else {
-                const baseMonthStr = currentPeriodLabel.split(' - ')[0];
-                const parsedDate = parse(baseMonthStr, 'MMMM yyyy', new Date());
-                const nextDate = addMonths(parsedDate, 1);
-                nextPeriodLabel = `${format(nextDate, 'MMMM yyyy')} - Run 1`;
-                nextRunNumber = 1;
-            }
-        } else {
-            const parsedDate = parse(currentPeriodLabel, 'MMMM yyyy', new Date());
-            const nextDate = addMonths(parsedDate, 1);
-            nextPeriodLabel = format(nextDate, 'MMMM yyyy');
-        }
+        const parsedDate = parse(currentPeriodLabel, 'MMMM yyyy', new Date());
+        const nextDate = addMonths(parsedDate, 1);
+        const nextPeriodLabel = format(nextDate, 'MMMM yyyy');
 
         await updateDoc(clientRef, {
             firstProcessingMonth: nextPeriodLabel
@@ -375,7 +340,7 @@ export async function rollForwardPayrollAction({
         const results = await Promise.all(snap.docs.map(async (empDoc) => {
             const emp = empDoc.data() as Employee;
             const baseValue = emp.payType === 'Hourly' ? emp.hourlyRate : emp.basicSalary;
-            await PayrollService.generateInitialPayslip(clientId, empDoc.id, baseValue, nextRunNumber);
+            await PayrollService.generateInitialPayslip(clientId, empDoc.id, baseValue);
             return true;
         }));
 
@@ -387,7 +352,7 @@ export async function rollForwardPayrollAction({
 }
 
 /**
- * Automatically generates a payslip for a new employee.
+ * Automatically generates a payslip for a new employee. (Simplified to Monthly)
  */
 export async function generateEmployeePayslipAction({
     clientId,
@@ -401,13 +366,7 @@ export async function generateEmployeePayslipAction({
     hours?: any
 }) {
     try {
-        const clientSnap = await getDoc(doc(db, 'aiPayrollClients', clientId));
-        if (!clientSnap.exists()) throw new Error("Client record not found.");
-        const client = clientSnap.data() as User;
-        const isFortnightly = client.payrollFrequency === 'Fortnightly';
-        const runNumber = (isFortnightly && client.firstProcessingMonth?.includes('Run 2')) ? 2 : 1;
-
-        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary, runNumber, hours);
+        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary, hours);
         return { success: true, id: result.id };
     } catch (e: any) {
         console.error("Payslip action failed:", e);

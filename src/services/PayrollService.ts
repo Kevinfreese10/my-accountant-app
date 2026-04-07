@@ -42,13 +42,9 @@ const MONTHS = [ "January", "February", "March", "April", "May", "June", "July",
 export class PayrollService {
   /**
    * Helper to convert frequency string to numeric multiplier.
+   * Simplified to focus on Monthly (12) by default.
    */
   static getFrequencyMultiplier(freq?: string): number {
-    if (!freq) return 12;
-    const f = freq.toLowerCase();
-    if (f === 'monthly') return 12;
-    if (f === 'fortnightly') return 26;
-    if (f === 'weekly') return 52;
     return 12;
   }
 
@@ -72,14 +68,13 @@ export class PayrollService {
   }
 
   /**
-   * Calculates PAYE based on earnings and frequency.
+   * Calculates PAYE based on earnings.
    */
   static calculatePaye(periodEarnings: number, period?: string, frequency: number = 12): number {
     const config = this.getTaxConfig(period);
     const annualGross = periodEarnings * frequency;
     let annualTax = 0;
 
-    // Find the highest bracket threshold that annualGross exceeds
     const bracket = [...config.brackets].reverse().find(b => annualGross > b.threshold);
     
     if (bracket) {
@@ -94,12 +89,10 @@ export class PayrollService {
 
   /**
    * Calculates UIF (1% of gross, capped).
-   * @param frequency The number of pay periods in a year (12, 26, or 52)
    */
   static calculateUif(periodEarnings: number, period?: string, frequency: number = 12): number {
     const config = this.getTaxConfig(period);
     const uifRaw = periodEarnings * 0.01;
-    // Adjust the monthly cap to the current frequency
     const effectiveLimit = (config.uifLimit * 12) / frequency;
     return parseFloat(Math.min(uifRaw, effectiveLimit).toFixed(2));
   }
@@ -196,7 +189,7 @@ export class PayrollService {
   /**
    * Generates and saves a payslip for an employee.
    */
-  static async generateInitialPayslip(clientId: string, employeeId: string, baseValue: number, runNumber: number = 1, hours?: any) {
+  static async generateInitialPayslip(clientId: string, employeeId: string, baseValue: number, hours?: any) {
     try {
       const clientRef = doc(db, 'aiPayrollClients', clientId);
       const clientSnap = await getDoc(clientRef);
@@ -204,12 +197,8 @@ export class PayrollService {
       const clientData = clientSnap.data() as User;
       const basePeriod = clientData.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
       
-      const frequencyLabel = clientData.payrollFrequency || 'Monthly';
-      const frequency = this.getFrequencyMultiplier(frequencyLabel);
-      
-      const periodLabel = frequencyLabel === 'Fortnightly' 
-        ? `${basePeriod} - Run ${runNumber}` 
-        : basePeriod;
+      const frequency = 12; // Force monthly multiplier
+      const periodLabel = basePeriod;
 
       const employeeRef = doc(db, 'aiPayrollClients', clientId, 'employees', employeeId);
       const employeeSnap = await getDoc(employeeRef);
@@ -237,8 +226,7 @@ export class PayrollService {
         totalDeductions,
         netPay: parseFloat((gross - totalDeductions).toFixed(2)),
         hoursWorked: hours?.normal,
-        runNumber: frequencyLabel === 'Fortnightly' ? (runNumber as 1 | 2) : undefined,
-        frequency: frequencyLabel
+        frequency: 'Monthly'
       };
 
       const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');

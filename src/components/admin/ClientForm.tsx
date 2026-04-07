@@ -42,8 +42,7 @@ const formSchema = z.object({
   registrationNumber: z.string().optional(),
   payeReference: z.string().optional(),
   firstProcessingMonth: z.string().optional(),
-  payrollFrequency: z.enum(['Monthly', 'Weekly', 'Fortnightly']).default('Monthly'),
-  firstRunStartDate: z.string().optional(),
+  payrollFrequency: z.literal('Monthly').default('Monthly'),
   excludeSdl: z.boolean().default(false),
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
@@ -92,8 +91,7 @@ export default function ClientForm({
             registrationNumber: client?.registrationNumber || '',
             payeReference: client?.payeReference || '',
             firstProcessingMonth: client?.firstProcessingMonth || '',
-            payrollFrequency: client?.payrollFrequency || 'Monthly',
-            firstRunStartDate: client?.firstRunStartDate || '',
+            payrollFrequency: 'Monthly',
             excludeSdl: client?.excludeSdl || false,
             yearEnd: client?.yearEnd || 'February',
             isVatRegistered: client?.isVatRegistered || false,
@@ -125,7 +123,6 @@ export default function ClientForm({
     });
 
     const isVatRegistered = form.watch('isVatRegistered');
-    const payrollFrequency = form.watch('payrollFrequency');
     const useGlobalRules = form.watch('useGlobalRules');
 
     const processingPeriods = useMemo(() => {
@@ -234,25 +231,12 @@ export default function ClientForm({
                                             <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                                             <SelectContent>
                                                 <SelectItem value="Monthly">Monthly</SelectItem>
-                                                <SelectItem value="Fortnightly">Fortnightly</SelectItem>
-                                                <SelectItem value="Weekly">Weekly</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
                                     </FormItem>
                                 )} />
                             </div>
-
-                            {payrollFrequency !== 'Monthly' && (
-                                <FormField control={form.control} name="firstRunStartDate" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Run 1 Start Date (First Period)</FormLabel>
-                                        <FormControl><Input type="date" {...field} /></FormControl>
-                                        <FormDescription className="text-[10px]">e.g. If the first run is on Friday 6th March, select 2026-03-06.</FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                )} />
-                            )}
 
                             <FormField control={form.control} name="excludeSdl" render={({ field }) => (
                                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-muted/20">

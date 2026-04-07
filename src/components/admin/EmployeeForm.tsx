@@ -39,7 +39,7 @@ const formSchema = z.object({
   basicSalary: z.preprocess(val => Number(val), z.number().min(0, 'Salary must be a positive number.')),
   hourlyRate: z.preprocess(val => Number(val), z.number().min(0, 'Rate must be a positive number.')),
   isNetSalary: z.boolean().default(false),
-  paymentFrequency: z.enum(['Monthly', 'Weekly', 'Fortnightly']).default('Monthly'),
+  paymentFrequency: z.literal('Monthly').default('Monthly'),
   bankingDetails: z.object({
     bankName: z.string().min(2, 'Bank name is required.'),
     accountNumber: z.string().min(5, 'Account number is required.'),
@@ -88,7 +88,7 @@ export default function EmployeeForm({
       basicSalary: employee?.basicSalary || 0,
       hourlyRate: employee?.hourlyRate || 0,
       isNetSalary: employee?.isNetSalary || false,
-      paymentFrequency: employee?.paymentFrequency || 'Monthly',
+      paymentFrequency: 'Monthly',
       bankingDetails: {
         bankName: employee?.bankingDetails?.bankName || '',
         accountNumber: employee?.bankingDetails?.accountNumber || '',
@@ -249,12 +249,10 @@ export default function EmployeeForm({
           <FormField control={form.control} name="paymentFrequency" render={({ field }) => (
             <FormItem>
               <FormLabel>Payment Frequency</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value || 'Monthly'}>
+              <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                 <SelectContent>
                   <SelectItem value="Monthly">Monthly</SelectItem>
-                  <SelectItem value="Fortnightly">Fortnightly</SelectItem>
-                  <SelectItem value="Weekly">Weekly</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
