@@ -45,7 +45,10 @@ export default function Emp201ReportPage() {
             if (snap.exists()) {
                 const data = snap.data() as User;
                 setClient({ id: snap.id, ...data } as User);
-                if (!selectedPeriod && data.firstProcessingMonth) setSelectedPeriod(data.firstProcessingMonth);
+                // If no period is selected, default to the client's current processing month
+                if (!selectedPeriod && data.firstProcessingMonth) {
+                    setSelectedPeriod(data.firstProcessingMonth);
+                }
             }
         });
 
@@ -73,26 +76,42 @@ export default function Emp201ReportPage() {
         };
     }, [clientId, selectedPeriod]);
 
-    // Unique periods from payslips
+    // Unique periods from payslips, normalized to base months
     const availablePeriods = useMemo(() => {
         const p = new Set<string>();
         if (client?.firstProcessingMonth) p.add(client.firstProcessingMonth);
+        
         payslips.forEach(ps => {
             if (ps.period && typeof ps.period === 'string') {
-                p.add(ps.period);
+                // If the period has a " - Run X" suffix, extract just the month part
+                const baseMonth = ps.period.split(' - ')[0];
+                if (baseMonth) p.add(baseMonth);
             }
         });
-        return Array.from(p).sort((a, b) => b.localeCompare(a));
+        
+        return Array.from(p)
+            .filter(Boolean)
+            .sort((a, b) => {
+                // Better sort: try to parse as date, otherwise string compare
+                const dateA = new Date(a);
+                const dateB = new Date(b);
+                if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+                    return dateB.getTime() - dateA.getTime();
+                }
+                return b.localeCompare(a);
+            });
     }, [payslips, client]);
 
     // Calculations for the selected period
     const reportData = useMemo(() => {
+        if (!selectedPeriod) return { breakdown: [], totals: { gross: 0, paye: 0, uif: 0, sdl: 0, payable: 0 } };
+
         // Find active employees
         const activeEmployeeIds = new Set(employees.filter(e => e.status === 'Active').map(e => e.id));
         
-        // Filter payslips by period AND by whether the employee is still active
+        // Filter payslips by period (handling multi-run matches) AND by active status
         const periodPayslips = payslips.filter(ps => 
-            ps.period === selectedPeriod && 
+            (ps.period === selectedPeriod || ps.period.startsWith(`${selectedPeriod} -`)) && 
             activeEmployeeIds.has(ps.employeeId)
         );
         
@@ -102,28 +121,38 @@ export default function Emp201ReportPage() {
         let totalSdl = 0;
         let totalGross = 0;
 
-        const breakdown = periodPayslips.map(ps => {
+        // Group by employee to handle multiple runs in one month
+        const employeeAggregates: Record<string, any> = {};
+
+        periodPayslips.forEach(ps => {
             const paye = ps.deductions.find(d => d.label.toLowerCase() === 'tax')?.amount || 0;
             const uifEmp = ps.deductions.find(d => d.label.toLowerCase().includes('unemployment'))?.amount || 0;
             const uifCo = ps.contributions.find(c => c.label.toLowerCase().includes('unemployment'))?.amount || 0;
             const sdl = ps.contributions.find(c => c.label.toLowerCase().includes('skills'))?.amount || 0;
             
+            if (!employeeAggregates[ps.employeeId]) {
+                employeeAggregates[ps.employeeId] = {
+                    name: ps.employeeName,
+                    gross: 0,
+                    paye: 0,
+                    uif: 0,
+                    sdl: 0
+                };
+            }
+
+            employeeAggregates[ps.employeeId].gross += (ps.grossPay || 0);
+            employeeAggregates[ps.employeeId].paye += paye;
+            employeeAggregates[ps.employeeId].uif += (uifEmp + uifCo);
+            employeeAggregates[ps.employeeId].sdl += sdl;
+
             totalPaye += paye;
             totalUifEmployee += uifEmp;
             totalUifEmployer += uifCo;
             totalSdl += sdl;
             totalGross += (ps.grossPay || 0);
-
-            return {
-                id: ps.id,
-                name: ps.employeeName,
-                gross: ps.grossPay || 0,
-                paye,
-                uif: uifEmp + uifCo,
-                sdl
-            };
         });
 
+        const breakdown = Object.values(employeeAggregates);
         const totalUif = totalUifEmployee + totalUifEmployer;
         const totalPayable = totalPaye + totalUif + totalSdl;
 
@@ -253,7 +282,7 @@ export default function Emp201ReportPage() {
                         <Users className="h-5 w-5 text-primary" />
                         <div>
                             <CardTitle className="text-lg">Detailed Breakdown</CardTitle>
-                            <CardDescription>Individual contributions for the {selectedPeriod} cycle.</CardDescription>
+                            <CardDescription>Aggregate contributions for the {selectedPeriod} cycle.</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -276,8 +305,8 @@ export default function Emp201ReportPage() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                reportData.breakdown.map((row) => (
-                                    <TableRow key={row.id} className="hover:bg-slate-50/50">
+                                reportData.breakdown.map((row, idx) => (
+                                    <TableRow key={idx} className="hover:bg-slate-50/50">
                                         <TableCell className="font-bold text-slate-900">{row.name}</TableCell>
                                         <TableCell className="text-right font-mono text-xs">{formatCurrency(row.gross)}</TableCell>
                                         <TableCell className="text-right font-mono text-xs font-bold text-primary">{formatCurrency(row.paye)}</TableCell>
