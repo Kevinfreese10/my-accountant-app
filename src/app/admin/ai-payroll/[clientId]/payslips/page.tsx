@@ -9,7 +9,7 @@ import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, getD
 import { firebaseApp } from '@/lib/firebase';
 import { Payslip, Employee, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { rollForwardPayrollAction, rollBackPayrollAction, generateEmployeePayslipAction } from '@/app/actions';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -82,10 +82,9 @@ export default function PayslipsPage() {
       const basePeriod = client?.firstProcessingMonth || '';
       
       return active.map(emp => {
-          // Robust matching: Check if period starts with the base period label
           const ps = payslips.find(p => 
             p.employeeId === emp.id && 
-            (p.period === basePeriod || p.period.startsWith(`${basePeriod} -`))
+            (p.period === basePeriod || (p.period && p.period.startsWith(`${basePeriod} -`)))
           );
           
           return {
@@ -147,7 +146,6 @@ export default function PayslipsPage() {
           if (existingPayslip) {
               setEditingPayslip(existingPayslip);
           } else {
-              // Try to find it in the DB first just in case local state is lagging
               const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
               const q = query(
                   payslipsRef, 
@@ -162,7 +160,6 @@ export default function PayslipsPage() {
                   const data = snap.docs[0].data();
                   setEditingPayslip({ id: snap.docs[0].id, ...data } as Payslip);
               } else {
-                  // Truly missing, attempt generation
                   const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0);
                   const res = await generateEmployeePayslipAction({
                       clientId,
@@ -176,7 +173,6 @@ export default function PayslipsPage() {
                           setEditingPayslip({ id: newSnap.id, ...newSnap.data() } as Payslip);
                       }
                   } else {
-                      // Generation failed, provide manual stub
                       const frequencyLabel = client?.payrollFrequency || 'Monthly';
                       const freqNum = PayrollService.getFrequencyMultiplier(frequencyLabel);
                       
@@ -188,7 +184,6 @@ export default function PayslipsPage() {
                           employeeId: employee.id,
                           employeeName: `${employee.name} ${employee.surname}`,
                           period: periodLabel,
-                          // We pass ISO string because Server Actions can't accept Firestore Timestamps
                           date: new Date().toISOString() as any,
                           earnings: initialEarnings,
                           deductions: PayrollService.getInitialDeductions(initialGross, periodLabel, freqNum),
@@ -269,7 +264,6 @@ export default function PayslipsPage() {
         </div>
       </div>
 
-      {/* Payslip Editor Dialog */}
       <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
           <DialogContent className="sm:max-w-6xl p-0 overflow-hidden bg-[#F5F5F5]">
               <DialogHeader className="p-6 bg-white border-b">
@@ -327,7 +321,6 @@ export default function PayslipsPage() {
                     {activeEmployeesWithPayslips.map((row) => {
                         const { employee, payslip } = row;
                         
-                        // Calculate display values
                         let displayGross = 0;
                         let displayTax = 0;
                         let displayNet = 0;
@@ -337,12 +330,10 @@ export default function PayslipsPage() {
                             displayTax = payslip.deductions.find(d => d.label === 'Tax')?.amount || 0;
                             displayNet = payslip.netPay;
                         } else {
-                            // Draft estimate from profile
                             const frequency = 12;
                             const period = client?.firstProcessingMonth;
                             const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) * 160 : (employee.basicSalary || 0);
                             
-                            // If it's a "Net" salary in profile, we need to gross it up
                             displayGross = employee.isNetSalary ? PayrollService.calculateGrossFromNet(baseValue, period, frequency) : baseValue;
                             displayTax = PayrollService.calculatePaye(displayGross, period, frequency);
                             displayNet = displayGross - displayTax - PayrollService.calculateUif(displayGross, period, frequency);

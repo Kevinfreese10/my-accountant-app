@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, Search, Loader2, MoreHorizontal, Edit, Trash2, User as UserIcon, ReceiptText, Calculator, FileUp } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { getFirestore, collection, query, orderBy, doc, onSnapshot, deleteDoc, getDoc, getDocs, where, limit, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, doc, onSnapshot, deleteDoc, getDoc, getDocs, where, limit } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Employee, Payslip, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import EmployeeForm from '@/components/admin/EmployeeForm';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -145,8 +145,8 @@ export default function EmployeesPage() {
                       setEditingPayslip({ id: newSnap.id, ...newSnap.data() } as Payslip);
                   }
               } else {
-                  const frequencyLabel = client?.payrollFrequency || 'Monthly';
-                  const freqNum = frequencyLabel === 'Monthly' ? 12 : frequencyLabel === 'Fortnightly' ? 26 : 52;
+                  const frequencyLabel = 'Monthly';
+                  const freqNum = 12;
                   const basePeriod = client?.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
                   
                   const initialEarnings = PayrollService.calculateEarningsList(employee, baseValue, basePeriod, freqNum);
@@ -157,7 +157,6 @@ export default function EmployeesPage() {
                       employeeId: employee.id,
                       employeeName: `${employee.name} ${employee.surname}`,
                       period: periodLabel,
-                      // We pass ISO string because Server Actions can't accept Firestore Timestamps
                       date: new Date().toISOString() as any,
                       earnings: initialEarnings,
                       deductions: PayrollService.getInitialDeductions(initialGross, basePeriod, freqNum),
@@ -166,7 +165,8 @@ export default function EmployeesPage() {
                       grossPay: initialGross,
                       totalDeductions: 0,
                       netPay: 0,
-                      frequency: frequencyLabel
+                      frequency: frequencyLabel,
+                      status: 'draft'
                   };
                   setEditingPayslip(stub);
               }
