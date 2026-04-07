@@ -91,28 +91,12 @@ export default function PayslipPreview({ payslip, employee, client }: PayslipPre
             <ReceiptText className="h-4 w-4 text-green-600" /> Earnings
           </h3>
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Basic Salary</span>
-              <span className="font-bold">{formatPrice(earnings.basic)}</span>
-            </div>
-            {earnings.overtime && (
-              <div className="flex justify-between text-sm">
-                <span>Overtime</span>
-                <span className="font-bold">{formatPrice(earnings.overtime)}</span>
-              </div>
-            )}
-            {earnings.bonus && (
-              <div className="flex justify-between text-sm">
-                <span>Bonus</span>
-                <span className="font-bold">{formatPrice(earnings.bonus)}</span>
-              </div>
-            )}
-            {earnings.allowances && (
-              <div className="flex justify-between text-sm">
-                <span>Allowances</span>
-                <span className="font-bold">{formatPrice(earnings.allowances)}</span>
-              </div>
-            )}
+            {earnings.map((e, idx) => (
+                <div key={idx} className="flex justify-between text-sm">
+                    <span>{e.label}</span>
+                    <span className="font-bold">{formatPrice(e.amount)}</span>
+                </div>
+            ))}
           </div>
         </div>
 
@@ -122,26 +106,12 @@ export default function PayslipPreview({ payslip, employee, client }: PayslipPre
             <ReceiptText className="h-4 w-4 text-destructive" /> Deductions
           </h3>
           <div className="space-y-2">
-            <div className="flex justify-between text-sm text-destructive font-medium">
-              <span>PAYE (Income Tax)</span>
-              <span>{formatPrice(deductions.paye)}</span>
-            </div>
-            <div className="flex justify-between text-sm text-destructive font-medium">
-              <span>UIF</span>
-              <span>{formatPrice(deductions.uif)}</span>
-            </div>
-            {deductions.sdl && (
-              <div className="flex justify-between text-sm text-destructive font-medium">
-                <span>SDL</span>
-                <span>{formatPrice(deductions.sdl)}</span>
-              </div>
-            )}
-            {deductions.pension && (
-              <div className="flex justify-between text-sm text-destructive font-medium">
-                <span>Pension Fund</span>
-                <span>{formatPrice(deductions.pension)}</span>
-              </div>
-            )}
+            {deductions.map((d, idx) => (
+                <div key={idx} className="flex justify-between text-sm text-destructive font-medium">
+                    <span>{d.label}</span>
+                    <span>{formatPrice(d.amount)}</span>
+                </div>
+            ))}
           </div>
         </div>
       </div>
@@ -168,7 +138,7 @@ export default function PayslipPreview({ payslip, employee, client }: PayslipPre
           </div>
         </div>
         <div className="text-right space-y-1">
-          <p className="text-[10px] text-muted-foreground italic">Electronic Payslip Generated on {format(payslip.date.toDate(), 'PPP')}</p>
+          <p className="text-[10px] text-muted-foreground italic">Electronic Payslip Generated on {format(payslip.date?.toDate ? payslip.date.toDate() : new Date(payslip.date || Date.now()), 'PPP')}</p>
           <p className="text-[10px] text-muted-foreground font-bold">My Accountant AI Payroll</p>
         </div>
       </div>

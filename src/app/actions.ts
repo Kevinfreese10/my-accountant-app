@@ -94,10 +94,21 @@ export async function updatePayslipAction({
     data: Partial<Payslip>
 }) {
     try {
+        const docData: any = { ...data };
+        
+        // Next.js Server Actions cannot accept Firestore Timestamp objects.
+        // We expect dates to arrive as strings and convert them here for storage.
+        if (docData.date && typeof docData.date === 'string') {
+            const parsed = new Date(docData.date);
+            if (!isNaN(parsed.getTime())) {
+                docData.date = Timestamp.fromDate(parsed);
+            }
+        }
+
         if (payslipId === 'new') {
             const colRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
             const newDoc = await addDoc(colRef, {
-                ...data,
+                ...docData,
                 status: 'finalized',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
@@ -107,7 +118,7 @@ export async function updatePayslipAction({
 
         const docRef = doc(db, 'aiPayrollClients', clientId, 'payslips', payslipId);
         await updateDoc(docRef, {
-            ...data,
+            ...docData,
             status: 'finalized',
             updatedAt: serverTimestamp()
         });

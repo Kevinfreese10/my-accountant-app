@@ -139,7 +139,9 @@ export default function PayslipEditor({
                 employeeId: employee.id,
                 employeeName: `${employee.name} ${employee.surname}`,
                 period: payslip.period,
-                date: Timestamp.now(),
+                // Server Actions don't support Firestore Timestamps being passed from the client.
+                // We pass an ISO string instead.
+                date: new Date().toISOString() as any,
                 frequency: 'Monthly',
                 earnings,
                 deductions: totals.updatedDeductions,

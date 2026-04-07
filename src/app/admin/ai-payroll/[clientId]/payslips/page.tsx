@@ -9,7 +9,7 @@ import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, getD
 import { firebaseApp } from '@/lib/firebase';
 import { Payslip, Employee, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/table';
 import { format } from 'date-fns';
 import { rollForwardPayrollAction, rollBackPayrollAction, generateEmployeePayslipAction } from '@/app/actions';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -17,7 +17,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import PayslipEditor from '@/components/admin/PayslipEditor';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Timestamp } from 'firebase/firestore';
 import { PayrollService } from '@/services/PayrollService';
 
 const db = getFirestore(firebaseApp);
@@ -189,7 +188,8 @@ export default function PayslipsPage() {
                           employeeId: employee.id,
                           employeeName: `${employee.name} ${employee.surname}`,
                           period: periodLabel,
-                          date: Timestamp.now(),
+                          // We pass ISO string because Server Actions can't accept Firestore Timestamps
+                          date: new Date().toISOString() as any,
                           earnings: initialEarnings,
                           deductions: PayrollService.getInitialDeductions(initialGross, periodLabel, freqNum),
                           contributions: PayrollService.getInitialContributions(initialGross, periodLabel, freqNum, !!client?.excludeSdl),
@@ -414,7 +414,7 @@ export default function PayslipsPage() {
                                 <TableCell className="text-xs font-bold">{ps.period}</TableCell>
                                 <TableCell className="text-xs font-medium">{ps.employeeName}</TableCell>
                                 <TableCell className="text-right text-xs font-mono">{formatPrice(ps.netPay)}</TableCell>
-                                <TableCell className="text-right text-[10px]">{ps.date?.toDate ? format(ps.date.toDate(), 'dd MMM yy') : 'N/A'}</TableCell>
+                                <TableCell className="text-right text-[10px]">{ps.date?.toDate ? format(ps.date.toDate(), 'dd MMM yy') : (ps.date ? format(new Date(ps.date), 'dd MMM yy') : 'N/A')}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

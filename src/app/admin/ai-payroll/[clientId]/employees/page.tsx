@@ -12,7 +12,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Employee, Payslip, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import EmployeeForm from '@/components/admin/EmployeeForm';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -157,10 +157,11 @@ export default function EmployeesPage() {
                       employeeId: employee.id,
                       employeeName: `${employee.name} ${employee.surname}`,
                       period: periodLabel,
-                      date: Timestamp.now(),
+                      // We pass ISO string because Server Actions can't accept Firestore Timestamps
+                      date: new Date().toISOString() as any,
                       earnings: initialEarnings,
                       deductions: PayrollService.getInitialDeductions(initialGross, basePeriod, freqNum),
-                      contributions: PayrollService.getInitialContributions(initialGross, basePeriod, !!client?.excludeSdl),
+                      contributions: PayrollService.getInitialContributions(initialGross, basePeriod, freqNum, !!client?.excludeSdl),
                       fringeBenefits: [],
                       grossPay: initialGross,
                       totalDeductions: 0,
@@ -342,6 +343,7 @@ export default function EmployeesPage() {
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                             </DropdownMenuTrigger>
