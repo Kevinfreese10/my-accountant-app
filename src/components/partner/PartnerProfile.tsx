@@ -25,7 +25,8 @@ import {
   MapPin, 
   Building,
   Gavel,
-  Settings
+  Settings,
+  MousePointer2
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { getFirestore, doc, updateDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
@@ -34,11 +35,12 @@ import { firebaseApp } from '@/lib/firebase';
 import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
 import Link from 'next/link';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { Slider } from '../ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -82,6 +84,7 @@ const formSchema = z.object({
     cardBorderColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     buttonColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
     buttonTextColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Must be a valid hex color").optional(),
+    buttonStyle: z.enum(['solid', 'outline']).default('solid'),
     showLogo: z.boolean().default(true),
     hideHeaderBranding: z.boolean().default(false),
     logoUrl: z.string().url().optional().or(z.literal('')),
@@ -115,6 +118,7 @@ const THEMES = {
         cardBorderColor: '#e5e7eb',
         buttonColor: '#214392',
         buttonTextColor: '#ffffff',
+        buttonStyle: 'solid',
     },
     futuristic: {
         primaryColor: '#8b5cf6',
@@ -125,6 +129,7 @@ const THEMES = {
         cardBorderColor: '#1e293b',
         buttonColor: '#8b5cf6',
         buttonTextColor: '#ffffff',
+        buttonStyle: 'solid',
     },
     tech_blue: {
         primaryColor: '#0ea5e9',
@@ -135,6 +140,7 @@ const THEMES = {
         cardBorderColor: '#e2e8f0',
         buttonColor: '#0ea5e9',
         buttonTextColor: '#ffffff',
+        buttonStyle: 'solid',
     }
 };
 
@@ -187,6 +193,7 @@ export default function PartnerProfile() {
         cardBorderColor: user?.landingPage?.cardBorderColor || '#e5e7eb',
         buttonColor: user?.landingPage?.buttonColor || '#214392',
         buttonTextColor: user?.landingPage?.buttonTextColor || '#ffffff',
+        buttonStyle: user?.landingPage?.buttonStyle || 'solid',
         showLogo: user?.landingPage?.showLogo !== undefined ? user?.landingPage?.showLogo : true,
         hideHeaderBranding: user?.landingPage?.hideHeaderBranding || false,
         logoUrl: user?.landingPage?.logoUrl || '',
@@ -324,7 +331,7 @@ export default function PartnerProfile() {
                 <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
                         <FormControl>
-                            <div className="flex items-center gap-2 border rounded-md px-2 py-1 flex-grow bg-background">
+                            <div className="flex items-center gap-2 border rounded-md px-2 py-1 flex-grow bg-background shadow-sm">
                                 <input type="color" value={field.value || '#ffffff'} onChange={(e) => { field.onChange(e.target.value); setValue('landingPage.themePreset', 'custom'); }} className="w-6 h-6 rounded-sm cursor-pointer border-0 bg-transparent p-0" />
                                 <Input {...field} className="border-0 h-7 text-xs font-mono uppercase focus-visible:ring-0 focus-visible:ring-offset-0 px-1" onChange={(e) => { field.onChange(e.target.value); setValue('landingPage.themePreset', 'custom'); }} />
                             </div>
@@ -541,10 +548,51 @@ export default function PartnerProfile() {
                                 <CardContent className="space-y-6 pt-6">
                                     <FormField control={form.control} name="landingPage.themePreset" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Theme Preset</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a theme..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="custom">Custom</SelectItem><SelectItem value="my_accountant">Master</SelectItem><SelectItem value="tech_blue">Light</SelectItem><SelectItem value="futuristic">Dark</SelectItem></SelectContent></Select><FormMessage /></FormItem> )} />
                                     <Separator className="my-2" />
-                                    <ColorField name="landingPage.primaryColor" label="Primary Color" description="Main brand color used for accents." />
-                                    <ColorField name="landingPage.buttonColor" label="Button Color" description="Call-to-action button color." />
-                                    <ColorField name="landingPage.backgroundColor" label="Page Background" />
-                                    <ColorField name="landingPage.textColor" label="Default Text Color" />
+                                    <div className="grid grid-cols-1 gap-6">
+                                        <ColorField name="landingPage.primaryColor" label="Primary Brand Color" description="Used for icons and highlights." />
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                            <ColorField name="landingPage.cardBackgroundColor" label="Card Background" />
+                                            <ColorField name="landingPage.cardBorderColor" label="Card Border" />
+                                        </div>
+                                        <Separator className="my-2" />
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground tracking-widest">
+                                                <MousePointer2 className="h-3 w-3" /> Button Branding
+                                            </div>
+                                            <FormField
+                                                control={form.control}
+                                                name="landingPage.buttonStyle"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-3">
+                                                        <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Style Type</FormLabel>
+                                                        <FormControl>
+                                                            <RadioGroup
+                                                                onValueChange={field.onChange}
+                                                                defaultValue={field.value}
+                                                                className="flex gap-4"
+                                                            >
+                                                                <div className="flex items-center space-x-2">
+                                                                    <RadioGroupItem value="solid" id="r-solid" />
+                                                                    <Label htmlFor="r-solid" className="text-xs font-bold cursor-pointer">Solid Fill</Label>
+                                                                </div>
+                                                                <div className="flex items-center space-x-2">
+                                                                    <RadioGroupItem value="outline" id="r-outline" />
+                                                                    <Label htmlFor="r-outline" className="text-xs font-bold cursor-pointer">Outline</Label>
+                                                                </div>
+                                                            </RadioGroup>
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <ColorField name="landingPage.buttonColor" label="Button Color" description="Fill or border color." />
+                                                <ColorField name="landingPage.buttonTextColor" label="Button Text" />
+                                            </div>
+                                        </div>
+                                        <Separator className="my-2" />
+                                        <ColorField name="landingPage.backgroundColor" label="Page Background" />
+                                        <ColorField name="landingPage.textColor" label="Default Text Color" />
+                                    </div>
                                     <Separator />
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">

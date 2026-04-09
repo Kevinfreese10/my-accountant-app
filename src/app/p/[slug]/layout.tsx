@@ -1,4 +1,3 @@
-
 import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
@@ -48,8 +47,9 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
   return serializedPartner as User;
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const partner = await getPartnerBySlug(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const partner = await getPartnerBySlug(slug);
   if (!partner) return { title: 'Practice Not Found' };
 
   return {
@@ -63,15 +63,17 @@ export default async function PartnerLandingLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const partner = await getPartnerBySlug(params.slug);
+  const { slug } = await params;
+  const partner = await getPartnerBySlug(slug);
 
   if (!partner) {
     notFound();
   }
 
   const lp = partner.landingPage;
+  const isOutline = lp?.buttonStyle === 'outline';
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -87,8 +89,9 @@ export default async function PartnerLandingLayout({
           --partner-btn-text: ${lp?.buttonTextColor || '#ffffff'};
         }
         .partner-btn {
-          background-color: var(--partner-btn-bg) !important;
-          color: var(--partner-btn-text) !important;
+          background-color: ${isOutline ? 'transparent' : 'var(--partner-btn-bg)'} !important;
+          color: ${isOutline ? 'var(--partner-btn-bg)' : 'var(--partner-btn-text)'} !important;
+          border: ${isOutline ? '1px solid var(--partner-btn-bg)' : 'none'} !important;
         }
         .partner-btn-secondary {
           background-color: var(--partner-secondary) !important;

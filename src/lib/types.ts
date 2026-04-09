@@ -216,6 +216,7 @@ export type PartnerLandingPageConfig = {
   cardBorderColor?: string;
   buttonColor?: string;
   buttonTextColor?: string;
+  buttonStyle?: 'solid' | 'outline';
   showLogo?: boolean;
   hideHeaderBranding?: boolean;
   logoUrl?: string;
