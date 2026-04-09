@@ -41,6 +41,7 @@ import { Slider } from '../ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { Label } from '../ui/label';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
