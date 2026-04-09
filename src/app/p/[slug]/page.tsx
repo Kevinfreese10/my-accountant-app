@@ -327,7 +327,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                                     </div>
                                 </CardContent>
                                 <CardFooter className="pt-0">
-                                    <Button variant="outline" className="w-full partner-border partner-text font-semibold h-11" asChild>
+                                    <Button className="w-full partner-btn font-semibold h-11" asChild>
                                         <Link href={`/p/${params.slug}/products/${service.slug}`}>
                                             View Details <ArrowRight className="ml-2 h-4 w-4" />
                                         </Link>

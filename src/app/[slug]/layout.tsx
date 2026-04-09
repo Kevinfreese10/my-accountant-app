@@ -63,10 +63,13 @@ export default async function FranchiseLandingLayout({
       cardBorderColor: '#e5e7eb',
       buttonColor: '#214392',
       buttonTextColor: '#ffffff',
+      buttonStyle: 'solid',
       slug: partner.franchise?.areaSlug,
       heroTitle: `My Accountant ${partner.franchise?.areaName}`,
       heroSubtitle: `Expert tax, accounting, and compliance solutions for ${partner.franchise?.areaName}.`
   };
+
+  const isOutline = lp.buttonStyle === 'outline';
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -82,8 +85,9 @@ export default async function FranchiseLandingLayout({
           --partner-btn-text: ${lp.buttonTextColor};
         }
         .partner-btn {
-          background-color: var(--partner-btn-bg) !important;
-          color: var(--partner-btn-text) !important;
+          background-color: ${isOutline ? 'transparent' : 'var(--partner-btn-bg)'} !important;
+          color: ${isOutline ? 'var(--partner-btn-bg)' : 'var(--partner-btn-text)'} !important;
+          border: ${isOutline ? '1px solid var(--partner-btn-bg)' : 'none'} !important;
         }
         .partner-btn-secondary {
           background-color: var(--partner-secondary) !important;

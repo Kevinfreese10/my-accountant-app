@@ -92,7 +92,7 @@ export default async function FranchiseLandingPage({ params }: { params: Promise
             Professional accounting, tax, and compliance solutions delivered with local expertise and national standards.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
-            <Button asChild size="lg" className="h-12 px-8 font-bold">
+            <Button asChild size="lg" className="h-12 px-8 font-bold partner-btn">
               <Link href="#products">Explore Services</Link>
             </Button>
           </div>
@@ -125,7 +125,7 @@ export default async function FranchiseLandingPage({ params }: { params: Promise
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {category.data.map((service) => (
-                            <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 border shadow-sm">
+                            <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 border shadow-sm partner-card">
                                 <CardHeader className="space-y-2 pb-4">
                                     <CardTitle className="text-2xl font-bold leading-tight group-hover:text-primary transition-colors">
                                         {service.title}
@@ -150,7 +150,7 @@ export default async function FranchiseLandingPage({ params }: { params: Promise
                                     </p>
                                 </CardContent>
                                 <CardFooter className="pt-0">
-                                    <Button variant="outline" className="w-full border-primary text-primary font-semibold h-11" asChild>
+                                    <Button className="w-full partner-btn font-semibold h-11" asChild>
                                         <Link href={`/products/${service.slug}`}>
                                             View Details <ArrowRight className="ml-2 h-4 w-4" />
                                         </Link>
