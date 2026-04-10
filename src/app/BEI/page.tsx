@@ -158,7 +158,7 @@ export default function BEIPage() {
         </div>
         <div className="container mx-auto px-4 py-20 text-center relative z-10">
             <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl text-slate-900">
-                10X Your Practice — <span className="text-gradient">No Overhead Required.</span>
+                10X Your Practice — <span className="text-gradient">No Staff Required.</span>
             </h1>
             <p className="mt-6 text-xl text-slate-700 max-w-4xl mx-auto font-medium leading-relaxed">
                 Never lose a client because you lack capacity, specialised expertise, or time. With the Bookkeeper Empowerment Initiative (BEI), you can confidently outsource complex work while keeping full control of the client relationship and growing your revenue.
@@ -206,13 +206,13 @@ export default function BEIPage() {
         </div>
       </section>
 
-      <section className="bg-slate-900 py-24">
+      <section className="bg-slate-50 py-24 border-y">
         <div className="container mx-auto px-4">
             <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                <div className="text-white space-y-6">
-                    <Badge className="bg-primary hover:bg-primary text-white border-none px-3 py-1 text-[10px] font-black uppercase tracking-widest">Pricing Plan</Badge>
-                    <h2 className="text-4xl md:text-5xl font-black leading-tight">One-Time Practice <br/><span className="text-primary">Investment</span></h2>
-                    <p className="text-lg text-slate-300 leading-relaxed">
+                <div className="space-y-6">
+                    <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-3 py-1 text-[10px] font-black uppercase tracking-widest">Pricing Plan</Badge>
+                    <h2 className="text-4xl md:text-5xl font-black leading-tight text-slate-900">One-Time Practice <br/><span className="text-primary">Investment</span></h2>
+                    <p className="text-lg text-slate-600 leading-relaxed">
                         Scale your firm with a turn-key solution. The BEI setup fee replaces all monthly hosting costs, giving you a lifetime platform for growth.
                     </p>
                     <ul className="space-y-4">
@@ -223,15 +223,15 @@ export default function BEIPage() {
                             'Initial Setup & Professional Training',
                             'Direct CA Technical Support Access'
                         ].map((item, i) => (
-                            <li key={i} className="flex items-center gap-3 text-sm font-medium text-slate-200">
+                            <li key={i} className="flex items-center gap-3 text-sm font-medium text-slate-700">
                                 <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                                 {item}
                             </li>
                         ))}
                     </ul>
                 </div>
-                <Card className="border-none shadow-2xl bg-white overflow-hidden transform lg:scale-110">
-                    <CardHeader className="bg-slate-50 border-b p-8 text-center">
+                <Card className="border shadow-2xl bg-white overflow-hidden transform lg:scale-110">
+                    <CardHeader className="bg-white border-b p-8 text-center">
                         <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Setup & Activation</CardTitle>
                         <div className="mt-4 flex items-baseline justify-center gap-1">
                             <span className="text-2xl font-bold text-slate-900">R</span>
@@ -244,14 +244,14 @@ export default function BEIPage() {
                             <div className="flex items-start gap-3">
                                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><ShieldCheck className="h-5 w-5" /></div>
                                 <div>
-                                    <p className="font-bold text-sm">Full Brand Ownership</p>
+                                    <p className="font-bold text-sm text-slate-900">Full Brand Ownership</p>
                                     <p className="text-xs text-muted-foreground">Keep 100% of your client relationships and brand identity.</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-3">
                                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><Rocket className="h-5 w-5" /></div>
                                 <div>
-                                    <p className="font-bold text-sm">Instant Market Presence</p>
+                                    <p className="font-bold text-sm text-slate-900">Instant Market Presence</p>
                                     <p className="text-xs text-muted-foreground">Go from solo bookkeeper to full-service firm in 48 hours.</p>
                                 </div>
                             </div>
@@ -268,7 +268,7 @@ export default function BEIPage() {
         </div>
       </section>
 
-      <section className="bg-slate-50 py-24 border-y">
+      <section className="bg-white py-24 border-b">
         <div className="container mx-auto px-4">
             <div className="text-center mb-16 space-y-4">
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Practice Benefits</Badge>
