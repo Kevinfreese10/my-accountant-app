@@ -44,7 +44,7 @@ function PartnerProfileDialog({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-                <DialogHeader className="p-6 bg-primary/5 border-b">
+                <DialogHeader className="p-6 bg-primary/5 border-b shrink-0">
                     <div className="flex justify-between items-start">
                         <div>
                             <DialogTitle className="text-2xl font-bold">{partner.companyName || partner.name}</DialogTitle>
@@ -173,7 +173,7 @@ function PartnerProfileDialog({
                     </div>
                 </ScrollArea>
                 
-                <DialogFooter className="p-6 border-t bg-muted/30">
+                <DialogFooter className="p-6 border-t bg-muted/30 shrink-0">
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Close Profile</Button>
                     {partner.landingPage?.slug && (
                         <Button asChild className="gap-2">
@@ -374,8 +374,8 @@ export default function AdminPartnersPage() {
 
       {/* Admin Full Practice Configuration Modal */}
       <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
-          <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col p-0">
-              <DialogHeader className="p-6 bg-slate-900 text-white border-b border-slate-800">
+          <DialogContent className="sm:max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden">
+              <DialogHeader className="p-6 bg-slate-900 text-white border-b border-slate-800 shrink-0">
                   <DialogTitle className="text-xl flex items-center gap-2">
                       <Wrench className="h-5 w-5 text-primary" />
                       Configure Practice Settings: {selectedPartnerForConfiguration?.companyName}
@@ -384,12 +384,18 @@ export default function AdminPartnersPage() {
                       Manage branding, banking, and landing page details on behalf of this partner.
                   </DialogDescription>
               </DialogHeader>
-              <ScrollArea className="flex-grow p-6 bg-slate-50">
-                  {selectedPartnerForConfiguration && (
-                      <PartnerProfile partner={selectedPartnerForConfiguration} />
-                  )}
-              </ScrollArea>
-              <DialogFooter className="p-4 border-t bg-white">
+              
+              <div className="flex-1 min-h-0 overflow-hidden bg-slate-50">
+                <ScrollArea className="h-full">
+                    <div className="p-6">
+                        {selectedPartnerForConfiguration && (
+                            <PartnerProfile partner={selectedPartnerForConfiguration} />
+                        )}
+                    </div>
+                </ScrollArea>
+              </div>
+
+              <DialogFooter className="p-4 border-t bg-white shrink-0">
                   <Button variant="ghost" onClick={() => setIsConfigDialogOpen(false)}>Close Editor</Button>
               </DialogFooter>
           </DialogContent>
