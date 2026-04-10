@@ -1,10 +1,9 @@
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus, CheckCircle2, Circle, Info, FileText, Download, Briefcase, GraduationCap, Globe, Mail, ExternalLink, XCircle, Settings } from 'lucide-react';
+import { MoreHorizontal, Users, Loader2, Wallet2, Plus, Minus, CheckCircle2, Circle, Info, FileText, Download, Briefcase, GraduationCap, Globe, Mail, ExternalLink, XCircle, Settings, Wrench } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -23,6 +22,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendEmail } from '@/lib/email';
+import PartnerProfile from '@/components/partner/PartnerProfile';
 
 const db = getFirestore(firebaseApp);
 
@@ -262,8 +262,10 @@ export default function AdminPartnersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPartnerForCredits, setSelectedPartnerForCredits] = useState<User | null>(null);
   const [selectedPartnerForProfile, setSelectedPartnerForProfile] = useState<User | null>(null);
+  const [selectedPartnerForConfiguration, setSelectedPartnerForConfiguration] = useState<User | null>(null);
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
 
@@ -370,6 +372,29 @@ export default function AdminPartnersPage() {
         onOpenChange={setIsProfileDialogOpen}
       />
 
+      {/* Admin Full Practice Configuration Modal */}
+      <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+          <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="p-6 bg-slate-900 text-white border-b border-slate-800">
+                  <DialogTitle className="text-xl flex items-center gap-2">
+                      <Wrench className="h-5 w-5 text-primary" />
+                      Configure Practice Settings: {selectedPartnerForConfiguration?.companyName}
+                  </DialogTitle>
+                  <DialogDescription className="text-slate-400">
+                      Manage branding, banking, and landing page details on behalf of this partner.
+                  </DialogDescription>
+              </DialogHeader>
+              <ScrollArea className="flex-grow p-6 bg-slate-50">
+                  {selectedPartnerForConfiguration && (
+                      <PartnerProfile partner={selectedPartnerForConfiguration} />
+                  )}
+              </ScrollArea>
+              <DialogFooter className="p-4 border-t bg-white">
+                  <Button variant="ghost" onClick={() => setIsConfigDialogOpen(false)}>Close Editor</Button>
+              </DialogFooter>
+          </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader>
           <CardTitle>All Partners</CardTitle>
@@ -419,7 +444,10 @@ export default function AdminPartnersPage() {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuLabel>Management</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => { setSelectedPartnerForConfiguration(partner); setIsConfigDialogOpen(true); }}>
+                                <Wrench className="mr-2 h-4 w-4" /> Configure Practice
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setSelectedPartnerForProfile(partner); setIsProfileDialogOpen(true); }}>
                                 <FileText className="mr-2 h-4 w-4" /> View Profile & Docs
                             </DropdownMenuItem>

@@ -2,8 +2,6 @@
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
-
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -26,10 +24,11 @@ import {
   Building,
   Gavel,
   Settings,
-  MousePointer2
+  MousePointer2,
+  Save
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, doc, updateDoc, collection, getDocs, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { Switch } from '../ui/switch';
@@ -42,6 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Label } from '../ui/label';
+import { User } from '@/lib/types';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -149,8 +149,12 @@ const QUICK_COLORS = [
     '#214392', '#0ea5e9', '#4f46e5', '#8b5cf6', '#d946ef', '#e11d48', '#f43f5e', '#f97316', '#d97706', '#059669', '#10b981', '#1e293b', '#0f172a', '#ffffff', '#f3f4f6', '#e5e7eb', '#000000',
 ];
 
-export default function PartnerProfile() {
-  const { user, updateUser } = useAuth();
+export default function PartnerProfile({ partner: propPartner }: { partner?: User }) {
+  const { user: authUser, updateUser } = useAuth();
+  
+  // Use the provided partner prop if available, otherwise fallback to the logged-in user
+  const targetUser = propPartner || authUser;
+  
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
@@ -161,90 +165,122 @@ export default function PartnerProfile() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      companyName: user?.companyName || '',
-      name: user?.name?.split(' ')[0] || user?.contactPerson?.split(' ')[0] || '',
-      surname: user?.name?.split(' ').slice(1).join(' ') || user?.contactPerson?.split(' ').slice(1).join(' ') || '',
-      email: user?.email || '',
-      contactNumber: user?.contactNumber || '',
+      companyName: targetUser?.companyName || '',
+      name: targetUser?.name?.split(' ')[0] || targetUser?.contactPerson?.split(' ')[0] || '',
+      surname: targetUser?.name?.split(' ').slice(1).join(' ') || targetUser?.contactPerson?.split(' ').slice(1).join(' ') || '',
+      email: targetUser?.email || '',
+      contactNumber: targetUser?.contactNumber || '',
       address: { 
-          street: user?.address?.street || '', 
-          suburb: user?.address?.suburb || '', 
-          city: user?.address?.city || '', 
-          province: user?.address?.province || '', 
-          zip: user?.address?.zip || ''
+          street: targetUser?.address?.street || '', 
+          suburb: targetUser?.address?.suburb || '', 
+          city: targetUser?.address?.city || '', 
+          province: targetUser?.address?.province || '', 
+          zip: targetUser?.address?.zip || ''
       },
       bankingDetails: { 
-          bankName: user?.bankingDetails?.bankName || '', 
-          accountHolder: user?.bankingDetails?.accountHolder || '', 
-          accountNumber: user?.bankingDetails?.accountNumber || '', 
-          branchCode: user?.bankingDetails?.branchCode || ''
+          bankName: targetUser?.bankingDetails?.bankName || '', 
+          accountHolder: targetUser?.bankingDetails?.accountHolder || '', 
+          accountNumber: targetUser?.bankingDetails?.accountNumber || '', 
+          branchCode: targetUser?.bankingDetails?.branchCode || ''
       },
       landingPage: {
-        enabled: user?.landingPage?.enabled || false,
-        slug: user?.landingPage?.slug || '',
-        heroTitle: user?.landingPage?.heroTitle || `Professional Accounting Services for your Business`,
-        heroSubtitle: user?.landingPage?.heroSubtitle || `Expert tax, accounting, and compliance solutions tailored to your needs.`,
-        aboutUs: user?.landingPage?.aboutUs || `We are a dedicated team of accounting professionals committed to helping small businesses grow through accurate financial management and strategic advice.`,
-        themePreset: user?.landingPage?.themePreset || 'custom',
-        primaryColor: user?.landingPage?.primaryColor || '#214392',
-        secondaryColor: user?.landingPage?.secondaryColor || '#f3f4f6',
-        backgroundColor: user?.landingPage?.backgroundColor || '#ffffff',
-        textColor: user?.landingPage?.textColor || '#111827',
-        cardBackgroundColor: user?.landingPage?.cardBackgroundColor || '#ffffff',
-        cardBorderColor: user?.landingPage?.cardBorderColor || '#e5e7eb',
-        buttonColor: user?.landingPage?.buttonColor || '#214392',
-        buttonTextColor: user?.landingPage?.buttonTextColor || '#ffffff',
-        buttonStyle: user?.landingPage?.buttonStyle || 'solid',
-        showLogo: user?.landingPage?.showLogo !== undefined ? user?.landingPage?.showLogo : true,
-        hideHeaderBranding: user?.landingPage?.hideHeaderBranding || false,
-        logoUrl: user?.landingPage?.logoUrl || '',
-        logoHeight: user?.landingPage?.logoHeight || 40,
-        heroImageUrl: user?.landingPage?.heroImageUrl || '',
-        heroOverlayOpacity: user?.landingPage?.heroOverlayOpacity || 0,
-        heroLayout: user?.landingPage?.heroLayout || 'centered',
-        heroTextPosition: user?.landingPage?.heroTextPosition || 'inside',
-        refundPolicy: user?.landingPage?.refundPolicy || '',
-        popiaPolicy: user?.landingPage?.popiaPolicy || '',
-        termsAndConditions: user?.landingPage?.termsAndConditions || '',
-        heroTitleColor: user?.landingPage?.heroTitleColor || '#111827',
-        heroSubtitleColor: user?.landingPage?.heroSubtitleColor || '#4b5563',
-        showServicesHero: user?.landingPage?.showServicesHero !== undefined ? user?.landingPage?.showServicesHero : true,
-        servicesHeroImageUrl: user?.landingPage?.servicesHeroImageUrl || '',
-        servicesHeroOverlayOpacity: user?.landingPage?.servicesHeroOverlayOpacity || 0,
-        servicesHeroLayout: user?.landingPage?.servicesHeroLayout || 'centered',
-        servicesHeroTitle: user?.landingPage?.servicesHeroTitle || 'Accounting & Tax Solutions',
-        servicesHeroSubtitle: user?.landingPage?.servicesHeroSubtitle || 'Comprehensive professional services for individuals and SMEs.',
-        servicesHeroTextPosition: user?.landingPage?.servicesHeroTextPosition || 'inside',
+        enabled: targetUser?.landingPage?.enabled || false,
+        slug: targetUser?.landingPage?.slug || '',
+        heroTitle: targetUser?.landingPage?.heroTitle || `Professional Accounting Services for your Business`,
+        heroSubtitle: targetUser?.landingPage?.heroSubtitle || `Expert tax, accounting, and compliance solutions tailored to your needs.`,
+        aboutUs: targetUser?.landingPage?.aboutUs || `We are a dedicated team of accounting professionals committed to helping small businesses grow through accurate financial management and strategic advice.`,
+        themePreset: targetUser?.landingPage?.themePreset || 'custom',
+        primaryColor: targetUser?.landingPage?.primaryColor || '#214392',
+        secondaryColor: targetUser?.landingPage?.secondaryColor || '#f3f4f6',
+        backgroundColor: targetUser?.landingPage?.backgroundColor || '#ffffff',
+        textColor: targetUser?.landingPage?.textColor || '#111827',
+        cardBackgroundColor: targetUser?.landingPage?.cardBackgroundColor || '#ffffff',
+        cardBorderColor: targetUser?.landingPage?.cardBorderColor || '#e5e7eb',
+        buttonColor: targetUser?.landingPage?.buttonColor || '#214392',
+        buttonTextColor: targetUser?.landingPage?.buttonTextColor || '#ffffff',
+        buttonStyle: targetUser?.landingPage?.buttonStyle || 'solid',
+        showLogo: targetUser?.landingPage?.showLogo !== undefined ? targetUser?.landingPage?.showLogo : true,
+        hideHeaderBranding: targetUser?.landingPage?.hideHeaderBranding || false,
+        logoUrl: targetUser?.landingPage?.logoUrl || '',
+        logoHeight: targetUser?.landingPage?.logoHeight || 40,
+        heroImageUrl: targetUser?.landingPage?.heroImageUrl || '',
+        heroOverlayOpacity: targetUser?.landingPage?.heroOverlayOpacity || 0,
+        heroLayout: targetUser?.landingPage?.heroLayout || 'centered',
+        heroTextPosition: targetUser?.landingPage?.heroTextPosition || 'inside',
+        refundPolicy: targetUser?.landingPage?.refundPolicy || '',
+        popiaPolicy: targetUser?.landingPage?.popiaPolicy || '',
+        termsAndConditions: targetUser?.landingPage?.termsAndConditions || '',
+        heroTitleColor: targetUser?.landingPage?.heroTitleColor || '#111827',
+        heroSubtitleColor: targetUser?.landingPage?.heroSubtitleColor || '#4b5563',
+        showServicesHero: targetUser?.landingPage?.showServicesHero !== undefined ? targetUser?.landingPage?.showServicesHero : true,
+        servicesHeroImageUrl: targetUser?.landingPage?.servicesHeroImageUrl || '',
+        servicesHeroOverlayOpacity: targetUser?.landingPage?.servicesHeroOverlayOpacity || 0,
+        servicesHeroLayout: targetUser?.landingPage?.servicesHeroLayout || 'centered',
+        servicesHeroTitle: targetUser?.landingPage?.servicesHeroTitle || 'Accounting & Tax Solutions',
+        servicesHeroSubtitle: targetUser?.landingPage?.servicesHeroSubtitle || 'Comprehensive professional services for individuals and SMEs.',
+        servicesHeroTextPosition: targetUser?.landingPage?.servicesHeroTextPosition || 'inside',
       }
     },
   });
 
-  const { setValue, watch } = form;
+  const { setValue, watch, reset } = form;
+
+  // Ensure form resets if propPartner changes (important for Modal reuse)
+  useEffect(() => {
+      if (propPartner) {
+          reset({
+            companyName: propPartner.companyName || '',
+            name: propPartner.name?.split(' ')[0] || propPartner.contactPerson?.split(' ')[0] || '',
+            surname: propPartner.name?.split(' ').slice(1).join(' ') || propPartner.contactPerson?.split(' ').slice(1).join(' ') || '',
+            email: propPartner.email || '',
+            contactNumber: propPartner.contactNumber || '',
+            address: { 
+                street: propPartner.address?.street || '', 
+                suburb: propPartner.address?.suburb || '', 
+                city: propPartner.address?.city || '', 
+                province: propPartner.address?.province || '', 
+                zip: propPartner.address?.zip || ''
+            },
+            bankingDetails: { 
+                bankName: propPartner.bankingDetails?.bankName || '', 
+                accountHolder: propPartner.bankingDetails?.accountHolder || '', 
+                accountNumber: propPartner.bankingDetails?.accountNumber || '', 
+                branchCode: propPartner.bankingDetails?.branchCode || ''
+            },
+            landingPage: {
+                ...form.getValues().landingPage,
+                ...propPartner.landingPage,
+                enabled: propPartner.landingPage?.enabled || false,
+                slug: propPartner.landingPage?.slug || '',
+            }
+          });
+      }
+  }, [propPartner, reset]);
+
   const watchedBanking = watch('bankingDetails');
   const watchedLp = watch('landingPage');
   const themePreset = watch('landingPage.themePreset');
 
   useEffect(() => {
-      const pId = user?.role === 'partner' ? user.uid : user?.partnerId;
+      const pId = targetUser?.uid;
       if (!pId) return;
       
-      // REAL-TIME LISTENER FOR OVERRIDES
       const overridesRef = collection(db, 'users', pId, 'serviceOverrides');
       const unsubscribe = onSnapshot(overridesRef, (snap) => {
           setOverrideCount(snap.size);
       });
       return () => unsubscribe();
-  }, [user]);
+  }, [targetUser?.uid]);
 
   const checklist = useMemo(() => {
       return [
-          { label: 'Update Pricing', done: overrideCount > 0, description: 'Set your markups in the Services tab.' },
+          { label: 'Update Pricing', done: overrideCount > 0, description: 'Set practice markups in the Services tab.' },
           { label: 'Update Banking Details', done: !!(watchedBanking?.bankName && watchedBanking?.accountNumber), description: 'Required for client EFT payments.' },
-          { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize your public practice website.' },
+          { label: 'Edit Landing Content & Images', done: !!(watchedLp.heroImageUrl && watchedLp.aboutUs && watchedLp.aboutUs.length > 50), description: 'Customize the public practice website.' },
           { 
               label: 'Branding & Theme', 
               done: !!watchedLp.themePreset && (watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392')), 
-              description: 'Apply your custom colors and styling.' 
+              description: 'Apply custom colors and styling.' 
           },
       ];
   }, [watchedBanking, watchedLp, overrideCount]);
@@ -268,13 +304,13 @@ export default function PartnerProfile() {
   }, [themePreset, setValue]);
 
   const handleFileUpload = async (file: File, type: 'logo' | 'hero' | 'servicesHero') => {
-      if (!user) return;
+      if (!targetUser) return;
       if (type === 'logo') setIsUploadingLogo(true); 
       else if (type === 'hero') setIsUploadingHero(true);
       else setIsUploadingServicesHero(true);
 
       try {
-          const path = `partners/${user.uid}/${type}/${Date.now()}-${file.name}`;
+          const path = `partners/${targetUser.uid}/${type}/${Date.now()}-${file.name}`;
           const storageRef = ref(storage, path);
           await uploadBytes(storageRef, file);
           const url = await getDownloadURL(storageRef);
@@ -293,10 +329,10 @@ export default function PartnerProfile() {
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!user) return;
+    if (!targetUser) return;
     setIsSaving(true);
     try {
-        const userRef = doc(db, 'users', user.uid);
+        const userRef = doc(db, 'users', targetUser.uid);
         const updateData = {
             companyName: values.companyName,
             contactNumber: values.contactNumber,
@@ -306,11 +342,16 @@ export default function PartnerProfile() {
             landingPage: values.landingPage,
         };
         await updateDoc(userRef, updateData);
-        updateUser({ ...user, ...updateData });
+        
+        // Update local auth context ONLY if we are editing our own profile
+        if (!propPartner && authUser?.uid === targetUser.uid) {
+            updateUser({ ...authUser, ...updateData });
+        }
+        
         toast({ title: 'Profile Updated!' });
     } catch (error) {
         console.error("Profile update failed:", error);
-        toast({ title: 'Update Failed', description: "There was a problem saving your profile settings.", variant: 'destructive' });
+        toast({ title: 'Update Failed', description: "There was a problem saving the profile settings.", variant: 'destructive' });
     } finally {
         setIsSaving(false);
     }
@@ -388,7 +429,7 @@ export default function PartnerProfile() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="contactNumber" render={({ field }) => ( <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Contact Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Contact First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="surname" render={({ field }) => ( <FormItem><FormLabel>Contact Surname</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <div className="md:col-span-2">
                         <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} readOnly disabled className="bg-muted/50" /></FormControl><FormMessage /></FormItem>)} />
@@ -669,7 +710,7 @@ export default function PartnerProfile() {
             <Separator />
             <Button type="submit" disabled={isSaving} className="w-full h-14 text-lg font-black shadow-xl">
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save All Practice Settings
+                {isSaving ? 'Saving Changes...' : (propPartner ? 'Update Partner Practice' : 'Save All Practice Settings')}
             </Button>
         </form>
         </Form>
