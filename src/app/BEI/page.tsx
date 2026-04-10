@@ -3,12 +3,12 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Bot, Wallet, GraduationCap, CheckCircle2, LayoutDashboard, Percent, Globe, Scale, Loader2, ExternalLink, UserPlus, ClipboardList, CheckCircle, Users, Zap, ShieldCheck, Rocket } from 'lucide-react';
+import { Bot, Wallet, GraduationCap, CheckCircle2, LayoutDashboard, Percent, Globe, Scale, Loader2, ExternalLink, UserPlus, ClipboardList, CheckCircle, Users, Zap, ShieldCheck, Rocket, Table as TableIcon } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamicImport from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,6 +17,13 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { saveDemoLead } from '@/app/actions';
+import { getFirestore, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { Service } from '@/lib/types';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+const db = getFirestore(firebaseApp);
 
 const TrustIndexWidget = dynamicImport(() => import('@/components/shared/TrustIndexWidget'), {
   ssr: false,
@@ -28,6 +35,93 @@ const demoFormSchema = z.object({
   email: z.string().email("A valid email is required."),
   cell: z.string().min(10, "A valid cell number is required."),
 });
+
+function PartnerPricingDialog() {
+    const [services, setServices] = useState<Service[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+
+    const fetchPricing = async () => {
+        setIsLoading(true);
+        try {
+            const q = query(collection(db, "services"), orderBy("title"));
+            const snap = await getDocs(q);
+            setServices(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service)));
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen) fetchPricing();
+    }, [isOpen]);
+
+    const formatPrice = (price: number) => {
+        return new Intl.NumberFormat('en-ZA', {
+          style: 'currency',
+          currency: 'ZAR',
+        }).format(price);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <button className="text-primary font-bold text-xs flex items-center gap-1 mt-2 hover:underline ml-8 animate-in fade-in">
+                    View Partner Pricing <ExternalLink className="h-3 w-3" />
+                </button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0">
+                <DialogHeader className="p-6 bg-slate-50 border-b">
+                    <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                        <BadgeDollarSign className="h-6 w-6 text-primary" />
+                        Wholesale Partner Pricing
+                    </DialogTitle>
+                    <DialogDescription>
+                        Practice members receive a standard 25% discount on all service fees.
+                    </DialogDescription>
+                </DialogHeader>
+                
+                <div className="flex-1 overflow-hidden p-6">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center h-64 gap-2">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p className="text-sm font-medium text-muted-foreground">Fetching latest rates...</p>
+                        </div>
+                    ) : (
+                        <ScrollArea className="h-full border rounded-lg">
+                            <Table>
+                                <TableHeader className="bg-muted/50 sticky top-0 z-10 shadow-sm">
+                                    <TableRow>
+                                        <TableHead className="w-1/2">Service Description</TableHead>
+                                        <TableHead className="text-right">Retail Price</TableHead>
+                                        <TableHead className="text-right text-primary">Partner Cost (25% Off)</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {services.filter(s => !s.isPriceTbc).map((service) => (
+                                        <TableRow key={service.id}>
+                                            <TableCell className="font-medium text-xs sm:text-sm">{service.title}</TableCell>
+                                            <TableCell className="text-right text-xs opacity-50 line-through">{formatPrice(service.price)}</TableCell>
+                                            <TableCell className="text-right font-bold text-primary text-xs sm:text-sm">{formatPrice(service.resellerPrice || service.price * 0.75)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </ScrollArea>
+                    )}
+                </div>
+                <DialogFooter className="p-4 bg-muted/30 border-t">
+                    <p className="text-[10px] text-muted-foreground italic px-4">
+                        * Prices exclude 3rd party statutory costs (e.g. CIPC fees) which are passed through at cost.
+                    </p>
+                    <Button onClick={() => setIsOpen(false)}>Close List</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function BookDemoDialog() {
     const [isOpen, setIsOpen] = useState(false);
@@ -96,6 +190,7 @@ const featureBenefits = [
         icon: Percent,
         feature: '25% Wholesale Discount',
         benefit: 'Increase your profit margins instantly. You buy services at wholesale rates and sell at retail prices, keeping 100% of the markup.',
+        showPricing: true,
     },
     {
         icon: LayoutDashboard,
@@ -305,6 +400,7 @@ export default function BEIPage() {
                                         View Example <ExternalLink className="h-3 w-3" />
                                     </a>
                                 )}
+                                {item.showPricing && <PartnerPricingDialog />}
                             </div>
                         </div>
                     ))}
