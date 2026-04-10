@@ -92,8 +92,8 @@ function PartnerPricingDialog() {
                     View Partner Pricing <ExternalLink className="h-3 w-3" />
                 </button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0">
-                <DialogHeader className="p-6 bg-slate-50 border-b">
+            <DialogContent className="sm:max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
+                <DialogHeader className="p-6 bg-slate-50 border-b shrink-0">
                     <DialogTitle className="text-2xl font-bold flex items-center gap-2">
                         <BadgeDollarSign className="h-6 w-6 text-primary" />
                         Wholesale Partner Pricing
@@ -103,36 +103,38 @@ function PartnerPricingDialog() {
                     </DialogDescription>
                 </DialogHeader>
                 
-                <div className="flex-1 overflow-hidden p-6">
+                <div className="flex-grow overflow-hidden px-6 py-2 bg-white">
                     {isLoading ? (
-                        <div className="flex flex-col items-center justify-center h-64 gap-2">
+                        <div className="flex flex-col items-center justify-center h-full gap-2">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             <p className="text-sm font-medium text-muted-foreground">Fetching latest rates...</p>
                         </div>
                     ) : (
-                        <ScrollArea className="h-full border rounded-lg">
-                            <Table>
-                                <TableHeader className="bg-muted/50 sticky top-0 z-10 shadow-sm">
-                                    <TableRow>
-                                        <TableHead className="w-1/2">Service Description</TableHead>
-                                        <TableHead className="text-right">Retail Price</TableHead>
-                                        <TableHead className="text-right text-primary">Partner Cost (25% Off)</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {services.filter(s => !s.isPriceTbc).map((service) => (
-                                        <TableRow key={service.id}>
-                                            <TableCell className="font-medium text-xs sm:text-sm">{service.title}</TableCell>
-                                            <TableCell className="text-right text-xs opacity-50 line-through">{formatPrice(service.price)}</TableCell>
-                                            <TableCell className="text-right font-bold text-primary text-xs sm:text-sm">{formatPrice(service.resellerPrice || service.price * 0.75)}</TableCell>
+                        <ScrollArea className="h-full pr-4">
+                            <div className="border rounded-lg overflow-hidden my-4">
+                                <Table>
+                                    <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                                        <TableRow>
+                                            <TableHead className="w-1/2">Service Description</TableHead>
+                                            <TableHead className="text-right">Retail Price</TableHead>
+                                            <TableHead className="text-right text-primary">Partner Cost (25% Off)</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {services.filter(s => !s.isPriceTbc).map((service) => (
+                                            <TableRow key={service.id}>
+                                                <TableCell className="font-medium text-xs sm:text-sm">{service.title}</TableCell>
+                                                <TableCell className="text-right text-xs opacity-50 line-through">{formatPrice(service.price)}</TableCell>
+                                                <TableCell className="text-right font-bold text-primary text-xs sm:text-sm">{formatPrice(service.resellerPrice || service.price * 0.75)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </ScrollArea>
                     )}
                 </div>
-                <DialogFooter className="p-4 bg-muted/30 border-t">
+                <DialogFooter className="p-4 bg-muted/30 border-t shrink-0 sm:justify-between items-center">
                     <p className="text-[10px] text-muted-foreground italic px-4">
                         * Prices exclude 3rd party statutory costs (e.g. CIPC fees) which are passed through at cost.
                     </p>
