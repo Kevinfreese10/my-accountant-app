@@ -305,7 +305,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                                             </span>
                                         )}
                                         <div className="flex items-center text-xs opacity-70 font-medium">
-                                            <Clock className="h-4 w-4 mr-1.5 opacity-70" />
+                                            <Clock className="h-4 w-4 mr-1.5 opacity-70 partner-icon" />
                                             {service.turnaroundTime}
                                         </div>
                                     </div>
@@ -319,7 +319,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                                         <ul className="space-y-2">
                                             {service.whatsIncluded.slice(0, 3).map((item, i) => (
                                                 <li key={i} className="flex items-start text-xs opacity-90">
-                                                    <CheckCircle2 className="h-4 w-4 mr-3 mt-0.5 partner-text flex-shrink-0" />
+                                                    <CheckCircle2 className="h-4 w-4 mr-3 mt-0.5 partner-icon flex-shrink-0" />
                                                     <span className="leading-tight">{item}</span>
                                                 </li>
                                             ))}

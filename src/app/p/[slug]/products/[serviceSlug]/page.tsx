@@ -1,4 +1,3 @@
-
 import { getFirestore, collection, query, where, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service, Order } from '@/lib/types';
@@ -153,7 +152,7 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
                 <p className="text-3xl font-bold partner-text">{formatPrice(service.price)}</p>
               )}
               <div className="flex items-center opacity-70">
-                <Clock className="h-5 w-5 mr-2" />
+                <Clock className="h-5 w-5 mr-2 partner-icon" />
                 <span className="font-medium">{service.turnaroundTime}</span>
               </div>
             </div>
@@ -174,7 +173,7 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {service.whatsIncluded.map((item, i) => (
                   <li key={i} className="flex items-start p-3 rounded-lg partner-card border">
-                    <BadgeCheck className="h-5 w-5 mr-3 mt-0.5 partner-text flex-shrink-0" />
+                    <BadgeCheck className="h-5 w-5 mr-3 mt-0.5 partner-icon flex-shrink-0" />
                     <span className="text-sm">{item}</span>
                   </li>
                 ))}
@@ -189,7 +188,7 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
               <ul className="space-y-3">
                 {service.clientRequirements.map((req, i) => (
                   <li key={i} className="flex items-start">
-                    <ClipboardCheck className="h-5 w-5 partner-text mr-3 mt-0.5 flex-shrink-0" />
+                    <ClipboardCheck className="h-5 w-5 partner-icon mr-3 mt-0.5 flex-shrink-0" />
                     <span className="text-sm opacity-90">{req}</span>
                   </li>
                 ))}

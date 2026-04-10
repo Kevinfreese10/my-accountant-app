@@ -112,7 +112,7 @@ const formSchema = z.object({
 const THEMES = {
     my_accountant: {
         primaryColor: '#214392',
-        secondaryColor: '#f3f4f6',
+        secondaryColor: '#214392',
         backgroundColor: '#ffffff',
         textColor: '#111827',
         cardBackgroundColor: '#ffffff',
@@ -123,7 +123,7 @@ const THEMES = {
     },
     futuristic: {
         primaryColor: '#8b5cf6',
-        secondaryColor: '#1e1b4b',
+        secondaryColor: '#a78bfa',
         backgroundColor: '#020617',
         textColor: '#ffffff',
         cardBackgroundColor: '#0f172a',
@@ -134,7 +134,7 @@ const THEMES = {
     },
     tech_blue: {
         primaryColor: '#0ea5e9',
-        secondaryColor: '#f0f9ff',
+        secondaryColor: '#38bdf8',
         backgroundColor: '#f8fafc',
         textColor: '#0f172a',
         cardBackgroundColor: '#ffffff',
@@ -191,7 +191,7 @@ export default function PartnerProfile({ partner: propPartner }: { partner?: Use
         aboutUs: targetUser?.landingPage?.aboutUs || `We are a dedicated team of accounting professionals committed to helping small businesses grow through accurate financial management and strategic advice.`,
         themePreset: targetUser?.landingPage?.themePreset || 'custom',
         primaryColor: targetUser?.landingPage?.primaryColor || '#214392',
-        secondaryColor: targetUser?.landingPage?.secondaryColor || '#f3f4f6',
+        secondaryColor: targetUser?.landingPage?.secondaryColor || '#214392',
         backgroundColor: targetUser?.landingPage?.backgroundColor || '#ffffff',
         textColor: targetUser?.landingPage?.textColor || '#111827',
         cardBackgroundColor: targetUser?.landingPage?.cardBackgroundColor || '#ffffff',
@@ -591,7 +591,8 @@ export default function PartnerProfile({ partner: propPartner }: { partner?: Use
                                     <FormField control={form.control} name="landingPage.themePreset" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Theme Preset</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a theme..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="custom">Custom</SelectItem><SelectItem value="my_accountant">Master</SelectItem><SelectItem value="tech_blue">Light</SelectItem><SelectItem value="futuristic">Dark</SelectItem></SelectContent></Select><FormMessage /></FormItem> )} />
                                     <Separator className="my-2" />
                                     <div className="grid grid-cols-1 gap-6">
-                                        <ColorField name="landingPage.primaryColor" label="Primary Brand Color" description="Used for icons and highlights." />
+                                        <ColorField name="landingPage.primaryColor" label="Primary Brand Color" description="Main theme color." />
+                                        <ColorField name="landingPage.secondaryColor" label="Icon & Accent Color" description="Controls icon coloring." />
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                                             <ColorField name="landingPage.cardBackgroundColor" label="Card Background" />
                                             <ColorField name="landingPage.cardBorderColor" label="Card Border" />

@@ -56,7 +56,7 @@ export default async function FranchiseLandingLayout({
   // Franchisees use standard My Accountant branding
   const lp = {
       primaryColor: '#214392',
-      secondaryColor: '#f3f4f6',
+      secondaryColor: '#214392',
       backgroundColor: '#ffffff',
       textColor: '#111827',
       cardBackgroundColor: '#ffffff',
@@ -95,6 +95,9 @@ export default async function FranchiseLandingLayout({
         }
         .partner-text {
           color: var(--partner-primary) !important;
+        }
+        .partner-icon {
+          color: var(--partner-secondary) !important;
         }
         .partner-text-main {
           color: var(--partner-text) !important;

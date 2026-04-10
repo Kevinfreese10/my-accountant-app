@@ -127,19 +127,19 @@ export default async function FranchiseLandingPage({ params }: { params: Promise
                         {category.data.map((service) => (
                             <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 border shadow-sm partner-card">
                                 <CardHeader className="space-y-2 pb-4">
-                                    <CardTitle className="text-2xl font-bold leading-tight group-hover:text-primary transition-colors">
+                                    <CardTitle className="text-2xl font-bold leading-tight group-hover:partner-text transition-colors">
                                         {service.title}
                                     </CardTitle>
                                     <div className="space-y-1">
                                         {service.isPriceTbc ? (
                                             <span className="text-xl font-bold opacity-50 block">Price on Request</span>
                                         ) : (
-                                            <span className="text-2xl font-bold text-primary block">
+                                            <span className="text-2xl font-bold partner-text block">
                                                 {formatPrice(service.price)}
                                             </span>
                                         )}
                                         <div className="flex items-center text-xs opacity-70 font-medium">
-                                            <Clock className="h-4 w-4 mr-1.5 opacity-70" />
+                                            <Clock className="h-4 w-4 mr-1.5 opacity-70 partner-icon" />
                                             {service.turnaroundTime}
                                         </div>
                                     </div>

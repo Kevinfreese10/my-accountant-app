@@ -80,7 +80,7 @@ export default async function PartnerLandingLayout({
       <style dangerouslySetInnerHTML={{ __html: `
         :root {
           --partner-primary: ${lp?.primaryColor || '#214392'};
-          --partner-secondary: ${lp?.secondaryColor || '#f3f4f6'};
+          --partner-secondary: ${lp?.secondaryColor || lp?.primaryColor || '#214392'};
           --partner-bg: ${lp?.backgroundColor || '#ffffff'};
           --partner-text: ${lp?.textColor || '#111827'};
           --partner-card-bg: ${lp?.cardBackgroundColor || '#ffffff'};
@@ -99,6 +99,9 @@ export default async function PartnerLandingLayout({
         }
         .partner-text {
           color: var(--partner-primary) !important;
+        }
+        .partner-icon {
+          color: var(--partner-secondary) !important;
         }
         .partner-text-main {
           color: var(--partner-text) !important;
