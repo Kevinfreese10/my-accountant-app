@@ -1,3 +1,5 @@
+'use client';
+
 import { User } from "@/lib/types";
 import { Mail, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
@@ -22,12 +24,13 @@ export default function PartnerFooter({ partner }: { partner: User }) {
               {partner.address?.street && (
                 <div className="flex items-start gap-3">
                   <MapPin className="h-4 w-4 mt-1 flex-shrink-0" style={{ color: primaryColor }} />
-                  <span>
-                    {partner.address.street}<br />
-                    {partner.address.suburb ? `${partner.address.suburb}, ` : ''}
-                    {partner.address.city} {partner.address.zip ? `(${partner.address.zip})` : ''}<br />
-                    {partner.address.province}
-                  </span>
+                  <div className="flex flex-col">
+                    <span>{partner.address.street}</span>
+                    {partner.address.suburb && <span>{partner.address.suburb}</span>}
+                    <span>{partner.address.city}</span>
+                    {partner.address.zip && <span>{partner.address.zip}</span>}
+                    {partner.address.province && <span>{partner.address.province}</span>}
+                  </div>
                 </div>
               )}
               <div className="flex items-center gap-3">
