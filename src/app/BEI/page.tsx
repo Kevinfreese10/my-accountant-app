@@ -3,13 +3,33 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Bot, Wallet, GraduationCap, CheckCircle2, LayoutDashboard, Percent, Globe, Scale, Loader2, ExternalLink, UserPlus, ClipboardList, CheckCircle, Users, Zap, ShieldCheck, Rocket, Table as TableIcon } from 'lucide-react';
+import { 
+    Bot, 
+    Wallet, 
+    GraduationCap, 
+    CheckCircle2, 
+    LayoutDashboard, 
+    Percent, 
+    Globe, 
+    Scale, 
+    Loader2, 
+    ExternalLink, 
+    UserPlus, 
+    ClipboardList, 
+    CheckCircle, 
+    Users, 
+    Zap, 
+    ShieldCheck, 
+    Rocket, 
+    Table as TableIcon,
+    BadgeDollarSign
+} from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamicImport from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
