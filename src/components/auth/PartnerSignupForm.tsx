@@ -17,7 +17,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Briefcase, CheckCircle2, UserPlus, Wallet2 } from 'lucide-react';
+import { Loader2, Briefcase, CheckCircle2, UserPlus, Wallet2, CreditCard } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Service, Order } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
@@ -147,7 +147,32 @@ export default function PartnerSignupForm() {
         
         const contactPersonFullName = `${values.name} ${values.surname}`;
 
-        // 1. Create the User Document - Status is Active as it is now FREE to join
+        // Create the setup fee order
+        const setupOrderId = await getNextOrderId();
+        const setupFeePrice = 4950;
+        const setupOrder: Order = {
+            id: setupOrderId,
+            userId: authUid,
+            customerName: values.companyName || contactPersonFullName,
+            customerEmail: values.email,
+            items: [{
+                id: 'partner_setup_fee',
+                title: 'BEI Practice Setup & Onboarding Fee',
+                price: setupFeePrice,
+                quantity: 1,
+            }],
+            total: setupFeePrice,
+            discountCode: null,
+            discountAmount: null,
+            status: 'Pending Payment',
+            date: Timestamp.now(),
+            source: 'Partner',
+            resellerId: authUid,
+        };
+
+        await setDoc(doc(db, 'orders', setupOrderId), setupOrder);
+
+        // Create the User Document - Status is Pending until setup fee is paid
         const newUserDocRef = doc(db, "users", authUid);
         await setDoc(newUserDocRef, {
             ...partnerData,
@@ -157,7 +182,7 @@ export default function PartnerSignupForm() {
             id: authUid,
             uid: authUid,
             role: 'partner',
-            status: 'Active', 
+            status: 'Pending Setup Payment', 
             creditBalance: 0,
             createdAt: serverTimestamp(),
             cvUrl: cvUrl,
@@ -169,10 +194,10 @@ export default function PartnerSignupForm() {
             }
         });
 
-        // 2. Trigger manual re-auth logic to link the new doc
+        // Trigger manual re-auth logic
         await reauthenticate(newFirebaseUser);
 
-        // 3. Send welcome email (credentials)
+        // Send welcome email (credentials)
         try {
             const emailHtml = render(<PartnerWelcomeEmail 
                 partnerName={values.name} 
@@ -192,11 +217,12 @@ export default function PartnerSignupForm() {
         }
         
         toast({
-            title: 'Account Created',
-            description: `Welcome! Redirecting to your dashboard.`,
+            title: 'Account Registered',
+            description: `Redirecting to payment for setup activation...`,
         });
         
-        router.push(`/partner/dashboard`);
+        // Redirect to order confirmation page for the setup fee
+        router.push(`/order-confirmation/${setupOrderId}`);
 
     } catch (error: any) {
         console.error("Partner signup error:", error);
@@ -352,6 +378,22 @@ export default function PartnerSignupForm() {
 
                 <Separator />
 
+                <div className="space-y-4">
+                    <h3 className="text-lg font-bold flex items-center gap-2 text-slate-900">
+                        <CreditCard className="h-5 w-5 text-primary" />
+                        Activation & Fees
+                    </h3>
+                    <div className="p-4 rounded-lg bg-primary/5 border border-primary/10">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="font-bold text-sm">Once-off Setup & Onboarding</span>
+                            <span className="font-black text-lg text-primary">R4,950.00</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            This activation fee covers your white-labeled dashboard configuration, re-branded landing page, and professional CA-led training. <strong>Monthly hosting fees are waived.</strong>
+                        </p>
+                    </div>
+                </div>
+
                 <FormField
                     control={form.control}
                     name="agreeTerms"
@@ -363,7 +405,7 @@ export default function PartnerSignupForm() {
                                 </FormControl>
                                 <div className="space-y-1 leading-none">
                                     <FormLabel className="cursor-pointer font-medium">
-                                        I agree to the <Link href="/terms" className="underline font-bold" target="_blank">terms and conditions</Link> of the My Accountant Partner Program.
+                                        I agree to the <Link href="/terms" className="underline font-bold" target="_blank">terms and conditions</Link> and the R4,950 setup fee.
                                     </FormLabel>
                                 </div>
                             </div>
@@ -376,7 +418,7 @@ export default function PartnerSignupForm() {
                     <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-1/3 h-12 font-bold" disabled={isLoading}>Back</Button>
                     <Button type="submit" className="w-2/3 h-12 text-lg font-black shadow-xl" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isLoading ? 'Creating Account...' : 'Complete Registration'}
+                        {isLoading ? 'Creating Account...' : 'Continue to Payment'}
                     </Button>
                 </div>
             </div>

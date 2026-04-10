@@ -6,7 +6,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Rocket, ShieldCheck, Wallet, Bot, Cpu, Briefcase, Users, FileText, GraduationCap, CheckCircle2, ArrowRight, LayoutDashboard, LifeBuoy, Percent, TrendingUp, ShieldAlert, ClipboardList, ShoppingBag, CheckCircle, Globe, Scale, Loader2, ExternalLink } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamicImport from 'next/dynamic';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -171,31 +171,19 @@ const challenges = [
 const faqs = [
     {
         question: "How does the outsourcing work?",
-        answer: "You can decide to complete the order yourself or outsource to us. The process is completely white-labeled, so your client doesn't know the work is being outsourced. We charge you a fixed wholesale price, and you keep the markup.\n\nWe can then either contact you or contact your client directly through our app which is completely white-labeled so your client remains none the wiser."
+        answer: "You can decide to complete the order yourself or outsource to us. The process is completely white-labeled, so your client doesn't know the work is being outsourced. We charge you a fixed wholesale price (25% discount), and you keep the markup."
     },
     {
-        question: "Who should join the Bookkeeper Empowerment Initiative?",
-        answer: "BEI is ideal for passionate professionals who want to grow their business without stress, including:\n- Freelance Bookkeepers\n- Startup Accounting Firms\n- Tax Practitioners\n- Business Consultants\n- Payroll Administrators"
+        question: "What is the setup fee?",
+        answer: "Joining the Bookkeeper Empowerment Initiative requires a once-off setup and activation fee of R4,950. This covers your platform configuration, re-branding toolkit, and initial CA-led training."
     },
     {
-        question: "What does it cost to join?",
-        answer: "Joining requires a R4,950 once-off setup fee. This fee covers your white-label platform configuration, onboarding session, and professional training.\n\nMore importantly, 50% of this fee (R2,475) is immediately loaded into your Practice Wallet as credits to use for outsourcing."
-    },
-    {
-        question: "How does the staff billing work?",
-        answer: "Every practice gets 3 free additional staff user accounts (4 total users including the owner). Any staff members added beyond this limit cost only R45 per month."
-    },
-    {
-        question: "How does the credit system work?",
-        answer: "Think of it like a prepaid mobile account. Your initial R4,950 setup fee provides you with R2,475 in starting credits. Your monthly hosting fee (R499) and any outsourced services are deducted from this balance. Once your credits are finished, you can top up your wallet."
-    },
-    {
-        question: "How does the landing page work?",
-        answer: "Included in your setup is a fully customizable, white-labeled landing page. You can choose your colors, upload your logo, and use our AI to re-brand our 50+ services as your own. Your clients see your brand, while we provide the back-office engine."
+        question: "Are there monthly hosting fees?",
+        answer: "No. The R4,950 activation fee now replaces all recurring hosting subscriptions. Once paid, you have lifetime access to the dashboard and your landing page without monthly overheads."
     },
     {
         question: "Do I need to be a registered accountant?",
-        answer: "No. Everyone is welcome. However, to receive outsourced work from My Accountant, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA."
+        answer: "Anyone can join the BEI to use the software and manage their own clients. However, to receive outsourced overflow work from the My Accountant network, you must be a registered member in good standing with a recognized professional body (SAICA, SAIT, CIBA, or SAIPA)."
     }
 ];
 
@@ -218,58 +206,64 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
 
-      <section className="bg-slate-50 border-y py-20 overflow-hidden">
+      <section className="bg-slate-900 py-24">
         <div className="container mx-auto px-4">
-            <div className="flex flex-col lg:flex-row items-center gap-12 max-w-6xl mx-auto">
-                <div className="lg:w-1/2 space-y-8 text-center lg:text-left">
-                    <div className="space-y-4">
-                        <Badge className="bg-primary text-white hover:bg-primary border-none px-3 py-1 text-[10px] font-black uppercase tracking-widest">Platform Feature</Badge>
-                        <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 leading-tight">
-                            Your own <span className="text-primary">branded</span> online store.
-                        </h2>
-                        <p className="text-xl text-slate-600 font-medium">
-                            Sign up and get a fully customizable online store preloaded with 65+ services. Just add your logo, set your prices, and start selling.
-                        </p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
-                        <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
-                            <Link href="/partner-signup">Sign up</Link>
-                        </Button>
-                        <Button asChild variant="outline" size="lg" className="h-14 px-8 border-2 border-slate-200 hover:border-primary hover:text-primary transition-all font-bold">
-                            <Link href="https://www.myacc.co.za/p/interscope" target="_blank">
-                                View Example Store <ExternalLink className="ml-2 h-4 w-4 opacity-50" />
-                            </Link>
-                        </Button>
-                    </div>
+            <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div className="text-white space-y-6">
+                    <Badge className="bg-primary hover:bg-primary text-white border-none px-3 py-1 text-[10px] font-black uppercase tracking-widest">Pricing Plan</Badge>
+                    <h2 className="text-4xl md:text-5xl font-black leading-tight">One-Time Practice <br/><span className="text-primary">Investment</span></h2>
+                    <p className="text-lg text-slate-300 leading-relaxed">
+                        Scale your firm with a turn-key solution. The BEI setup fee replaces all monthly hosting costs, giving you a lifetime platform for growth.
+                    </p>
+                    <ul className="space-y-4">
+                        {[
+                            'Fully Branded Practice Landing Page',
+                            '65+ Pre-configured Accounting Products',
+                            'Secure Client Onboarding Dashboard',
+                            'Initial Setup & Professional Training',
+                            'Direct CA Technical Support Access'
+                        ].map((item, i) => (
+                            <li key={i} className="flex items-center gap-3 text-sm font-medium text-slate-200">
+                                <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
+                                {item}
+                            </li>
+                        ))}
+                    </ul>
                 </div>
-                <div className="lg:w-1/2 relative">
-                    <div className="bg-white rounded-3xl shadow-2xl border-8 border-slate-900 p-2 overflow-hidden aspect-[16/10] group">
-                        <div className="bg-slate-100 h-full w-full rounded-2xl overflow-hidden relative">
-                            <div className="absolute top-0 left-0 w-full h-8 bg-white border-b flex items-center px-4 gap-1">
-                                <div className="w-2 h-2 rounded-full bg-red-400"></div>
-                                <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
-                                <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                                <div className="ml-4 h-4 w-32 bg-slate-100 rounded-full"></div>
+                <Card className="border-none shadow-2xl bg-white overflow-hidden transform lg:scale-110">
+                    <CardHeader className="bg-slate-50 border-b p-8 text-center">
+                        <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Setup & Activation</CardTitle>
+                        <div className="mt-4 flex items-baseline justify-center gap-1">
+                            <span className="text-2xl font-bold text-slate-900">R</span>
+                            <span className="text-7xl font-black text-slate-900">4,950</span>
+                        </div>
+                        <p className="mt-2 text-xs font-bold text-primary uppercase tracking-tighter">Once-off payment • No monthly hosting fees</p>
+                    </CardHeader>
+                    <CardContent className="p-8 space-y-6">
+                        <div className="space-y-4">
+                            <div className="flex items-start gap-3">
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><ShieldCheck className="h-5 w-5" /></div>
+                                <div>
+                                    <p className="font-bold text-sm">Full Brand Ownership</p>
+                                    <p className="text-xs text-muted-foreground">Keep 100% of your client relationships and brand identity.</p>
+                                </div>
                             </div>
-                            <div className="pt-12 p-6 grid grid-cols-2 gap-4">
-                                {[1,2,3,4].map(i => (
-                                    <div key={i} className="h-24 bg-white rounded-xl border border-slate-200 p-3 space-y-2">
-                                        <div className="h-3 w-3/4 bg-slate-100 rounded"></div>
-                                        <div className="h-2 w-1/2 bg-slate-50 rounded"></div>
-                                        <div className="h-4 w-1/3 bg-primary/10 rounded mt-auto"></div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Button className="bg-white text-slate-900 hover:bg-slate-100 font-bold" asChild>
-                                    <Link href="https://www.myacc.co.za/p/interscope" target="_blank">Live Preview</Link>
-                                </Button>
+                            <div className="flex items-start gap-3">
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><Rocket className="h-5 w-5" /></div>
+                                <div>
+                                    <p className="font-bold text-sm">Instant Market Presence</p>
+                                    <p className="text-xs text-muted-foreground">Go from solo bookkeeper to full-service firm in 48 hours.</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div className="absolute -top-6 -right-6 h-24 w-24 bg-primary/10 rounded-full blur-2xl -z-10"></div>
-                    <div className="absolute -bottom-10 -left-10 h-40 w-40 bg-purple-100 rounded-full blur-3xl -z-10"></div>
-                </div>
+                        <Button asChild size="lg" className="w-full h-14 text-lg font-black shadow-lg">
+                            <Link href="/partner-signup">Register My Practice</Link>
+                        </Button>
+                    </CardContent>
+                    <CardFooter className="bg-slate-50 p-4 border-t text-center justify-center">
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Secure checkout via PayFast</p>
+                    </CardFooter>
+                </Card>
             </div>
         </div>
       </section>
@@ -281,7 +275,7 @@ export default function BecomeAPartnerPage() {
       <section className="container mx-auto px-4 scroll-m-20">
         <div className="max-w-4xl mx-auto text-center space-y-8">
             <div className="space-y-4">
-                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">About the Initiative</Badge>
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Our Philosophy</Badge>
                 <h2 className="text-4xl font-bold leading-tight text-slate-900">Our philosophy has always been simple</h2>
                 <p className="text-2xl font-bold text-slate-800 italic">"A client referred to someone else is a client lost."</p>
             </div>
@@ -308,15 +302,6 @@ export default function BecomeAPartnerPage() {
 
                 <p className="font-bold text-slate-950 text-center text-xl">
                     We handle the complexity behind the scenes so your client never needs to move to another accountant.
-                </p>
-                
-                <Separator className="my-12" />
-
-                <p>
-                    The Bookkeeper Empowerment Initiative by My Accountant was created to empower small and growing bookkeepers across South Africa. We know what it’s like to start out — you have the skills, but limited clients, tools, and support. That’s why BEI gives you the technology, mentorship, and opportunities to build your own brand, attract more clients, and scale your income — all while staying independent.
-                </p>
-                <p>
-                    Whether you’re a freelance bookkeeper, a new accounting firm, or a small practitioner, BEI is designed to help you grow faster with less stress.
                 </p>
             </div>
         </div>
@@ -404,7 +389,7 @@ export default function BecomeAPartnerPage() {
         <div className="max-w-2xl mx-auto space-y-8">
             <h2 className="text-4xl font-bold tracking-tight text-slate-900">Ready to Empower Your Practice?</h2>
             <p className="text-xl text-muted-foreground">
-                Register now and complete your R4,950 onboarding to unlock your branded dashboard and R2,475 in wallet credits.
+                Register now and complete your R4,950 onboarding to unlock your branded dashboard and re-branding toolkit.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">

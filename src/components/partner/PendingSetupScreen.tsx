@@ -68,7 +68,7 @@ export function PendingSetupScreen({ user }: { user: User }) {
                 email_address: user.email,
                 m_payment_id: setupOrder.id,
                 amount: setupOrder.total.toFixed(2),
-                item_name: `BEI Practice Setup & R2,475 Credits`,
+                item_name: `BEI Practice Activation & Setup`,
             };
 
             for (const key in data) {
@@ -105,20 +105,20 @@ export function PendingSetupScreen({ user }: { user: User }) {
                         <Wallet2 className="h-5 w-5 text-primary" />
                         R4,950 Setup & Onboarding
                     </h3>
-                    <div className="space-y-2 text-sm text-muted-foreground leading-relaxed">
-                        <p>To begin using the Bookkeeper Empowerment Initiative, a <strong>R4,950</strong> activation fee is required. This includes:</p>
+                    <div className="space-y-2 text-sm text-muted-foreground leading-relaxed text-left">
+                        <p>To begin using the Bookkeeper Empowerment Initiative, a <strong>R4,950</strong> activation fee is required. This lifetime license includes:</p>
                         <ul className="space-y-2 mt-4">
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                                <span><strong>R2,475 (50%)</strong> is immediately added to your wallet as credits.</span>
+                                <span><strong>Lifetime Access:</strong> No more monthly hosting fees.</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                                <span>Platform setup and white-label branding configuration.</span>
+                                <span><strong>Wholesale Store:</strong> 65+ re-branded services ready to sell.</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                                <span>onboarding and professional platform training.</span>
+                                <span><strong>Onboarding:</strong> Professional CA-led platform training.</span>
                             </li>
                         </ul>
                     </div>

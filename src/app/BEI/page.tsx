@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Bot, Wallet, GraduationCap, CheckCircle2, LayoutDashboard, Percent, Globe, Scale, Loader2, ExternalLink, UserPlus, ClipboardList, CheckCircle, Users, Zap } from 'lucide-react';
+import { Bot, Wallet, GraduationCap, CheckCircle2, LayoutDashboard, Percent, Globe, Scale, Loader2, ExternalLink, UserPlus, ClipboardList, CheckCircle, Users, Zap, ShieldCheck, Rocket } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import dynamicImport from 'next/dynamic';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -94,7 +94,7 @@ function BookDemoDialog() {
 const featureBenefits = [
     {
         icon: Percent,
-        feature: '10% Wholesale Discount',
+        feature: '25% Wholesale Discount',
         benefit: 'Increase your profit margins instantly. You buy services at wholesale rates and sell at retail prices, keeping 100% of the markup.',
     },
     {
@@ -128,19 +128,19 @@ const featureBenefits = [
 const faqs = [
     {
         question: "How does the outsourcing work?",
-        answer: "When you have an order you want us to handle, you submit it through your dashboard. We charge you the discounted wholesale price (10% off our retail rates), and we complete the work behind the scenes. You remain the primary contact for your client."
+        answer: "When you have an order you want us to handle, you submit it through your dashboard. We charge you the discounted wholesale price (25% off our retail rates), and we complete the work behind the scenes. You remain the primary contact for your client."
     },
     {
         question: "What is the setup fee?",
-        answer: "Joining the Bookkeeper Empowerment Initiative is now completely FREE. There are no once-off setup fees to get started with your white-labeled platform."
+        answer: "Joining the Bookkeeper Empowerment Initiative requires a once-off setup and activation fee of R4,950. This covers your platform configuration, re-branding toolkit, and initial training."
+    },
+    {
+        question: "Are there monthly fees?",
+        answer: "No. The R4,950 setup fee replaces the previous monthly subscription model. Once your practice is set up, you only pay for the services you choose to outsource to us at wholesale rates."
     },
     {
         question: "Do I need to be a registered accountant?",
         answer: "Anyone can join the BEI to use the software and manage their own clients. However, to receive outsourced overflow work from the My Accountant network, you must be a registered member in good standing with a recognized professional body (SAICA, SAIT, CIBA, or SAIPA)."
-    },
-    {
-        question: "How do I pay for outsourced services?",
-        answer: "You load credits into your Practice Wallet via PayFast. When you outsource an order, the wholesale cost is deducted from your credit balance. This ensures a smooth, prepaid workflow."
     },
     {
         question: "Can I set my own prices?",
@@ -206,66 +206,64 @@ export default function BEIPage() {
         </div>
       </section>
 
-      <section className="container mx-auto px-4 scroll-m-20">
-        <div className="max-w-4xl mx-auto space-y-8">
-            <div className="text-center space-y-4">
-                <h2 className="text-3xl font-bold text-slate-900">About the Bookkeeper Empowerment Initiative</h2>
-                <Separator className="w-24 mx-auto border-b-2 border-primary/30" />
-            </div>
-            
-            <div className="space-y-6 text-lg text-muted-foreground leading-relaxed">
-                <p>
-                    Most bookkeeping and accounting firms stop growing for one simple reason: <span className="font-bold text-slate-950">capacity</span>.
-                </p>
-                <p>
-                    You may already have the clients and the demand, but expanding your services normally means hiring staff, building systems, investing in a website, and taking on significant operational risk.
-                </p>
-                <p className="font-bold text-slate-950">
-                    The Bookkeeper Empowerment Initiative (BEI) was created to remove these barriers.
-                </p>
-                <p>
-                    BEI gives bookkeepers and accountants the tools to scale their practice immediately without hiring staff or investing thousands into technology.
-                </p>
-                <p>
-                    Through the program, partners receive access to a fully operational online accounting store, allowing them to start offering professional accounting, tax, and compliance services to their clients right away. There is no need to build a website or develop an ordering system — everything is already built and ready to use.
-                </p>
-                <p>
-                    <span className="font-bold text-slate-950">More importantly, BEI ensures that you never have to turn away work again.</span>
-                </p>
-                <p>
-                    If a client requires a service that you do not have the time, staff, or expertise to deliver, the work can be white-label outsourced through our platform while you remain the primary relationship holder. Your client continues to see you as their trusted advisor while the work is completed by experienced professionals behind the scenes.
-                </p>
-                <p>
-                    Our philosophy has always been clear: <span className="italic font-medium text-slate-900">A client referred elsewhere is often a client lost.</span>
-                </p>
-                <p className="font-bold text-slate-950">
-                    The Bookkeeper Empowerment Initiative ensures that every opportunity stays within your practice.
-                </p>
-                <p>
-                    As the BEI network grows, the platform evolves into a collaborative ecosystem of accounting professionals. Partners can outsource work to My Accountant, and they can also receive outsourced work from other partners within the network — creating new revenue opportunities across the entire community.
-                </p>
-                
-                <div className="bg-slate-50 p-8 rounded-2xl border space-y-4">
-                    <p className="font-bold text-slate-900">The result is a powerful platform that allows accounting professionals to:</p>
-                    <ul className="space-y-3">
-                        <li className="flex items-center gap-3 font-medium text-slate-800">
-                            <CheckCircle2 className="h-5 w-5 text-primary" /> Expand their service offering instantly
-                        </li>
-                        <li className="flex items-center gap-3 font-medium text-slate-800">
-                            <CheckCircle2 className="h-5 w-5 text-primary" /> Accept more clients with confidence
-                        </li>
-                        <li className="flex items-center gap-3 font-medium text-slate-800">
-                            <CheckCircle2 className="h-5 w-5 text-primary" /> Increase revenue without increasing staff
-                        </li>
-                        <li className="flex items-center gap-3 font-medium text-slate-800">
-                            <CheckCircle2 className="h-5 w-5 text-primary" /> Retain clients by never turning work away
-                        </li>
+      <section className="bg-slate-900 py-24">
+        <div className="container mx-auto px-4">
+            <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div className="text-white space-y-6">
+                    <Badge className="bg-primary hover:bg-primary text-white border-none px-3 py-1 text-[10px] font-black uppercase tracking-widest">Pricing Plan</Badge>
+                    <h2 className="text-4xl md:text-5xl font-black leading-tight">One-Time Practice <br/><span className="text-primary">Investment</span></h2>
+                    <p className="text-lg text-slate-300 leading-relaxed">
+                        Scale your firm with a turn-key solution. The BEI setup fee replaces all monthly hosting costs, giving you a lifetime platform for growth.
+                    </p>
+                    <ul className="space-y-4">
+                        {[
+                            'Fully Branded Practice Landing Page',
+                            '65+ Pre-configured Accounting Products',
+                            'Secure Client Onboarding Dashboard',
+                            'Initial Setup & Professional Training',
+                            'Direct CA Technical Support Access'
+                        ].map((item, i) => (
+                            <li key={i} className="flex items-center gap-3 text-sm font-medium text-slate-200">
+                                <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
+                                {item}
+                            </li>
+                        ))}
                     </ul>
                 </div>
-
-                <p className="text-center font-bold text-slate-950 text-xl pt-4">
-                    BEI is more than a partner program. It is a growth platform designed to help accountants scale their practices faster, smarter, and with far less risk.
-                </p>
+                <Card className="border-none shadow-2xl bg-white overflow-hidden transform lg:scale-110">
+                    <CardHeader className="bg-slate-50 border-b p-8 text-center">
+                        <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Setup & Activation</CardTitle>
+                        <div className="mt-4 flex items-baseline justify-center gap-1">
+                            <span className="text-2xl font-bold text-slate-900">R</span>
+                            <span className="text-7xl font-black text-slate-900">4,950</span>
+                        </div>
+                        <p className="mt-2 text-xs font-bold text-primary uppercase tracking-tighter">Once-off payment • No monthly hosting fees</p>
+                    </CardHeader>
+                    <CardContent className="p-8 space-y-6">
+                        <div className="space-y-4">
+                            <div className="flex items-start gap-3">
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><ShieldCheck className="h-5 w-5" /></div>
+                                <div>
+                                    <p className="font-bold text-sm">Full Brand Ownership</p>
+                                    <p className="text-xs text-muted-foreground">Keep 100% of your client relationships and brand identity.</p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-3">
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><Rocket className="h-5 w-5" /></div>
+                                <div>
+                                    <p className="font-bold text-sm">Instant Market Presence</p>
+                                    <p className="text-xs text-muted-foreground">Go from solo bookkeeper to full-service firm in 48 hours.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <Button asChild size="lg" className="w-full h-14 text-lg font-black shadow-lg">
+                            <Link href="/partner-signup">Register My Practice</Link>
+                        </Button>
+                    </CardContent>
+                    <CardFooter className="bg-slate-50 p-4 border-t text-center justify-center">
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Secure checkout via PayFast</p>
+                    </CardFooter>
+                </Card>
             </div>
         </div>
       </section>
@@ -314,9 +312,9 @@ export default function BEIPage() {
             </div>
 
             <div className="mt-16 text-center space-y-4">
-                <p className="text-sm text-muted-foreground font-medium italic">Joining is free. Complete your profile setup to unlock your re-branding toolkit.</p>
+                <p className="text-sm text-muted-foreground font-medium italic">Ready to transform your practice? Start your onboarding today.</p>
                 <Button asChild size="lg" className="h-14 px-12 text-lg font-black shadow-xl">
-                    <Link href="/partner-signup">Join the BEI Network for FREE</Link>
+                    <Link href="/partner-signup">Register & Activate for R4,950</Link>
                 </Button>
             </div>
         </div>
@@ -344,7 +342,7 @@ export default function BEIPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
-                    <Link href="/partner-signup">Register My Practice (Free)</Link>
+                    <Link href="/partner-signup">Register My Practice</Link>
                 </Button>
                 <BookDemoDialog />
             </div>
