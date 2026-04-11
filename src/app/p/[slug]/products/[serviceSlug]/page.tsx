@@ -74,10 +74,11 @@ async function getPartnerOverride(partnerId: string, serviceId: string): Promise
     return snap.exists() ? snap.data() : null;
 }
 
-export async function generateMetadata({ params }: { params: { slug: string, serviceSlug: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string, serviceSlug: string }> }): Promise<Metadata> {
+  const { slug, serviceSlug } = await params;
   const [partner, rawService] = await Promise.all([
-    getPartnerBySlug(params.slug),
-    getService(params.serviceSlug)
+    getPartnerBySlug(slug),
+    getService(serviceSlug)
   ]);
 
   if (!partner || !rawService) return { title: 'Product Not Found' };
@@ -88,13 +89,21 @@ export async function generateMetadata({ params }: { params: { slug: string, ser
   const title = override?.metaTitle || `${override?.title || rawService.title} | ${partner.companyName || partner.name}`;
   const description = override?.metaDescription || override?.description || rawService.metaDescription || rawService.description;
 
+  const ogImage = partner.landingPage?.heroImageUrl || rawService.imageUrl;
+
   return {
     title,
     description,
     openGraph: {
         title,
         description,
-        images: [rawService.imageUrl],
+        images: ogImage ? [ogImage] : [],
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+        images: ogImage ? [ogImage] : [],
     }
   };
 }
@@ -108,10 +117,11 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-export default async function PartnerProductDetailPage({ params }: { params: { slug: string, serviceSlug: string } }) {
+export default async function PartnerProductDetailPage({ params }: { params: Promise<{ slug: string, serviceSlug: string }> }) {
+  const { slug, serviceSlug } = await params;
   const [partner, rawService] = await Promise.all([
-    getPartnerBySlug(params.slug),
-    getService(params.serviceSlug)
+    getPartnerBySlug(slug),
+    getService(serviceSlug)
   ]);
 
   if (!partner || !rawService) {
@@ -135,7 +145,7 @@ export default async function PartnerProductDetailPage({ params }: { params: { s
   return (
     <div className="container mx-auto px-4 py-12">
       <Button variant="ghost" asChild className="mb-8 hover:partner-text">
-        <Link href={`/p/${params.slug}`}>
+        <Link href={`/p/${slug}`}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Services
         </Link>
       </Button>

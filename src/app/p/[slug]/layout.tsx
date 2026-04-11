@@ -53,10 +53,24 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!partner) return { title: 'Practice Not Found' };
 
   const lp = partner.landingPage;
+  const title = lp?.metaTitle || `${partner.companyName || partner.name} | Professional Accounting & Tax`;
+  const description = lp?.metaDescription || lp?.heroSubtitle;
+  const ogImage = lp?.heroImageUrl || '';
 
   return {
-    title: lp?.metaTitle || `${partner.companyName || partner.name} | Professional Accounting & Tax`,
-    description: lp?.metaDescription || lp?.heroSubtitle,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: ogImage ? [ogImage] : [],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ogImage ? [ogImage] : [],
+    }
   };
 }
 
