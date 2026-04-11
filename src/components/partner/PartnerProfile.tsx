@@ -26,7 +26,8 @@ import {
   Settings,
   MousePointer2,
   Save,
-  Search
+  Search,
+  Copy
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { getFirestore, doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
@@ -285,7 +286,7 @@ export default function PartnerProfile({ partner: propPartner }: { partner?: Use
           { 
               label: 'Branding & Theme', 
               done: !!watchedLp.themePreset && (watchedLp.themePreset !== 'custom' || (watchedLp.primaryColor && watchedLp.primaryColor !== '#214392')), 
-              description: 'Apply custom colors and styling.' 
+              description: 'Apply your custom colors and styling.' 
           },
       ];
   }, [watchedBanking, watchedLp, overrideCount]);
@@ -364,6 +365,19 @@ export default function PartnerProfile({ partner: propPartner }: { partner?: Use
 
   const landingPageEnabled = watch('landingPage.enabled');
   const landingPageSlug = watch('landingPage.slug');
+
+  const handleCopyLandingLink = () => {
+      if (!landingPageSlug) {
+          toast({ title: "Slug missing", description: "Please enter a slug for your landing page first.", variant: "destructive" });
+          return;
+      }
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za';
+      const fullUrl = `${baseUrl}/p/${landingPageSlug}`;
+      
+      navigator.clipboard.writeText(fullUrl).then(() => {
+          toast({ title: "Link Copied!", description: "Practice landing page URL is ready to share." });
+      });
+  };
 
   const ColorField = ({ name, label, description }: { name: any, label: string, description?: string }) => (
     <FormField
@@ -446,7 +460,7 @@ export default function PartnerProfile({ partner: propPartner }: { partner?: Use
                         <MapPin className="h-4 w-4" /> Physical Address
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel className="text-xs">Street Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel className="text-xs">Street Address</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                         <FormField control={form.control} name="address.suburb" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Suburb</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                         <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel className="text-xs">City</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                         <FormField control={form.control} name="address.province" render={({ field }) => ( <FormItem><FormLabel className="text-xs">Province</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
@@ -485,7 +499,12 @@ export default function PartnerProfile({ partner: propPartner }: { partner?: Use
                             <CardContent>
                                 <div className="flex items-center gap-2">
                                     <div className="bg-muted px-3 py-2 rounded-md font-mono text-sm flex-grow">/p/{landingPageSlug || 'your-slug'}</div>
-                                    {landingPageSlug && <Button variant="outline" size="sm" asChild><Link href={`/p/${landingPageSlug}`} target="_blank"><ExternalLinkIcon className="h-4 w-4 mr-2"/>Visit Page</Link></Button>}
+                                    <div className="flex gap-2">
+                                        <Button type="button" variant="outline" size="sm" onClick={handleCopyLandingLink} className="gap-2 font-bold border-primary/20 text-primary">
+                                            <Copy className="h-4 w-4" /> Copy Link
+                                        </Button>
+                                        {landingPageSlug && <Button variant="outline" size="sm" asChild><Link href={`/p/${landingPageSlug}`} target="_blank"><ExternalLinkIcon className="h-4 w-4 mr-2"/>Visit Page</Link></Button>}
+                                    </div>
                                 </div>
                                 <FormField control={form.control} name="landingPage.slug" render={({ field }) => ( 
                                     <FormItem className="mt-4">

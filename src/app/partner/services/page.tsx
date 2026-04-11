@@ -4,7 +4,7 @@ import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search, Edit3, RotateCcw, Save, Plus, Trash2, RefreshCw, Calculator } from 'lucide-react';
+import { Loader2, Search, Edit3, RotateCcw, Save, Plus, Trash2, RefreshCw, Calculator, Link as LinkIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { getFirestore, collection, query, orderBy, getDocs, doc, setDoc, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
+import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
 
@@ -289,6 +290,7 @@ export default function PartnerServicesPage() {
   const { toast } = useToast();
 
   const partnerId = user?.role === 'partner' ? user.uid : user?.partnerId;
+  const partnerSlug = user?.landingPage?.slug;
 
   const fetchServices = async () => {
     setIsLoading(true);
@@ -420,6 +422,19 @@ export default function PartnerServicesPage() {
     }).format(price);
   };
 
+  const handleCopyServiceLink = (serviceSlug: string) => {
+      if (!partnerSlug) {
+          toast({ title: "Slug missing", description: "Please configure your practice slug in your profile first.", variant: "destructive" });
+          return;
+      }
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za';
+      const fullUrl = `${baseUrl}/p/${partnerSlug}/products/${serviceSlug}`;
+      
+      navigator.clipboard.writeText(fullUrl).then(() => {
+          toast({ title: "Link Copied!", description: "Branded service URL is ready to share." });
+      });
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -508,6 +523,14 @@ export default function PartnerServicesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 gap-2 text-xs font-bold border-primary/20 text-primary"
+                            onClick={() => handleCopyServiceLink(service.slug)}
+                        >
+                            <LinkIcon className="h-3 w-3" /> Copy Link
+                        </Button>
                         {partnerId && (
                             <EditServiceDialog 
                                 service={service} 
