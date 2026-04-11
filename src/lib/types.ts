@@ -237,6 +237,8 @@ export type PartnerLandingPageConfig = {
   servicesHeroTitle?: string;
   servicesHeroSubtitle?: string;
   servicesHeroTextPosition?: 'inside' | 'below';
+  metaTitle?: string;
+  metaDescription?: string;
 };
 
 export type FranchiseConfig = {

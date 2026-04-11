@@ -25,7 +25,8 @@ import {
   Gavel,
   Settings,
   MousePointer2,
-  Save
+  Save,
+  Search
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { getFirestore, doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
@@ -106,6 +107,8 @@ const formSchema = z.object({
     servicesHeroTitle: z.string().optional(),
     servicesHeroSubtitle: z.string().optional(),
     servicesHeroTextPosition: z.enum(['inside', 'below']).default('inside'),
+    metaTitle: z.string().max(60, "Title must be 60 characters or less.").optional(),
+    metaDescription: z.string().max(160, "Description must be 160 characters or less.").optional(),
   })
 });
 
@@ -219,6 +222,8 @@ export default function PartnerProfile({ partner: propPartner }: { partner?: Use
         servicesHeroTitle: targetUser?.landingPage?.servicesHeroTitle || 'Accounting & Tax Solutions',
         servicesHeroSubtitle: targetUser?.landingPage?.servicesHeroSubtitle || 'Comprehensive professional services for individuals and SMEs.',
         servicesHeroTextPosition: targetUser?.landingPage?.servicesHeroTextPosition || 'inside',
+        metaTitle: targetUser?.landingPage?.metaTitle || '',
+        metaDescription: targetUser?.landingPage?.metaDescription || '',
       }
     },
   });
@@ -692,6 +697,35 @@ export default function PartnerProfile({ partner: propPartner }: { partner?: Use
                                 </CardContent>
                             </Card>
                         </div>
+
+                        <Card className="border-2">
+                            <CardHeader className="bg-muted/30">
+                                <CardTitle className="text-sm flex items-center gap-2"><Search className="h-4 w-4" /> SEO & Metadata</CardTitle>
+                                <CardDescription className="text-[10px]">Customize how your practice appears in Google search results.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4 pt-6">
+                                <FormField control={form.control} name="landingPage.metaTitle" render={({ field }) => ( 
+                                    <FormItem>
+                                        <div className="flex justify-between items-center">
+                                            <FormLabel className="text-xs">Meta Title</FormLabel>
+                                            <span className="text-[10px] text-muted-foreground">{field.value?.length || 0}/60</span>
+                                        </div>
+                                        <FormControl><Input {...field} placeholder="e.g. Acme Tax Solutions | Professional Accounting in Sandton" /></FormControl>
+                                        <FormMessage />
+                                    </FormItem> 
+                                )} />
+                                <FormField control={form.control} name="landingPage.metaDescription" render={({ field }) => ( 
+                                    <FormItem>
+                                        <div className="flex justify-between items-center">
+                                            <FormLabel className="text-xs">Meta Description</FormLabel>
+                                            <span className="text-[10px] text-muted-foreground">{field.value?.length || 0}/160</span>
+                                        </div>
+                                        <FormControl><Textarea {...field} rows={3} placeholder="Provide a brief summary of your practice for search engines..." /></FormControl>
+                                        <FormMessage />
+                                    </FormItem> 
+                                )} />
+                            </CardContent>
+                        </Card>
 
                         <Card className="border-2">
                             <CardHeader className="bg-muted/30">

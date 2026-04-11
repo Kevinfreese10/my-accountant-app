@@ -52,9 +52,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const partner = await getPartnerBySlug(slug);
   if (!partner) return { title: 'Practice Not Found' };
 
+  const lp = partner.landingPage;
+
   return {
-    title: `${partner.companyName || partner.name} | Professional Accounting & Tax`,
-    description: partner.landingPage?.heroSubtitle,
+    title: lp?.metaTitle || `${partner.companyName || partner.name} | Professional Accounting & Tax`,
+    description: lp?.metaDescription || lp?.heroSubtitle,
   };
 }
 
