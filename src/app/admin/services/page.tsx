@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download, RefreshCw, Calculator, ArrowUp } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download, RefreshCw, Calculator, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
@@ -109,6 +109,9 @@ export default function AdminServicesPage() {
   const [titleFilter, setTitleFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  
+  const [sortField, setSortField] = useState<'title' | 'price'>('title');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const fetchServices = async () => {
     setIsLoading(true);
@@ -130,13 +133,25 @@ export default function AdminServicesPage() {
   }, []);
 
   const filteredServices = useMemo(() => {
-    return services.filter(service => {
+    let result = services.filter(service => {
         const titleMatch = service.title.toLowerCase().includes(titleFilter.toLowerCase());
         const categoryMatch = categoryFilter === 'all' || service.category === categoryFilter;
         const departmentMatch = departmentFilter === 'all' || service.department === departmentFilter;
         return titleMatch && categoryMatch && departmentMatch;
     });
-  }, [services, titleFilter, categoryFilter, departmentFilter]);
+
+    result.sort((a, b) => {
+        if (sortField === 'price') {
+            return sortOrder === 'asc' ? a.price - b.price : b.price - a.price;
+        } else {
+            return sortOrder === 'asc' 
+                ? a.title.localeCompare(b.title) 
+                : b.title.localeCompare(a.title);
+        }
+    });
+
+    return result;
+  }, [services, titleFilter, categoryFilter, departmentFilter, sortField, sortOrder]);
 
 
   const handleAddService = () => {
@@ -315,6 +330,15 @@ export default function AdminServicesPage() {
         }
     };
 
+    const handleSort = (field: 'title' | 'price') => {
+        if (sortField === field) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortOrder('asc');
+        }
+    };
+
 
   return (
     <div className="space-y-8">
@@ -443,10 +467,24 @@ export default function AdminServicesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-16">Image</TableHead>
-                <TableHead>Title</TableHead>
+                <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort('title')} className="hover:bg-transparent p-0 font-bold">
+                        Title
+                        {sortField === 'title' ? (
+                            <ArrowUp className={cn("ml-2 h-4 w-4 transition-transform", sortOrder === 'desc' && "rotate-180")} />
+                        ) : <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />}
+                    </Button>
+                </TableHead>
                 <TableHead>Condition</TableHead>
                 <TableHead>Availability</TableHead>
-                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="text-right">
+                    <Button variant="ghost" onClick={() => handleSort('price')} className="hover:bg-transparent p-0 font-bold ml-auto block text-right">
+                        Price
+                        {sortField === 'price' ? (
+                            <ArrowUp className={cn("ml-2 h-4 w-4 inline transition-transform", sortOrder === 'desc' && "rotate-180")} />
+                        ) : <ArrowUpDown className="ml-2 h-4 w-4 inline opacity-50" />}
+                    </Button>
+                </TableHead>
                 <TableHead className="text-right">Partner Cost</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
