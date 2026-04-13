@@ -19,7 +19,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -233,7 +233,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
         try {
             const rulesQuery = collection(db, "allocationRules");
             const rulesSnap = await getDocs(rulesQuery);
-            const globalRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule));
+            const globalRules = rulesSnap.docs.map(d => ({ ...doc.data(), id: d.id } as AllocationRule));
             const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const batch = writeBatch(db);
@@ -451,7 +451,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                         <FormField control={form.control} name="vatType" render={({ field }) => (
                             <FormItem><FormLabel>VAT Treatment</FormLabel>
                                 <Select onValueChange={field.onChange} value={field.value || ""}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="Select VAT type..." /></SelectTrigger></FormControl>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl>
                                     <SelectContent>
                                         {allVatTypes.map(vt => (
                                             <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>
@@ -811,7 +811,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         try {
             const rulesQuery = collection(db, "allocationRules");
             const rulesSnap = await getDocs(rulesQuery);
-            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...doc.data() } as AllocationRule));
             const allRules = [...(client.allocationRules || []), ...globalRulesList].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
@@ -1417,7 +1417,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             
             const rulesQuery = collection(db, "allocationRules");
             const rulesSnap = await getDocs(rulesQuery);
-            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...doc.data() } as AllocationRule));
             const allRules = [...(latestClient.allocationRules || []), ...globalRulesList].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const updatedGroups = groups.map(group => {
@@ -2235,7 +2235,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                         <TabsList className="grid w-full grid-cols-2 rounded-none"><TabsTrigger value="expenses">Reviewed Expenses</TabsTrigger><TabsTrigger value="income">Reviewed Income</TabsTrigger></TabsList>
                     </Tabs>
                     <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+                        <div className="flex items-center gap-2 w-full md:auto flex-wrap">
                             <Select value={selectedGlAccountId} onValueChange={setSelectedGlAccountId}>
                                 <SelectTrigger className="w-full md:w-[240px]">
                                     <SelectValue placeholder="Filter by Account..." />
