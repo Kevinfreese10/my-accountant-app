@@ -4,13 +4,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers, FileSpreadsheet, Save, MessageSquare, RefreshCw } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers, FileSpreadsheet, Save, MessageSquare, RefreshCw, Calendar as CalendarIcon } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, SmartAllocationResult } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,7 +19,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -43,6 +43,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from "@/components/ui/progress";
 import * as XLSX from 'xlsx';
 import AIStatementImportDialog from '@/components/admin/AIStatementImportDialog';
+import { Calendar } from '@/components/ui/calendar';
 
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
@@ -468,6 +469,138 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
     );
 }
 
+const manualTransactionSchema = z.object({
+  date: z.date(),
+  description: z.string().min(3, "Description is required"),
+  amount: z.preprocess(val => Number(val), z.number().refine(val => val !== 0, "Amount cannot be zero")),
+  reference: z.string().optional(),
+});
+
+function CreateManualTransactionDialog({ client, bankAccountId, open, onOpenChange }: { 
+    client: User | null, 
+    bankAccountId: string, 
+    open: boolean, 
+    onOpenChange: (open: boolean) => void 
+}) {
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    const form = useForm<z.infer<typeof manualTransactionSchema>>({
+        resolver: zodResolver(manualTransactionSchema),
+        defaultValues: {
+            date: new Date(),
+            description: '',
+            amount: 0,
+            reference: '',
+        },
+    });
+
+    const handleSave = async (values: z.infer<typeof manualTransactionSchema>) => {
+        if (!client?.uid || !bankAccountId) return;
+        setIsSaving(true);
+        try {
+            const isExpense = values.amount < 0;
+            const description = values.description.toUpperCase();
+            
+            const rulesQuery = collection(db, "allocationRules");
+            const rulesSnap = await getDocs(rulesQuery);
+            const globalRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule));
+            const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+            
+            const match = isExpense ? allRules.find(r => r.keywords.some(kw => description.includes(kw.toUpperCase()))) : null;
+
+            const txData: any = {
+                clientId: client.uid,
+                date: values.date.toISOString(),
+                reference: values.reference || `MANUAL-${Date.now()}`,
+                description: description,
+                rawDescription: description,
+                cleanDescription: description,
+                amount: values.amount,
+                isExpense: isExpense,
+                bankAccountId: bankAccountId,
+                status: (isExpense && match) ? 'reviewed' : 'new',
+                createdAt: serverTimestamp(),
+            };
+
+            if (isExpense && match) {
+                const keyword = match.keywords.find(kw => description.includes(kw.toUpperCase()));
+                txData.allocatedTo = { value: match.accountId, type: 'account' };
+                txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
+                txData.allocatedAt = serverTimestamp();
+                txData.allocationSource = 'rule';
+                txData.matchedRuleId = match.id;
+                txData.matchedRuleDescription = match.description;
+                txData.matchedKeyword = keyword;
+            }
+
+            await addDoc(collection(db, 'aiAccountantClients', client.uid, 'transactions'), txData);
+            
+            toast({ title: 'Transaction Created', description: 'The transaction has been added to the queue.' });
+            form.reset();
+            onOpenChange(false);
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Error', description: 'Failed to create transaction.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Add Manual Transaction</DialogTitle>
+                    <DialogDescription>Enter the details for a single bank entry.</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
+                        <FormField control={form.control} name="date" render={({ field }) => (
+                            <FormItem className="flex flex-col">
+                                <FormLabel>Date</FormLabel>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <FormControl>
+                                            <Button variant="outline" className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                            </Button>
+                                        </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                    </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="description" render={({ field }) => (
+                            <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g. OFFICE RENT" {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={form.control} name="amount" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Amount (Negative for Expense)</FormLabel>
+                                <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
+                                <FormDescription>Use a negative sign (-) for payments/expenses.</FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="reference" render={({ field }) => (
+                            <FormItem><FormLabel>Reference (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <DialogFooter>
+                            <Button type="submit" disabled={isSaving}>
+                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Save Transaction
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChange }: { client: User | null; onAccountCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
@@ -525,6 +658,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateOpen] = useState(false);
+    const [isManualTxOpen, setIsManualTxOpen] = useState(false);
     const [isCreateGeneralAccountOpen, setIsCreateGeneralAccountOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<any>({});
     const [transactionDescriptionForRule, setTransactionDescriptionForRule] = useState<string | null>(null);
@@ -878,6 +1012,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
 
     return (
         <div className="space-y-4">
+            <CreateManualTransactionDialog client={client} bankAccountId={bankAccountId} open={isManualTxOpen} onOpenChange={setIsManualTxOpen} />
             <CreateRuleDialog client={client} onRuleCreated={() => {}} open={isCreateRuleOpen} onOpenChange={setIsCreateOpen} defaultValues={ruleDefaultValues} transactionDescription={transactionDescriptionForRule} existingRules={globalRules} />
             <CreateGeneralAccountDialog client={client} onAccountCreated={onAccountCreated} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
             <AIAllocationReviewDialog open={isAiReviewOpen} onOpenChange={setIsAiReviewOpen} suggestion={aiSuggestion} transaction={selectedTxForAi} onAction={handleAiReviewAction} />
@@ -891,6 +1026,10 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                         <div className="flex gap-2 flex-wrap">
                             <ImportDialog client={client} bankAccountId={bankAccountId} currentBalance={currentBalance} onImportComplete={() => {}} />
                             
+                            <Button variant="outline" onClick={() => setIsManualTxOpen(true)}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Add Transaction
+                            </Button>
+
                             <Button variant="outline" onClick={handleDownloadExcel} disabled={filteredTransactions.length === 0}>
                                 <FileSpreadsheet className="mr-2 h-4 w-4"/> Download Excel
                             </Button>
@@ -1901,10 +2040,10 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
     onAccountCreated: () => void; 
 }) => {
     const { toast } = useToast();
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
-    const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
-    const [searchAmount, setSearchAmount] = useState<string>("");
+    const [dateRange, setDateRange] = setDateRange(undefined);
+    const [activeSubTab, setActiveSubTab] = setActiveSubTab('expenses');
+    const [selectedGlAccountId, setSelectedGlAccountId] = setSelectedGlAccountId("all");
+    const [searchAmount, setSearchAmount] = setSearchAmount("");
     const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
     const [isBulkMoving, setIsBulkMoving] = useState(false);
