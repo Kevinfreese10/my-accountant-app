@@ -212,29 +212,38 @@ export default function AdminServicesPage() {
     }
   };
 
-  const handleDownloadCsv = () => {
-    const dataForCsv = services.map(service => ({
+  const handleDownloadTsv = () => {
+    const dataForTsv = services.map(service => ({
       id: service.id,
       title: service.title,
       description: service.longDescription,
-      price: !service.isPriceTbc ? `${service.price.toFixed(2)} ${service.currency || 'ZAR'}` : '',
-      availability: service.availability,
-      condition: service.condition,
       link: `${process.env.NEXT_PUBLIC_APP_URL}/products/${service.slug}`,
       image_link: service.imageUrl,
+      availability: service.availability === 'in_stock' ? 'in_stock' : 'out_of_stock',
+      price: !service.isPriceTbc ? `${service.price.toFixed(2)} ${service.currency || 'ZAR'}` : '0.00 ZAR',
+      condition: service.condition || 'new',
       brand: service.brand || 'My Accountant',
       google_product_category: service.google_product_category || 'Business & Industrial > Business Services',
       product_type: service.product_type || `Accounting > ${service.category}`,
     }));
 
-    const csv = Papa.unparse(dataForCsv);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const tsv = Papa.unparse(dataForTsv, {
+      delimiter: '\t',
+      header: true,
+    });
+    
+    const blob = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'google-merchant-products.csv');
+    link.setAttribute('download', 'google-merchant-products.tsv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    toast({
+      title: 'Feed Exported',
+      description: 'Tab-delimited file ready for Google Merchant Center upload.',
+    });
   };
   
     const handleUpdateDefaults = async (discountPercentage: number) => {
@@ -312,9 +321,9 @@ export default function AdminServicesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Manage Products</h1>
         <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleDownloadCsv} disabled={services.length === 0}>
+            <Button variant="outline" onClick={handleDownloadTsv} disabled={services.length === 0}>
               <Download className="mr-2 h-4 w-4" />
-              Download CSV
+              Download Feed (TSV)
             </Button>
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
