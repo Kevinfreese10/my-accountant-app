@@ -19,6 +19,7 @@ import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Papa from 'papaparse';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
