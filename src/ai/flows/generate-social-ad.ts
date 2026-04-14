@@ -2,7 +2,7 @@
 /**
  * @fileOverview AI agent for generating social media advertising content.
  * 
- * - generateSocialAd - Creates high-converting Facebook ad copy for products.
+ * - generateSocialAds - Creates high-converting Facebook ad copy for products.
  */
 
 import { ai } from '@/ai/genkit';
@@ -53,8 +53,8 @@ const prompt = ai.definePrompt({
   **INSTRUCTIONS**:
   1. **Hook**: Start with a relatable pain point or a bold statement (e.g., "Tired of SARS deadlines?" or "Did you know 70% of SMEs pay too much tax?").
   2. **Body**: Briefly explain how the service solves the problem. Focus on benefits like "Peace of Mind," "Saving Time," and "Compliance." Use emojis effectively.
-  3. **Mandatory Info**: You MUST explicitly mention the price (R{{this.price}}) and the turnaround time ({{this.turnaroundTime}}) within the ad body text.
-  4. **CTA**: Direct users to the provided URL.
+  3. **Mandatory Info**: You MUST explicitly mention the price, the turnaround time, AND the direct product link within the ad copy text.
+  4. **CTA**: Provide a clear call to action that directs users to the provided URL.
   5. **Context**: Use South African terminology (SARS, CIPC, Pty Ltd, etc.).
   
   **PRODUCTS TO ADVERTISE**:
@@ -62,8 +62,8 @@ const prompt = ai.definePrompt({
   - Product: "{{this.productName}}"
   - Price: R{{this.price}}
   - Turnaround: {{this.turnaroundTime}}
-  - Description: "{{this.description}}"
   - Link: {{{this.url}}}
+  - Description: "{{this.description}}"
   ---
   {{/each}}
   
