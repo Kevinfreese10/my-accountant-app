@@ -11,6 +11,7 @@ import { z } from 'genkit';
 const AdInputSchema = z.object({
   productName: z.string(),
   price: z.number(),
+  turnaroundTime: z.string(),
   description: z.string(),
   category: z.string(),
   url: z.string(),
@@ -52,13 +53,15 @@ const prompt = ai.definePrompt({
   **INSTRUCTIONS**:
   1. **Hook**: Start with a relatable pain point or a bold statement (e.g., "Tired of SARS deadlines?" or "Did you know 70% of SMEs pay too much tax?").
   2. **Body**: Briefly explain how the service solves the problem. Focus on benefits like "Peace of Mind," "Saving Time," and "Compliance." Use emojis effectively.
-  3. **CTA**: Direct users to the provided URL.
-  4. **Context**: Use South African terminology (SARS, CIPC, Pty Ltd, etc.).
+  3. **Mandatory Info**: You MUST explicitly mention the price (R{{this.price}}) and the turnaround time ({{this.turnaroundTime}}) within the ad body text.
+  4. **CTA**: Direct users to the provided URL.
+  5. **Context**: Use South African terminology (SARS, CIPC, Pty Ltd, etc.).
   
   **PRODUCTS TO ADVERTISE**:
   {{#each products}}
   - Product: "{{this.productName}}"
   - Price: R{{this.price}}
+  - Turnaround: {{this.turnaroundTime}}
   - Description: "{{this.description}}"
   - Link: {{{this.url}}}
   ---

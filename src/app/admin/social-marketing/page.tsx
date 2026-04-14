@@ -52,6 +52,7 @@ export default function SocialMarketingPage() {
             .map(s => ({
                 productName: s.title,
                 price: s.price,
+                turnaroundTime: s.turnaroundTime,
                 description: s.description,
                 category: s.category,
                 url: `${process.env.NEXT_PUBLIC_APP_URL}/products/${s.slug}`
