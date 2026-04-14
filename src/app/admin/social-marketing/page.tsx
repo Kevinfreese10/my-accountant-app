@@ -15,6 +15,7 @@ import { generateSocialAds, SocialAdOutput } from '@/ai/flows/generate-social-ad
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
