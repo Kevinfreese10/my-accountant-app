@@ -233,7 +233,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
         try {
             const rulesQuery = collection(db, "allocationRules");
             const rulesSnap = await getDocs(rulesQuery);
-            const globalRules = rulesSnap.docs.map(d => ({ ...doc.data(), id: d.id } as AllocationRule));
+            const globalRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule));
             const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const batch = writeBatch(db);
@@ -811,7 +811,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
         try {
             const rulesQuery = collection(db, "allocationRules");
             const rulesSnap = await getDocs(rulesQuery);
-            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...doc.data() } as AllocationRule));
+            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
             const allRules = [...(client.allocationRules || []), ...globalRulesList].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
@@ -1417,7 +1417,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             
             const rulesQuery = collection(db, "allocationRules");
             const rulesSnap = await getDocs(rulesQuery);
-            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...doc.data() } as AllocationRule));
+            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
             const allRules = [...(latestClient.allocationRules || []), ...globalRulesList].sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const updatedGroups = groups.map(group => {
@@ -2040,10 +2040,10 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
     onAccountCreated: () => void; 
 }) => {
     const { toast } = useToast();
-    const [dateRange, setDateRange] = setDateRange(undefined);
-    const [activeSubTab, setActiveSubTab] = setActiveSubTab('expenses');
-    const [selectedGlAccountId, setSelectedGlAccountId] = setSelectedGlAccountId("all");
-    const [searchAmount, setSearchAmount] = setSearchAmount("");
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
+    const [selectedGlAccountId, setSelectedGlAccountId] = useState<string>("all");
+    const [searchAmount, setSearchAmount] = useState("");
     const [usedAccountIds, setUsedAccountIds] = useState<Set<string>>(new Set());
     const [isMovingBack, setIsMovingBack] = useState<string | null>(null);
     const [isBulkMoving, setIsBulkMoving] = useState(false);
@@ -2558,7 +2558,7 @@ export default function BankTransactionsPage() {
     const params = useParams();
     const accountIdFromUrl = useSearchParams().get('accountId');
     const [client, setClient] = useState<User | null>(null);
-    const [accountId, setAccountId] = useState<string | null>(accountIdFromUrl);
+    const [accountId, setAccountId] = setAccountId(accountIdFromUrl);
     const [allAccountTransactions, setAllAccountTransactions] = useState<any[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const [activeTab, setActiveTab] = useState('new-transactions');
