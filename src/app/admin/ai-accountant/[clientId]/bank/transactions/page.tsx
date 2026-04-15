@@ -2056,7 +2056,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
         const coa = [...(client?.chartOfAccounts || [])];
         // Deduplicate locally
         const unique = Array.from(new Map(coa.map(a => [a.accountNumber, a])).values());
-        return unique.sort((a, b) => a.description.localeCompare(b.description));
+        return unique.sort((a, b) => a.description.toLowerCase().localeCompare(b.description.toLowerCase()));
     }, [client]);
 
     const allAvailableRules = useMemo(() => [...(client?.allocationRules || []), ...globalRules], [client?.allocationRules, globalRules]);
@@ -2558,7 +2558,7 @@ export default function BankTransactionsPage() {
     const params = useParams();
     const accountIdFromUrl = useSearchParams().get('accountId');
     const [client, setClient] = useState<User | null>(null);
-    const [accountId, setAccountId] = setAccountId(accountIdFromUrl);
+    const [accountId, setAccountId] = useState<string | null>(accountIdFromUrl);
     const [allAccountTransactions, setAllAccountTransactions] = useState<any[]>([]);
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const [activeTab, setActiveTab] = useState('new-transactions');
@@ -2586,7 +2586,7 @@ export default function BankTransactionsPage() {
 
     const fetchGlobalRules = useCallback(async () => {
         const rulesSnap = await getDocs(collection(db, 'allocationRules'));
-        setGlobalRules(rulesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AllocationRule)));
+        setGlobalRules(rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule)));
     }, []);
 
     const fetchCustomers = useCallback(async () => {
