@@ -35,11 +35,11 @@ export default function PayslipDownloadButton({ payslip, employee, client, curre
       
       const formatCurr = (num: number) => {
           if (num === 0) return '0.00';
-          // South African formatting: 100 000,00 (space for thousands, comma for decimals)
-          return num.toLocaleString('en-ZA', { 
+          // Use en-GB to ensure dot decimal separator (e.g., 1,234.56)
+          return num.toLocaleString('en-GB', { 
               minimumFractionDigits: 2, 
               maximumFractionDigits: 2 
-          }).replace(',', ' ').replace('.', ',');
+          });
       };
 
       // --- 1. Company Header (Top Left) ---

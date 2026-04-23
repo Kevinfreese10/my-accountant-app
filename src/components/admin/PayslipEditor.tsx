@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 
 const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('en-ZA', {
+    return new Intl.NumberFormat('en-GB', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     }).format(val);
