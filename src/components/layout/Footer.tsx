@@ -15,7 +15,7 @@ const Footer = () => {
                 <div className="text-sm text-muted-foreground space-y-3">
                     <div className="flex items-start gap-3">
                         <MapPin className="h-4 w-4 mt-1 flex-shrink-0" />
-                        <span>369 Oak Avenue, Ferndale, Randburg</span>
+                        <span>Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road Roodepoort</span>
                     </div>
                     <div className="flex items-center gap-3">
                         <Mail className="h-4 w-4" />
@@ -45,7 +45,7 @@ const Footer = () => {
 
             <div>
                 <iframe
-                    src="https://www.google.com/maps?q=W263+P6+Randburg&output=embed"
+                    src="https://www.google.com/maps?q=Clearwater+Office+Park+Roodepoort&output=embed"
                     width="100%"
                     height="200"
                     style={{ border: 0 }}

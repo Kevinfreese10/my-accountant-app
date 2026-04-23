@@ -1,4 +1,3 @@
-
 import {
   Body,
   Container,
@@ -83,7 +82,7 @@ export const PaymentConfirmationEmail = ({ order, reseller }: PaymentConfirmatio
 
     const companyName = reseller?.companyName || 'My Accountant';
     const companyEmail = reseller?.email || 'info@myacc.co.za';
-    const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : '369 Oak Avenue, Ferndale, Randburg';
+    const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : 'Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road Roodepoort';
 
     return (
         <Html>

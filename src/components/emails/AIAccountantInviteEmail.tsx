@@ -1,4 +1,3 @@
-
 import {
   Body,
   Container,
@@ -114,7 +113,7 @@ export const AIAccountantInviteEmail = ({ name, email, password: password_do_not
                 <Hr style={hr} />
                 
                 <Text style={footer}>
-                     My Accountant | <a href="mailto:info@myacc.co.za" style={anchor}>info@myacc.co.za</a> | 369 Oak Avenue, Ferndale, Randburg
+                     My Accountant | <a href="mailto:info@myacc.co.za" style={anchor}>info@myacc.co.za</a> | Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road Roodepoort
                 </Text>
             </Section>
             </Container>

@@ -1,5 +1,3 @@
-
-
 import type { Service, BlogPost, FAQ, Order, User } from './types';
 
 // IMPORTANT: This file is now deprecated for user data. Users should be managed in Firestore.
@@ -31,10 +29,10 @@ export const users: Omit<User, 'uid'>[] = [
     contactPerson: 'Alex King',
     contactNumber: '0721234567',
     address: {
-        street: '123 Reseller Road',
-        city: 'Johannesburg',
+        street: 'Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road',
+        city: 'Roodepoort',
         province: 'Gauteng',
-        zip: '2196',
+        zip: '1724',
     },
     bankingDetails: {
         bankName: 'Capitec',

@@ -104,7 +104,7 @@ export default function TermsAndConditionsPage() {
                     <p>For questions regarding the BEI program or these Terms, please contact:</p>
                      <div className="mt-2 text-sm">
                         <p>📧 <a href="mailto:info@myacc.co.za" className="text-primary hover:underline">info@myacc.co.za</a></p>
-                        <p>🏢 369 Oak Avenue, Ferndale, Randburg, South Africa</p>
+                        <p>🏢 Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road Roodepoort</p>
                     </div>
                 </section>
 

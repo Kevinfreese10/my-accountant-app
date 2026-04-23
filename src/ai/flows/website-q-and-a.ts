@@ -94,7 +94,7 @@ export async function websiteQAndA(
   
   const footerContent = `
     CONTACT INFORMATION:
-    - Address: 369 Oak Avenue, Ferndale, Randburg
+    - Address: Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road Roodepoort
     - Email: info@myacc.co.za
     - Phone: 010 109 1625
   `;

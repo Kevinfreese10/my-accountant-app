@@ -1,4 +1,3 @@
-
 import { KnowledgeBaseItem } from './types';
 import { collection, getDocs, query, orderBy, getFirestore } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -14,7 +13,7 @@ export let knowledgeBaseItems: KnowledgeBaseItem[] = [
     {
         id: 'kb-2',
         question: 'What is the physical address of the company?',
-        answer: 'Our physical address is 369 Oak Avenue, Ferndale, Randburg.'
+        answer: 'Our physical address is Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road Roodepoort.'
     },
     {
         id: 'kb-3',
@@ -37,5 +36,3 @@ export async function fetchKnowledgeBase() {
         return knowledgeBaseItems;
     }
 }
-
-    
