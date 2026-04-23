@@ -346,26 +346,26 @@ export default function AdminServicesPage() {
 
       // Critical GSC Errors
       if (!service.isPriceTbc && (service.price === undefined || service.price === null || service.price === 0)) {
-          errors.push('Offer price missing.');
+          errors.push("Missing Price: Fixed-price services must have a numeric price. Use 'Price to be confirmed' if it varies.");
       }
       if (!service.isPriceTbc && (!service.returnPolicyCategory || service.returnPolicyCategory === 'none' || service.returnPolicyCategory === '')) {
-          errors.push('Merchant Return Policy missing (required for rich snippets).');
+          errors.push("Missing Return Policy: Google requires this for rich snippets. Select one in the 'Marketing & SEO' section.");
       }
 
       // Warnings
       if (!service.metaTitle || service.metaTitle.length > 60) {
-          warnings.push('Meta Title invalid length or missing.');
+          warnings.push("Shorten Title: Meta Title should be present and under 60 characters to avoid truncation.");
       }
       if (!service.metaDescription || service.metaDescription.length > 160) {
-          warnings.push('Meta Description invalid length or missing.');
+          warnings.push("Shorten Description: Meta Description should be under 160 characters for best display.");
       }
       if (!service.imageUrl) {
-          warnings.push('Product image missing.');
+          warnings.push("Missing Image: A display image is required for rich search results.");
       }
 
       if (errors.length > 0) return { status: 'Error', color: 'text-destructive', icon: <XCircle className="h-4 w-4" />, items: errors };
       if (warnings.length > 0) return { status: 'Warning', color: 'text-warning', icon: <AlertTriangle className="h-4 w-4" />, items: warnings };
-      return { status: 'Valid', color: 'text-green-600', icon: <CheckCircle2 className="h-4 w-4" />, items: ['Schema correctly optimized for rich results.'] };
+      return { status: 'Valid', color: 'text-green-600', icon: <CheckCircle2 className="h-4 w-4" />, items: ['The product schema is fully optimized and compliant.'] };
   }
 
 
@@ -538,10 +538,15 @@ export default function AdminServicesPage() {
                                        {seoInfo.status}
                                    </div>
                                </TooltipTrigger>
-                               <TooltipContent className="max-w-xs">
-                                   <div className="space-y-1.5">
-                                       <p className="font-bold border-b pb-1 mb-1">Rich Result Analysis:</p>
-                                       {seoInfo.items.map((item, i) => <p key={i} className="text-[10px] leading-tight flex items-start gap-1">• {item}</p>)}
+                               <TooltipContent className="max-w-xs shadow-xl">
+                                   <div className="space-y-2 p-1">
+                                       <p className="font-bold border-b pb-1 mb-1 text-xs">SEO Improvement Plan:</p>
+                                       {seoInfo.items.map((item, i) => (
+                                           <div key={i} className="flex items-start gap-1.5 text-[10px] leading-tight">
+                                               <span className="text-primary font-bold">•</span>
+                                               <span>{item}</span>
+                                           </div>
+                                       ))}
                                    </div>
                                </TooltipContent>
                            </Tooltip>
