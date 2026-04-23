@@ -1,3 +1,4 @@
+
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
@@ -24,7 +25,6 @@ async function getService(slug: string): Promise<Service | null> {
     const doc = querySnapshot.docs[0];
     const data = doc.data();
 
-    // Convert Firestore Timestamp to a serializable format (ISO string)
     const serviceData = {
         id: doc.id,
         ...data,
@@ -47,14 +47,15 @@ const formatPrice = (price: number) => {
 };
 
 type Props = {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 export async function generateMetadata(
   { params }: Props,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const service = await getService(params.slug);
+  const { slug } = await params;
+  const service = await getService(slug);
  
   if (!service) {
     return {
@@ -87,7 +88,8 @@ export async function generateMetadata(
 
 
 export default async function ProductDetailPage({ params }: Props) {
-  const service = await getService(params.slug);
+  const { slug } = await params;
+  const service = await getService(slug);
 
   if (!service) {
     notFound();

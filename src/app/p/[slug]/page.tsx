@@ -1,3 +1,4 @@
+
 import { getFirestore, collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Service } from '@/lib/types';
@@ -93,8 +94,9 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-export default async function PartnerLandingPage({ params }: { params: { slug: string } }) {
-  const partner = await getPartnerBySlug(params.slug);
+export default async function PartnerLandingPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const partner = await getPartnerBySlug(slug);
   if (!partner) return null;
 
   const [globalServices, categories, overrides] = await Promise.all([
@@ -328,7 +330,7 @@ export default async function PartnerLandingPage({ params }: { params: { slug: s
                                 </CardContent>
                                 <CardFooter className="pt-0">
                                     <Button className="w-full partner-btn font-semibold h-11" asChild>
-                                        <Link href={`/p/${params.slug}/products/${service.slug}`}>
+                                        <Link href={`/p/${slug}/products/${service.slug}`}>
                                             View Details <ArrowRight className="ml-2 h-4 w-4" />
                                         </Link>
                                     </Button>

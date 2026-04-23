@@ -43,8 +43,9 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
   return serializedPartner as User;
 }
 
-export default async function PartnerPopiaPage({ params }: { params: { slug: string } }) {
-  const partner = await getPartnerBySlug(params.slug);
+export default async function PartnerPopiaPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const partner = await getPartnerBySlug(slug);
 
   if (!partner || !partner.landingPage?.popiaPolicy) {
     notFound();

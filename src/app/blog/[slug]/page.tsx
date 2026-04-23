@@ -37,21 +37,21 @@ async function getRelatedServices(serviceIds: string[]): Promise<Service[]> {
     return [];
   }
   const servicesRef = collection(db, 'services');
-  // Firestore's 'in' query is limited to 30 items, but we are only allowing 3, so this is safe.
   const q = query(servicesRef, where('__name__', 'in', serviceIds));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
 }
 
 type Props = {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 export async function generateMetadata(
   { params }: Props,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const post = await getPost(params.slug);
+  const { slug } = await params;
+  const post = await getPost(slug);
  
   if (!post) {
     return {
@@ -91,8 +91,9 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-export default async function BlogPostPage({ params }: { params: { slug: string } }) {
-  const post = await getPost(params.slug);
+export default async function BlogPostPage({ params }: Props) {
+  const { slug } = await params;
+  const post = await getPost(slug);
 
   if (!post) {
     notFound();
@@ -127,6 +128,7 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
       <div
         className="prose prose-lg max-w-none prose-h3:font-headline prose-h3:text-xl prose-h3:font-semibold prose-p:text-foreground/80 prose-a:text-primary"
         dangerouslySetInnerHTML={{ __html: post.content }}
+        suppressHydrationWarning
       />
       
       {relatedServices.length > 0 && (
