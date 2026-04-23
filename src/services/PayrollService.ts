@@ -68,6 +68,20 @@ export class PayrollService {
   }
 
   /**
+   * Parses a period label like "March 2026" or "March 2026 - Run 1" into a Date object.
+   */
+  static getPeriodDate(period?: string): Date {
+    if (!period) return new Date();
+    const base = period.split(' - ')[0];
+    const parts = base.split(' ');
+    if (parts.length < 2) return new Date();
+    const monthName = parts[0];
+    const year = parseInt(parts[1]);
+    const monthIdx = MONTHS.indexOf(monthName);
+    return new Date(year, monthIdx !== -1 ? monthIdx : 0, 1);
+  }
+
+  /**
    * Calculates PAYE based on earnings.
    */
   static calculatePaye(periodEarnings: number, period?: string, frequency: number = 12): number {

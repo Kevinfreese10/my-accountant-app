@@ -111,16 +111,41 @@ export default function PayslipEditor({
         };
     }, [earnings, deductions, contributions, fringeBenefits, client.firstProcessingMonth, frequency]);
 
-    const individualHistory = useMemo(() => {
-        return allPayslips
-            .filter(p => p.employeeId === employee.id && p.status === 'finalized' && p.period !== payslip.period)
-            .sort((a, b) => {
-                const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date || 0).getTime();
-                const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date || 0).getTime();
-                return dateB - dateA;
-            })
-            .slice(0, 5);
-    }, [allPayslips, employee.id, payslip.period]);
+    // Calculate YTD Totals for PDF
+    const ytdTotals = useMemo(() => {
+        const currentPeriodDate = PayrollService.getPeriodDate(payslip.period);
+        // SA Tax Year starts in March.
+        const taxYearStartMonth = 2; // March is index 2
+        let taxYearStartYear = currentPeriodDate.getFullYear();
+        if (currentPeriodDate.getMonth() < taxYearStartMonth) {
+            taxYearStartYear -= 1;
+        }
+        const taxYearStart = new Date(taxYearStartYear, taxYearStartMonth, 1);
+
+        const relevantHistory = allPayslips.filter(p => {
+            if (p.employeeId !== employee.id || p.status !== 'finalized') return false;
+            const pDate = PayrollService.getPeriodDate(p.period);
+            return pDate >= taxYearStart && pDate <= currentPeriodDate;
+        });
+
+        // Initialize with current editor totals
+        let gross = totals.gross;
+        let tax = totals.updatedDeductions.find(d => d.label === 'Tax')?.amount || 0;
+        let contrib = totals.totalContrib;
+        let fringe = totals.totalFringe;
+
+        relevantHistory.forEach(p => {
+            // Avoid double counting current payslip if it exists in history
+            if (p.id === payslip.id) return;
+            
+            gross += p.grossPay;
+            tax += p.deductions.find(d => d.label === 'Tax')?.amount || 0;
+            contrib += p.contributions.reduce((s, i) => s + i.amount, 0);
+            fringe += p.fringeBenefits.reduce((s, i) => s + i.amount, 0);
+        });
+
+        return { gross, tax, contrib, fringe };
+    }, [allPayslips, employee.id, payslip.period, totals, payslip.id]);
 
     const handleAddItem = (type: 'earning' | 'deduction' | 'contribution' | 'fringe') => {
         const newItem = { label: 'New item', amount: 0 };
@@ -327,6 +352,7 @@ export default function PayslipEditor({
                             netPay: totals.netPay,
                             grossPay: totals.gross
                         }}
+                        ytdTotals={ytdTotals}
                     />
                 </div>
                 <div className="flex gap-3">
@@ -338,39 +364,34 @@ export default function PayslipEditor({
                 </div>
             </div>
 
-            {individualHistory.length > 0 && (
+            {allPayslips.filter(p => p.employeeId === employee.id && p.status === 'finalized').length > 0 && (
                 <Card className="bg-muted/30 border-dashed border-2 mt-8">
                     <CardHeader className="pb-3 flex flex-row items-center justify-between">
                         <div>
                             <CardTitle className="text-sm flex items-center gap-2">
                                 <History className="h-4 w-4 text-primary" />
-                                Recent History for {employee.name}
+                                Tax Year Progress (YTD)
                             </CardTitle>
-                            <CardDescription className="text-[10px]">Previously finalized earnings records.</CardDescription>
+                            <CardDescription className="text-[10px]">Cumulative totals since March.</CardDescription>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
                         <Table>
                             <TableHeader className="text-[9px] uppercase font-black text-muted-foreground bg-white">
                                 <TableRow>
-                                    <TableHead>Period</TableHead>
-                                    <TableHead className="text-right">Gross</TableHead>
-                                    <TableHead className="text-right">Tax</TableHead>
-                                    <TableHead className="text-right">Net Pay</TableHead>
+                                    <TableHead>YTD Taxable Earnings</TableHead>
+                                    <TableHead className="text-right">YTD Tax (PAYE)</TableHead>
+                                    <TableHead className="text-right">YTD Contributions</TableHead>
+                                    <TableHead className="text-right">YTD Fringe Benefits</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {individualHistory.map((h) => {
-                                    const tax = h.deductions.find(d => d.label === 'Tax')?.amount || 0;
-                                    return (
-                                        <TableRow key={h.id} className="text-[11px] font-medium text-slate-600 bg-white/50">
-                                            <TableCell className="font-bold">{h.period}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatCurrency(h.grossPay)}</TableCell>
-                                            <TableCell className="text-right font-mono text-destructive">{formatCurrency(tax)}</TableCell>
-                                            <TableCell className="text-right font-bold text-primary">{formatCurrency(h.netPay)}</TableCell>
-                                        </TableRow>
-                                    );
-                                })}
+                                <TableRow className="text-[11px] font-bold text-slate-900 bg-white/50">
+                                    <TableCell>{formatCurrency(ytdTotals.gross)}</TableCell>
+                                    <TableCell className="text-right text-destructive">{formatCurrency(ytdTotals.tax)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(ytdTotals.contrib)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(ytdTotals.fringe)}</TableCell>
+                                </TableRow>
                             </TableBody>
                         </Table>
                     </CardContent>
