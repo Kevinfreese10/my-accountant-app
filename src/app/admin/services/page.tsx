@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Service } from '@/lib/types';
@@ -5,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download, RefreshCw, Calculator, ArrowUp, ArrowUpDown, CheckCircle2, XCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download, RefreshCw, Calculator, ArrowUp, ArrowUpDown, CheckCircle2, XCircle, ShieldOff } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
@@ -331,6 +332,39 @@ export default function AdminServicesPage() {
         }
     };
 
+    const handleBulkSetNoReturns = async () => {
+        setIsUpdatingDefaults(true);
+        toast({ title: 'Updating Return Policies...', description: 'Applying "Returns Not Permitted" to all products.' });
+
+        try {
+            const batch = writeBatch(db);
+            let updatedCount = 0;
+
+            services.forEach(service => {
+                if (service.returnPolicyCategory !== 'https://schema.org/MerchantReturnNotPermitted') {
+                    const serviceRef = doc(db, 'services', service.id);
+                    batch.update(serviceRef, {
+                        returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted'
+                    });
+                    updatedCount++;
+                }
+            });
+
+            if (updatedCount > 0) {
+                await batch.commit();
+                toast({ title: 'Policy Updated', description: `${updatedCount} products updated successfully.` });
+                fetchServices();
+            } else {
+                toast({ title: 'No Updates Needed', description: 'All products already have this policy.' });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Update Failed', variant: 'destructive' });
+        } finally {
+            setIsUpdatingDefaults(false);
+        }
+    };
+
     const handleSort = (field: 'title' | 'price') => {
         if (sortField === field) {
             setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -435,7 +469,7 @@ export default function AdminServicesPage() {
                     </SelectContent>
                 </Select>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     <BulkPriceAdjustmentDialog 
                         servicesCount={filteredServices.length} 
                         onUpdate={handleBulkPriceUpdate}
@@ -480,6 +514,27 @@ export default function AdminServicesPage() {
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={() => handleUpdateDefaults(25)}>Yes, Apply 25%</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="outline" className="text-primary font-bold border-primary/30" disabled={isUpdatingDefaults}>
+                                {isUpdatingDefaults ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldOff className="mr-2 h-4 w-4" />}
+                                Set All: No Returns
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Update All Return Policies?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will set the return policy for **ALL** products to "Returns Not Permitted". This is recommended for digital and professional services to comply with Google Search Console requirements.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleBulkSetNoReturns}>Yes, Apply to All</AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
