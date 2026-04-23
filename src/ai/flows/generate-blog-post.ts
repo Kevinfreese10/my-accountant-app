@@ -86,7 +86,24 @@ const generateBlogPostFlow = ai.defineFlow(
     outputSchema: GenerateBlogPostOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    let retries = 3;
+    let lastError;
+    while (retries > 0) {
+      try {
+        const {output} = await prompt(input);
+        return output!;
+      } catch (error: any) {
+        lastError = error;
+        const isTransient = error.message?.includes('503') || error.message?.includes('high demand') || error.message?.includes('Service Unavailable');
+        if (retries > 1 && isTransient) {
+          retries--;
+          // Wait with exponential backoff: 2s, 4s
+          await new Promise(resolve => setTimeout(resolve, (4 - retries) * 2000));
+          continue;
+        }
+        break;
+      }
+    }
+    throw lastError || new Error('Failed to generate blog post content after retries.');
   }
 );
