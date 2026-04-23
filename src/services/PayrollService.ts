@@ -227,7 +227,7 @@ export class PayrollService {
 
       const totalDeductions = deductions.reduce((sum, item) => sum + item.amount, 0);
 
-      const payslipData: Omit<Payslip, 'id'> = {
+      const payslipData: any = {
         employeeId,
         employeeName: `${employee.name} ${employee.surname}`,
         period: periodLabel,
@@ -239,10 +239,13 @@ export class PayrollService {
         grossPay: gross,
         totalDeductions,
         netPay: parseFloat((gross - totalDeductions).toFixed(2)),
-        hoursWorked: hours?.normal,
         frequency: 'Monthly',
         status: 'draft'
       };
+
+      if (hours?.normal !== undefined) {
+          payslipData.hoursWorked = hours.normal;
+      }
 
       const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
       const docRef = await addDoc(payslipsRef, {
