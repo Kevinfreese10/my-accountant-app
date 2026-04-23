@@ -15,7 +15,12 @@ const Footer = () => {
                 <div className="text-sm text-muted-foreground space-y-3">
                     <div className="flex items-start gap-3">
                         <MapPin className="h-4 w-4 mt-1 flex-shrink-0" />
-                        <span>Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road Roodepoort</span>
+                        <span>
+                          Clearwater Office Park<br />
+                          Building 3<br />
+                          Millenium Road & Christiaan de Wet Road<br />
+                          Roodepoort
+                        </span>
                     </div>
                     <div className="flex items-center gap-3">
                         <Mail className="h-4 w-4" />
