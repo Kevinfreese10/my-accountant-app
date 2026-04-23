@@ -65,13 +65,14 @@ export type Service = {
   metaTitle?: string;
   metaDescription?: string;
   metaKeywords?: string[];
-  // Google Merchant Center Fields
+  // Google Merchant Center & SEO Fields
   currency?: string;
   availability?: 'in_stock' | 'out_of_stock' | 'preorder';
   condition?: 'new' | 'refurbished' | 'used';
   brand?: string;
   product_type?: string;
   google_product_category?: string;
+  returnPolicyCategory?: string;
 };
 
 export type BlogPost = {

@@ -1,5 +1,3 @@
-
-
 'use client';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -15,7 +13,7 @@ import { generateServiceDetails } from '@/ai/flows/generate-service-details';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { Separator } from '../ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import MediaLibrary from './MediaLibrary';
 import Image from 'next/image';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
@@ -30,6 +28,13 @@ type Category = {
     id: string; 
     name: string; 
 };
+
+const returnPolicyCategories = [
+    { value: 'https://schema.org/MerchantReturnFiniteReturnPeriod', label: 'Finite Period (e.g. 48 hours)' },
+    { value: 'https://schema.org/MerchantReturnNotPermitted', label: 'Returns Not Permitted' },
+    { value: 'https://schema.org/MerchantReturnUnlimitedWindow', label: 'Unlimited Window' },
+    { value: 'https://schema.org/MerchantReturnSayNo', label: 'No Return Policy' },
+];
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -61,6 +66,7 @@ const formSchema = z.object({
   product_type: z.string().optional(),
   google_product_category: z.string().optional(),
   currency: z.string().default('ZAR'),
+  returnPolicyCategory: z.string().optional(),
 });
 
 type ServiceFormProps = {
@@ -120,6 +126,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
       product_type: service?.product_type || 'Accounting > Tax Services',
       google_product_category: service?.google_product_category || 'Business & Industrial > Business Services',
       currency: service?.currency || 'ZAR',
+      returnPolicyCategory: service?.returnPolicyCategory || '',
     },
   });
   
@@ -266,7 +273,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
             render={({ field }) => (
                 <FormItem>
                 <FormLabel>Category</FormLabel>
-                 <Select onValueChange={field.onChange} defaultValue={field.value}>
+                 <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                         <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
                     </FormControl>
@@ -297,7 +304,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
             render={({ field }) => (
                 <FormItem>
                 <FormLabel>Responsible Department</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                         <SelectTrigger><SelectValue placeholder="Select a department" /></SelectTrigger>
                     </FormControl>
@@ -512,6 +519,25 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
                     </FormItem>
                 )}
             />
+
+            <FormField control={form.control} name="returnPolicyCategory" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Google Return Policy Category</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Select policy type..." /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="">None (Omit from Schema)</SelectItem>
+                            {returnPolicyCategories.map(item => (
+                                <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <FormDescription className="text-[10px]">Required for Google rich snippets. Most accounting services use "Returns Not Permitted".</FormDescription>
+                </FormItem>
+            )} />
+
             <Separator className="my-4" />
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <FormField control={form.control} name="brand" render={({ field }) => ( <FormItem><FormLabel>Brand</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />

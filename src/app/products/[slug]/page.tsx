@@ -1,4 +1,3 @@
-
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
@@ -95,46 +94,27 @@ export default async function ProductDetailPage({ params }: Props) {
     notFound();
   }
 
-  const offers: any = {
+  // If price is TBC, we omit offers entirely as requested by Google Search Console guidelines
+  const offers: any = service.isPriceTbc ? null : {
     '@type': 'Offer',
     url: `https://www.myacc.co.za/products/${service.slug}`,
     priceCurrency: service.currency || 'ZAR',
-    price: !service.isPriceTbc ? service.price.toString() : '0.00',
+    price: service.price.toString(),
     priceValidUntil: '2027-02-28',
     availability: `https://schema.org/${service.availability === 'in_stock' ? 'InStock' : 'OutOfStock'}`,
     itemCondition: `https://schema.org/${service.condition === 'new' ? 'NewCondition' : 'UsedCondition'}`,
-    shippingDetails: {
-      '@type': 'OfferShippingDetails',
-      shippingRate: {
-        '@type': 'MonetaryAmount',
-        value: '0',
-        currency: 'ZAR'
-      },
-      deliveryTime: {
-        '@type': 'ShippingDeliveryTime',
-        handlingTime: {
-          '@type': 'QuantitativeValue',
-          minValue: '0',
-          maxValue: '1',
-          unitCode: 'DAY'
-        },
-        transitTime: {
-          '@type': 'QuantitativeValue',
-          minValue: '0',
-          maxValue: '0',
-          unitCode: 'DAY'
+    // hasMerchantReturnPolicy only added if explicit category is set in admin
+    ...(service.returnPolicyCategory && {
+        hasMerchantReturnPolicy: {
+            '@type': 'MerchantReturnPolicy',
+            applicableCountry: 'ZA',
+            returnPolicyCategory: service.returnPolicyCategory,
+            merchantReturnLink: 'https://www.myacc.co.za/refund-policy'
         }
-      }
-    },
-    hasMerchantReturnPolicy: {
-      '@type': 'MerchantReturnPolicy',
-      applicableCountry: 'ZA',
-      returnPolicyCategory: 'https://schema.org/NoReturns',
-      merchantReturnLink: 'https://www.myacc.co.za/refund-policy'
-    }
+    })
   };
 
-  const jsonLd = {
+  const jsonLd: any = {
     '@context': 'https://schema.org/',
     '@type': 'Product',
     name: service.title,
@@ -145,27 +125,8 @@ export default async function ProductDetailPage({ params }: Props) {
       name: service.brand || 'My Accountant',
     },
     sku: service.id,
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '4.9',
-      reviewCount: '150',
-      bestRating: '5',
-      worstRating: '1'
-    },
-    review: {
-      '@type': 'Review',
-      reviewRating: {
-        '@type': 'Rating',
-        ratingValue: '5',
-        bestRating: '5'
-      },
-      author: {
-        '@type': 'Person',
-        name: 'Verified Client'
-      }
-    },
-    offers,
-     ...(service.google_product_category && { google_product_category: service.google_product_category }),
+    ...(offers && { offers }),
+    ...(service.google_product_category && { google_product_category: service.google_product_category }),
   };
 
   return (

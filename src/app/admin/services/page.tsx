@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download, RefreshCw, Calculator, ArrowUp, ArrowUpDown } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, Copy, Info, AlertTriangle, Download, RefreshCw, Calculator, ArrowUp, ArrowUpDown, CheckCircle2, XCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
@@ -340,11 +340,39 @@ export default function AdminServicesPage() {
         }
     };
 
+  const getSeoStatus = (service: Service) => {
+      const errors: string[] = [];
+      const warnings: string[] = [];
+
+      // Critical GSC Errors
+      if (!service.isPriceTbc && (service.price === undefined || service.price === null || service.price === 0)) {
+          errors.push('Offer price missing.');
+      }
+      if (!service.isPriceTbc && !service.returnPolicyCategory) {
+          errors.push('Merchant Return Policy missing (required for rich snippets).');
+      }
+
+      // Warnings
+      if (!service.metaTitle || service.metaTitle.length > 60) {
+          warnings.push('Meta Title invalid length or missing.');
+      }
+      if (!service.metaDescription || service.metaDescription.length > 160) {
+          warnings.push('Meta Description invalid length or missing.');
+      }
+      if (!service.imageUrl) {
+          warnings.push('Product image missing.');
+      }
+
+      if (errors.length > 0) return { status: 'Error', color: 'text-destructive', icon: <XCircle className="h-4 w-4" />, items: errors };
+      if (warnings.length > 0) return { status: 'Warning', color: 'text-warning', icon: <AlertTriangle className="h-4 w-4" />, items: warnings };
+      return { status: 'Valid', color: 'text-green-600', icon: <CheckCircle2 className="h-4 w-4" />, items: ['Schema correctly optimized for rich results.'] };
+  }
+
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Manage Products</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950">Manage Products</h1>
         <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleDownloadTsv} disabled={services.length === 0}>
               <Download className="mr-2 h-4 w-4" />
@@ -476,8 +504,7 @@ export default function AdminServicesPage() {
                         ) : <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />}
                     </Button>
                 </TableHead>
-                <TableHead>Condition</TableHead>
-                <TableHead>Availability</TableHead>
+                <TableHead>SEO Status</TableHead>
                 <TableHead className="text-right">
                     <Button variant="ghost" onClick={() => handleSort('price')} className="hover:bg-transparent p-0 font-bold ml-auto block text-right">
                         Price
@@ -492,12 +519,7 @@ export default function AdminServicesPage() {
             </TableHeader>
             <TableBody>
               {filteredServices.map(service => {
-                const missingSchemaFields: string[] = [];
-                if (!service.title) missingSchemaFields.push('Title');
-                if (!service.description) missingSchemaFields.push('Description');
-                if (!service.longDescription) missingSchemaFields.push('Long Description');
-                if (!service.price || service.price <= 0) missingSchemaFields.push('Price');
-                if (!service.imageUrl) missingSchemaFields.push('Image URL');
+                const seoInfo = getSeoStatus(service);
 
                 return (
                 <TableRow key={service.id}>
@@ -505,30 +527,25 @@ export default function AdminServicesPage() {
                       <Image src={service.imageUrl} alt={service.title} width={40} height={40} className="rounded-md object-cover" />
                   </TableCell>
                   <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <span>{service.title}</span>
-                      {missingSchemaFields.length > 0 && (
-                          <TooltipProvider>
-                              <Tooltip>
-                                  <TooltipTrigger>
-                                      <AlertTriangle className="h-4 w-4 text-destructive" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                      <p className="font-semibold">Missing Schema Info:</p>
-                                      <ul className="list-disc pl-4 text-xs">
-                                          {missingSchemaFields.map(field => <li key={field}>{field}</li>)}
-                                      </ul>
-                                  </TooltipContent>
-                              </Tooltip>
-                          </TooltipProvider>
-                      )}
-                    </div>
+                    <span>{service.title}</span>
                   </TableCell>
-                   <TableCell className="capitalize">
-                      {service.condition || 'new'}
-                  </TableCell>
-                  <TableCell className="capitalize">
-                      {service.availability?.replace('_', ' ') || 'in stock'}
+                   <TableCell>
+                       <TooltipProvider>
+                           <Tooltip>
+                               <TooltipTrigger asChild>
+                                   <div className={cn("flex items-center gap-1.5 cursor-help font-bold text-[11px]", seoInfo.color)}>
+                                       {seoInfo.icon}
+                                       {seoInfo.status}
+                                   </div>
+                               </TooltipTrigger>
+                               <TooltipContent className="max-w-xs">
+                                   <div className="space-y-1.5">
+                                       <p className="font-bold border-b pb-1 mb-1">Rich Result Analysis:</p>
+                                       {seoInfo.items.map((item, i) => <p key={i} className="text-[10px] leading-tight flex items-start gap-1">• {item}</p>)}
+                                   </div>
+                               </TooltipContent>
+                           </Tooltip>
+                       </TooltipProvider>
                   </TableCell>
                   <TableCell className="text-right">
                     {service.isPriceTbc ? 'TBC' : `R ${service.price.toFixed(2)}`}
