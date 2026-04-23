@@ -1,4 +1,3 @@
-
 'use client';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -127,7 +126,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
       product_type: service?.product_type || 'Accounting > Tax Services',
       google_product_category: service?.google_product_category || 'Business & Industrial > Business Services',
       currency: service?.currency || 'ZAR',
-      returnPolicyCategory: service?.returnPolicyCategory || '',
+      returnPolicyCategory: service?.returnPolicyCategory || 'none',
     },
   });
   
@@ -208,6 +207,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
         clientRequirements: values.clientRequirements.map(v => v.value).filter(Boolean),
         informationToProvide: values.informationToProvide.filter(v => v.label),
         metaKeywords: values.metaKeywords?.map(v => v.value).filter(Boolean),
+        returnPolicyCategory: values.returnPolicyCategory === 'none' ? '' : values.returnPolicyCategory,
     }
     onSubmit(serviceData);
   };
@@ -524,12 +524,12 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
             <FormField control={form.control} name="returnPolicyCategory" render={({ field }) => (
                 <FormItem>
                     <FormLabel>Google Return Policy Category</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                    <Select onValueChange={field.onChange} value={field.value || 'none'}>
                         <FormControl>
                             <SelectTrigger><SelectValue placeholder="Select policy type..." /></SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            <SelectItem value="">None (Omit from Schema)</SelectItem>
+                            <SelectItem value="none">None (Omit from Schema)</SelectItem>
                             {returnPolicyCategories.map(item => (
                                 <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
                             ))}

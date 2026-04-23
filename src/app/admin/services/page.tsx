@@ -348,7 +348,7 @@ export default function AdminServicesPage() {
       if (!service.isPriceTbc && (service.price === undefined || service.price === null || service.price === 0)) {
           errors.push('Offer price missing.');
       }
-      if (!service.isPriceTbc && !service.returnPolicyCategory) {
+      if (!service.isPriceTbc && (!service.returnPolicyCategory || service.returnPolicyCategory === 'none' || service.returnPolicyCategory === '')) {
           errors.push('Merchant Return Policy missing (required for rich snippets).');
       }
 

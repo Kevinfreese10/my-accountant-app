@@ -103,8 +103,8 @@ export default async function ProductDetailPage({ params }: Props) {
     priceValidUntil: '2027-02-28',
     availability: `https://schema.org/${service.availability === 'in_stock' ? 'InStock' : 'OutOfStock'}`,
     itemCondition: `https://schema.org/${service.condition === 'new' ? 'NewCondition' : 'UsedCondition'}`,
-    // hasMerchantReturnPolicy only added if explicit category is set in admin
-    ...(service.returnPolicyCategory && {
+    // hasMerchantReturnPolicy only added if explicit category is set and not 'none'
+    ...(service.returnPolicyCategory && service.returnPolicyCategory !== 'none' && {
         hasMerchantReturnPolicy: {
             '@type': 'MerchantReturnPolicy',
             applicableCountry: 'ZA',
