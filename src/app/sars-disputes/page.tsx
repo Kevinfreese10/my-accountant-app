@@ -1,15 +1,11 @@
+'use client';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { CheckCircle, ShieldCheck, Scale, FileText, Gavel, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { Metadata } from 'next';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
-
-export const metadata: Metadata = {
-  title: 'SARS Disputes & Objections',
-  description: 'Professional assistance with SARS disputes, objections (Section 104), and appeals. Protect your rights and challenge incorrect assessments with expert guidance.',
-};
 
 export default function SarsDisputesPage() {
   const serviceIncludes = [
@@ -25,22 +21,22 @@ export default function SarsDisputesPage() {
     {
       title: 'Procedural Experts',
       description: 'Experts in Tax Administration Act procedures.',
-      icon: Gavel,
+      icon: <Gavel className="h-4 w-4" />,
     },
     {
       title: 'Strong Arguments',
       description: 'Legally sound, merit-based motivations.',
-      icon: FileText,
+      icon: <FileText className="h-4 w-4" />,
     },
     {
       title: 'Risk Management',
       description: 'Strategic advice on when to settle or fight.',
-      icon: ShieldCheck,
+      icon: <ShieldCheck className="h-4 w-4" />,
     },
     {
       title: 'Results Driven',
       description: 'Proven track record in successful objections.',
-      icon: Scale,
+      icon: <Scale className="h-4 w-4" />,
     },
   ];
 

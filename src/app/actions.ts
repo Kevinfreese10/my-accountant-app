@@ -2,7 +2,7 @@
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, limit, deleteField, increment, serverTimestamp, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, CVLead, DemoLead, Employee, Payslip, PayslipItem } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload, AllocationRule, ImportedTransaction, SmartAllocationResult, VatType, DemoLead, Employee, Payslip, PayslipItem } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import React from 'react';
@@ -379,26 +379,11 @@ export async function generateEmployeePayslipAction({
     hours?: any
 }) {
     try {
-        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary, hours);
+        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, baseValue, hours);
         return { success: true, id: result.id };
     } catch (e: any) {
         console.error("Payslip action failed:", e);
         return { success: false, error: e.message || "Initial payslip generation failed." };
-    }
-}
-
-export async function saveCvLead(data: Omit<CVLead, 'id' | 'createdAt'>) {
-    try {
-        const docRef = doc(collection(db, 'cvLeads'));
-        await setDoc(docRef, {
-            ...data,
-            id: docRef.id,
-            createdAt: serverTimestamp(),
-        });
-        return { success: true, id: docRef.id };
-    } catch (e) {
-        console.error("Save CV lead failed:", e);
-        return { success: false };
     }
 }
 

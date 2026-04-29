@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ShoppingCart, LogIn, Menu, FileSearch } from 'lucide-react';
+import { ShoppingCart, LogIn, Menu } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -16,11 +16,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useRouter, usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 const navLinks = [
   { href: '/products', label: 'Products' },
-  { href: '/cv-checker', label: 'CV Checker' },
   { href: '/about', label: 'About' },
   { href: '/blog', label: 'Blog' },
   { href: '/compliance', label: 'Compliance' },

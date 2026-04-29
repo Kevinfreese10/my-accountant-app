@@ -1,15 +1,11 @@
+'use client';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { CheckCircle, ShieldCheck, Scale, FileText, BadgeDollarSign, FileWarning } from 'lucide-react';
 import Link from 'next/link';
-import { Metadata } from 'next';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
-
-export const metadata: Metadata = {
-  title: 'Remission of Fines & Penalties',
-  description: 'Apply for a SARS Request for Remission (RFR) to remove or reduce administrative and understatement penalties. Expert guidance on resolving tax fines legally.',
-};
 
 export default function RemissionOfFinesPage() {
   const serviceIncludes = [
@@ -25,22 +21,22 @@ export default function RemissionOfFinesPage() {
     {
       title: 'Penalty Specialists',
       description: 'Deep experience with SARS penalty codes.',
-      icon: FileWarning,
+      icon: <FileWarning className="h-4 w-4" />,
     },
     {
       title: 'Cost Effective',
       description: 'Our fees are often a fraction of the savings.',
-      icon: BadgeDollarSign,
+      icon: <BadgeDollarSign className="h-4 w-4" />,
     },
     {
       title: 'High Success Rate',
       description: 'Expertly drafted motivations yield better results.',
-      icon: CheckCircle,
+      icon: <CheckCircle className="h-4 w-4" />,
     },
     {
       title: 'Legal Alignment',
       description: 'Arguments aligned to Section 215-218.',
-      icon: Scale,
+      icon: <Scale className="h-4 w-4" />,
     },
   ];
 
