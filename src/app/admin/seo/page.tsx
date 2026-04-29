@@ -56,7 +56,7 @@ export default function SeoManagementPage() {
     mode: 'onChange',
   });
 
-  const { control, setValue, getValues } = form;
+  const { setValue, getValues } = form;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -338,7 +338,7 @@ export default function SeoManagementPage() {
                                     <SeoPageForm
                                         key={page.id}
                                         form={form}
-                                        control={control}
+                                        control={form.control}
                                         index={originalIndex}
                                         page={page}
                                     />
@@ -369,7 +369,7 @@ export default function SeoManagementPage() {
                                             <SeoPageForm
                                                 key={page.id}
                                                 form={form}
-                                                control={control}
+                                                control={form.control}
                                                 index={page.originalIndex}
                                                 page={page}
                                             />
