@@ -2,12 +2,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Metadata } from 'next';
+import { getStaticPageMetadata } from '@/lib/seo-utils';
 
-export const metadata: Metadata = {
-  title: 'About Us',
-  description: 'Learn about My Accountant, our vision, mission, and the expertise that drives us to provide top-tier financial services in South Africa.',
-};
+export const dynamic = 'force-dynamic';
 
+export async function generateMetadata(): Promise<Metadata> {
+    const defaults: Metadata = {
+        title: 'About Us | My Accountant',
+        description: 'Learn about My Accountant, our vision, mission, and the expertise that drives us to provide top-tier financial services in South Africa.',
+    };
+    return getStaticPageMetadata('about', defaults);
+}
 
 export default function AboutPage() {
   return (

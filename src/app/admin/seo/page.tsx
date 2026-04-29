@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -21,7 +22,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
-// Removed .max constraints to allow saving even with "errors" in length
 const seoSchema = z.object({
   id: z.string(),
   path: z.string(),
@@ -73,7 +73,6 @@ export default function SeoManagementPage() {
                 staticOverrides[doc.id] = doc.data();
             });
 
-            // Comprehensive list of all static pages to ensure visibility in dashboard
             const staticPagesConfig = [
                 { id: 'home', path: '/', title: 'My Accountant | Professional Accounting & Tax Services', description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.' },
                 { id: 'about', path: '/about', title: 'About Us | My Accountant', description: 'Learn about My Accountant, our vision, mission, and the expertise that drives us to provide top-tier financial services in South Africa.' },
@@ -325,7 +324,7 @@ export default function SeoManagementPage() {
                             <AccordionTrigger className="text-xl font-semibold flex-grow">{groupName} ({groupPages.length})</AccordionTrigger>
                            
                                 <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating} className="text-primary font-bold">
-                                    {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                                    {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2" />}
                                     Auto-Optimize with AI
                                 </Button>
                             
