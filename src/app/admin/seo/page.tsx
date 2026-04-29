@@ -22,6 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
+// Schema without .max constraints to allow saving regardless of length
 const seoSchema = z.object({
   id: z.string(),
   path: z.string(),
@@ -235,7 +236,6 @@ export default function SeoManagementPage() {
             const originalIndex = allPages.findIndex(p => p.id === page.id);
             if (originalIndex === -1) continue;
 
-            let result;
             let originalTitle = '';
             let content = '';
 

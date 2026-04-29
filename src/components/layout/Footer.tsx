@@ -66,8 +66,8 @@ const Footer = () => {
         </div>
         <div className="mt-8 border-t pt-6 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} My Accountant. All rights reserved.</p>
-          {isProd && buildId && (
-            <p className="mt-2 text-[10px] opacity-30 font-mono">Build ID: {buildId}</p>
+          {buildId && (
+            <p className="mt-2 text-[10px] opacity-40 font-mono select-all">Build ID: {buildId}</p>
           )}
         </div>
       </div>
