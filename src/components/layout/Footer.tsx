@@ -41,6 +41,8 @@ const Footer = () => {
                     <li><Link href="/contact" className="text-muted-foreground hover:text-primary">Contact</Link></li>
                     <li><Link href="/compliance" className="text-muted-foreground hover:text-primary">Compliance Check</Link></li>
                     <li><Link href="/sars-compromise" className="text-muted-foreground hover:text-primary">SARS Compromise</Link></li>
+                    <li><Link href="/sars-disputes" className="text-muted-foreground hover:text-primary">SARS Disputes</Link></li>
+                    <li><Link href="/remission-of-fines" className="text-muted-foreground hover:text-primary">Remission of Fines</Link></li>
                     <li><Link href="/liquidations" className="text-muted-foreground hover:text-primary">Liquidations</Link></li>
                     <li><Link href="/BEI" className="text-muted-foreground hover:text-primary">Become a Partner</Link></li>
                     <li><Link href="/popia" className="text-muted-foreground hover:text-primary">POPIA Policy</Link></li>

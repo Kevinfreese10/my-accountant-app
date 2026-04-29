@@ -1,0 +1,176 @@
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { CheckCircle, ShieldCheck, Scale, FileText, BadgeDollarSign, FileWarning } from 'lucide-react';
+import Link from 'next/link';
+import { Metadata } from 'next';
+import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+
+export const metadata: Metadata = {
+  title: 'Remission of Fines & Penalties',
+  description: 'Apply for a SARS Request for Remission (RFR) to remove or reduce administrative and understatement penalties. Expert guidance on resolving tax fines legally.',
+};
+
+export default function RemissionOfFinesPage() {
+  const serviceIncludes = [
+    'Assessment of penalty type (Admin vs Understatement)',
+    'Review of "Bona Fide" errors or extenuating circumstances',
+    'Drafting of Request for Remission (RFR)',
+    'Compilation of supporting documentation',
+    'Follow-up with SARS Debt Management',
+    'Advisory on preventing future penalties',
+  ];
+
+  const whyChooseUs = [
+    {
+      title: 'Penalty Specialists',
+      description: 'Deep experience with SARS penalty codes.',
+      icon: FileWarning,
+    },
+    {
+      title: 'Cost Effective',
+      description: 'Our fees are often a fraction of the savings.',
+      icon: BadgeDollarSign,
+    },
+    {
+      title: 'High Success Rate',
+      description: 'Expertly drafted motivations yield better results.',
+      icon: CheckCircle,
+    },
+    {
+      title: 'Legal Alignment',
+      description: 'Arguments aligned to Section 215-218.',
+      icon: Scale,
+    },
+  ];
+
+  const penaltySections = [
+    {
+        title: 'Administrative Non-Compliance Penalties',
+        content: `These are fixed-amount penalties for failing to perform a duty, such as:
+- Failure to submit a return on time.
+- Failure to register when required.
+- Failure to notify SARS of change of address.
+
+👉 These can often be remitted if it is a first-time offense or if there are valid exceptional circumstances.`
+    },
+    {
+        title: 'Understatement Penalties (USP)',
+        content: `These are percentage-based penalties (up to 200%) for:
+- Omitting income from a return.
+- Claiming incorrect deductions.
+- Making a false statement to SARS.
+
+👉 Remission of these requires proving a "Bona Fide Error" or showing that the taxpayer had a "reasonable take" on the law.`
+    },
+    {
+        title: 'What are "Exceptional Circumstances"?',
+        content: `SARS may remit penalties if the failure was caused by:
+- A natural or human-made disaster.
+- A civil disturbance or disruption in services.
+- A serious illness or accident involving the taxpayer or key staff.
+- Serious emotional or mental distress.
+- An error or delay on the part of SARS.`
+    },
+    {
+        title: 'The RFR Process',
+        content: `1. Identify the penalty on the assessment.
+2. Lodge a "Request for Remission" (RFR) via eFiling.
+3. Provide a detailed motivation explaining why the penalty should be waived.
+4. If the RFR is denied, we can proceed to a formal Objection.`
+    }
+  ];
+
+  return (
+    <div className="space-y-16 pb-16">
+      <section className="bg-background">
+        <div className="container mx-auto px-4 py-16 text-center">
+          <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
+            Remission of <span className="text-gradient">#Fines</span> & Penalties
+          </h1>
+           <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
+            Get your tax penalties waived. SARS penalties can be aggressive, but they are not always final. If you have been hit with administrative or understatement penalties, you have the right to request a remission.
+          </p>
+           <p className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto">
+             At My Accountant, we specialize in drafting professional "Requests for Remission" (RFR) that clearly articulate your circumstances to SARS, maximizing the likelihood of a successful waiver or reduction.
+          </p>
+          <Button asChild size="lg" className="mt-8">
+            <Link href="/contact">Request a Penalty Review</Link>
+          </Button>
+        </div>
+      </section>
+
+      <TrustIndexWidget />
+
+       <section className="bg-slate-50 py-16">
+        <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold">Our Penalty Resolution Service</h2>
+                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                    We help you navigate the complex rules of penalty remission.
+                </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
+                {serviceIncludes.map((item, index) => (
+                <div key={index} className="flex items-start gap-4">
+                    <div className="bg-primary/10 rounded-full h-10 w-10 flex items-center justify-center flex-shrink-0">
+                         <CheckCircle className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                        <p className="font-medium">{item}</p>
+                    </div>
+                </div>
+                ))}
+            </div>
+        </div>
+      </section>
+
+       <section className="container mx-auto px-4">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold">Why Trust My Accountant?</h2>
+                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                    We speak the language of SARS to get results.
+                </p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                {whyChooseUs.map((benefit) => (
+                    <div key={benefit.title} className="flex flex-col items-center text-center gap-4">
+                        <div className="bg-primary/10 rounded-full h-16 w-16 flex items-center justify-center">
+                            {benefit.icon}
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold">{benefit.title}</h3>
+                            <p className="text-sm text-muted-foreground mt-1">{benefit.description}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+      </section>
+
+       <section className="container mx-auto px-4 max-w-4xl">
+         <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold">Understanding SARS Penalties</h2>
+            <p className="text-muted-foreground mt-2">Know your rights under the Tax Administration Act</p>
+        </div>
+         <Accordion type="single" collapsible className="w-full">
+            {penaltySections.map((section, index) => (
+              <AccordionItem key={index} value={`item-${index}`}>
+                <AccordionTrigger className="text-left font-semibold">{section.title}</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line text-muted-foreground leading-relaxed">{section.content}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+      </section>
+
+      <section className="container mx-auto px-4 text-center">
+        <h2 className="text-3xl font-bold">Are your SARS penalties unfair?</h2>
+        <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+            Don't pay unnecessary fines without a review. Contact us today to see if your penalties qualify for a remission request.
+        </p>
+        <Button asChild size="lg" className="mt-8">
+            <Link href="/contact">Talk to a Penalty Expert</Link>
+        </Button>
+      </section>
+    </div>
+  );
+}

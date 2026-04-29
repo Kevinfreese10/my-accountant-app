@@ -1,4 +1,3 @@
-
 import { getFirestore, collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { BlogPost, Service } from '@/lib/types';
@@ -27,6 +26,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/ai-accountant-signup',
     '/ai-accountant',
     '/sars-compromise',
+    '/sars-disputes',
+    '/remission-of-fines',
     '/liquidations',
   ].map((route) => ({
     url: `${BASE_URL}${route}`,

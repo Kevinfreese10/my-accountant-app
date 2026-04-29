@@ -25,6 +25,8 @@ const navLinks = [
   { href: '/blog', label: 'Blog' },
   { href: '/compliance', label: 'Compliance' },
   { href: '/sars-compromise', label: 'SARS Compromise' },
+  { href: '/sars-disputes', label: 'SARS Disputes' },
+  { href: '/remission-of-fines', label: 'Remission of Fines' },
   { href: '/liquidations', label: 'Liquidations' },
   { href: '/BEI', label: 'Become a Partner' },
   { href: '/contact', label: 'Contact' },
