@@ -17,11 +17,12 @@ import { Separator } from '../ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+// Schema without .max constraints to allow saving over-length tags
 const seoSchema = z.object({
   id: z.string(),
   path: z.string(),
-  title: z.string().max(60, "Title must be 60 characters or less."),
-  description: z.string().max(160, "Description must be 160 characters or less."),
+  title: z.string(),
+  description: z.string(),
   keywords: z.array(z.object({ value: z.string() })).optional(),
   seoImageUrl: z.string().optional(),
   seoImageLabel: z.string().optional(),
@@ -105,7 +106,7 @@ export default function SeoPageForm({ control, index, page, form }: SeoPageFormP
                     <h3 className="font-bold text-lg text-primary">{page.path}</h3>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">Page Identifier: {page.id}</p>
                 </div>
-                <Badge variant="outline" className="h-6">Active</Badge>
+                <Badge variant="outline" className="h-6 text-[10px] uppercase font-bold text-muted-foreground border-muted-foreground/30">Active Route</Badge>
             </div>
 
             <Separator />
@@ -119,14 +120,14 @@ export default function SeoPageForm({ control, index, page, form }: SeoPageFormP
                         <FormItem>
                             <div className="flex justify-between items-end mb-1">
                                 <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Meta Title</FormLabel>
-                                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", titleLength > 60 ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground')}>
+                                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", titleLength > 60 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800')}>
                                     {titleLength}/60 chars
                                 </span>
                             </div>
                             <FormControl>
                                 <Input {...field} className="font-medium" placeholder="Catchy SEO Title | My Accountant" />
                             </FormControl>
-                            <FormDescription className="text-[10px]">The title shown in Google search results.</FormDescription>
+                            <FormDescription className="text-[10px]">The title shown in search results. Over 60 chars may be truncated.</FormDescription>
                             <FormMessage />
                         </FormItem>
                         )}
@@ -139,14 +140,14 @@ export default function SeoPageForm({ control, index, page, form }: SeoPageFormP
                         <FormItem>
                             <div className="flex justify-between items-end mb-1">
                                 <FormLabel className="text-xs font-bold uppercase text-muted-foreground">Meta Description</FormLabel>
-                                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", descLength > 160 ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground')}>
+                                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", descLength > 160 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800')}>
                                     {descLength}/160 chars
                                 </span>
                             </div>
                             <FormControl>
                                 <Textarea {...field} rows={3} className="resize-none" placeholder="Provide a brief summary for search snippets..." />
                             </FormControl>
-                            <FormDescription className="text-[10px]">Summarize the page for users in search results.</FormDescription>
+                            <FormDescription className="text-[10px]">Summarize the page for users. Over 160 chars will be cut off by Google.</FormDescription>
                             <FormMessage />
                         </FormItem>
                         )}
@@ -218,7 +219,7 @@ export default function SeoPageForm({ control, index, page, form }: SeoPageFormP
                                 <FormControl>
                                     <Input {...field} placeholder={page.fallbackImageLabel || "Describe the image for SEO..."} className="h-8 text-xs" />
                                 </FormControl>
-                                <FormDescription className="text-[9px] italic">Keywords describing the image for accessibility and Google Images.</FormDescription>
+                                <FormDescription className="text-[9px] italic">Used as the image alt attribute for indexing.</FormDescription>
                             </FormItem>
                         )}
                     />

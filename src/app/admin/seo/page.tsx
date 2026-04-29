@@ -21,11 +21,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
+// Removed .max constraints to allow saving even with "errors" in length
 const seoSchema = z.object({
   id: z.string(),
   path: z.string(),
-  title: z.string().max(60, "Title must be 60 characters or less."),
-  description: z.string().max(160, "Description must be 160 characters or less."),
+  title: z.string(),
+  description: z.string(),
   keywords: z.array(z.object({ value: z.string() })).optional(),
   seoImageUrl: z.string().optional(),
   seoImageLabel: z.string().optional(),
@@ -48,6 +49,7 @@ export default function SeoManagementPage() {
   const [isAiUpdating, setIsAiUpdating] = useState<string | null>(null);
   
   const form = useForm<SeoFormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       pages: [],
     },
@@ -71,6 +73,7 @@ export default function SeoManagementPage() {
                 staticOverrides[doc.id] = doc.data();
             });
 
+            // Comprehensive list of all static pages to ensure visibility in dashboard
             const staticPagesConfig = [
                 { id: 'home', path: '/', title: 'My Accountant | Professional Accounting & Tax Services', description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.' },
                 { id: 'about', path: '/about', title: 'About Us | My Accountant', description: 'Learn about My Accountant, our vision, mission, and the expertise that drives us to provide top-tier financial services in South Africa.' },
@@ -82,13 +85,16 @@ export default function SeoManagementPage() {
                 { id: 'remission-of-fines', path: '/remission-of-fines', title: 'Remission of Fines & Penalties | My Accountant', description: 'Apply for a SARS Request for Remission (RFR) to remove or reduce administrative and understatement penalties.' },
                 { id: 'liquidations', path: '/liquidations', title: 'Company Liquidations | My Accountant', description: 'Professional assistance with voluntary company liquidations in South Africa. Close your business legally and responsibly.' },
                 { id: 'contact', path: '/contact', title: 'Contact Us | My Accountant', description: 'Get in touch with the My Accountant team. Fill out our contact form with your questions or inquiries.' },
-                { id: 'become-a-partner', path: '/become-a-partner', title: 'Bookkeeper Empowerment Initiative | Partner Program', description: 'Partner with My Accountant to grow your practice. Our BEI program provides the tools, mentorship, and opportunities you need.' },
+                { id: 'BEI', path: '/BEI', title: 'Bookkeeper Empowerment Initiative | Partner Program', description: 'Empowering small and growing bookkeepers in South Africa. Joining is free. Partners get 25% off My Accountant standard service fees.' },
+                { id: 'become-a-partner', path: '/become-a-partner', title: 'Become a Partner | My Accountant', description: 'Partner with My Accountant to grow your practice. Access the mentorship and technology you need.' },
                 { id: 'ai-accountant', path: '/ai-accountant', title: 'AI Accountant | Smart Financial Assistant', description: 'The AI Accountant automates your entire accounting workflow — from receipts to reconciliations — saving you hours of manual work.' },
                 { id: 'ai-accountant-signup', path: '/ai-accountant-signup', title: 'AI Accountant Signup | Start Automating', description: 'Create your AI Accountant profile and start automating your bookkeeping today.' },
-                { id: 'partner-signup', path: '/partner-signup', title: 'Partner Signup | Join the BEI', description: 'Join our partner network and get access to R5000 in starting credits and white-label tools.' },
+                { id: 'partner-signup', path: '/partner-signup', title: 'Partner Signup | Join the BEI', description: 'Join our partner network and get access to starting credits and white-label tools.' },
+                { id: 'franchise', path: '/franchise', title: 'Own a My Accountant Franchise', description: 'Explore exclusive territory opportunities with the My Accountant Franchise model.' },
+                { id: 'franchise-signup', path: '/franchise-signup', title: 'Franchise Signup | My Accountant', description: 'Apply to own your exclusive My Accountant territory and scale with our proven systems.' },
                 { id: 'popia', path: '/popia', title: 'POPIA Compliance Policy', description: 'Read the My Accountant (Pty) Ltd policy on the Protection of Personal Information Act (POPIA).' },
                 { id: 'refund-policy', path: '/refund-policy', title: 'Refund Policy | My Accountant', description: 'Understand the terms and conditions for refunds on services purchased from My Accountant.' },
-                { id: 'terms', path: '/terms', title: 'BEI Terms & Conditions', description: 'Review the official Terms and Conditions for participating in the My Accountant BEI partner program.' },
+                { id: 'terms', path: '/terms', title: 'Terms & Conditions', description: 'Review the official Terms and Conditions for My Accountant services and partner programs.' },
                 { id: 'login', path: '/login', title: 'Portal Login | My Accountant', description: 'Access your secure client or partner dashboard to manage your orders and services.' },
                 { id: 'signup', path: '/signup', title: 'Create an Account | My Accountant', description: 'Sign up for a My Accountant account to manage your tax and accounting services online.' },
             ];
@@ -101,9 +107,9 @@ export default function SeoManagementPage() {
                 keywords: staticOverrides[page.id]?.keywords?.map((k: string) => ({ value: k })) || [],
                 seoImageUrl: staticOverrides[page.id]?.seoImageUrl || '',
                 seoImageLabel: staticOverrides[page.id]?.seoImageLabel || '',
-                fallbackImageUrl: '', // Static pages have no default
+                fallbackImageUrl: '', 
                 fallbackImageLabel: '',
-                pageContent: '', // AI can use title/description
+                pageContent: '', 
             }));
 
             const servicePages = fetchedServices.map(s => ({
@@ -167,7 +173,6 @@ export default function SeoManagementPage() {
                 const blogId = page.id.replace('blog-', '');
                 writePromises.push(setDoc(doc(db, 'blogPosts', blogId), commonData, { merge: true }));
             } else {
-                // Static Page Save
                 writePromises.push(setDoc(doc(db, 'staticSeo', page.id), {
                     title: page.title,
                     description: page.description,
@@ -295,7 +300,7 @@ export default function SeoManagementPage() {
             <p className="text-sm text-muted-foreground">Manage metadata for all {pages.length} pages on the website.</p>
         </div>
         <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} className="gap-2">
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4" />}
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="h-4 w-4" />}
             Save All Changes
         </Button>
       </div>
