@@ -1,7 +1,9 @@
 'use client';
+
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form } from '@/components/ui/form';
@@ -12,7 +14,7 @@ import { Sparkles, Loader2, Save, CheckCircle2 } from 'lucide-react';
 import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Service } from '@/lib/types';
+import { Service, BlogPost } from '@/lib/types';
 import SeoPageForm from '@/components/admin/SeoPageForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -25,6 +27,11 @@ const seoSchema = z.object({
   title: z.string().max(60, "Title must be 60 characters or less."),
   description: z.string().max(160, "Description must be 160 characters or less."),
   keywords: z.array(z.object({ value: z.string() })).optional(),
+  seoImageUrl: z.string().optional(),
+  seoImageLabel: z.string().optional(),
+  fallbackImageUrl: z.string().optional(),
+  fallbackImageLabel: z.string().optional(),
+  pageContent: z.string().optional(),
 });
 
 const formSchema = z.object({
@@ -53,25 +60,21 @@ export default function SeoManagementPage() {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            // 1. Fetch Services
             const sQuery = query(collection(db, "services"), orderBy("title"));
             const sSnap = await getDocs(sQuery);
             const fetchedServices = sSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
             setServices(fetchedServices);
 
-            // 2. Fetch Static SEO Overrides
             const staticSnap = await getDocs(collection(db, 'staticSeo'));
             const staticOverrides: Record<string, any> = {};
             staticSnap.forEach(doc => {
                 staticOverrides[doc.id] = doc.data();
             });
 
-            // 3. Define Static Pages with Defaults
             const staticPagesConfig = [
                 { id: 'home', path: '/', title: 'My Accountant | Professional Accounting & Tax Services', description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.' },
                 { id: 'about', path: '/about', title: 'About Us | My Accountant', description: 'Learn about My Accountant, our vision, mission, and the expertise that drives us to provide top-tier financial services in South Africa.' },
                 { id: 'products', path: '/products', title: 'Our Products | My Accountant', description: 'Comprehensive solutions to meet all your financial needs. We offer a range of services for individuals and businesses.' },
-                { id: 'cv-checker', path: '/cv-checker', title: 'Free AI CV Checker | My Accountant', description: 'Get an instant ATS compatibility score and professional achievement-based rewrites for your CV in seconds.' },
                 { id: 'blog', path: '/blog', title: 'Tax Tip Blog | My Accountant', description: 'Stay informed with our latest articles, tips, and updates on tax-related topics relevant to South African individuals and businesses.' },
                 { id: 'compliance', path: '/compliance', title: 'Free SARS & CIPC Compliance Check', description: 'Ensure your South African business is compliant. Get a free, no-obligation compliance assessment for CIPC and SARS.' },
                 { id: 'sars-compromise', path: '/sars-compromise', title: 'SARS Compromise of Debt | My Accountant', description: 'Explore your options for a SARS Compromise of Debt. We help you negotiate a settlement with SARS to resolve outstanding tax debt.' },
@@ -96,6 +99,11 @@ export default function SeoManagementPage() {
                 title: staticOverrides[page.id]?.title || page.title,
                 description: staticOverrides[page.id]?.description || page.description,
                 keywords: staticOverrides[page.id]?.keywords?.map((k: string) => ({ value: k })) || [],
+                seoImageUrl: staticOverrides[page.id]?.seoImageUrl || '',
+                seoImageLabel: staticOverrides[page.id]?.seoImageLabel || '',
+                fallbackImageUrl: '', // Static pages have no default
+                fallbackImageLabel: '',
+                pageContent: '', // AI can use title/description
             }));
 
             const servicePages = fetchedServices.map(s => ({
@@ -104,6 +112,11 @@ export default function SeoManagementPage() {
                 title: s.metaTitle || `${s.title} | My Accountant`,
                 description: s.metaDescription || s.description,
                 keywords: s.metaKeywords?.map(k => ({ value: k })) || [],
+                seoImageUrl: s.seoImageUrl || '',
+                seoImageLabel: s.seoImageLabel || '',
+                fallbackImageUrl: s.imageUrl,
+                fallbackImageLabel: s.imageHint,
+                pageContent: s.longDescription,
             }));
             
             const blogPages = blogPosts.map(p => ({
@@ -112,6 +125,11 @@ export default function SeoManagementPage() {
                 title: p.metaTitle || `${p.title} | My Accountant`,
                 description: p.metaDescription || p.excerpt,
                 keywords: p.metaKeywords?.map(k => ({ value: k })) || [],
+                seoImageUrl: p.seoImageUrl || '',
+                seoImageLabel: p.seoImageLabel || '',
+                fallbackImageUrl: p.imageUrl,
+                fallbackImageLabel: p.imageHint,
+                pageContent: p.content,
             }));
 
             setValue('pages', [...staticPages, ...servicePages, ...blogPages]);
@@ -134,29 +152,28 @@ export default function SeoManagementPage() {
         const writePromises: Promise<void>[] = [];
 
         data.pages.forEach(page => {
+            const commonData = {
+                metaTitle: page.title,
+                metaDescription: page.description,
+                metaKeywords: page.keywords?.map(k => k.value) || [],
+                seoImageUrl: page.seoImageUrl || '',
+                seoImageLabel: page.seoImageLabel || '',
+            };
+
             if (page.id.startsWith('service-')) {
                 const serviceId = page.id.replace('service-', '');
-                const serviceRef = doc(db, 'services', serviceId);
-                writePromises.push(setDoc(serviceRef, {
-                    metaTitle: page.title,
-                    metaDescription: page.description,
-                    metaKeywords: page.keywords?.map(k => k.value) || [],
-                }, { merge: true }));
+                writePromises.push(setDoc(doc(db, 'services', serviceId), commonData, { merge: true }));
             } else if (page.id.startsWith('blog-')) {
                 const blogId = page.id.replace('blog-', '');
-                const blogRef = doc(db, 'blogPosts', blogId);
-                 writePromises.push(setDoc(blogRef, {
-                    metaTitle: page.title,
-                    metaDescription: page.description,
-                    metaKeywords: page.keywords?.map(k => k.value) || [],
-                }, { merge: true }));
+                writePromises.push(setDoc(doc(db, 'blogPosts', blogId), commonData, { merge: true }));
             } else {
                 // Static Page Save
-                const staticRef = doc(db, 'staticSeo', page.id);
-                writePromises.push(setDoc(staticRef, {
+                writePromises.push(setDoc(doc(db, 'staticSeo', page.id), {
                     title: page.title,
                     description: page.description,
                     keywords: page.keywords?.map(k => k.value) || [],
+                    seoImageUrl: page.seoImageUrl || '',
+                    seoImageLabel: page.seoImageLabel || '',
                     path: page.path
                 }));
             }
@@ -216,24 +233,32 @@ export default function SeoManagementPage() {
 
             let result;
             let originalTitle = '';
+            let content = '';
 
             if (groupName === 'Service Pages') {
                 const originalService = services.find(s => `service-${s.id}` === page.id);
-                if (originalService) originalTitle = originalService.title;
+                if (originalService) {
+                    originalTitle = originalService.title;
+                    content = originalService.longDescription;
+                }
             } else if (groupName === 'Blog Posts') {
                 const originalPost = blogPosts.find(p => `blog-${p.id}` === page.id);
-                 if (originalPost) originalTitle = originalPost.title;
+                 if (originalPost) {
+                    originalTitle = originalPost.title;
+                    content = originalPost.content;
+                 }
             } else {
-                // For static pages, use the path or ID as context
                 originalTitle = page.id.replace(/-/g, ' ');
             }
 
             if (originalTitle) {
-                const seoResult = await generateBlogPostSeo({ title: originalTitle });
+                const seoResult = await generateBlogPostSeo({ title: originalTitle, content });
                  if (seoResult) {
                     form.setValue(`pages.${originalIndex}.title`, seoResult.metaTitle);
                     form.setValue(`pages.${originalIndex}.description`, seoResult.metaDescription);
-                    form.setValue(`pages.${originalIndex}.keywords`, seoResult.metaKeywords.map(k => ({ value: k })));
+                    if (seoResult.metaKeywords) {
+                        form.setValue(`pages.${originalIndex}.keywords`, seoResult.metaKeywords);
+                    }
                 }
             }
         }

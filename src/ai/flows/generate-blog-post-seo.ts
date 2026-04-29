@@ -2,7 +2,7 @@
 /**
  * @fileOverview An AI agent for generating blog post SEO content.
  * 
- * - generateBlogPostSeo - A function that creates SEO content for a blog post based on its title.
+ * - generateBlogPostSeo - A function that creates SEO content for a blog post based on its title and optional content.
  * - GenerateBlogPostSeoInput - The input type for the generateBlogPostSeo function.
  * - GenerateBlogPostSeoOutput - The return type for the generateBlogPostSeo function.
  */
@@ -11,14 +11,15 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GenerateBlogPostSeoInputSchema = z.object({
-  title: z.string().describe('The title of the blog post.'),
+  title: z.string().describe('The title of the blog post or page.'),
+  content: z.string().optional().describe('The full content of the page to analyze for deeper keyword context.'),
 });
 export type GenerateBlogPostSeoInput = z.infer<typeof GenerateBlogPostSeoInputSchema>;
 
 const GenerateBlogPostSeoOutputSchema = z.object({
   metaTitle: z.string().describe('An SEO-optimized meta title. CRITICAL: It must be under 60 characters.'),
   metaDescription: z.string().describe('An SEO-optimized meta description. CRITICAL: It must be under 160 characters.'),
-  metaKeywords: z.array(z.string()).describe('A list of 3-5 relevant SEO keywords or keyphrases.'),
+  metaKeywords: z.array(z.object({ value: z.string() })).describe('A list of 3-5 relevant SEO keywords or keyphrases.'),
 });
 export type GenerateBlogPostSeoOutput = z.infer<typeof GenerateBlogPostSeoOutputSchema>;
 
@@ -35,9 +36,20 @@ const prompt = ai.definePrompt({
   output: {schema: GenerateBlogPostSeoOutputSchema},
   prompt: `You are an expert copywriter and SEO specialist for "My Accountant", a financial services company in South Africa.
 
-  Your task is to generate compelling SEO content for a blog post based on its title. The content must be tailored to a South African audience and follow modern SEO best practices for Google Search Console indexing.
+  Your task is to generate compelling SEO content (Title, Description, and Keywords) for a page based on its title and provided content. 
+  
+  **INSTRUCTIONS**:
+  1. Analyze the context: If content is provided, identify the most commercially relevant keywords from the text.
+  2. South African Context: Ensure keywords and descriptions use SA spelling (e.g., "VAT Registration", "SME").
+  3. Strict Metadata Lengths: 
+     - Meta Title MUST be under 60 characters.
+     - Meta Description MUST be under 160 characters.
 
-  Blog Post Title: {{{title}}}
+  Page Title: {{{title}}}
+  {{#if content}}
+  Page Content Context:
+  {{{content}}}
+  {{/if}}
 
   Please generate the following content based on these strict guidelines:
   
@@ -47,25 +59,19 @@ const prompt = ai.definePrompt({
     - **Purpose**: The main clickable headline shown in search results.
     - **Rules**:
       - CRITICAL: Must be **under 60 characters**.
-      - Place the primary keyword (from the post title) near the start.
       - End with the brand name: " | My Accountant".
-      - Must be unique and written in natural language.
     - **Example**: Tax Tips for Freelancers in SA | My Accountant
 
   - **Meta Description**:
     - **Purpose**: The snippet below the title in search results.
     - **Rules**:
       - CRITICAL: Must be **under 160 characters long**.
-      - Include primary and secondary keywords naturally.
       - Make it actionable and compelling.
-      - Must accurately match the blog post content.
-    - **Example**: Master your finances as a South African freelancer with these 5 essential tax tips. Learn how to stay compliant and save money.
 
   - **Meta Keywords**:
-    - **Purpose**: For internal reference or other search engines (less impact on Google).
+    - **Purpose**: For internal reference or other search engines.
     - **Rules**:
-      - Provide a list of 3–5 relevant keywords or keyphrases.
-    - **Example**: freelance tax south africa, provisional tax, sars tips, independent contractor
+      - Provide a list of 3–5 relevant keywords or keyphrases as objects with a "value" property.
   `,
 });
 
