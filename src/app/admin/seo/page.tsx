@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,7 +10,7 @@ import { Form } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useBlog } from '@/contexts/BlogContext';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Sparkles, Loader2, Save, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Loader2, Save, CheckCircle2, RefreshCw } from 'lucide-react';
 import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -43,10 +42,11 @@ const formSchema = z.object({
 type SeoFormValues = z.infer<typeof formSchema>;
 
 export default function SeoManagementPage() {
-  const { blogPosts } = useBlog();
+  const { blogPosts: contextBlogPosts } = useBlog();
   const { toast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAiUpdating, setIsAiUpdating] = useState<string | null>(null);
   
   const form = useForm<SeoFormValues>({
@@ -59,95 +59,113 @@ export default function SeoManagementPage() {
 
   const { setValue, getValues } = form;
 
-  useEffect(() => {
-    const fetchData = async () => {
-        setIsLoading(true);
-        try {
-            const sQuery = query(collection(db, "services"), orderBy("title"));
-            const sSnap = await getDocs(sQuery);
-            const fetchedServices = sSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
-            setServices(fetchedServices);
+  const refreshAllData = useCallback(async (showToast = false) => {
+    if (showToast) setIsRefreshing(true);
+    else setIsLoading(true);
 
-            const staticSnap = await getDocs(collection(db, 'staticSeo'));
-            const staticOverrides: Record<string, any> = {};
-            staticSnap.forEach(doc => {
-                staticOverrides[doc.id] = doc.data();
-            });
+    try {
+        // 1. Fetch Services
+        const sQuery = query(collection(db, "services"), orderBy("title"));
+        const sSnap = await getDocs(sQuery);
+        const fetchedServices = sSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
+        setServices(fetchedServices);
 
-            const staticPagesConfig = [
-                { id: 'home', path: '/', title: 'My Accountant | Professional Accounting & Tax Services', description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.' },
-                { id: 'about', path: '/about', title: 'About Us | My Accountant', description: 'Learn about My Accountant, our vision, mission, and the expertise that drives us to provide top-tier financial services in South Africa.' },
-                { id: 'products', path: '/products', title: 'Our Products | My Accountant', description: 'Comprehensive solutions to meet all your financial needs. We offer a range of services for individuals and businesses.' },
-                { id: 'blog', path: '/blog', title: 'Tax Tip Blog | My Accountant', description: 'Stay informed with our latest articles, tips, and updates on tax-related topics relevant to South African individuals and businesses.' },
-                { id: 'compliance', path: '/compliance', title: 'Free SARS & CIPC Compliance Check', description: 'Ensure your South African business is compliant. Get a free, no-obligation compliance assessment for CIPC and SARS.' },
-                { id: 'sars-compromise', path: '/sars-compromise', title: 'SARS Compromise of Debt | My Accountant', description: 'Explore your options for a SARS Compromise of Debt. We help you negotiate a settlement with SARS to resolve outstanding tax debt.' },
-                { id: 'sars-disputes', path: '/sars-disputes', title: 'SARS Disputes & Objections | My Accountant', description: 'Professional assistance with SARS disputes, objections (Section 104), and appeals.' },
-                { id: 'remission-of-fines', path: '/remission-of-fines', title: 'Remission of Fines & Penalties | My Accountant', description: 'Apply for a SARS Request for Remission (RFR) to remove or reduce administrative and understatement penalties.' },
-                { id: 'liquidations', path: '/liquidations', title: 'Company Liquidations | My Accountant', description: 'Professional assistance with voluntary company liquidations in South Africa. Close your business legally and responsibly.' },
-                { id: 'contact', path: '/contact', title: 'Contact Us | My Accountant', description: 'Get in touch with the My Accountant team. Fill out our contact form with your questions or inquiries.' },
-                { id: 'BEI', path: '/BEI', title: 'Bookkeeper Empowerment Initiative | Partner Program', description: 'Empowering small and growing bookkeepers in South Africa. Joining is free. Partners get 25% off My Accountant standard service fees.' },
-                { id: 'become-a-partner', path: '/become-a-partner', title: 'Become a Partner | My Accountant', description: 'Partner with My Accountant to grow your practice. Access the mentorship and technology you need.' },
-                { id: 'ai-accountant', path: '/ai-accountant', title: 'AI Accountant | Smart Financial Assistant', description: 'The AI Accountant automates your entire accounting workflow — from receipts to reconciliations — saving you hours of manual work.' },
-                { id: 'ai-accountant-signup', path: '/ai-accountant-signup', title: 'AI Accountant Signup | Start Automating', description: 'Create your AI Accountant profile and start automating your bookkeeping today.' },
-                { id: 'partner-signup', path: '/partner-signup', title: 'Partner Signup | Join the BEI', description: 'Join our partner network and get access to starting credits and white-label tools.' },
-                { id: 'franchise', path: '/franchise', title: 'Own a My Accountant Franchise', description: 'Explore exclusive territory opportunities with the My Accountant Franchise model.' },
-                { id: 'franchise-signup', path: '/franchise-signup', title: 'Franchise Signup | My Accountant', description: 'Apply to own your exclusive My Accountant territory and scale with our proven systems.' },
-                { id: 'popia', path: '/popia', title: 'POPIA Compliance Policy', description: 'Read the My Accountant (Pty) Ltd policy on the Protection of Personal Information Act (POPIA).' },
-                { id: 'refund-policy', path: '/refund-policy', title: 'Refund Policy | My Accountant', description: 'Understand the terms and conditions for refunds on services purchased from My Accountant.' },
-                { id: 'terms', path: '/terms', title: 'Terms & Conditions', description: 'Review the official Terms and Conditions for My Accountant services and partner programs.' },
-                { id: 'login', path: '/login', title: 'Portal Login | My Accountant', description: 'Access your secure client or partner dashboard to manage your orders and services.' },
-                { id: 'signup', path: '/signup', title: 'Create an Account | My Accountant', description: 'Sign up for a My Accountant account to manage your tax and accounting services online.' },
-            ];
+        // 2. Fetch Blog Posts (Directly from DB to ensure "latest")
+        const bQuery = query(collection(db, "blogPosts"), orderBy("date", "desc"));
+        const bSnap = await getDocs(bQuery);
+        const fetchedBlogPosts = bSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BlogPost));
 
-            const staticPages = staticPagesConfig.map(page => ({
-                id: page.id,
-                path: page.path,
-                title: staticOverrides[page.id]?.title || page.title,
-                description: staticOverrides[page.id]?.description || page.description,
-                keywords: staticOverrides[page.id]?.keywords?.map((k: string) => ({ value: k })) || [],
-                seoImageUrl: staticOverrides[page.id]?.seoImageUrl || '',
-                seoImageLabel: staticOverrides[page.id]?.seoImageLabel || '',
-                fallbackImageUrl: '', 
-                fallbackImageLabel: '',
-                pageContent: '', 
-            }));
+        // 3. Fetch Static SEO Overrides
+        const staticSnap = await getDocs(collection(db, 'staticSeo'));
+        const staticOverrides: Record<string, any> = {};
+        staticSnap.forEach(doc => {
+            staticOverrides[doc.id] = doc.data();
+        });
 
-            const servicePages = fetchedServices.map(s => ({
-                id: `service-${s.id}`,
-                path: `/products/${s.slug}`,
-                title: s.metaTitle || `${s.title} | My Accountant`,
-                description: s.metaDescription || s.description,
-                keywords: s.metaKeywords?.map(k => ({ value: k })) || [],
-                seoImageUrl: s.seoImageUrl || '',
-                seoImageLabel: s.seoImageLabel || '',
-                fallbackImageUrl: s.imageUrl,
-                fallbackImageLabel: s.imageHint,
-                pageContent: s.longDescription,
-            }));
-            
-            const blogPages = blogPosts.map(p => ({
-                id: `blog-${p.id}`,
-                path: `/blog/${p.slug}`,
-                title: p.metaTitle || `${p.title} | My Accountant`,
-                description: p.metaDescription || p.excerpt,
-                keywords: p.metaKeywords?.map(k => ({ value: k })) || [],
-                seoImageUrl: p.seoImageUrl || '',
-                seoImageLabel: p.seoImageLabel || '',
-                fallbackImageUrl: p.imageUrl,
-                fallbackImageLabel: p.imageHint,
-                pageContent: p.content,
-            }));
+        // 4. Define Static Page Base Config (22 Pages)
+        const staticPagesConfig = [
+            { id: 'home', path: '/', title: 'My Accountant | Professional Accounting & Tax Services', description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.' },
+            { id: 'about', path: '/about', title: 'About Us | My Accountant', description: 'Learn about My Accountant, our vision, mission, and the expertise that drives us to provide top-tier financial services in South Africa.' },
+            { id: 'products', path: '/products', title: 'Our Products | My Accountant', description: 'Comprehensive solutions to meet all your financial needs. We offer a range of services for individuals and businesses.' },
+            { id: 'blog', path: '/blog', title: 'Tax Tip Blog | My Accountant', description: 'Stay informed with our latest articles, tips, and updates on tax-related topics relevant to South African individuals and businesses.' },
+            { id: 'compliance', path: '/compliance', title: 'Free SARS & CIPC Compliance Check', description: 'Ensure your South African business is compliant. Get a free, no-obligation compliance assessment for CIPC and SARS.' },
+            { id: 'sars-compromise', path: '/sars-compromise', title: 'SARS Compromise of Debt | My Accountant', description: 'Explore your options for a SARS Compromise of Debt. We help you negotiate a settlement with SARS to resolve outstanding tax debt.' },
+            { id: 'sars-disputes', path: '/sars-disputes', title: 'SARS Disputes & Objections | My Accountant', description: 'Professional assistance with SARS disputes, objections (Section 104), and appeals.' },
+            { id: 'remission-of-fines', path: '/remission-of-fines', title: 'Remission of Fines & Penalties | My Accountant', description: 'Apply for a SARS Request for Remission (RFR) to remove or reduce administrative and understatement penalties.' },
+            { id: 'liquidations', path: '/liquidations', title: 'Company Liquidations | My Accountant', description: 'Professional assistance with voluntary company liquidations in South Africa. Close your business legally and responsibly.' },
+            { id: 'contact', path: '/contact', title: 'Contact Us | My Accountant', description: 'Get in touch with the My Accountant team. Fill out our contact form with your questions or inquiries.' },
+            { id: 'BEI', path: '/BEI', title: 'Bookkeeper Empowerment Initiative | Partner Program', description: 'Empowering small and growing bookkeepers in South Africa. Joining is free. Partners get 25% off My Accountant standard service fees.' },
+            { id: 'become-a-partner', path: '/become-a-partner', title: 'Become a Partner | My Accountant', description: 'Partner with My Accountant to grow your practice. Access the mentorship and technology you need.' },
+            { id: 'ai-accountant', path: '/ai-accountant', title: 'AI Accountant | Smart Financial Assistant', description: 'The AI Accountant automates your entire accounting workflow — from receipts to reconciliations — saving you hours of manual work.' },
+            { id: 'ai-accountant-signup', path: '/ai-accountant-signup', title: 'AI Accountant Signup | Start Automating', description: 'Create your AI Accountant profile and start automating your bookkeeping today.' },
+            { id: 'partner-signup', path: '/partner-signup', title: 'Partner Signup | Join the BEI', description: 'Join our partner network and get access to starting credits and white-label tools.' },
+            { id: 'franchise', path: '/franchise', title: 'Own a My Accountant Franchise', description: 'Explore exclusive territory opportunities with the My Accountant Franchise model.' },
+            { id: 'franchise-signup', path: '/franchise-signup', title: 'Franchise Signup | My Accountant', description: 'Apply to own your exclusive My Accountant territory and scale with our proven systems.' },
+            { id: 'popia', path: '/popia', title: 'POPIA Compliance Policy', description: 'Read the My Accountant (Pty) Ltd policy on the Protection of Personal Information Act (POPIA).' },
+            { id: 'refund-policy', path: '/refund-policy', title: 'Refund Policy | My Accountant', description: 'Understand the terms and conditions for refunds on services purchased from My Accountant.' },
+            { id: 'terms', path: '/terms', title: 'Terms & Conditions', description: 'Review the official Terms and Conditions for My Accountant services and partner programs.' },
+            { id: 'login', path: '/login', title: 'Portal Login | My Accountant', description: 'Access your secure client or partner dashboard to manage your orders and services.' },
+            { id: 'signup', path: '/signup', title: 'Create an Account | My Accountant', description: 'Sign up for a My Accountant account to manage your tax and accounting services online.' },
+        ];
 
-            setValue('pages', [...staticPages, ...servicePages, ...blogPages]);
-        } catch(error) {
-            console.error("Error fetching SEO data: ", error);
-            toast({ title: 'Error', description: 'Could not fetch SEO data.', variant: 'destructive'});
-        } finally {
-            setIsLoading(false);
+        // 5. Map all pages
+        const staticPages = staticPagesConfig.map(page => ({
+            id: page.id,
+            path: page.path,
+            title: staticOverrides[page.id]?.title || page.title,
+            description: staticOverrides[page.id]?.description || page.description,
+            keywords: staticOverrides[page.id]?.keywords?.map((k: string) => ({ value: k })) || [],
+            seoImageUrl: staticOverrides[page.id]?.seoImageUrl || '',
+            seoImageLabel: staticOverrides[page.id]?.seoImageLabel || '',
+            fallbackImageUrl: '', 
+            fallbackImageLabel: '',
+            pageContent: '', 
+        }));
+
+        const servicePages = fetchedServices.map(s => ({
+            id: `service-${s.id}`,
+            path: `/products/${s.slug}`,
+            title: s.metaTitle || `${s.title} | My Accountant`,
+            description: s.metaDescription || s.description,
+            keywords: s.metaKeywords?.map(k => ({ value: k })) || [],
+            seoImageUrl: s.seoImageUrl || '',
+            seoImageLabel: s.seoImageLabel || '',
+            fallbackImageUrl: s.imageUrl,
+            fallbackImageLabel: s.imageHint,
+            pageContent: s.longDescription,
+        }));
+        
+        const blogPages = fetchedBlogPosts.map(p => ({
+            id: `blog-${p.id}`,
+            path: `/blog/${p.slug}`,
+            title: p.metaTitle || `${p.title} | My Accountant`,
+            description: p.metaDescription || p.excerpt,
+            keywords: p.metaKeywords?.map(k => ({ value: k })) || [],
+            seoImageUrl: p.seoImageUrl || '',
+            seoImageLabel: p.seoImageLabel || '',
+            fallbackImageUrl: p.imageUrl,
+            fallbackImageLabel: p.imageHint,
+            pageContent: p.content,
+        }));
+
+        // Update form state
+        setValue('pages', [...staticPages, ...servicePages, ...blogPages]);
+        
+        if (showToast) {
+            toast({ title: "Data Refreshed", description: "Successfully fetched latest pages and SEO data from server." });
         }
-    };
-    fetchData();
-  }, [blogPosts, setValue, toast]);
+    } catch(error) {
+        console.error("Error fetching SEO data: ", error);
+        toast({ title: 'Error', description: 'Could not fetch latest SEO data.', variant: 'destructive'});
+    } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+    }
+  }, [setValue, toast]);
+
+  useEffect(() => {
+    refreshAllData();
+  }, [refreshAllData]);
 
 
   const onSubmit = async (data: SeoFormValues) => {
@@ -246,7 +264,7 @@ export default function SeoManagementPage() {
                     content = originalService.longDescription;
                 }
             } else if (groupName === 'Blog Posts') {
-                const originalPost = blogPosts.find(p => `blog-${p.id}` === page.id);
+                const originalPost = contextBlogPosts.find(p => `blog-${p.id}` === page.id);
                  if (originalPost) {
                     originalTitle = originalPost.title;
                     content = originalPost.content;
@@ -293,15 +311,21 @@ export default function SeoManagementPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-950">SEO Management</h1>
             <p className="text-sm text-muted-foreground">Manage metadata for all {pages.length} pages on the website.</p>
         </div>
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} className="gap-2">
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="h-4 w-4" />}
-            Save All Changes
-        </Button>
+        <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => refreshAllData(true)} disabled={isRefreshing || isLoading} className="gap-2">
+                {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin"/> : <RefreshCw className="h-4 w-4" />}
+                Fetch Latest
+            </Button>
+            <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} className="gap-2 shadow-lg">
+                {isLoading && !isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="h-4 w-4" />}
+                Save All Changes
+            </Button>
+        </div>
       </div>
       <Card>
         <CardHeader>
