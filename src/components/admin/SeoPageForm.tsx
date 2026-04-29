@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Trash, Sparkles, Loader2, Images, Info } from 'lucide-react';
+import { Trash, Sparkles, Loader2, Images, Info, Image as ImageIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import MediaLibrary from './MediaLibrary';
@@ -14,6 +14,8 @@ import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 import { Separator } from '../ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 const seoSchema = z.object({
   id: z.string(),
@@ -25,7 +27,7 @@ const seoSchema = z.object({
   seoImageLabel: z.string().optional(),
   fallbackImageUrl: z.string().optional(),
   fallbackImageLabel: z.string().optional(),
-  pageContent: z.string().optional(), // For AI context
+  pageContent: z.string().optional(),
 });
 
 const formSchema = z.object({
