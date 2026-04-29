@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { MapPin, Mail, Phone } from 'lucide-react';
 
 const Footer = () => {
-  const isProd = process.env.NODE_ENV === 'production';
   const buildId = process.env.NEXT_PUBLIC_BUILD_TIMESTAMP;
 
   return (
@@ -67,7 +66,9 @@ const Footer = () => {
         <div className="mt-8 border-t pt-6 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} My Accountant. All rights reserved.</p>
           {buildId && (
-            <p className="mt-2 text-[10px] opacity-40 font-mono select-all">Build ID: {buildId}</p>
+            <div className="mt-4 inline-block px-3 py-1 rounded-md border bg-muted/50 text-[10px] font-mono select-all">
+                BUILD ID: {buildId}
+            </div>
           )}
         </div>
       </div>
