@@ -61,7 +61,12 @@ export async function generateMetadata(
   const canonicalUrl = `https://www.myacc.co.za/blog/${post.slug}`;
   const title = post.metaTitle || `${post.title} | My Accountant`;
   const description = post.metaDescription || post.excerpt;
-  const image = post.seoImageUrl || post.imageUrl || 'https://www.myacc.co.za/og-image.jpg';
+  
+  // Prioritize Social Sharing Image from dashboard (seoImageUrl)
+  let ogImage = post.seoImageUrl || post.imageUrl || 'https://www.myacc.co.za/og-image.jpg';
+  if (ogImage.startsWith('/')) {
+    ogImage = `https://www.myacc.co.za${ogImage}`;
+  }
  
   return {
     title: title,
@@ -73,7 +78,7 @@ export async function generateMetadata(
       title: title,
       description: description,
       images: [{
-        url: image,
+        url: ogImage,
         width: 1200,
         height: 630,
         alt: post.seoImageLabel || post.title
@@ -87,7 +92,7 @@ export async function generateMetadata(
       card: 'summary_large_image',
       title: title,
       description: description,
-      images: [image],
+      images: [ogImage],
     },
   }
 }

@@ -17,20 +17,30 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
       const data = docSnap.data();
       const title = data.metaTitle || data.title || defaults.title;
       const description = data.metaDescription || data.description || defaults.description;
-      const imageUrl = data.seoImageUrl || 'https://www.myacc.co.za/og-image.jpg';
       const keywords = data.metaKeywords || data.keywords || defaults.keywords;
+      
+      // Ensure absolute image URL
+      let imageUrl = data.seoImageUrl || 'https://www.myacc.co.za/og-image.jpg';
+      if (imageUrl.startsWith('/')) {
+        imageUrl = `https://www.myacc.co.za${imageUrl}`;
+      }
+
+      const canonicalUrl = `https://www.myacc.co.za/${pageId === 'home' ? '' : pageId}`;
 
       return {
         ...defaults,
         title,
         description,
         keywords,
+        alternates: {
+          canonical: canonicalUrl,
+        },
         openGraph: {
           ...defaults.openGraph,
           title: String(title),
           description: String(description),
           type: 'website',
-          url: `https://www.myacc.co.za/${pageId === 'home' ? '' : pageId}`,
+          url: canonicalUrl,
           siteName: 'My Accountant',
           locale: 'en_ZA',
           images: [
@@ -55,19 +65,30 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
     console.error(`Error fetching SEO for ${pageId}:`, e);
   }
   
-  // Robust fallback with explicit OG object
+  // Robust fallback with explicit OG object using default og-image
+  const fallbackTitle = String(defaults.title || 'My Accountant');
+  const fallbackDesc = String(defaults.description || 'Professional Accounting & Tax Services');
+  const fallbackImg = 'https://www.myacc.co.za/og-image.jpg';
+
   return {
     ...defaults,
     openGraph: {
         ...defaults.openGraph,
+        title: fallbackTitle,
+        description: fallbackDesc,
         images: [
             {
-                url: 'https://www.myacc.co.za/og-image.jpg',
+                url: fallbackImg,
                 width: 1200,
                 height: 630,
-                alt: String(defaults.title || 'My Accountant'),
+                alt: fallbackTitle,
             }
         ]
+    },
+    twitter: {
+        ...defaults.twitter,
+        card: 'summary_large_image',
+        images: [fallbackImg],
     }
   };
 }
