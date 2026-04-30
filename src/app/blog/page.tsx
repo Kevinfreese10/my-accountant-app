@@ -1,3 +1,4 @@
+
 'use client';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -13,6 +14,9 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { useBlog } from '@/contexts/BlogContext';
 import { format } from 'date-fns';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default function BlogPage() {
   const { blogPosts, isLoading } = useBlog();

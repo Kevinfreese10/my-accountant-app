@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import {
@@ -16,6 +17,9 @@ import { Service } from '@/lib/types';
 import { useEffect, useState, useMemo } from 'react';
 
 const db = getFirestore(firebaseApp);
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 type Category = { 
     id: string; 

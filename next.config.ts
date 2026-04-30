@@ -2,12 +2,21 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'standalone',
+  /* Generate a unique build ID based on timestamp to bust CDN and browser caches */
+  generateBuildId: async () => {
+    return `build-${new Date().getTime()}`;
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
   },
   images: {
     remotePatterns: [
@@ -45,6 +54,30 @@ const nextConfig: NextConfig = {
   },
   env: {
     NEXT_PUBLIC_APP_URL: "https://www.myacc.co.za",
+    // This provides a readable build timestamp for the footer
+    NEXT_PUBLIC_BUILD_TIMESTAMP: new Date().toISOString(),
+  },
+  async headers() {
+    return [
+      {
+        // Apply no-cache headers to all routes to ensure the latest version is always fetched
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0, must-revalidate',
+          },
+          {
+            key: 'Pragma',
+            value: 'no-cache',
+          },
+          {
+            key: 'Expires',
+            value: '0',
+          },
+        ],
+      },
+    ];
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
