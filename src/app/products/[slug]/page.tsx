@@ -4,7 +4,7 @@ import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
 import { Service } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
-import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Metadata, ResolvingMetadata } from 'next';
 import ServiceCheckoutForm from '@/components/checkout/ServiceCheckoutForm';
@@ -36,14 +36,11 @@ async function getService(slug: string): Promise<Service | null> {
     return serviceData as Service;
 }
 
-const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
-      maximumFractionDigits: 2,
-    }).format(price);
-};
+async function getPartnerOverride(partnerId: string, serviceId: string): Promise<any | null> {
+    const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', serviceId);
+    const snap = await getDoc(overrideRef);
+    return snap.exists() ? snap.data() : null;
+}
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -57,19 +54,20 @@ export async function generateMetadata(
   const service = await getService(slug);
  
   if (!service) {
-    return {
-      title: 'Product Not Found'
-    }
+    return { title: 'Product Not Found' }
   }
 
-  const canonicalUrl = `https://www.myacc.co.za/products/${service.slug}`;
+  const siteUrl = 'https://www.myacc.co.za';
+  const canonicalUrl = `${siteUrl}/products/${service.slug}`;
+  
+  // Prioritize the structured Meta data if set in admin dashboard
   const title = service.metaTitle || `${service.title} | My Accountant`;
   const description = service.metaDescription || service.description;
   
-  // Prioritize Social Sharing Image from dashboard (seoImageUrl)
-  let ogImage = service.seoImageUrl || service.imageUrl || 'https://www.myacc.co.za/og-image.jpg';
+  // Prioritize Social Sharing Image (seoImageUrl) then fallback to featured image
+  let ogImage = service.seoImageUrl || service.imageUrl || `${siteUrl}/og-image.jpg`;
   if (ogImage.startsWith('/')) {
-    ogImage = `https://www.myacc.co.za${ogImage}`;
+    ogImage = `${siteUrl}${ogImage}`;
   }
  
   return {
@@ -81,16 +79,16 @@ export async function generateMetadata(
     openGraph: {
       title: title,
       description: description,
+      url: canonicalUrl,
+      siteName: 'My Accountant',
+      locale: 'en_ZA',
+      type: 'website',
       images: [{
         url: ogImage,
         width: 1200,
         height: 630,
         alt: service.seoImageLabel || service.title
       }],
-      url: canonicalUrl,
-      siteName: 'My Accountant',
-      locale: 'en_ZA',
-      type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
@@ -100,6 +98,15 @@ export async function generateMetadata(
     },
   }
 }
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
 
 export default async function ProductDetailPage({ params }: Props) {
   const { slug } = await params;

@@ -49,7 +49,7 @@ export default function FranchisePage() {
       <section className="bg-slate-900 text-white py-24 relative overflow-hidden">
         <div className="container mx-auto px-4 text-center relative z-10">
           <Badge className="mb-4 bg-primary hover:bg-primary text-white border-none px-4 py-1 uppercase font-black tracking-widest">Franchise Opportunity</Badge>
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tight leading-tight">
+          <h1 className="text-4xl font-bold tracking-tight md:text-6xl lg:text-7xl font-black tracking-tight leading-tight">
             Own Your Territory. <br/><span className="text-primary">Scale with Confidence.</span>
           </h1>
           <p className="mt-8 text-xl text-slate-300 max-w-3xl mx-auto font-medium leading-relaxed">

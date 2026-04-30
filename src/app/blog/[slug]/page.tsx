@@ -53,19 +53,18 @@ export async function generateMetadata(
   const post = await getPost(slug);
  
   if (!post) {
-    return {
-      title: 'Post Not Found'
-    }
+    return { title: 'Post Not Found' }
   }
 
-  const canonicalUrl = `https://www.myacc.co.za/blog/${post.slug}`;
+  const siteUrl = 'https://www.myacc.co.za';
+  const canonicalUrl = `${siteUrl}/blog/${post.slug}`;
   const title = post.metaTitle || `${post.title} | My Accountant`;
   const description = post.metaDescription || post.excerpt;
   
-  // Prioritize Social Sharing Image from dashboard (seoImageUrl)
-  let ogImage = post.seoImageUrl || post.imageUrl || 'https://www.myacc.co.za/og-image.jpg';
+  // Prioritize Social Sharing Image (seoImageUrl) from dashboard
+  let ogImage = post.seoImageUrl || post.imageUrl || `${siteUrl}/og-image.jpg`;
   if (ogImage.startsWith('/')) {
-    ogImage = `https://www.myacc.co.za${ogImage}`;
+    ogImage = `${siteUrl}${ogImage}`;
   }
  
   return {
@@ -77,16 +76,16 @@ export async function generateMetadata(
     openGraph: {
       title: title,
       description: description,
+      url: canonicalUrl,
+      siteName: 'My Accountant',
+      locale: 'en_ZA',
+      type: 'article',
       images: [{
         url: ogImage,
         width: 1200,
         height: 630,
         alt: post.seoImageLabel || post.title
       }],
-      url: canonicalUrl,
-      siteName: 'My Accountant',
-      locale: 'en_ZA',
-      type: 'article',
     },
     twitter: {
       card: 'summary_large_image',

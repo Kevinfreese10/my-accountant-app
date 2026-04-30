@@ -9,23 +9,24 @@ const db = getFirestore(firebaseApp);
  * Ensures absolute URLs and explicit image objects for og:image to satisfy social scrapers.
  */
 export async function getStaticPageMetadata(pageId: string, defaults: Metadata): Promise<Metadata> {
+  const siteUrl = 'https://www.myacc.co.za';
+  const canonicalUrl = `${siteUrl}${pageId === 'home' ? '' : `/${pageId}`}`;
+
   try {
     const docRef = doc(db, 'staticSeo', pageId);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
       const data = docSnap.data();
-      const title = data.metaTitle || data.title || defaults.title;
-      const description = data.metaDescription || data.description || defaults.description;
+      const title = String(data.metaTitle || data.title || defaults.title || 'My Accountant');
+      const description = String(data.metaDescription || data.description || defaults.description || '');
       const keywords = data.metaKeywords || data.keywords || defaults.keywords;
       
-      // Ensure absolute image URL
+      // Prioritize the Social Sharing Image (seoImageUrl) from dashboard
       let imageUrl = data.seoImageUrl || 'https://www.myacc.co.za/og-image.jpg';
       if (imageUrl.startsWith('/')) {
-        imageUrl = `https://www.myacc.co.za${imageUrl}`;
+        imageUrl = `${siteUrl}${imageUrl}`;
       }
-
-      const canonicalUrl = `https://www.myacc.co.za/${pageId === 'home' ? '' : pageId}`;
 
       return {
         ...defaults,
@@ -36,27 +37,25 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
           canonical: canonicalUrl,
         },
         openGraph: {
-          ...defaults.openGraph,
-          title: String(title),
-          description: String(description),
-          type: 'website',
+          title,
+          description,
           url: canonicalUrl,
           siteName: 'My Accountant',
           locale: 'en_ZA',
+          type: 'website',
           images: [
             { 
               url: imageUrl, 
               width: 1200, 
               height: 630,
-              alt: data.seoImageLabel || String(title)
+              alt: data.seoImageLabel || title
             }
           ],
         },
         twitter: {
-          ...defaults.twitter,
           card: 'summary_large_image',
-          title: String(title),
-          description: String(description),
+          title,
+          description,
           images: [imageUrl],
         }
       };
@@ -65,17 +64,23 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
     console.error(`Error fetching SEO for ${pageId}:`, e);
   }
   
-  // Robust fallback with explicit OG object using default og-image
+  // Robust fallback with explicit OG object
   const fallbackTitle = String(defaults.title || 'My Accountant');
-  const fallbackDesc = String(defaults.description || 'Professional Accounting & Tax Services');
+  const fallbackDesc = String(defaults.description || '');
   const fallbackImg = 'https://www.myacc.co.za/og-image.jpg';
 
   return {
     ...defaults,
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
-        ...defaults.openGraph,
         title: fallbackTitle,
         description: fallbackDesc,
+        url: canonicalUrl,
+        siteName: 'My Accountant',
+        locale: 'en_ZA',
+        type: 'website',
         images: [
             {
                 url: fallbackImg,
@@ -86,8 +91,9 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
         ]
     },
     twitter: {
-        ...defaults.twitter,
         card: 'summary_large_image',
+        title: fallbackTitle,
+        description: fallbackDesc,
         images: [fallbackImg],
     }
   };
