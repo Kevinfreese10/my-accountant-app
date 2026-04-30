@@ -52,7 +52,8 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { slug } = await params;
   const service = await getService(slug);
- 
+  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0';
+
   if (!service) {
     return { title: 'Product Not Found' }
   }
@@ -60,12 +61,10 @@ export async function generateMetadata(
   const siteUrl = 'https://www.myacc.co.za';
   const canonicalUrl = `${siteUrl}/products/${service.slug}`;
   
-  // Prioritize the structured Meta data if set in admin dashboard
   const title = service.metaTitle || `${service.title} | My Accountant`;
   const description = service.metaDescription || service.description;
   
-  // Prioritize Social Sharing Image (seoImageUrl) then fallback to featured image
-  let ogImage = service.seoImageUrl || service.imageUrl || `${siteUrl}/og-image.jpg`;
+  let ogImage = service.seoImageUrl || service.imageUrl || globalFallbackImg;
   if (ogImage.startsWith('/')) {
     ogImage = `${siteUrl}${ogImage}`;
   }

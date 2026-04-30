@@ -11,6 +11,7 @@ const db = getFirestore(firebaseApp);
 export async function getStaticPageMetadata(pageId: string, defaults: Metadata): Promise<Metadata> {
   const siteUrl = 'https://www.myacc.co.za';
   const canonicalUrl = `${siteUrl}${pageId === 'home' ? '' : `/${pageId}`}`;
+  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0';
 
   try {
     const docRef = doc(db, 'staticSeo', pageId);
@@ -22,8 +23,7 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
       const description = String(data.metaDescription || data.description || defaults.description || '');
       const keywords = data.metaKeywords || data.keywords || defaults.keywords;
       
-      // Prioritize the Social Sharing Image (seoImageUrl) from dashboard
-      let imageUrl = data.seoImageUrl || 'https://www.myacc.co.za/og-image.jpg';
+      let imageUrl = data.seoImageUrl || globalFallbackImg;
       if (imageUrl.startsWith('/')) {
         imageUrl = `${siteUrl}${imageUrl}`;
       }
@@ -64,10 +64,8 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
     console.error(`Error fetching SEO for ${pageId}:`, e);
   }
   
-  // Robust fallback with explicit OG object
   const fallbackTitle = String(defaults.title || 'My Accountant');
   const fallbackDesc = String(defaults.description || '');
-  const fallbackImg = 'https://www.myacc.co.za/og-image.jpg';
 
   return {
     ...defaults,
@@ -83,7 +81,7 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
         type: 'website',
         images: [
             {
-                url: fallbackImg,
+                url: globalFallbackImg,
                 width: 1200,
                 height: 630,
                 alt: fallbackTitle,
@@ -94,7 +92,7 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
         card: 'summary_large_image',
         title: fallbackTitle,
         description: fallbackDesc,
-        images: [fallbackImg],
+        images: [globalFallbackImg],
     }
   };
 }

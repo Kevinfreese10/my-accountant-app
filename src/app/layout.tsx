@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     siteName: 'My Accountant',
     images: [
       {
-        url: 'https://www.myacc.co.za/og-image.jpg',
+        url: 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0',
         width: 1200,
         height: 630,
         alt: 'My Accountant - Professional Accounting & Tax',
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'My Accountant | Professional Accounting & Tax Services',
     description: 'Simplify your finances with our expert accounting and tax solutions.',
-    images: ['https://www.myacc.co.za/og-image.jpg'],
+    images: ['https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0'],
   },
 };
 
