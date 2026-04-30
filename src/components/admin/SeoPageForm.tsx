@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useFieldArray, Control, UseFormReturn } from 'react-hook-form';
@@ -7,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Trash, Sparkles, Loader2, Images, Info, Image as ImageIcon } from 'lucide-react';
+import { Trash, Sparkles, Loader2, Images, Info, Image as ImageIcon, Copy } from 'lucide-react';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import MediaLibrary from './MediaLibrary';
@@ -87,6 +86,13 @@ export default function SeoPageForm({ control, index, page, form }: SeoPageFormP
         }
     };
 
+    const handleCopyLink = () => {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za';
+        const fullUrl = `${baseUrl}${page.path}`;
+        navigator.clipboard.writeText(fullUrl);
+        toast({ title: "Link Copied!", description: `URL for ${page.id} is on your clipboard.` });
+    };
+
     return (
         <div className="p-6 border rounded-xl bg-card shadow-sm space-y-6">
             <Dialog open={isMediaLibraryOpen} onOpenChange={setIsMediaLibraryOpen}>
@@ -107,7 +113,12 @@ export default function SeoPageForm({ control, index, page, form }: SeoPageFormP
                     <h3 className="font-bold text-lg text-primary">{page.path}</h3>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">Page Identifier: {page.id}</p>
                 </div>
-                <Badge variant="outline" className="h-6 text-[10px] uppercase font-bold text-muted-foreground border-muted-foreground/30">Active Route</Badge>
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handleCopyLink} className="h-7 text-[10px] gap-1 font-bold">
+                        <Copy className="h-3 w-3" /> Copy Link
+                    </Button>
+                    <Badge variant="outline" className="h-7 text-[10px] uppercase font-bold text-muted-foreground border-muted-foreground/30">Active Route</Badge>
+                </div>
             </div>
 
             <Separator />
