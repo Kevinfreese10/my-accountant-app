@@ -6,7 +6,7 @@ const db = getFirestore(firebaseApp);
 
 /**
  * Fetches dynamic SEO overrides for static pages from Firestore.
- * Supports Open Graph and Twitter tags for social sharing.
+ * Ensures absolute URLs for og:image to satisfy Facebook's scraper.
  */
 export async function getStaticPageMetadata(pageId: string, defaults: Metadata): Promise<Metadata> {
   try {
@@ -17,7 +17,7 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
       const data = docSnap.data();
       const title = data.metaTitle || data.title || defaults.title;
       const description = data.metaDescription || data.description || defaults.description;
-      const imageUrl = data.seoImageUrl || (defaults.openGraph?.images as any)?.[0]?.url || '/og-image.jpg';
+      const imageUrl = data.seoImageUrl || 'https://www.myacc.co.za/og-image.jpg';
       const keywords = data.metaKeywords || data.keywords || defaults.keywords;
 
       return {
@@ -30,7 +30,7 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
           title: String(title),
           description: String(description),
           type: 'website',
-          url: defaults.openGraph?.url || `https://www.myacc.co.za/${pageId === 'home' ? '' : pageId}`,
+          url: `https://www.myacc.co.za/${pageId === 'home' ? '' : pageId}`,
           siteName: 'My Accountant',
           locale: 'en_ZA',
           images: [
@@ -54,5 +54,20 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
   } catch (e) {
     console.error(`Error fetching SEO for ${pageId}:`, e);
   }
-  return defaults;
+  
+  // Ensure defaults also have absolute image URLs if Firestore data is missing
+  return {
+    ...defaults,
+    openGraph: {
+        ...defaults.openGraph,
+        images: [
+            {
+                url: 'https://www.myacc.co.za/og-image.jpg',
+                width: 1200,
+                height: 630,
+                alt: String(defaults.title || 'My Accountant'),
+            }
+        ]
+    }
+  };
 }

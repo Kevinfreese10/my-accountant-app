@@ -55,7 +55,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const lp = partner.landingPage;
   const title = lp?.metaTitle || `${partner.companyName || partner.name} | Professional Accounting & Tax`;
   const description = lp?.metaDescription || lp?.heroSubtitle;
-  const ogImage = lp?.heroImageUrl || '';
+  const ogImage = lp?.heroImageUrl || 'https://www.myacc.co.za/og-image.jpg';
 
   return {
     title,
@@ -63,13 +63,22 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     openGraph: {
       title,
       description,
-      images: ogImage ? [ogImage] : [],
+      images: [{
+        url: ogImage,
+        width: 1200,
+        height: 630,
+        alt: title
+      }],
+      type: 'website',
+      url: `https://www.myacc.co.za/p/${slug}`,
+      siteName: partner.companyName || partner.name,
+      locale: 'en_ZA',
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: ogImage ? [ogImage] : [],
+      images: [ogImage],
     }
   };
 }

@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     siteName: 'My Accountant',
     images: [
       {
-        url: '/og-image.jpg',
+        url: 'https://www.myacc.co.za/og-image.jpg',
         width: 1200,
         height: 630,
         alt: 'My Accountant - Professional Accounting & Tax',
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'My Accountant | Professional Accounting & Tax Services',
     description: 'Simplify your finances with our expert accounting and tax solutions.',
-    images: ['/og-image.jpg'],
+    images: ['https://www.myacc.co.za/og-image.jpg'],
   },
 };
 

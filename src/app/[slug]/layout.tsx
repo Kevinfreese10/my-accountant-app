@@ -33,9 +33,26 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const partner = await getFranchiseBySlug(slug);
   if (!partner) return { title: 'Not Found' };
 
+  const title = `My Accountant ${partner.franchise?.areaName} | Professional Accounting & Tax`;
+  const description = `Your local My Accountant branch in ${partner.franchise?.areaName}. Professional bookkeeping, SARS and CIPC services.`;
+
   return {
-    title: `My Accountant ${partner.franchise?.areaName} | Professional Accounting & Tax`,
-    description: `Your local My Accountant branch in ${partner.franchise?.areaName}. Professional bookkeeping, SARS and CIPC services.`,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: [{
+          url: 'https://www.myacc.co.za/og-image.jpg',
+          width: 1200,
+          height: 630,
+          alt: title
+      }],
+      type: 'website',
+      url: `https://www.myacc.co.za/${slug}`,
+      siteName: 'My Accountant',
+      locale: 'en_ZA',
+    }
   };
 }
 

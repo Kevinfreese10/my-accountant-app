@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -8,6 +7,12 @@ import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import AIAccountantSignupForm from '@/components/auth/AIAccountantSignupForm';
+import { getStaticPageMetadata } from '@/lib/seo-utils';
+import { Metadata } from 'next';
+import { useEffect, useState } from 'react';
+
+// This is a client component, so we move the metadata generation to a wrapper or use a specific pattern
+// For simplicity and immediate fix, we'll ensure the SEO data is available.
 
 export default function AiAccountantPage() {
 
