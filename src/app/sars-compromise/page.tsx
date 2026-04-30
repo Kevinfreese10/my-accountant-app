@@ -1,15 +1,10 @@
+'use client';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { CheckCircle, ShieldCheck, Scale, Users, FileText, LifeBuoy } from 'lucide-react';
 import Link from 'next/link';
-import { Metadata } from 'next';
-
-export const metadata: Metadata = {
-  title: 'SARS Compromise of Debt',
-  description: 'Explore your options for a SARS Compromise of Debt with My Accountant. We help you negotiate a settlement with SARS to resolve outstanding tax debt and get a fresh start.',
-};
 
 export default function SarsCompromisePage() {
   const serviceIncludes = [
@@ -135,7 +130,7 @@ In such cases:
     {
         title: '3. Where There Is Dishonesty or Non-Disclosure',
         content: `SARS will not enter into a compromise if:
-- Information is false, misleading, or incomplete
+- Information was false, misleading, or incomplete
 - Assets or income are concealed
 - There is failure to disclose connected parties
 - The taxpayer is not fully transparent
@@ -143,7 +138,7 @@ In such cases:
 📌 Even after approval, non-disclosure can void the compromise under Section 205.`
     },
     {
-        title: '4. Where the Tax Debt Arose From Fraud or Intentional Tax Evasion',
+        title: '4. Where the Tax debt Arose From Fraud or Intentional Tax Evasion',
         content: `You cannot enter into a compromise if the debt is linked to:
 - Fraud
 - Intentional tax evasion

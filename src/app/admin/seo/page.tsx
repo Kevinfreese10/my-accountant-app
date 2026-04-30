@@ -21,7 +21,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
-// Schema without .max constraints to allow saving regardless of length
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const seoSchema = z.object({
   id: z.string(),
   path: z.string(),
@@ -64,25 +66,19 @@ export default function SeoManagementPage() {
     else setIsLoading(true);
 
     try {
-        // 1. Fetch Services
-        const sQuery = query(collection(db, "services"), orderBy("title"));
-        const sSnap = await getDocs(sQuery);
+        const sSnap = await getDocs(query(collection(db, "services"), orderBy("title")));
         const fetchedServices = sSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
         setServices(fetchedServices);
 
-        // 2. Fetch Blog Posts (Directly from DB to ensure "latest")
-        const bQuery = query(collection(db, "blogPosts"), orderBy("date", "desc"));
-        const bSnap = await getDocs(bQuery);
+        const bSnap = await getDocs(query(collection(db, "blogPosts"), orderBy("date", "desc")));
         const fetchedBlogPosts = bSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BlogPost));
 
-        // 3. Fetch Static SEO Overrides
         const staticSnap = await getDocs(collection(db, 'staticSeo'));
         const staticOverrides: Record<string, any> = {};
         staticSnap.forEach(doc => {
             staticOverrides[doc.id] = doc.data();
         });
 
-        // 4. Define Static Page Base Config (22 Pages)
         const staticPagesConfig = [
             { id: 'home', path: '/', title: 'My Accountant | Professional Accounting & Tax Services', description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.' },
             { id: 'about', path: '/about', title: 'About Us | My Accountant', description: 'Learn about My Accountant, our vision, mission, and the expertise that drives us to provide top-tier financial services in South Africa.' },
@@ -108,7 +104,6 @@ export default function SeoManagementPage() {
             { id: 'signup', path: '/signup', title: 'Create an Account | My Accountant', description: 'Sign up for a My Accountant account to manage your tax and accounting services online.' },
         ];
 
-        // 5. Map all pages
         const staticPages = staticPagesConfig.map(page => ({
             id: page.id,
             path: page.path,
@@ -148,7 +143,6 @@ export default function SeoManagementPage() {
             pageContent: p.content,
         }));
 
-        // Update form state
         setValue('pages', [...staticPages, ...servicePages, ...blogPages]);
         
         if (showToast) {
@@ -167,14 +161,12 @@ export default function SeoManagementPage() {
     refreshAllData();
   }, [refreshAllData]);
 
-
   const onSubmit = async (data: SeoFormValues) => {
     setIsLoading(true);
     toast({ title: 'Saving SEO data...', description: 'Please wait.' });
 
     try {
         const writePromises: Promise<void>[] = [];
-
         data.pages.forEach(page => {
             const commonData = {
                 metaTitle: page.title,
@@ -192,25 +184,16 @@ export default function SeoManagementPage() {
                 writePromises.push(setDoc(doc(db, 'blogPosts', blogId), commonData, { merge: true }));
             } else {
                 writePromises.push(setDoc(doc(db, 'staticSeo', page.id), {
-                    title: page.title,
-                    description: page.description,
-                    keywords: page.keywords?.map(k => k.value) || [],
-                    seoImageUrl: page.seoImageUrl || '',
-                    seoImageLabel: page.seoImageLabel || '',
+                    ...commonData,
                     path: page.path
                 }));
             }
         });
         
         await Promise.all(writePromises);
-
-        toast({
-            title: 'SEO Settings Saved',
-            description: 'Your changes have been saved successfully across all pages.',
-        });
-
+        toast({ title: 'SEO Settings Saved', description: 'Your changes are now live.' });
     } catch (e) {
-        console.error("Error saving SEO data:", e);
+        console.error(e);
         toast({ title: 'Save Failed', variant: 'destructive'});
     } finally {
         setIsLoading(false);
@@ -218,7 +201,6 @@ export default function SeoManagementPage() {
   };
 
   const pages = form.watch('pages');
-
   const pageGroups = {
     'Static Pages': pages.filter(f => !f.path.startsWith('/products/') && !f.path.startsWith('/blog/')),
     'Service Pages': pages.filter(f => f.path.startsWith('/products/')),
@@ -229,22 +211,16 @@ export default function SeoManagementPage() {
     pages.reduce((acc, page, index) => {
       const title = page.title.trim().toLowerCase();
       if (title) {
-        if (!acc[title]) {
-          acc[title] = [];
-        }
+        if (!acc[title]) acc[title] = [];
         acc[title].push({ ...page, originalIndex: index });
       }
       return acc;
     }, {} as Record<string, (typeof pages[0] & { originalIndex: number })[]>)
   ).filter(group => group.length > 1);
 
-
   const handleAiUpdate = async (groupName: string) => {
     setIsAiUpdating(groupName);
-    toast({
-        title: `Optimizing ${groupName}...`,
-        description: 'The AI is generating new SEO content. Please wait.',
-    });
+    toast({ title: `Optimizing ${groupName}...`, description: 'Generating new SEO content.' });
 
     try {
         const pagesToUpdate = pageGroups[groupName as keyof typeof pageGroups];
@@ -275,7 +251,7 @@ export default function SeoManagementPage() {
 
             if (originalTitle) {
                 const seoResult = await generateBlogPostSeo({ title: originalTitle, content });
-                 if (seoResult) {
+                if (seoResult) {
                     form.setValue(`pages.${originalIndex}.title`, seoResult.metaTitle);
                     form.setValue(`pages.${originalIndex}.description`, seoResult.metaDescription);
                     if (seoResult.metaKeywords) {
@@ -284,29 +260,16 @@ export default function SeoManagementPage() {
                 }
             }
         }
-        
-        toast({
-            title: 'Optimization Complete!',
-            description: `${groupName} have been updated with AI-generated SEO content.`,
-        });
+        toast({ title: 'Optimization Complete!' });
     } catch (error) {
-        console.error("AI Generation Error: ", error);
-        toast({
-            title: 'AI Update Failed',
-            description: 'There was an error generating content. Please try again.',
-            variant: 'destructive',
-        });
+        toast({ title: 'AI Update Failed', variant: 'destructive' });
     } finally {
         setIsAiUpdating(null);
     }
   }
 
   if (isLoading && pages.length === 0) {
-      return (
-          <div className="flex justify-center items-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-      )
+      return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
   return (
@@ -314,7 +277,7 @@ export default function SeoManagementPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-950">SEO Management</h1>
-            <p className="text-sm text-muted-foreground">Manage metadata for all {pages.length} pages on the website.</p>
+            <p className="text-sm text-muted-foreground">Manage metadata for all {pages.length} live routes.</p>
         </div>
         <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => refreshAllData(true)} disabled={isRefreshing || isLoading} className="gap-2">
@@ -330,7 +293,7 @@ export default function SeoManagementPage() {
       <Card>
         <CardHeader>
           <CardTitle>Page SEO Details</CardTitle>
-          <CardDescription>Update the meta titles and descriptions. Use the AI button to auto-optimize sections.</CardDescription>
+          <CardDescription>Update the meta titles and descriptions for pages on your site.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -346,12 +309,10 @@ export default function SeoManagementPage() {
                         <AccordionItem key={groupName} value={groupName}>
                             <div className="flex items-center">
                             <AccordionTrigger className="text-xl font-semibold flex-grow">{groupName} ({groupPages.length})</AccordionTrigger>
-                           
-                                <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating} className="text-primary font-bold">
-                                    {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2" />}
-                                    Auto-Optimize with AI
-                                </Button>
-                            
+                            <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating} className="text-primary font-bold">
+                                {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2" />}
+                                Auto-Optimize
+                            </Button>
                             </div>
                             <AccordionContent className="space-y-6 pt-4">
                             {groupPages.map((page) => {
@@ -377,9 +338,7 @@ export default function SeoManagementPage() {
                         <div className="space-y-4 pt-4">
                             <Alert variant="destructive">
                                 <AlertTitle>Duplicate Titles Found</AlertTitle>
-                                <AlertDescription>
-                                    Search engines prefer unique titles for every page. These pages currently share identical meta titles.
-                                </AlertDescription>
+                                <AlertDescription>Ensure each page has a unique title for optimal search indexing.</AlertDescription>
                             </Alert>
                             <Accordion type="multiple" className="w-full">
                             {duplicateTitleGroups.map((group, index) => (
@@ -405,7 +364,7 @@ export default function SeoManagementPage() {
                      ) : (
                         <div className="text-center py-20 bg-muted/20 rounded-lg border-2 border-dashed">
                             <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4 opacity-20" />
-                            <p className="text-muted-foreground">No duplicate titles found. Your site is well-optimized!</p>
+                            <p className="text-muted-foreground">No duplicate titles found!</p>
                         </div>
                      )}
                 </TabsContent>
