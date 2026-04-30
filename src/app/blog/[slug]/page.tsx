@@ -1,4 +1,3 @@
-
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { BlogPost, Service } from '@/lib/types';
@@ -59,25 +58,36 @@ export async function generateMetadata(
     }
   }
 
-  const canonicalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/blog/${post.slug}`;
+  const canonicalUrl = `https://www.myacc.co.za/blog/${post.slug}`;
+  const title = post.metaTitle || `${post.title} | My Accountant`;
+  const description = post.metaDescription || post.excerpt;
+  const image = post.imageUrl || 'https://www.myacc.co.za/og-image.jpg';
  
   return {
-    title: post.metaTitle || post.title,
-    description: post.metaDescription || post.excerpt,
+    title: title,
+    description: description,
     alternates: {
         canonical: canonicalUrl,
     },
     openGraph: {
-      title: post.metaTitle || post.title,
-      description: post.metaDescription || post.excerpt,
-      images: [post.imageUrl],
+      title: title,
+      description: description,
+      images: [{
+        url: image,
+        width: 1200,
+        height: 630,
+        alt: post.title
+      }],
       url: canonicalUrl,
+      siteName: 'My Accountant',
+      locale: 'en_ZA',
+      type: 'article',
     },
     twitter: {
       card: 'summary_large_image',
-      title: post.metaTitle || post.title,
-      description: post.metaDescription || post.excerpt,
-      images: [post.imageUrl],
+      title: title,
+      description: description,
+      images: [image],
     },
   }
 }

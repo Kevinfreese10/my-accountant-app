@@ -11,30 +11,32 @@ import ExternalScripts from '@/components/layout/ExternalScripts';
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.myacc.co.za'),
   title: {
-    default: 'My Accountant | Professional Accounting & Tax Services',
+    default: 'My Accountant | South African Tax, Accounting & Compliance Services',
     template: '%s | My Accountant',
   },
-  description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.',
+  description: 'Professional online tax, accounting, CIPC, SARS and compliance services for South African businesses.',
+  keywords: ['accounting', 'tax services', 'CIPC', 'SARS', 'bookkeeping', 'South Africa'],
   openGraph: {
-    title: 'My Accountant | Professional Accounting & Tax Services',
-    description: 'Simplify your finances with our expert accounting and tax solutions.',
+    title: 'My Accountant | South African Tax, Accounting & Compliance Services',
+    description: 'Professional online tax, accounting, CIPC, SARS and compliance services for South African businesses.',
     url: 'https://www.myacc.co.za',
     siteName: 'My Accountant',
     images: [
       {
-        url: 'https://storage.googleapis.com/aai-web-samples/my-accountant-logo.png',
-        width: 512,
-        height: 512,
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'My Accountant - Professional Accounting & Tax',
       },
     ],
     locale: 'en_ZA',
     type: 'website',
   },
-   twitter: {
+  twitter: {
     card: 'summary_large_image',
     title: 'My Accountant | Professional Accounting & Tax Services',
     description: 'Simplify your finances with our expert accounting and tax solutions.',
-    images: ['https://storage.googleapis.com/aai-web-samples/my-accountant-logo.png'],
+    images: ['/og-image.jpg'],
   },
 };
 

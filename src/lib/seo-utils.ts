@@ -17,7 +17,7 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
       const data = docSnap.data();
       const title = data.metaTitle || data.title || defaults.title;
       const description = data.metaDescription || data.description || defaults.description;
-      const imageUrl = data.seoImageUrl || (defaults.openGraph?.images as any)?.[0]?.url;
+      const imageUrl = data.seoImageUrl || (defaults.openGraph?.images as any)?.[0]?.url || '/og-image.jpg';
       const keywords = data.metaKeywords || data.keywords || defaults.keywords;
 
       return {
@@ -27,17 +27,27 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
         keywords,
         openGraph: {
           ...defaults.openGraph,
-          title,
-          description,
+          title: String(title),
+          description: String(description),
           type: 'website',
-          images: imageUrl ? [{ url: imageUrl, width: 1200, height: 630 }] : defaults.openGraph?.images,
+          url: defaults.openGraph?.url || `https://www.myacc.co.za/${pageId === 'home' ? '' : pageId}`,
+          siteName: 'My Accountant',
+          locale: 'en_ZA',
+          images: [
+            { 
+              url: imageUrl, 
+              width: 1200, 
+              height: 630,
+              alt: data.seoImageLabel || String(title)
+            }
+          ],
         },
         twitter: {
           ...defaults.twitter,
           card: 'summary_large_image',
-          title,
-          description,
-          images: imageUrl ? [imageUrl] : defaults.twitter?.images,
+          title: String(title),
+          description: String(description),
+          images: [imageUrl],
         }
       };
     }

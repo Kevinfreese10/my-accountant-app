@@ -62,25 +62,36 @@ export async function generateMetadata(
     }
   }
 
-  const canonicalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/products/${service.slug}`;
+  const canonicalUrl = `https://www.myacc.co.za/products/${service.slug}`;
+  const title = service.metaTitle || `${service.title} | My Accountant`;
+  const description = service.metaDescription || service.description;
+  const image = service.imageUrl || 'https://www.myacc.co.za/og-image.jpg';
  
   return {
-    title: service.metaTitle || service.title,
-    description: service.metaDescription || service.description,
-     alternates: {
+    title: title,
+    description: description,
+    alternates: {
         canonical: canonicalUrl,
     },
     openGraph: {
-      title: service.metaTitle || service.title,
-      description: service.description,
-      images: [service.imageUrl],
+      title: title,
+      description: description,
+      images: [{
+        url: image,
+        width: 1200,
+        height: 630,
+        alt: service.title
+      }],
       url: canonicalUrl,
+      siteName: 'My Accountant',
+      locale: 'en_ZA',
+      type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: service.metaTitle || service.title,
-      description: service.description,
-      images: [service.imageUrl],
+      title: title,
+      description: description,
+      images: [image],
     },
   }
 }
@@ -94,7 +105,6 @@ export default async function ProductDetailPage({ params }: Props) {
     notFound();
   }
 
-  // If price is TBC, we omit offers entirely as requested by Google Search Console guidelines
   const offers: any = service.isPriceTbc ? null : {
     '@type': 'Offer',
     url: `https://www.myacc.co.za/products/${service.slug}`,
@@ -103,7 +113,6 @@ export default async function ProductDetailPage({ params }: Props) {
     priceValidUntil: '2027-02-28',
     availability: `https://schema.org/${service.availability === 'in_stock' ? 'InStock' : 'OutOfStock'}`,
     itemCondition: `https://schema.org/${service.condition === 'new' ? 'NewCondition' : 'UsedCondition'}`,
-    // hasMerchantReturnPolicy only added if explicit category is set and not 'none'
     ...(service.returnPolicyCategory && service.returnPolicyCategory !== 'none' && {
         hasMerchantReturnPolicy: {
             '@type': 'MerchantReturnPolicy',
