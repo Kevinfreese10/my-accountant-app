@@ -6,7 +6,7 @@ const db = getFirestore(firebaseApp);
 
 /**
  * Fetches dynamic SEO overrides for static pages from Firestore.
- * Ensures absolute URLs for og:image to satisfy Facebook's scraper.
+ * Ensures absolute URLs and explicit image objects for og:image to satisfy social scrapers.
  */
 export async function getStaticPageMetadata(pageId: string, defaults: Metadata): Promise<Metadata> {
   try {
@@ -55,7 +55,7 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
     console.error(`Error fetching SEO for ${pageId}:`, e);
   }
   
-  // Ensure defaults also have absolute image URLs if Firestore data is missing
+  // Robust fallback with explicit OG object
   return {
     ...defaults,
     openGraph: {

@@ -1,14 +1,20 @@
-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, ShieldCheck, Scale, Users, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { Metadata } from 'next';
+import { getStaticPageMetadata } from '@/lib/seo-utils';
 
-export const metadata: Metadata = {
-  title: 'Company Liquidations',
-  description: 'Professional assistance with voluntary company liquidations in South Africa. Close your business legally and responsibly with expert guidance from My Accountant.',
-};
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function generateMetadata(): Promise<Metadata> {
+    const defaults: Metadata = {
+        title: 'Company Liquidations | My Accountant',
+        description: 'Professional assistance with voluntary company liquidations in South Africa. Close your business legally and responsibly.',
+    };
+    return getStaticPageMetadata('liquidations', defaults);
+}
 
 export default function LiquidationsPage() {
   const processSteps = [

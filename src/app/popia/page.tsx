@@ -1,10 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Metadata } from 'next';
+import { getStaticPageMetadata } from '@/lib/seo-utils';
 
-export const metadata: Metadata = {
-  title: 'POPIA Compliance Policy',
-  description: 'Read the My Accountant (Pty) Ltd policy on the Protection of Personal Information Act (POPIA), detailing how we collect, process, and safeguard your data.',
-};
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function generateMetadata(): Promise<Metadata> {
+    const defaults: Metadata = {
+        title: 'POPIA Compliance Policy',
+        description: 'Read the My Accountant (Pty) Ltd policy on the Protection of Personal Information Act (POPIA).',
+    };
+    return getStaticPageMetadata('popia', defaults);
+}
 
 export default function PopiaPage() {
   return (
@@ -68,7 +75,7 @@ export default function PopiaPage() {
                     <p>Personal information is processed for purposes including:</p>
                     <ul className="list-disc pl-6 space-y-1 mt-2">
                         <li>Delivering accounting, tax, and compliance services.</li>
-                        <li>Fulfilling statutory obligations (e.g., SARS, CIPC, NCR).</li>
+                        <li>Fulfilling statutory obligations (e.g., SARS, CIPC, Department of Labour).</li>
                         <li>Communicating with clients, employees, and stakeholders.</li>
                         <li>Business administration and HR management.</li>
                         <li>Marketing our services (with consent).</li>

@@ -1,12 +1,18 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 import { Metadata } from 'next';
+import { getStaticPageMetadata } from '@/lib/seo-utils';
 
-export const metadata: Metadata = {
-  title: 'Refund Policy',
-  description: 'Understand the terms and conditions for refunds on services purchased from My Accountant. Learn about our 48-hour request window and non-refundable policy once work has commenced.',
-};
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function generateMetadata(): Promise<Metadata> {
+    const defaults: Metadata = {
+        title: 'Refund Policy | My Accountant',
+        description: 'Understand the terms and conditions for refunds on services purchased from My Accountant.',
+    };
+    return getStaticPageMetadata('refund-policy', defaults);
+}
 
 export default function RefundPolicyPage() {
   return (

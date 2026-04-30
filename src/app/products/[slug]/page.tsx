@@ -65,7 +65,7 @@ export async function generateMetadata(
   const canonicalUrl = `https://www.myacc.co.za/products/${service.slug}`;
   const title = service.metaTitle || `${service.title} | My Accountant`;
   const description = service.metaDescription || service.description;
-  const image = service.imageUrl || 'https://www.myacc.co.za/og-image.jpg';
+  const image = service.seoImageUrl || service.imageUrl || 'https://www.myacc.co.za/og-image.jpg';
  
   return {
     title: title,
@@ -80,7 +80,7 @@ export async function generateMetadata(
         url: image,
         width: 1200,
         height: 630,
-        alt: service.title
+        alt: service.seoImageLabel || service.title
       }],
       url: canonicalUrl,
       siteName: 'My Accountant',
@@ -95,7 +95,6 @@ export async function generateMetadata(
     },
   }
 }
-
 
 export default async function ProductDetailPage({ params }: Props) {
   const { slug } = await params;

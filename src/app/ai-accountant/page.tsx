@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Rocket, ShieldCheck, Wallet, Bot, FileInput, BarChart, Percent, Building, Users, FileText, BadgeDollarSign, CheckCircle, Banknote, FileSearch, TrendingUp } from 'lucide-react';
@@ -9,13 +7,19 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import AIAccountantSignupForm from '@/components/auth/AIAccountantSignupForm';
 import { getStaticPageMetadata } from '@/lib/seo-utils';
 import { Metadata } from 'next';
-import { useEffect, useState } from 'react';
 
-// This is a client component, so we move the metadata generation to a wrapper or use a specific pattern
-// For simplicity and immediate fix, we'll ensure the SEO data is available.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function generateMetadata(): Promise<Metadata> {
+    const defaults: Metadata = {
+        title: 'AI Accountant | Smart Financial Assistant',
+        description: 'The AI Accountant automates your entire accounting workflow — from receipts to reconciliations — saving you hours of manual work every month.',
+    };
+    return getStaticPageMetadata('ai-accountant', defaults);
+}
 
 export default function AiAccountantPage() {
-
   const coreFunctions = [
     {
       title: 'Client Receipts & Payments',

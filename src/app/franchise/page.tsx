@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { CheckCircle2, TrendingUp, Wallet, ShieldCheck, Globe, Briefcase, Users, FileText, ArrowRight, Store, MapPin, Percent } from 'lucide-react';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { Separator } from '@/components/ui/separator';
+import { getStaticPageMetadata } from '@/lib/seo-utils';
+import { Metadata } from 'next';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function generateMetadata(): Promise<Metadata> {
+    const defaults: Metadata = {
+        title: 'Own a My Accountant Franchise',
+        description: 'Explore exclusive territory opportunities with the My Accountant Franchise model and own your exclusive My Accountant territory.',
+    };
+    return getStaticPageMetadata('franchise', defaults);
+}
 
 export default function FranchisePage() {
   const benefits = [

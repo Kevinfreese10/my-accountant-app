@@ -61,7 +61,7 @@ export async function generateMetadata(
   const canonicalUrl = `https://www.myacc.co.za/blog/${post.slug}`;
   const title = post.metaTitle || `${post.title} | My Accountant`;
   const description = post.metaDescription || post.excerpt;
-  const image = post.imageUrl || 'https://www.myacc.co.za/og-image.jpg';
+  const image = post.seoImageUrl || post.imageUrl || 'https://www.myacc.co.za/og-image.jpg';
  
   return {
     title: title,
@@ -76,7 +76,7 @@ export async function generateMetadata(
         url: image,
         width: 1200,
         height: 630,
-        alt: post.title
+        alt: post.seoImageLabel || post.title
       }],
       url: canonicalUrl,
       siteName: 'My Accountant',
