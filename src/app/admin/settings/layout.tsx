@@ -1,4 +1,3 @@
-
 'use client';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Link from 'next/link';
@@ -16,7 +15,6 @@ const settingsNav = [
     { title: 'Manage Discounts', href: '/admin/discounts' },
     { title: 'Knowledge Base & Training', href: '/admin/knowledge-base' },
     { title: 'Media', href: '/admin/media' },
-    { title: 'SEO Management', href: '/admin/seo' },
 ];
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {

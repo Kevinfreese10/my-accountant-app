@@ -67,7 +67,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
     pathname.startsWith('/admin/discounts') ||
     pathname.startsWith('/admin/knowledge-base') ||
     pathname.startsWith('/admin/media') ||
-    pathname.startsWith('/admin/seo') ||
     pathname.includes('/ai-accountant/allocation-rules') ||
     pathname.includes('/ai-accountant/chart-of-accounts')
   );
@@ -92,6 +91,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const adminNavItems = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
+    { href: '/admin/pages', label: 'Pages', icon: FileText, roles: ['admin'] },
     { href: '/admin/demo-leads', label: 'Demo Leads', icon: Presentation, roles: ['admin'] },
     { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
@@ -120,7 +120,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
     { href: '/admin/ai-accountant/chart-of-accounts', label: 'Chart of Accounts', icon: ListOrdered, roles: ['admin']},
     { href: '/admin/media', label: 'Media', icon: Images, roles: ['admin'] },
-    { href: '/admin/seo', label: 'SEO Management', icon: Search, roles: ['admin'] },
   ];
 
   const partnerNavItems = [
