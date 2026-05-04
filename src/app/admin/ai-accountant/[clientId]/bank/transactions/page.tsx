@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers, FileSpreadsheet, Save, MessageSquare, RefreshCw, Calendar as CalendarIcon } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers, FileSpreadsheet, Save, MessageSquare, RefreshCw, Calendar as CalendarIcon, Users } from 'lucide-react';
 import Papa from 'papaparse';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, SmartAllocationResult, Supplier } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,7 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups, analyzeClientCommentAndSuggest, bulkMoveTransactionsToNew } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups, analyzeClientCommentAndSuggest, bulkMoveTransactionsToNew, matchTransactionsToSuppliers } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -556,7 +556,7 @@ function CreateManualTransactionDialog({ client, bankAccountId, open, onOpenChan
 
             if (isExpense && match) {
                 const keyword = match.keywords.find(kw => description.includes(kw.toUpperCase()));
-                txData.allocatedTo = { value: match.accountId, type: match.accountType || 'account' };
+                txData.allocatedTo = { value: match.accountId, type: 'account' };
                 txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
                 txData.allocatedAt = serverTimestamp();
                 txData.allocationSource = 'rule';
@@ -655,7 +655,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
             onAccountCreated();
             onOpenChange(false);
         } catch (error) {
-            toast({ title: 'Error', description: 'Failed to create account.', variant: 'destructive' });
+            toast({ title: 'Error', description: 'Could not create account.', variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -700,6 +700,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     const [aiSuggestion, setAiSuggestion] = useState<SmartAllocationResult | null>(null);
     const [selectedTxForAi, setSelectedTxForAi] = useState<ImportedTransaction | null>(null);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
+    const [isSupplierMatching, setIsSupplierMatching] = useState(false);
     const [isSubmittingToWorkflow, setIsSubmittingToWorkflow] = useState(false);
 
     type SortField = 'date' | 'description' | 'amount';
@@ -891,6 +892,22 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             toast({ title: 'Error', description: 'Failed to apply rules.', variant: 'destructive' }); 
         } finally { 
             setIsRuleAllocating(false); 
+        }
+    };
+
+    const handleMatchSuppliers = async () => {
+        if (!client?.uid || !bankAccountId) return;
+        setIsSupplierMatching(true);
+        try {
+            const res = await matchTransactionsToSuppliers({ clientId: client.uid, bankAccountId });
+            toast({ 
+                title: "Supplier Matching Complete", 
+                description: `${res.count} transactions fuzzy-matched to your supplier list.` 
+            });
+        } catch (e) {
+            toast({ title: "Matching Failed", variant: "destructive" });
+        } finally {
+            setIsSupplierMatching(false);
         }
     };
 
@@ -1113,6 +1130,10 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
 
                             <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating || activeSubTab === 'income'}>
                                 {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4" />} Apply Rules
+                            </Button>
+
+                            <Button variant="outline" onClick={handleMatchSuppliers} disabled={isSupplierMatching || activeSubTab === 'income'} className="font-bold border-primary/20 text-primary hover:bg-primary/5">
+                                {isSupplierMatching ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Users className="mr-2 h-4 w-4" />} Match Suppliers
                             </Button>
 
                             <DropdownMenu>

@@ -1317,3 +1317,67 @@ export async function generateNextTaskOccurrence(taskId: string) {
 
     await addDoc(collection(db, 'tasks'), newTaskData);
 }
+
+/**
+ * Bulk matches unallocated expenses to the supplier list using fuzzy logic.
+ */
+export async function matchTransactionsToSuppliers({ 
+    clientId, 
+    bankAccountId 
+}: { 
+    clientId: string, 
+    bankAccountId: string 
+}) {
+    try {
+        const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+        const q = query(
+            transRef, 
+            where('bankAccountId', '==', bankAccountId), 
+            where('status', 'in', ['new', 'ai_review', 'ai_processing']),
+            where('isExpense', '==', true)
+        );
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return { count: 0 };
+
+        const suppliersRef = collection(db, 'aiAccountantClients', clientId, 'suppliers');
+        const suppliersSnap = await getDocs(suppliersRef);
+        const suppliers = suppliersSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
+
+        const batch = writeBatch(db);
+        let count = 0;
+
+        snapshot.docs.forEach(d => {
+            const tx = d.data() as ImportedTransaction;
+            let bestMatch: { id: string, name: string, score: number } | null = null;
+
+            for (const supplier of suppliers) {
+                const { score } = BankCleaner.getSimilarity(tx.description, supplier.name);
+                // Threshold of 0.85 for a confident fuzzy match
+                if (score >= 0.85 && (!bestMatch || score > bestMatch.score)) {
+                    bestMatch = { id: supplier.id, name: supplier.name, score };
+                }
+            }
+
+            if (bestMatch) {
+                batch.update(d.ref, {
+                    status: 'reviewed',
+                    allocatedTo: { value: bestMatch.id, type: 'supplier' },
+                    vatType: 'no_vat',
+                    allocatedAt: serverTimestamp(),
+                    allocationSource: 'manual',
+                    matchType: 'fuzzy'
+                });
+                count++;
+            }
+        });
+
+        if (count > 0) {
+            await batch.commit();
+        }
+        
+        return { count };
+    } catch (e: any) {
+        console.error("Match to suppliers failed:", e);
+        throw e;
+    }
+}
