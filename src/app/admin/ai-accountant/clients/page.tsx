@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -670,6 +671,7 @@ export default function AIAccountantClientsPage() {
                         </DialogDescription>
                     </DialogHeader>
                     <ClientForm 
+                        key={selectedClient?.id || 'new-client'}
                         client={selectedClient} 
                         onSubmit={handleFormSubmit}
                         onCancel={() => setIsFormOpen(false)}

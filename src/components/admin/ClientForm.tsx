@@ -1,3 +1,4 @@
+
 'use client';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
@@ -337,7 +338,17 @@ export default function ClientForm({
                                         If enabled, this client will ONLY use practice-specific rules. No global rules will be imported or used during analysis.
                                     </p>
                                 </div>
-                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                <FormControl>
+                                    <Switch 
+                                        checked={field.value} 
+                                        onCheckedChange={(checked) => {
+                                            field.onChange(checked);
+                                            if (checked) {
+                                                form.setValue('useGlobalRules', false);
+                                            }
+                                        }} 
+                                    />
+                                </FormControl>
                             </FormItem>
                         )} />
 

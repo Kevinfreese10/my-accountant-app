@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -2616,6 +2617,17 @@ export default function BankTransactionsPage() {
     }, [params.clientId]);
 
     useEffect(() => { fetchClientData(); fetchGlobalRules(); fetchCustomers(); }, [fetchClientData, fetchGlobalRules, fetchCustomers]);
+
+    // Added Real-time Sync for Client Profile (ensures Isolated Mode is always fresh)
+    useEffect(() => {
+        if (!params.clientId) return;
+        return onSnapshot(doc(db, 'aiAccountantClients', params.clientId as string), (snap) => {
+            if (snap.exists()) {
+                const data = snap.data() as User;
+                setClient(prev => prev ? { ...prev, ...data } : data);
+            }
+        });
+    }, [params.clientId]);
     
     useEffect(() => {
         if (!params.clientId || !accountId) return;

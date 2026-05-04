@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -241,10 +242,17 @@ export default function AIStatementImportDialog({
     setIsImporting(true);
     
     try {
-        const rulesRef = collection(db, "allocationRules");
-        const rulesSnap = await getDocs(rulesRef);
-        const globalRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule));
-        const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+        let allRules = [...(client.allocationRules || [])];
+        
+        // Respect Isolated Practice Mode during import
+        if (!client.disableGlobalRules) {
+            const rulesRef = collection(db, "allocationRules");
+            const rulesSnap = await getDocs(rulesRef);
+            const globalRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule));
+            allRules = [...allRules, ...globalRules];
+        }
+        
+        allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
         const batch = writeBatch(db);
 
