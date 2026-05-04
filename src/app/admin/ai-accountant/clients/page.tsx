@@ -491,13 +491,20 @@ export default function AIAccountantClientsPage() {
             await updateDoc(clientRef, clientDataForDb);
             toast({ title: 'Client Updated'});
         } else {
+            // Core system accounts to retain even in a blank profile
+            const systemAccountNumbers = ['7000-000', '8000-001', '7000-008', '7000-014', '7000-015', '9000-004', '9500-001', '9500-002'];
+            
+            const filteredChartOfAccounts = data.isBlankProfile 
+                ? initialChartOfAccounts.filter(acc => systemAccountNumbers.includes(acc.accountNumber))
+                : initialChartOfAccounts;
+
             const newClientData: Partial<User> = {
                 ...clientDataForDb,
                 email: `new-${Date.now()}@my-company.ai`,
                 role: 'client' as const,
                 source: 'AI Accountant' as const,
                 hasNumeraProfile: true,
-                chartOfAccounts: data.isBlankProfile ? [] : initialChartOfAccounts,
+                chartOfAccounts: filteredChartOfAccounts,
                 allocationRules: data.isBlankProfile ? [] : (data.allocationRules || []),
                 status: 'Active',
             };
