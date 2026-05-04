@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calculator, Loader2, FileText, ReceiptText, CheckCircle2, AlertCircle, ArrowRightLeft, CalendarClock, ChevronRight, RotateCcw, History, Filter } from 'lucide-react';
+import { Calculator, Loader2, FileText, ReceiptText, CheckCircle2, AlertCircle, ArrowRightLeft, CalendarClock, ChevronRight, RotateCcw, History, Filter, Eye, Download } from 'lucide-react';
 import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, getDocs, where, limit } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Payslip, Employee, User } from '@/lib/types';
@@ -15,9 +15,11 @@ import { rollForwardPayrollAction, rollBackPayrollAction, generateEmployeePaysli
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import PayslipEditor from '@/components/admin/PayslipEditor';
+import PayslipPreview from '@/components/admin/PayslipPreview';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PayrollService } from '@/services/PayrollService';
+import PayslipDownloadButton from '@/components/pdf/PayslipDownloadButton';
 
 const db = getFirestore(firebaseApp);
 
@@ -39,6 +41,11 @@ export default function PayslipsPage() {
   const [editingPayslip, setEditingPayslip] = useState<Payslip | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isFetchingPayslip, setIsFetchingPayslip] = useState(false);
+
+  // History Preview states
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewPayslip, setPreviewPayslip] = useState<Payslip | null>(null);
+  const [previewEmployee, setPreviewEmployee] = useState<Employee | null>(null);
 
   useEffect(() => {
     if (!clientId) return;
@@ -225,6 +232,17 @@ export default function PayslipsPage() {
       }
   };
 
+  const handlePreviewHistory = (ps: Payslip) => {
+      const emp = employees.find(e => e.id === ps.employeeId);
+      if (!emp) {
+          toast({ title: "Employee Not Found", description: "Could not locate the employee record for this payslip.", variant: "destructive" });
+          return;
+      }
+      setPreviewPayslip(ps);
+      setPreviewEmployee(emp);
+      setIsPreviewOpen(true);
+  };
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
@@ -313,6 +331,34 @@ export default function PayslipsPage() {
                     />
                 )}
               </div>
+          </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+          <DialogContent className="sm:max-w-4xl p-0 overflow-hidden">
+              <DialogHeader className="p-6 bg-white border-b">
+                  <DialogTitle>Historical Payslip Review</DialogTitle>
+                  <DialogDescription>Viewing finalized record for {previewPayslip?.period}.</DialogDescription>
+              </DialogHeader>
+              <div className="p-8 bg-[#F5F5F5] max-h-[70vh] overflow-y-auto">
+                  {previewPayslip && previewEmployee && client && (
+                      <PayslipPreview 
+                          payslip={previewPayslip}
+                          employee={previewEmployee}
+                          client={client}
+                      />
+                  )}
+              </div>
+              <DialogFooter className="p-4 border-t bg-white">
+                  <Button variant="ghost" onClick={() => setIsPreviewOpen(false)}>Close</Button>
+                  {previewPayslip && previewEmployee && client && (
+                      <PayslipDownloadButton 
+                          payslip={previewPayslip}
+                          employee={previewEmployee}
+                          client={client}
+                      />
+                  )}
+              </DialogFooter>
           </DialogContent>
       </Dialog>
 
@@ -445,20 +491,35 @@ export default function PayslipsPage() {
                             <TableHead>Employee</TableHead>
                             <TableHead className="text-right">Net Paid</TableHead>
                             <TableHead className="text-right">Date</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredHistory.map((ps) => (
-                            <TableRow key={ps.id} className="opacity-70 grayscale hover:grayscale-0 transition-all">
+                            <TableRow key={ps.id} className="transition-all">
                                 <TableCell className="text-xs font-bold">{ps.period || 'N/A'}</TableCell>
                                 <TableCell className="text-xs font-medium">{ps.employeeName || 'Unknown Employee'}</TableCell>
                                 <TableCell className="text-right text-xs font-black text-primary font-mono">{formatPrice(ps.netPay)}</TableCell>
                                 <TableCell className="text-right text-[10px] font-medium">{safeFormatDate(ps.date)}</TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex justify-end gap-1">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handlePreviewHistory(ps)}>
+                                            <Eye className="h-3.5 w-3.5" />
+                                        </Button>
+                                        {client && employees.find(e => e.id === ps.employeeId) && (
+                                            <PayslipDownloadButton 
+                                                client={client}
+                                                employee={employees.find(e => e.id === ps.employeeId)!}
+                                                payslip={ps}
+                                            />
+                                        )}
+                                    </div>
+                                </TableCell>
                             </TableRow>
                         ))}
                         {filteredHistory.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic text-xs">
+                                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic text-xs">
                                     No finalized historical records found for the selected criteria.
                                 </TableCell>
                             </TableRow>
