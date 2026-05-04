@@ -25,6 +25,7 @@ import { Command, CommandEmpty, CommandInput, CommandGroup, CommandList, Command
 import { cn } from "@/lib/utils";
 import * as XLSX from 'xlsx';
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 const db = getFirestore(firebaseApp);
 
@@ -110,7 +111,7 @@ function ImportAccountsDialog({ client, onImportComplete }: { client: User | nul
                 setIsOpen(false);
             } catch (error) {
                 console.error(error);
-                toast({ title: "Import Failed", description: "An error occurred during parsing.", variant: "destructive" });
+                toast({ title: "Import Failed", description: "An error occurred during the parsing.", variant: "destructive" });
             } finally {
                 setIsUploading(false);
             }
