@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar, ShieldAlert, Settings, Eraser } from 'lucide-react';
+import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar, ShieldAlert, Settings, Eraser, Info } from 'lucide-react';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -112,8 +112,8 @@ export default function ClientForm({
             bankingDetails: {
                 bankName: client?.bankingDetails?.bankName || '',
                 accountHolder: client?.bankingDetails?.accountHolder || '',
-                accountNumber: client?.bankingDetails?.accountNumber || '',
-                branchCode: client?.bankingDetails?.branchCode || '',
+                accountNumber: client?.bankingDetails?.accountNumber || '', 
+                branchCode: client?.bankingDetails?.branchCode || ''
             },
             logoUrl: client?.logoUrl || '',
             useGlobalRules: false,
