@@ -1,4 +1,3 @@
-
 'use client';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
@@ -11,13 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar, ShieldAlert, Settings } from 'lucide-react';
+import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar, ShieldAlert, Settings, Eraser } from 'lucide-react';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { allVatTypes } from '@/lib/vat-types';
 import { chartOfAccounts as masterChartOfAccounts } from '@/lib/chart-of-accounts';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
@@ -67,6 +67,7 @@ const formSchema = z.object({
   useGlobalRules: z.boolean().default(false),
   initialRules: z.array(ruleSchema).optional(),
   disableGlobalRules: z.boolean().default(false),
+  isBlankProfile: z.boolean().default(false),
 });
 
 export default function ClientForm({ 
@@ -118,6 +119,7 @@ export default function ClientForm({
             useGlobalRules: false,
             initialRules: [],
             disableGlobalRules: client?.disableGlobalRules || false,
+            isBlankProfile: client?.isBlankProfile || false,
         },
     });
 
@@ -129,6 +131,7 @@ export default function ClientForm({
     const isVatRegistered = form.watch('isVatRegistered');
     const useGlobalRules = form.watch('useGlobalRules');
     const isIsolatedMode = form.watch('disableGlobalRules');
+    const isBlankProfile = form.watch('isBlankProfile');
 
     const processingPeriods = useMemo(() => {
         const periods: string[] = [];
@@ -176,10 +179,10 @@ export default function ClientForm({
     const handleSubmit = async (values: z.infer<typeof formSchema>) => {
         setIsSaving(true);
         try {
-            const { initialRules, useGlobalRules, disableGlobalRules, ...rest } = values;
+            const { initialRules, useGlobalRules, disableGlobalRules, isBlankProfile, ...rest } = values;
             
-            // Logic: If Isolated Mode is ON, we force shouldImport to false.
-            const shouldImport = useGlobalRules && !disableGlobalRules && !isPayrollClient;
+            // Logic: If Isolated Mode or Blank Profile is ON, we force shouldImport to false.
+            const shouldImport = useGlobalRules && !disableGlobalRules && !isBlankProfile && !isPayrollClient;
 
             const processedRules = shouldImport ? (initialRules || []).map(r => ({
                 ...r,
@@ -192,6 +195,7 @@ export default function ClientForm({
             await onSubmit({
                 ...rest,
                 disableGlobalRules,
+                isBlankProfile,
                 allocationRules: processedRules
             });
         } finally {
@@ -299,7 +303,7 @@ export default function ClientForm({
                         )} />
                         {isVatRegistered && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
-                                <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input {...field} placeholder="e.g. 4123456789" /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="e.g. 4123456789" /></FormControl><FormMessage /></FormItem>)} />
                                 <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                             </div>
                         )}
@@ -327,15 +331,15 @@ export default function ClientForm({
                             <Settings className="h-4 w-4" /> AI Automation Settings
                         </div>
 
-                        <FormField control={form.control} name="disableGlobalRules" render={({ field }) => (
-                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-destructive/5 border-destructive/10">
+                        <FormField control={form.control} name="isBlankProfile" render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-muted/10">
                                 <div className="space-y-0.5">
                                     <div className="flex items-center gap-2">
-                                        <ShieldAlert className="h-4 w-4 text-destructive" />
-                                        <FormLabel className="text-sm font-bold">Isolated Practice Mode</FormLabel>
+                                        <Eraser className="h-4 w-4 text-primary" />
+                                        <FormLabel className="text-sm font-bold">Blank Profile</FormLabel>
                                     </div>
                                     <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                        If enabled, this client will ONLY use practice-specific rules. No global rules will be imported or used during analysis.
+                                        Create a profile with no Chart of Accounts or default rules. Forces Isolated Practice Mode.
                                     </p>
                                 </div>
                                 <FormControl>
@@ -344,6 +348,7 @@ export default function ClientForm({
                                         onCheckedChange={(checked) => {
                                             field.onChange(checked);
                                             if (checked) {
+                                                form.setValue('disableGlobalRules', true);
                                                 form.setValue('useGlobalRules', false);
                                             }
                                         }} 
@@ -352,7 +357,44 @@ export default function ClientForm({
                             </FormItem>
                         )} />
 
-                        {!client?.id && !isIsolatedMode && (
+                        {isBlankProfile && (
+                            <Alert className="bg-primary/5 border-primary/20">
+                                <Info className="h-4 w-4 text-primary" />
+                                <AlertTitle className="text-xs font-bold uppercase">Manual Setup Required</AlertTitle>
+                                <AlertDescription className="text-[10px]">
+                                    You will need to manually add General Ledger accounts before allocating transactions.
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {!isBlankProfile && (
+                            <FormField control={form.control} name="disableGlobalRules" render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-destructive/5 border-destructive/10">
+                                    <div className="space-y-0.5">
+                                        <div className="flex items-center gap-2">
+                                            <ShieldAlert className="h-4 w-4 text-destructive" />
+                                            <FormLabel className="text-sm font-bold">Isolated Practice Mode</FormLabel>
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                            If enabled, this client will ONLY use practice-specific rules. No global rules will be used during analysis.
+                                        </p>
+                                    </div>
+                                    <FormControl>
+                                        <Switch 
+                                            checked={field.value} 
+                                            onCheckedChange={(checked) => {
+                                                field.onChange(checked);
+                                                if (checked) {
+                                                    form.setValue('useGlobalRules', false);
+                                                }
+                                            }} 
+                                        />
+                                    </FormControl>
+                                </FormItem>
+                            )} />
+                        )}
+
+                        {!client?.id && !isIsolatedMode && !isBlankProfile && (
                             <div className="flex items-center justify-between mt-4">
                                 <div>
                                     <h4 className="text-sm font-bold">Initial Data Import</h4>
@@ -373,7 +415,7 @@ export default function ClientForm({
                             </div>
                         )}
 
-                        {useGlobalRules && !client?.id && !isIsolatedMode && (
+                        {useGlobalRules && !client?.id && !isIsolatedMode && !isBlankProfile && (
                             <div className="space-y-4">
                                 {isLoadingRules ? (
                                     <div className="flex items-center justify-center py-8">

@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -482,6 +481,8 @@ export default function AIAccountantClientsPage() {
         isVatRegistered: data.isVatRegistered,
         vatCategory: data.isVatRegistered ? data.vatCategory : null,
         clientSource: 'ai_accountant',
+        disableGlobalRules: data.disableGlobalRules || false,
+        isBlankProfile: data.isBlankProfile || false,
     };
     
     try {
@@ -496,8 +497,8 @@ export default function AIAccountantClientsPage() {
                 role: 'client' as const,
                 source: 'AI Accountant' as const,
                 hasNumeraProfile: true,
-                chartOfAccounts: initialChartOfAccounts,
-                allocationRules: data.allocationRules || [],
+                chartOfAccounts: data.isBlankProfile ? [] : initialChartOfAccounts,
+                allocationRules: data.isBlankProfile ? [] : (data.allocationRules || []),
                 status: 'Active',
             };
             const newDocRef = doc(collection(db, 'aiAccountantClients'));
@@ -567,8 +568,12 @@ export default function AIAccountantClientsPage() {
                 return (
                     <TableRow key={client.id}>
                     <TableCell className="font-medium">
-                        <div>
-                            <span>{client.name}</span>
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                                <span>{client.name}</span>
+                                {client.isBlankProfile && <Badge variant="secondary" className="text-[9px] font-black uppercase tracking-tighter">Blank</Badge>}
+                                {client.disableGlobalRules && <Badge variant="outline" className="text-[9px] font-black uppercase tracking-tighter border-primary/30 text-primary">Isolated</Badge>}
+                            </div>
                         </div>
                     </TableCell>
                     <TableCell>{getCreatorName(client.createdBy || '')}</TableCell>
