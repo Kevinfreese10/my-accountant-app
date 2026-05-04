@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, PlusCircle, Trash2, Edit, MoreHorizontal, FileUp, Download, BookUser } from 'lucide-react';
-import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, orderBy, where, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, orderBy, where, onSnapshot, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Supplier, AllocatedTransaction, User } from '@/lib/types';
+import { Supplier, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -16,13 +16,29 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import * as XLSX from 'xlsx';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import Link from 'next/link';
-import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
+import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
 
@@ -31,19 +47,6 @@ const formSchema = z.object({
   name: z.string().min(2, "Supplier name is required"),
 });
 
-const importSchema = z.object({
-  file: z.any().refine((files) => files && files.length > 0, "An Excel/CSV file is required."),
-});
-
-const formatPrice = (price: number) => {
-    if (price === 0) return '';
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-    }).format(price);
-};
-
-
 function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: string; onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -51,7 +54,7 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (!file) return;
+        if (!file || !clientId) return;
 
         setIsUploading(true);
         toast({ title: "Reading file..." });
@@ -277,6 +280,7 @@ export default function SuppliersPage() {
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                         <DropdownMenuItem onSelect={() => handleEdit(supplier)}><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
                                                         <DropdownMenuItem asChild>
                                                             <Link href={`/admin/ai-accountant/${clientId}/journals?type=supplier&actorId=${supplier.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
