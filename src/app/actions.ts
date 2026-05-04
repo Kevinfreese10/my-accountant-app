@@ -14,7 +14,7 @@ import { OutstandingDocumentsEmail } from '@/components/emails/OutstandingDocume
 import { AIAnalysisCompleteEmail } from '@/components/emails/AIAnalysisCompleteEmail';
 import { BankCleaner } from '@/lib/bank-cleaner';
 import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
-import { analyzeClientCommentAndSuggest as analyzeClientCommentAction } from '@/ai/flows/analyze-client-comment';
+import { analyzeClientComment as analyzeClientCommentAction } from '@/ai/flows/analyze-client-comment';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { format, addDays, addMonths, addYears, parse, subMonths } from 'date-fns';
 import { PayrollService } from '@/services/PayrollService';
