@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown, PlusCircle, Calculator, AlertCircle, CheckCircle } from 'lucide-react';
+import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown, PlusCircle, Calculator, AlertCircle, CheckCircle, FileUp, Download } from 'lucide-react';
 import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion, setDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -26,7 +26,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup } from '@/components/ui/command';
 import { allVatTypes } from '@/lib/vat-types';
-
+import * as XLSX from 'xlsx';
+import { Label } from "@/components/ui/label";
 
 const db = getFirestore(firebaseApp);
 
@@ -71,6 +72,115 @@ const generalAccountFormSchema = z.object({
   description: z.string().min(3, "Description is required."),
   section: z.enum(['Income Statement', 'Balance Sheet']),
 });
+
+function ImportJournalsDialog({ client, onImport }: { client: User | null; onImport: (lines: any[]) => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const { toast } = useToast();
+
+    const handleDownloadTemplate = () => {
+        const headers = [['Account Number', 'Description', 'VAT Type', 'Debit', 'Credit']];
+        const example = [
+            ['3000-010', 'Office Rent Payment', 'standard_rated_purchases', 5000, 0],
+            ['8400-001', 'Bank Contra', 'no_vat', 0, 5750]
+        ];
+        const ws = XLSX.utils.aoa_to_sheet([...headers, ...example]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Journal Template");
+        XLSX.writeFile(wb, "journal_import_template.xlsx");
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !client) return;
+
+        setIsUploading(true);
+        const reader = new FileReader();
+        reader.readAsArrayBuffer(file);
+        reader.onload = async (event) => {
+            try {
+                const data = new Uint8Array(event.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet) as any[];
+
+                const importedLines = json.map(row => {
+                    const accNum = String(row['Account Number'] || row['accountNumber'] || '').trim();
+                    const desc = String(row['Description'] || row['description'] || '').trim();
+                    const debit = parseFloat(String(row['Debit'] || 0).replace(/[^\d.]/g, '')) || 0;
+                    const credit = parseFloat(String(row['Credit'] || 0).replace(/[^\d.]/g, '')) || 0;
+                    let vatType = String(row['VAT Type'] || 'no_vat').trim().toLowerCase();
+
+                    // Basic mapping helper
+                    if (vatType.includes('standard') && vatType.includes('purchase')) vatType = 'standard_rated_purchases';
+                    else if (vatType.includes('standard') && vatType.includes('sale')) vatType = 'standard_rated_sales';
+                    else if (vatType.includes('capital')) vatType = 'capital_goods_purchases';
+                    else if (vatType.includes('zero') && vatType.includes('sale')) vatType = 'zero_rated_sales';
+                    else if (!allVatTypes.some(v => v.name === vatType)) vatType = 'no_vat';
+
+                    const account = client.chartOfAccounts?.find(a => a.accountNumber === accNum);
+
+                    if (!accNum || (!debit && !credit)) return null;
+
+                    return {
+                        accountId: account?.id || accNum,
+                        description: desc,
+                        debit,
+                        credit,
+                        vatType
+                    };
+                }).filter(l => l !== null);
+
+                if (importedLines.length === 0) {
+                    toast({ title: "Import Failed", description: "No valid lines found in the file.", variant: "destructive" });
+                } else {
+                    onImport(importedLines);
+                    toast({ title: "Import Successful", description: `Loaded ${importedLines.length} journal lines.` });
+                    setIsOpen(false);
+                }
+            } catch (error) {
+                console.error(error);
+                toast({ title: "Import Failed", description: "Error parsing the file.", variant: "destructive" });
+            } finally {
+                setIsUploading(false);
+            }
+        };
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                    <FileUp className="h-4 w-4" /> Import Excel/CSV
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Import Journal Lines</DialogTitle>
+                    <DialogDescription>Bulk load your journal entry lines from an Excel or CSV file.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                    <div className="space-y-2">
+                        <Label>1. Download the Template</Label>
+                        <Button variant="secondary" className="w-full justify-start h-12 gap-3" onClick={handleDownloadTemplate}>
+                            <Download className="h-5 w-5 text-primary" />
+                            <div className="text-left">
+                                <p className="text-sm font-bold">journal_template.xlsx</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">Use this format for best results</p>
+                            </div>
+                        </Button>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                        <Label>2. Upload Your File</Label>
+                        <Input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} disabled={isUploading} />
+                        {isUploading && <div className="flex items-center gap-2 text-sm text-primary animate-pulse font-bold mt-2"><Loader2 className="h-4 w-4 animate-spin"/> Processing...</div>}
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChange }: { client: User | null; onAccountCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
@@ -447,7 +557,10 @@ export default function GeneralJournalsPage() {
                         <CardTitle>{editingJournalRef ? `Editing Journal: ${editingJournalRef}` : 'Post General Journal'}</CardTitle>
                         <CardDescription>Create manual journal entries. VAT portions are automatically posted to the VAT Control Account.</CardDescription>
                     </div>
-                     {editingJournalRef && <Button variant="outline" onClick={() => { setEditingJournalRef(null); form.reset({ date: new Date(), reference: '', lines: [{ accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' }, { accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' }] }); }}>Cancel Edit</Button>}
+                    <div className="flex gap-2">
+                        <ImportJournalsDialog client={client} onImport={(lines) => replace(lines)} />
+                        {editingJournalRef && <Button variant="outline" onClick={() => { setEditingJournalRef(null); form.reset({ date: new Date(), reference: '', lines: [{ accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' }, { accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' }] }); }}>Cancel Edit</Button>}
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
