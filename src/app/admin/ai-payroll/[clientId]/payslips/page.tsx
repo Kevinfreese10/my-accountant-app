@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { rollForwardPayrollAction, rollBackPayrollAction, generateEmployeePayslipAction } from '@/app/actions';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import PayslipEditor from '@/components/admin/PayslipEditor';
 import PayslipPreview from '@/components/admin/PayslipPreview';
@@ -58,8 +58,10 @@ export default function PayslipsPage() {
     // Fetch employees
     const empRef = collection(db, 'aiPayrollClients', clientId, 'employees');
     const unsubEmp = onSnapshot(empRef, (snap) => {
-        setEmployees(snap.docs.map(d => ({ id: d.id, ...d.data() } as Employee)));
+        setAllEmployees(snap.docs.map(d => ({ id: d.id, ...d.data() } as Employee)));
     });
+
+    const setAllEmployees = (emps: Employee[]) => setEmployees(emps);
 
     // Fetch payslips
     const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
