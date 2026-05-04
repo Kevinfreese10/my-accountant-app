@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar, ShieldAlert } from 'lucide-react';
+import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar, ShieldAlert, Settings } from 'lucide-react';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -126,6 +126,7 @@ export default function ClientForm({
 
     const isVatRegistered = form.watch('isVatRegistered');
     const useGlobalRules = form.watch('useGlobalRules');
+    const isIsolatedMode = form.watch('disableGlobalRules');
 
     const processingPeriods = useMemo(() => {
         const periods: string[] = [];
@@ -171,9 +172,12 @@ export default function ClientForm({
     }, [client?.id, isAIClient, isPayrollClient, replace, toast]);
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        const { initialRules, useGlobalRules, ...rest } = values;
+        const { initialRules, useGlobalRules, disableGlobalRules, ...rest } = values;
         
-        const processedRules = (useGlobalRules && !isPayrollClient) ? (initialRules || []).map(r => ({
+        // Logic: If Isolated Mode is ON, we force shouldImport to false.
+        const shouldImport = useGlobalRules && !disableGlobalRules && !isPayrollClient;
+
+        const processedRules = shouldImport ? (initialRules || []).map(r => ({
             ...r,
             keywords: r.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean),
             type: 'hard' as const,
@@ -183,6 +187,7 @@ export default function ClientForm({
 
         onSubmit({
             ...rest,
+            disableGlobalRules,
             allocationRules: processedRules
         });
     };
@@ -299,11 +304,11 @@ export default function ClientForm({
                         <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
                             <CreditCard className="h-4 w-4" /> Banking Details (For Invoicing)
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                             <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
                     </section>
                     </>
@@ -320,15 +325,17 @@ export default function ClientForm({
                                 <div className="space-y-0.5">
                                     <div className="flex items-center gap-2">
                                         <ShieldAlert className="h-4 w-4 text-destructive" />
-                                        <FormLabel className="text-sm font-bold">Disable Global Master Rules</FormLabel>
+                                        <FormLabel className="text-sm font-bold">Isolated Practice Mode</FormLabel>
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground leading-relaxed">If enabled, this client will ONLY use practice-specific rules for transaction analysis. Global database suggestions will be ignored.</p>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                        If enabled, this client will ONLY use practice-specific rules. No global rules will be imported or used during analysis.
+                                    </p>
                                 </div>
                                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                             </FormItem>
                         )} />
 
-                        {!client?.id && (
+                        {!client?.id && !isIsolatedMode && (
                             <div className="flex items-center justify-between mt-4">
                                 <div>
                                     <h4 className="text-sm font-bold">Initial Data Import</h4>
@@ -349,7 +356,7 @@ export default function ClientForm({
                             </div>
                         )}
 
-                        {useGlobalRules && !client?.id && (
+                        {useGlobalRules && !client?.id && !isIsolatedMode && (
                             <div className="space-y-4">
                                 {isLoadingRules ? (
                                     <div className="flex items-center justify-center py-8">
@@ -452,7 +459,7 @@ export default function ClientForm({
                 
                 <div className="flex justify-end gap-2 pt-4 sticky bottom-0 bg-background pb-2 border-t">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button type="submit">Save Changes</Button>
+                    <Button type="submit" disabled={isSaving}>Save Changes</Button>
                 </div>
             </form>
         </Form>
