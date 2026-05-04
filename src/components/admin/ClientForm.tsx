@@ -83,6 +83,7 @@ export default function ClientForm({
 }) {
     const { toast } = useToast();
     const [isLoadingRules, setIsLoadingRules] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -171,25 +172,30 @@ export default function ClientForm({
         }
     }, [client?.id, isAIClient, isPayrollClient, replace, toast]);
 
-    const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        const { initialRules, useGlobalRules, disableGlobalRules, ...rest } = values;
-        
-        // Logic: If Isolated Mode is ON, we force shouldImport to false.
-        const shouldImport = useGlobalRules && !disableGlobalRules && !isPayrollClient;
+    const handleSubmit = async (values: z.infer<typeof formSchema>) => {
+        setIsSaving(true);
+        try {
+            const { initialRules, useGlobalRules, disableGlobalRules, ...rest } = values;
+            
+            // Logic: If Isolated Mode is ON, we force shouldImport to false.
+            const shouldImport = useGlobalRules && !disableGlobalRules && !isPayrollClient;
 
-        const processedRules = shouldImport ? (initialRules || []).map(r => ({
-            ...r,
-            keywords: r.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean),
-            type: 'hard' as const,
-            scope: 'client' as const,
-            priority: 99
-        })) : [];
+            const processedRules = shouldImport ? (initialRules || []).map(r => ({
+                ...r,
+                keywords: r.keywords.split(',').map(k => k.trim().toUpperCase()).filter(Boolean),
+                type: 'hard' as const,
+                scope: 'client' as const,
+                priority: 99
+            })) : [];
 
-        onSubmit({
-            ...rest,
-            disableGlobalRules,
-            allocationRules: processedRules
-        });
+            await onSubmit({
+                ...rest,
+                disableGlobalRules,
+                allocationRules: processedRules
+            });
+        } finally {
+            setIsSaving(false);
+        }
     };
     
     return (
@@ -459,7 +465,10 @@ export default function ClientForm({
                 
                 <div className="flex justify-end gap-2 pt-4 sticky bottom-0 bg-background pb-2 border-t">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button type="submit" disabled={isSaving}>Save Changes</Button>
+                    <Button type="submit" disabled={isSaving}>
+                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Changes
+                    </Button>
                 </div>
             </form>
         </Form>
