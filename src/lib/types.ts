@@ -324,6 +324,7 @@ export type User = {
   complianceDueDate?: string;
   chartOfAccounts?: ChartOfAccount[];
   allocationRules?: AllocationRule[];
+  disableGlobalRules?: boolean;
   hasNumeraProfile?: boolean;
   subscription?: SubscriptionData;
   sharedWith?: string[];

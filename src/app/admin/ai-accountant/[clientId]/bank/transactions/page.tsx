@@ -231,10 +231,14 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
         if (!client?.uid || !bankAccountId || parsedTransactions.length === 0) return;
         setIsUploading(true);
         try {
-            const rulesQuery = collection(db, "allocationRules");
-            const rulesSnap = await getDocs(rulesQuery);
-            const globalRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule));
-            const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+            let allRules = [...(client.allocationRules || [])];
+            if (!client.disableGlobalRules) {
+                const rulesQuery = collection(db, "allocationRules");
+                const rulesSnap = await getDocs(rulesQuery);
+                const globalRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule));
+                allRules = [...allRules, ...globalRules];
+            }
+            allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const batch = writeBatch(db);
             let matchCount = 0;
@@ -501,10 +505,14 @@ function CreateManualTransactionDialog({ client, bankAccountId, open, onOpenChan
             const isExpense = values.amount < 0;
             const description = values.description.toUpperCase();
             
-            const rulesQuery = collection(db, "allocationRules");
-            const rulesSnap = await getDocs(rulesQuery);
-            const globalRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule));
-            const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+            let allRules = [...(client.allocationRules || [])];
+            if (!client.disableGlobalRules) {
+                const rulesRef = collection(db, "allocationRules");
+                const rulesSnap = await getDocs(rulesRef);
+                const globalRules = rulesSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule));
+                allRules = [...allRules, ...globalRules];
+            }
+            allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
             
             const match = isExpense ? allRules.find(r => r.keywords.some(kw => description.includes(kw.toUpperCase()))) : null;
 
@@ -809,10 +817,14 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
 
         setIsRuleAllocating(true);
         try {
-            const rulesQuery = collection(db, "allocationRules");
-            const rulesSnap = await getDocs(rulesQuery);
-            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
-            const allRules = [...(client.allocationRules || []), ...globalRulesList].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+            let allRules = [...(client.allocationRules || [])];
+            if (!client.disableGlobalRules) {
+                const rulesQuery = collection(db, "allocationRules");
+                const rulesSnap = await getDocs(rulesQuery);
+                const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+                allRules = [...allRules, ...globalRulesList];
+            }
+            allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
             const q = query(
@@ -1415,10 +1427,14 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             const clientSnap = await getDoc(clientRef);
             const latestClient = clientSnap.data() as User;
             
-            const rulesQuery = collection(db, "allocationRules");
-            const rulesSnap = await getDocs(rulesQuery);
-            const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
-            const allRules = [...(latestClient.allocationRules || []), ...globalRulesList].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+            let allRules = [...(latestClient.allocationRules || [])];
+            if (!latestClient.disableGlobalRules) {
+                const rulesQuery = collection(db, "allocationRules");
+                const rulesSnap = await getDocs(rulesQuery);
+                const globalRulesList = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+                allRules = [...allRules, ...globalRulesList];
+            }
+            allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const updatedGroups = groups.map(group => {
                 const description = group.transactions[0].description;
@@ -2059,7 +2075,11 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
         return unique.sort((a, b) => a.description.toLowerCase().localeCompare(b.description.toLowerCase()));
     }, [client]);
 
-    const allAvailableRules = useMemo(() => [...(client?.allocationRules || []), ...globalRules], [client?.allocationRules, globalRules]);
+    const allAvailableRules = useMemo(() => {
+        const base = [...(client?.allocationRules || [])];
+        if (client?.disableGlobalRules) return base;
+        return [...base, ...globalRules];
+    }, [client?.allocationRules, globalRules, client?.disableGlobalRules]);
 
     useEffect(() => {
         if (!client?.uid || !bankAccountId) return;
@@ -2127,7 +2147,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
         setIsSaving(true);
         try {
             const batch = writeBatch(db);
-            const txCollection = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            const txCollection = collection(db, 'aiAccountantClients', client.uid!, 'transactions');
             
             selectedTransactions.forEach(id => {
                 batch.update(doc(txCollection, id), {

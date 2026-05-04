@@ -76,7 +76,7 @@ export async function saveEmployeeAction({
 
         return { success: true, id: finalId };
     } catch (e: any) {
-        console.error("Save employee error:", e);
+        console.error("Save employee error:", error);
         return { success: false, error: e.message };
     }
 }
@@ -732,10 +732,14 @@ export async function runAiAccountantAnalysis({
         const historySnap = await getDocs(historyQuery);
         const history = historySnap.docs.map(d => d.data() as ImportedTransaction);
 
-        const rulesQuery = collection(db, "allocationRules");
-        const rulesSnap = await getDocs(rulesQuery);
-        const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
-        const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+        let allRules = [...(client.allocationRules || [])];
+        if (!client.disableGlobalRules) {
+            const rulesQuery = collection(db, "allocationRules");
+            const rulesSnap = await getDocs(rulesQuery);
+            const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+            allRules = [...allRules, ...globalRules];
+        }
+        allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
         let moveCount = 0;
         const batchSize = 20;
@@ -788,7 +792,7 @@ export async function runAiAccountantAnalysis({
                     }
                 }
 
-                if (!finalResult && result.merchantKey) {
+                if (!finalResult && result.merchantKey && !client.disableGlobalRules) {
                     try {
                         const globalRef = doc(db, 'globalMerchants', result.merchantKey);
                         const globalSnap = await getDoc(globalRef);
@@ -869,10 +873,14 @@ export async function researchMerchantWithAi({
         if (!clientSnap.exists()) throw new Error("Client not found.");
         const client = clientSnap.data() as User;
 
-        const rulesQuery = collection(db, "allocationRules");
-        const rulesSnap = await getDocs(rulesQuery);
-        const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
-        const allRules = [...(client.allocationRules || []), ...globalRules].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+        let allRules = [...(client.allocationRules || [])];
+        if (!client.disableGlobalRules) {
+            const rulesQuery = collection(db, "allocationRules");
+            const rulesSnap = await getDocs(rulesQuery);
+            const globalRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule));
+            allRules = [...allRules, ...globalRules];
+        }
+        allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
         const match = isExpense ? allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase()))) : null;
         

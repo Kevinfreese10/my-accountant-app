@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar } from 'lucide-react';
+import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar, ShieldAlert } from 'lucide-react';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -65,6 +65,7 @@ const formSchema = z.object({
   logoUrl: z.string().url().optional().or(z.literal('')),
   useGlobalRules: z.boolean().default(false),
   initialRules: z.array(ruleSchema).optional(),
+  disableGlobalRules: z.boolean().default(false),
 });
 
 export default function ClientForm({ 
@@ -114,6 +115,7 @@ export default function ClientForm({
             logoUrl: client?.logoUrl || '',
             useGlobalRules: false,
             initialRules: [],
+            disableGlobalRules: client?.disableGlobalRules || false,
         },
     });
 
@@ -307,28 +309,47 @@ export default function ClientForm({
                     </>
                 )}
 
-                {isAIClient && !client?.id && !isPayrollClient && (
+                {isAIClient && !isPayrollClient && (
                     <section className="space-y-4 border-t pt-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-lg font-medium">Automation Setup</h3>
-                                <p className="text-sm text-muted-foreground">Import default rules to automatically categorize transactions.</p>
-                            </div>
-                            <FormField
-                                control={form.control}
-                                name="useGlobalRules"
-                                render={({ field }) => (
-                                    <FormControl>
-                                        <Switch 
-                                            checked={field.value} 
-                                            onCheckedChange={field.onChange} 
-                                        />
-                                    </FormControl>
-                                )}
-                            />
+                        <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
+                            <Settings className="h-4 w-4" /> AI Automation Settings
                         </div>
 
-                        {useGlobalRules && (
+                        <FormField control={form.control} name="disableGlobalRules" render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-destructive/5 border-destructive/10">
+                                <div className="space-y-0.5">
+                                    <div className="flex items-center gap-2">
+                                        <ShieldAlert className="h-4 w-4 text-destructive" />
+                                        <FormLabel className="text-sm font-bold">Disable Global Master Rules</FormLabel>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">If enabled, this client will ONLY use practice-specific rules for transaction analysis. Global database suggestions will be ignored.</p>
+                                </div>
+                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            </FormItem>
+                        )} />
+
+                        {!client?.id && (
+                            <div className="flex items-center justify-between mt-4">
+                                <div>
+                                    <h4 className="text-sm font-bold">Initial Data Import</h4>
+                                    <p className="text-xs text-muted-foreground">Pre-populate this client's profile with default global rules.</p>
+                                </div>
+                                <FormField
+                                    control={form.control}
+                                    name="useGlobalRules"
+                                    render={({ field }) => (
+                                        <FormControl>
+                                            <Switch 
+                                                checked={field.value} 
+                                                onCheckedChange={field.onChange} 
+                                            />
+                                        </FormControl>
+                                    )}
+                                />
+                            </div>
+                        )}
+
+                        {useGlobalRules && !client?.id && (
                             <div className="space-y-4">
                                 {isLoadingRules ? (
                                     <div className="flex items-center justify-center py-8">
