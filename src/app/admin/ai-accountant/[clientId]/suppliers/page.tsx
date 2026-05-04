@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Loader2, PlusCircle, Trash2, Edit, MoreHorizontal, FileUp, Download, BookUser } from 'lucide-react';
 import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, orderBy, where, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { firebaseApp } from '@/lib/firebase';
 import { Supplier, AllocatedTransaction, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -23,6 +23,8 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 import { format } from 'date-fns';
+
+const db = getFirestore(firebaseApp);
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -46,9 +48,6 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
     const [isOpen, setIsOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const { toast } = useToast();
-    const form = useForm<z.infer<typeof importSchema>>({
-        resolver: zodResolver(importSchema),
-    });
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -66,17 +65,18 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
                 const worksheet = workbook.Sheets[sheetName];
                 const json = XLSX.utils.sheet_to_json(worksheet) as { 'Supplier Name'?: string }[];
 
-                const supplierNames = json.map(row => row['Supplier Name']).filter((name): name is string => !!name);
+                const supplierNames = json.map(row => row['Supplier Name'] || row['supplierName'] || row['Name']).filter((name): name is string => !!name);
 
                 if (supplierNames.length === 0) {
-                    toast({ title: "No suppliers found", description: "Make sure your Excel/CSV file has a column named 'Supplier Name'.", variant: "destructive" });
+                    toast({ title: "No suppliers found", description: "Make sure your file has a column named 'Supplier Name'.", variant: "destructive" });
+                    setIsUploading(false);
                     return;
                 }
 
                 const batch = writeBatch(db);
                 supplierNames.forEach(name => {
                     const docRef = doc(collection(db, `aiAccountantClients/${clientId}/suppliers`));
-                    batch.set(docRef, { name });
+                    batch.set(docRef, { name: name.trim().toUpperCase() });
                 });
 
                 await batch.commit();
@@ -86,7 +86,7 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
                 setIsOpen(false);
             } catch (error) {
                 console.error("Error importing suppliers:", error);
-                toast({ title: "Import Failed", description: "An error occurred during the import.", variant: "destructive" });
+                toast({ title: "Import Failed", description: "An error occurred during the import process.", variant: "destructive" });
             } finally {
                 setIsUploading(false);
             }
@@ -94,15 +94,13 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
         reader.readAsArrayBuffer(file);
     };
 
-    const handleDownloadExample = () => {
-        const csvContent = "Supplier Name\n\"Example Supplier Inc.\"\n\"Another Supplier Co.\"";
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.setAttribute('download', 'example-suppliers.csv');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    const handleDownloadTemplate = () => {
+        const headers = [['Supplier Name']];
+        const examples = [['TELKOM SA'], ['VODACOM'], ['ESKOM'], ['OFFICE RENTALS']];
+        const ws = XLSX.utils.aoa_to_sheet([...headers, ...examples]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Suppliers");
+        XLSX.writeFile(wb, "supplier_import_template.xlsx");
     };
     
     return (
@@ -110,19 +108,45 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
             <DialogTrigger asChild>
                 <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import Suppliers</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Import Suppliers from Excel/CSV</DialogTitle>
-                    <DialogDescription>Upload an .xlsx or .csv file with a column named "Supplier Name" to bulk import suppliers.</DialogDescription>
+                    <DialogTitle>Import Supplier List</DialogTitle>
+                    <DialogDescription>Upload an Excel or CSV file to bulk add suppliers to this client profile.</DialogDescription>
                 </DialogHeader>
-                <div className="py-4 space-y-4">
-                     <div className="flex items-center justify-between">
-                         <Label htmlFor="supplier-file">Supplier File</Label>
-                         <Button variant="outline" size="sm" onClick={handleDownloadExample}><Download className="mr-2 h-4 w-4"/> Download Example</Button>
+                <div className="py-6 space-y-6">
+                     <div className="space-y-3">
+                         <Label className="text-xs font-bold uppercase text-muted-foreground tracking-widest">1. Get the template</Label>
+                         <Button variant="secondary" className="w-full h-12 gap-3 justify-start" onClick={handleDownloadTemplate}>
+                            <Download className="h-5 w-5 text-primary" />
+                            <div className="text-left">
+                                <p className="text-sm font-bold">Download Template</p>
+                                <p className="text-[10px] text-muted-foreground">supplier_import_template.xlsx</p>
+                            </div>
+                         </Button>
                      </div>
-                    <Input id="supplier-file" type="file" accept=".xlsx, .csv" onChange={handleFileChange} disabled={isUploading} />
-                    {isUploading && <div className="flex items-center mt-2 text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Processing...</div>}
+                     
+                     <Separator />
+
+                     <div className="space-y-3">
+                        <Label className="text-xs font-bold uppercase text-muted-foreground tracking-widest">2. Upload your file</Label>
+                        <Input 
+                            id="supplier-file" 
+                            type="file" 
+                            accept=".xlsx, .xls, .csv" 
+                            onChange={handleFileChange} 
+                            disabled={isUploading}
+                            className="h-12 pt-3"
+                        />
+                        {isUploading && (
+                            <div className="flex items-center gap-2 text-primary animate-pulse font-bold text-xs mt-2">
+                                <Loader2 className="h-4 w-4 animate-spin"/> Processing data...
+                            </div>
+                        )}
+                    </div>
                 </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
@@ -174,11 +198,12 @@ export default function SuppliersPage() {
 
     const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
         try {
+            const finalData = { ...data, name: data.name.toUpperCase() };
             if (selectedSupplier) {
-                await setDoc(doc(db, `aiAccountantClients/${clientId}/suppliers`, selectedSupplier.id), data, { merge: true });
+                await setDoc(doc(db, `aiAccountantClients/${clientId}/suppliers`, selectedSupplier.id), finalData, { merge: true });
                 toast({ title: 'Supplier Updated' });
             } else {
-                await addDoc(collection(db, `aiAccountantClients/${clientId}/suppliers`), data);
+                await addDoc(collection(db, `aiAccountantClients/${clientId}/suppliers`), finalData);
                 toast({ title: 'Supplier Created' });
             }
             fetchSuppliers();
@@ -256,6 +281,7 @@ export default function SuppliersPage() {
                                                         <DropdownMenuItem asChild>
                                                             <Link href={`/admin/ai-accountant/${clientId}/journals?type=supplier&actorId=${supplier.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
                                                         </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
                                                         <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
