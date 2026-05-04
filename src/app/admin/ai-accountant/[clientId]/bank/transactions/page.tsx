@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -13,7 +12,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, ArrowRightLeft, BookOpen, Sparkles, ArrowUpDown, ChevronLeft, ChevronRight, CheckCheck, ChevronsUpDown, MoreHorizontal, RotateCcw, AlertTriangle, Download, BrainCircuit, Play, CheckCircle2, Clock, Undo2, RotateCw, History, Info, X, ArrowRight, MessageSquareQuote, Send, AlertCircle, StopCircle, GripVertical, Layers, FileSpreadsheet, Save, MessageSquare, RefreshCw, Calendar as CalendarIcon } from 'lucide-react';
 import Papa from 'papaparse';
-import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, SmartAllocationResult } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, ClientCustomer, Invoice, SmartAllocationResult, Supplier } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Timestamp, deleteField, addDoc, limit, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -150,6 +149,7 @@ function AIAllocationReviewDialog({ open, onOpenChange, suggestion, transaction,
                         <div className="space-y-1">
                             <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Suggested Account</p>
                             <p className="text-sm font-semibold">{suggestion.accountId}</p>
+                            <p className="text-[9px] text-muted-foreground uppercase font-bold">{suggestion.accountType || 'account'}</p>
                         </div>
                         <div className="space-y-1">
                             <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Suggested VAT</p>
@@ -267,7 +267,7 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
 
                 if (isExpense && match) {
                     const keyword = match.keywords.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
-                    txData.allocatedTo = { value: match.accountId, type: 'account' };
+                    txData.allocatedTo = { value: match.accountId, type: match.accountType || 'account' };
                     txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
                     txData.allocatedAt = serverTimestamp();
                     txData.allocationSource = 'rule';
@@ -375,12 +375,13 @@ const ruleFormSchema = z.object({
   existingRuleId: z.string().optional(),
   description: z.string().optional(),
   keywords: z.string().min(2),
+  accountType: z.enum(['account', 'customer', 'supplier']).default('account'),
   accountId: z.string().optional(),
   vatType: z.string().optional(),
   scope: z.enum(['global', 'client']).default('client'),
 });
 
-function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues, existingRules }: {
+function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues, existingRules, customers, suppliers }: {
     client: User | null;
     onRuleCreated: () => void;
     open: boolean;
@@ -388,12 +389,16 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
     defaultValues: Partial<z.infer<typeof ruleFormSchema>>;
     transactionDescription: string | null;
     existingRules: AllocationRule[];
+    customers: ClientCustomer[];
+    suppliers: Supplier[];
 }) {
     const { toast } = useToast();
     const form = useForm<z.infer<typeof ruleFormSchema>>({
         resolver: zodResolver(ruleFormSchema),
         defaultValues: { mode: 'new', scope: 'client', ...defaultValues },
     });
+
+    const watchAccountType = form.watch('accountType');
 
     useEffect(() => {
         if (open) {
@@ -419,6 +424,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                     description: values.description || '',
                     keywords: keywordsArray,
                     accountId: values.accountId || '',
+                    accountType: values.accountType,
                     vatType: values.vatType || 'no_vat',
                     type: 'hard' as const,
                     scope: 'client' as const,
@@ -442,12 +448,29 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                     <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} className="resize-none h-20" /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="accountId" render={({ field }) => (
-                            <FormItem><FormLabel>Account</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value || ""}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl>
+                        
+                        <FormField control={form.control} name="accountType" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Allocation Target</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                                     <SelectContent>
-                                        {client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                                        <SelectItem value="account">General Ledger Account</SelectItem>
+                                        <SelectItem value="customer">Customer Account</SelectItem>
+                                        <SelectItem value="supplier">Supplier Account</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </FormItem>
+                        )} />
+
+                        <FormField control={form.control} name="accountId" render={({ field }) => (
+                            <FormItem><FormLabel>Select {watchAccountType === 'account' ? 'Account' : watchAccountType === 'customer' ? 'Customer' : 'Supplier'}</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value || ""}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Select target..." /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        {watchAccountType === 'account' && client?.chartOfAccounts?.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}
+                                        {watchAccountType === 'customer' && customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                        {watchAccountType === 'supplier' && suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -533,7 +556,7 @@ function CreateManualTransactionDialog({ client, bankAccountId, open, onOpenChan
 
             if (isExpense && match) {
                 const keyword = match.keywords.find(kw => description.includes(kw.toUpperCase()));
-                txData.allocatedTo = { value: match.accountId, type: 'account' };
+                txData.allocatedTo = { value: match.accountId, type: match.accountType || 'account' };
                 txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
                 txData.allocatedAt = serverTimestamp();
                 txData.allocationSource = 'rule';
@@ -657,7 +680,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
 
 // #endregion
 
-const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, globalRules, onAccountCreated, setActiveTab, currentBalance, customers }, ref) => {
+const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, globalRules, onAccountCreated, setActiveTab, currentBalance, customers, suppliers }, ref) => {
     const { user } = useAuth();
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
@@ -845,7 +868,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                     const keyword = match.keywords.find(kw => tx.description.toUpperCase().includes(kw.toUpperCase()));
                     batch.update(d.ref, {
                         status: 'reviewed',
-                        allocatedTo: { value: match.accountId, type: 'account' },
+                        allocatedTo: { value: match.accountId, type: match.accountType || 'account' },
                         vatType: client.isVatRegistered ? match.vatType : 'no_vat',
                         allocatedAt: serverTimestamp(),
                         allocationSource: 'rule',
@@ -945,7 +968,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                 const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
                 batch.update(doc(transRef, selectedTxForAi.id), {
                     status: 'reviewed',
-                    allocatedTo: { value: aiSuggestion.accountId, type: 'account' },
+                    allocatedTo: { value: aiSuggestion.accountId, type: aiSuggestion.accountType || 'account' },
                     vatType: aiSuggestion.vatType,
                     allocatedAt: serverTimestamp(),
                     allocationSource: 'ai',
@@ -965,6 +988,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             description: `Rule for: ${aiSuggestion.suggestedKeyword || 'Merchant'}`,
             keywords: aiSuggestion.suggestedKeyword || '',
             accountId: aiSuggestion.accountId,
+            accountType: aiSuggestion.accountType || 'account',
             vatType: aiSuggestion.vatType,
             scope: 'client',
         });
@@ -1026,7 +1050,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     return (
         <div className="space-y-4">
             <CreateManualTransactionDialog client={client} bankAccountId={bankAccountId} open={isManualTxOpen} onOpenChange={setIsManualTxOpen} />
-            <CreateRuleDialog client={client} onRuleCreated={() => {}} open={isCreateRuleOpen} onOpenChange={setIsCreateOpen} defaultValues={ruleDefaultValues} transactionDescription={transactionDescriptionForRule} existingRules={globalRules} />
+            <CreateRuleDialog client={client} onRuleCreated={() => {}} open={isCreateRuleOpen} onOpenChange={setIsCreateOpen} defaultValues={ruleDefaultValues} transactionDescription={transactionDescriptionForRule} existingRules={globalRules} customers={customers} suppliers={suppliers} />
             <CreateGeneralAccountDialog client={client} onAccountCreated={onAccountCreated} open={isCreateGeneralAccountOpen} onOpenChange={setIsCreateGeneralAccountOpen} />
             <AIAllocationReviewDialog open={isAiReviewOpen} onOpenChange={setIsAiReviewOpen} suggestion={aiSuggestion} transaction={selectedTxForAi} onAction={handleAiReviewAction} />
             
@@ -1062,11 +1086,12 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                 <CommandItem onSelect={() => setIsCreateGeneralAccountOpen(true)} className="text-primary font-medium cursor-pointer p-2 flex items-center"><PlusCircle className="mr-2 h-4 w-4" />Create new account...</CommandItem>
                                             </CommandGroup>
                                             <CommandSeparator />
-                                            {activeSubTab === 'income' && (
-                                                <CommandGroup heading="Customers">
-                                                    {customers.map(c => <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{c.name}</CommandItem>)}
-                                                </CommandGroup>
-                                            )}
+                                            <CommandGroup heading="Customers">
+                                                {customers.map(c => <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{c.name}</CommandItem>)}
+                                            </CommandGroup>
+                                            <CommandGroup heading="Suppliers">
+                                                {suppliers.map(s => <CommandItem key={s.id} onSelect={() => handleBulkAllocate({value: s.id, type: 'supplier'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{s.name}</CommandItem>)}
+                                            </CommandGroup>
                                             <CommandGroup heading="General Ledger Accounts">
                                                 {client?.chartOfAccounts?.map(acc => (
                                                     <DropdownMenuSub key={acc.id}>
@@ -1144,7 +1169,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                 <Button variant="outline" className="h-8 text-[11px] w-full justify-start overflow-hidden">
                                                     <span className="truncate">
                                                         {allocations[tx.id] 
-                                                            ? [...(client?.chartOfAccounts || []), ...customers].find(o => o.id === allocations[tx.id].value)?.description || 'Selected' 
+                                                            ? [...(client?.chartOfAccounts || []), ...customers, ...suppliers].find(o => o.id === allocations[tx.id].value)?.description || 'Selected' 
                                                             : 'Select Account...'}
                                                     </span>
                                                 </Button>
@@ -1173,27 +1198,44 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                                 </CommandItem>
                                                             ))}
                                                         </CommandGroup>
-                                                        {activeSubTab === 'income' && (
-                                                            <CommandGroup heading="Customers">
-                                                                {customers.map(c => (
-                                                                    <CommandItem 
-                                                                        key={c.id} 
-                                                                        value={c.name}
-                                                                        onSelect={() => setAllocations((p: any) => ({
-                                                                            ...p, 
-                                                                            [tx.id]: { 
-                                                                                value: c.id, 
-                                                                                type: 'customer', 
-                                                                                vatType: 'no_vat' 
-                                                                            }
-                                                                        }))}
-                                                                        className="p-2 cursor-pointer hover:bg-muted"
-                                                                    >
-                                                                        {c.name}
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        )}
+                                                        <CommandGroup heading="Suppliers">
+                                                            {suppliers.map(s => (
+                                                                <CommandItem 
+                                                                    key={s.id} 
+                                                                    value={s.name}
+                                                                    onSelect={() => setAllocations((p: any) => ({
+                                                                        ...p, 
+                                                                        [tx.id]: { 
+                                                                            value: s.id, 
+                                                                            type: 'supplier', 
+                                                                            vatType: 'no_vat' 
+                                                                        }
+                                                                    }))}
+                                                                    className="p-2 cursor-pointer hover:bg-muted"
+                                                                >
+                                                                    {s.name}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                        <CommandGroup heading="Customers">
+                                                            {customers.map(c => (
+                                                                <CommandItem 
+                                                                    key={c.id} 
+                                                                    value={c.name}
+                                                                    onSelect={() => setAllocations((p: any) => ({
+                                                                        ...p, 
+                                                                        [tx.id]: { 
+                                                                            value: c.id, 
+                                                                            type: 'customer', 
+                                                                            vatType: 'no_vat' 
+                                                                        }
+                                                                    }))}
+                                                                    className="p-2 cursor-pointer hover:bg-muted"
+                                                                >
+                                                                    {c.name}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
                                                     </CommandList>
                                                 </Command>
                                             </PopoverContent>
@@ -1445,6 +1487,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     const keyword = match.keywords.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
                     const newSuggestion: SmartAllocationResult = {
                         accountId: match.accountId,
+                        accountType: match.accountType || 'account',
                         vatType: client.isVatRegistered ? match.vatType : 'no_vat',
                         confidence: 100,
                         summary: `Matched latest existing allocation rule for ${keyword}.`,
@@ -1540,7 +1583,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             group.transactions.forEach(tx => {
                 batch.update(doc(transRef, tx.id), {
                     status: 'reviewed',
-                    allocatedTo: { value: settings.accountId, type: 'account' },
+                    allocatedTo: { value: settings.accountId, type: group.suggestion?.accountType || 'account' },
                     vatType: settings.vatType || 'no_vat',
                     allocatedAt: serverTimestamp(),
                     allocationSource: tx.allocationSource || 'ai',
@@ -1563,6 +1606,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         description: `Auto-categorization for ${group.merchantKey}`, 
                         keywords: [group.merchantKey.toUpperCase()], 
                         accountId: settings.accountId, 
+                        accountType: group.suggestion?.accountType || 'account',
                         vatType: settings.vatType || 'no_vat', 
                         type: 'hard', 
                         scope: 'client', 
@@ -1597,7 +1641,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 group.transactions.forEach(tx => {
                     batch.update(doc(transRef, tx.id), {
                         status: 'reviewed',
-                        allocatedTo: { value: settings.accountId, type: 'account' },
+                        allocatedTo: { value: settings.accountId, type: group.suggestion?.accountType || 'account' },
                         vatType: settings.vatType || 'no_vat',
                         allocatedAt: serverTimestamp(),
                         allocationSource: tx.allocationSource || 'manual',
@@ -2049,10 +2093,11 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     );
 };
 
-const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountCreated }: { 
+const ReviewedTab = ({ client, bankAccountId, customers, suppliers, globalRules, onAccountCreated }: { 
     client: User | null; 
     bankAccountId: string | null; 
     customers: ClientCustomer[]; 
+    suppliers: Supplier[];
     globalRules: AllocationRule[];
     onAccountCreated: () => void; 
 }) => {
@@ -2139,6 +2184,9 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
         if (!allocatedTo) return 'Unallocated';
         if (allocatedTo.type === 'customer') {
             return customers.find(c => c.id === allocatedTo.value)?.name || allocatedTo.value;
+        }
+        if (allocatedTo.type === 'supplier') {
+            return suppliers.find(s => s.id === allocatedTo.value)?.name || allocatedTo.value;
         }
         return uniqueChartOfAccounts.find(a => a.id === allocatedTo.value)?.description || allocatedTo.value;
     };
@@ -2316,19 +2364,28 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                                                         </DropdownMenuSub>
                                                     ))}
                                                 </CommandGroup>
-                                                {activeSubTab === 'income' && (
-                                                    <CommandGroup heading="Customers">
-                                                        {customers.map(c => (
-                                                            <DropdownMenuItem 
-                                                                key={c.id} 
-                                                                onSelect={() => handleBulkReallocate({value: c.id, type: 'customer'}, 'no_vat')}
-                                                                className="p-2 cursor-pointer hover:bg-muted"
-                                                            >
-                                                                {c.name}
-                                                            </DropdownMenuItem>
-                                                        ))}
-                                                    </CommandGroup>
-                                                )}
+                                                <CommandGroup heading="Suppliers">
+                                                    {suppliers.map(s => (
+                                                        <DropdownMenuItem 
+                                                            key={s.id} 
+                                                            onSelect={() => handleBulkReallocate({value: s.id, type: 'supplier'}, 'no_vat')}
+                                                            className="p-2 cursor-pointer hover:bg-muted"
+                                                        >
+                                                            {s.name}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </CommandGroup>
+                                                <CommandGroup heading="Customers">
+                                                    {customers.map(c => (
+                                                        <DropdownMenuItem 
+                                                            key={c.id} 
+                                                            onSelect={() => handleBulkReallocate({value: c.id, type: 'customer'}, 'no_vat')}
+                                                            className="p-2 cursor-pointer hover:bg-muted"
+                                                        >
+                                                            {c.name}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </CommandGroup>
                                             </CommandList>
                                         </Command>
                                     </DropdownMenuContent>
@@ -2439,26 +2496,42 @@ const ReviewedTab = ({ client, bankAccountId, customers, globalRules, onAccountC
                                                                 </CommandItem>
                                                             ))}
                                                         </CommandGroup>
-                                                        {activeSubTab === 'income' && (
-                                                            <CommandGroup heading="Customers">
-                                                                {customers.map(c => (
-                                                                    <CommandItem 
-                                                                        key={c.id} 
-                                                                        value={c.name}
-                                                                        onSelect={() => setEditedAllocations((p: any) => ({
-                                                                            ...p, 
-                                                                            [tx.id]: { 
-                                                                                allocatedTo: { value: c.id, type: 'customer' },
-                                                                                vatType: 'no_vat' 
-                                                                            }
-                                                                        }))}
-                                                                        className="p-2 cursor-pointer hover:bg-muted"
-                                                                    >
-                                                                        {c.name}
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        )}
+                                                        <CommandGroup heading="Suppliers">
+                                                            {suppliers.map(s => (
+                                                                <CommandItem 
+                                                                    key={s.id} 
+                                                                    value={s.name}
+                                                                    onSelect={() => setEditedAllocations((p: any) => ({
+                                                                        ...p, 
+                                                                        [tx.id]: { 
+                                                                            allocatedTo: { value: s.id, type: 'supplier' },
+                                                                            vatType: 'no_vat' 
+                                                                        }
+                                                                    }))}
+                                                                    className="p-2 cursor-pointer hover:bg-muted"
+                                                                >
+                                                                    {s.name}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                        <CommandGroup heading="Customers">
+                                                            {customers.map(c => (
+                                                                <CommandItem 
+                                                                    key={c.id} 
+                                                                    value={c.name}
+                                                                    onSelect={() => setEditedAllocations((p: any) => ({
+                                                                        ...p, 
+                                                                        [tx.id]: { 
+                                                                            allocatedTo: { value: c.id, type: 'customer' },
+                                                                            vatType: 'no_vat' 
+                                                                        }
+                                                                    }))}
+                                                                    className="p-2 cursor-pointer hover:bg-muted"
+                                                                >
+                                                                    {c.name}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
                                                     </CommandList>
                                                 </Command>
                                             </PopoverContent>
@@ -2584,6 +2657,7 @@ export default function BankTransactionsPage() {
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const [activeTab, setActiveTab] = useState('new-transactions');
     const [customers, setCustomers] = useState<ClientCustomer[]>([]);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isClearAccountAlertOpen, setIsClearAccountAlertOpen] = useState(false);
@@ -2616,7 +2690,13 @@ export default function BankTransactionsPage() {
         setCustomers(custSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClientCustomer)));
     }, [params.clientId]);
 
-    useEffect(() => { fetchClientData(); fetchGlobalRules(); fetchCustomers(); }, [fetchClientData, fetchGlobalRules, fetchCustomers]);
+    const fetchSuppliers = useCallback(async () => {
+        if (!params.clientId) return;
+        const supSnap = await getDocs(collection(db, `aiAccountantClients/${params.clientId}/suppliers`));
+        setSuppliers(supSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
+    }, [params.clientId]);
+
+    useEffect(() => { fetchClientData(); fetchGlobalRules(); fetchCustomers(); fetchSuppliers(); }, [fetchClientData, fetchGlobalRules, fetchCustomers, fetchSuppliers]);
 
     // Added Real-time Sync for Client Profile (ensures Isolated Mode is always fresh)
     useEffect(() => {
@@ -2770,13 +2850,13 @@ export default function BankTransactionsPage() {
                         <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
                     </TabsList>
                     <TabsContent value="new-transactions" className="p-0">
-                        <NewTransactionsTab client={client} bankAccountId={accountId} currentBalance={stats.balance} globalRules={globalRules} onAccountCreated={fetchClientData} setActiveTab={setActiveTab} customers={customers} />
+                        <NewTransactionsTab client={client} bankAccountId={accountId} currentBalance={stats.balance} globalRules={globalRules} onAccountCreated={fetchClientData} setActiveTab={setActiveTab} customers={customers} suppliers={suppliers} />
                     </TabsContent>
                     <TabsContent value="ai-workflow" className="p-0">
                         <AIWorkflowTab client={client} bankAccountId={accountId} onAccountCreated={fetchClientData} />
                     </TabsContent>
                     <TabsContent value="reviewed" className="p-0">
-                        <ReviewedTab client={client} bankAccountId={accountId} customers={customers} globalRules={globalRules} onAccountCreated={fetchClientData} />
+                        <ReviewedTab client={client} bankAccountId={accountId} customers={customers} suppliers={suppliers} globalRules={globalRules} onAccountCreated={fetchClientData} />
                     </TabsContent>
                 </Tabs>
             </div>

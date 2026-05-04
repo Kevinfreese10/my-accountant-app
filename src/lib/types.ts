@@ -23,6 +23,7 @@ export type AllocationRule = {
   description: string; // Used for soft rules, or as a note for hard rules
   keywords: string[]; // Only for hard rules
   accountId: string;
+  accountType?: 'account' | 'customer' | 'supplier';
   vatType: VatType;
   scope?: 'client' | 'global';
   priority?: number;
@@ -414,6 +415,7 @@ export type Task = {
 export type SmartAllocationResult = {
   ruleId?: string;
   accountId: string;
+  accountType?: 'account' | 'customer' | 'supplier';
   vatType: VatType;
   confidence: number;
   summary?: string;

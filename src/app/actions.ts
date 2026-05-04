@@ -14,7 +14,7 @@ import { OutstandingDocumentsEmail } from '@/components/emails/OutstandingDocume
 import { AIAnalysisCompleteEmail } from '@/components/emails/AIAnalysisCompleteEmail';
 import { BankCleaner } from '@/lib/bank-cleaner';
 import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
-import { analyzeClientComment } from '@/ai/flows/analyze-client-comment';
+import { analyzeClientCommentAndSuggest as analyzeClientCommentAction } from '@/ai/flows/analyze-client-comment';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { format, addDays, addMonths, addYears, parse, subMonths } from 'date-fns';
 import { PayrollService } from '@/services/PayrollService';
@@ -76,7 +76,7 @@ export async function saveEmployeeAction({
 
         return { success: true, id: finalId };
     } catch (e: any) {
-        console.error("Save employee error:", error);
+        console.error("Save employee error:", e);
         return { success: false, error: e.message };
     }
 }
@@ -379,7 +379,7 @@ export async function generateEmployeePayslipAction({
     hours?: any
 }) {
     try {
-        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, baseValue, hours);
+        const result = await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary, hours);
         return { success: true, id: result.id };
     } catch (e: any) {
         console.error("Payslip action failed:", e);
@@ -765,6 +765,7 @@ export async function runAiAccountantAnalysis({
                     if (histMatch) {
                         finalResult = {
                             accountId: histMatch.allocatedTo!.value,
+                            accountType: histMatch.allocatedTo!.type,
                             vatType: histMatch.vatType || 'no_vat',
                             confidence: 100,
                             summary: `Matched historical allocation for ${result.cleanDescription}.`
@@ -780,6 +781,7 @@ export async function runAiAccountantAnalysis({
                         matchedKeyword = ruleMatch.keywords.find(kw => result.cleanDescription.toUpperCase().includes(kw.toUpperCase()));
                         finalResult = {
                             accountId: ruleMatch.accountId,
+                            accountType: ruleMatch.accountType || 'account',
                             vatType: client.isVatRegistered ? ruleMatch.vatType : 'no_vat',
                             confidence: 95,
                             summary: `Matched active allocation rule for ${matchedKeyword}.`,
@@ -800,6 +802,7 @@ export async function runAiAccountantAnalysis({
                             const gd = globalSnap.data();
                             finalResult = {
                                 accountId: gd.topAccountId,
+                                accountType: 'account',
                                 vatType: gd.topVatType,
                                 confidence: 85,
                                 summary: `Matched top global allocation used by other practitioners.`
@@ -891,6 +894,7 @@ export async function researchMerchantWithAi({
             const keyword = match.keywords.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
             result = {
                 accountId: match.accountId,
+                accountType: match.accountType || 'account',
                 vatType: isVatRegistered ? match.vatType : 'no_vat',
                 confidence: 100,
                 summary: `Matched latest existing allocation rule for ${keyword}.`,
@@ -905,7 +909,10 @@ export async function researchMerchantWithAi({
                 chartOfAccounts,
                 isVatRegistered
             });
-            result = aiResult;
+            result = {
+                ...aiResult,
+                accountType: 'account'
+            };
             source = 'ai';
         }
 
@@ -933,10 +940,10 @@ export async function researchMerchantWithAi({
 }
 
 export async function findStoryName(
-  input: FindStoryNameInput
-): Promise<FindStoryNameOutput> {
-  const { storyName } = await import('@/ai/flows/find-story-name');
-  return findStoryName(input);
+  input: { commissionNumber: string; knowledgeBase: string; }
+): Promise<{ storyName?: string; }> {
+  const { findStoryName: findStoryNameAction } = await import('@/ai/flows/find-story-name');
+  return findStoryNameAction(input);
 }
 
 export async function finalizeChatAllocation({
@@ -1225,7 +1232,7 @@ export async function analyzeClientCommentAndSuggest({
         });
         await batch.commit();
 
-        const result = await analyzeClientComment({
+        const result = await analyzeClientCommentAction({
             comment,
             merchantKey,
             examples,
