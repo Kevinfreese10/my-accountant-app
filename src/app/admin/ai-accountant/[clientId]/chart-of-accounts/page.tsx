@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, PlusCircle, Edit, Trash2, ChevronsUpDown, CheckCheck } from "lucide-react";
+import { Loader2, PlusCircle, Edit, Trash2, ChevronsUpDown, CheckCheck, FileUp, Download } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getFirestore, doc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -23,7 +23,8 @@ import { chartOfAccounts as masterChartOfAccounts } from "@/lib/chart-of-account
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandInput, CommandGroup, CommandList, CommandItem } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-
+import * as XLSX from 'xlsx';
+import { Label } from "@/components/ui/label";
 
 const db = getFirestore(firebaseApp);
 
@@ -35,6 +36,121 @@ const accountFormSchema = z.object({
 });
 
 type AccountFormValues = z.infer<typeof accountFormSchema>;
+
+function ImportAccountsDialog({ client, onImportComplete }: { client: User | null; onImportComplete: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const { toast } = useToast();
+
+    const handleDownloadTemplate = () => {
+        const headers = [['Account Number', 'Description', 'Section']];
+        const example = [['1000-001', 'Consulting Income', 'Income Statement'], ['3000-010', 'Office Rent', 'Income Statement'], ['8000-001', 'Bank Account', 'Balance Sheet']];
+        const ws = XLSX.utils.aoa_to_sheet([...headers, ...example]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "COA Template");
+        XLSX.writeFile(wb, "coa_import_template.xlsx");
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !client?.id) return;
+
+        setIsUploading(true);
+        const reader = new FileReader();
+        reader.readAsArrayBuffer(file);
+        reader.onload = async (event) => {
+            try {
+                const data = new Uint8Array(event.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet) as any[];
+
+                const newAccounts: ChartOfAccount[] = json.map(row => {
+                    const accNum = String(row['Account Number'] || row['accountNumber'] || row['Code'] || '').trim();
+                    const desc = String(row['Description'] || row['description'] || row['Name'] || '').trim();
+                    const rawSection = String(row['Section'] || row['section'] || '').toLowerCase();
+                    
+                    let section: 'Income Statement' | 'Balance Sheet' = 'Income Statement';
+                    if (rawSection.includes('balance') || rawSection.includes('bs') || rawSection.includes('asset') || rawSection.includes('liability')) {
+                        section = 'Balance Sheet';
+                    }
+
+                    if (!accNum || !desc) return null;
+
+                    return {
+                        id: accNum,
+                        accountNumber: accNum,
+                        description: desc,
+                        section: section
+                    };
+                }).filter((a): a is ChartOfAccount => a !== null);
+
+                if (newAccounts.length === 0) {
+                    toast({ title: "Import Failed", description: "No valid accounts found. Ensure headers match the template.", variant: "destructive" });
+                    return;
+                }
+
+                const existingAccounts = client.chartOfAccounts || [];
+                const combined = [...existingAccounts];
+                
+                newAccounts.forEach(newAcc => {
+                    const idx = combined.findIndex(e => e.accountNumber === newAcc.accountNumber);
+                    if (idx > -1) {
+                        combined[idx] = newAcc; // Update existing
+                    } else {
+                        combined.push(newAcc); // Add new
+                    }
+                });
+
+                const clientRef = doc(db, 'aiAccountantClients', client.id);
+                await updateDoc(clientRef, { chartOfAccounts: combined });
+                
+                toast({ title: "Import Successful", description: `Added/Updated ${newAccounts.length} accounts.` });
+                onImportComplete();
+                setIsOpen(false);
+            } catch (error) {
+                console.error(error);
+                toast({ title: "Import Failed", description: "An error occurred during parsing.", variant: "destructive" });
+            } finally {
+                setIsUploading(false);
+            }
+        };
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <FileUp className="mr-2 h-4 w-4" /> Import Excel/CSV
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Import Chart of Accounts</DialogTitle>
+                    <DialogDescription>Bulk upload your GL accounts from an Excel or CSV file.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                    <div className="space-y-2">
+                        <Label>1. Download the Template</Label>
+                        <Button variant="secondary" className="w-full justify-start h-12 gap-3" onClick={handleDownloadTemplate}>
+                            <Download className="h-5 w-5 text-primary" />
+                            <div className="text-left">
+                                <p className="text-sm font-bold">coa_template.xlsx</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">Use this format for best results</p>
+                            </div>
+                        </Button>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                        <Label>2. Upload Your File</Label>
+                        <Input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} disabled={isUploading} />
+                        {isUploading && <div className="flex items-center gap-2 text-sm text-primary animate-pulse font-bold mt-2"><Loader2 className="h-4 w-4 animate-spin"/> Processing...</div>}
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function AccountForm({ account, onSave, onCancel }: { account: Partial<ChartOfAccount> | null, onSave: (data: AccountFormValues) => void, onCancel: () => void }) {
     const form = useForm<AccountFormValues>({
@@ -184,7 +300,7 @@ export default function ChartOfAccountsPage() {
         }
     }
 
-    if (isLoading) {
+    if (isLoading && !client) {
         return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
 
@@ -197,7 +313,8 @@ export default function ChartOfAccountsPage() {
                             <CardTitle>Chart of Accounts</CardTitle>
                             <CardDescription>Manage the accounts for {client?.companyName || client?.name}.</CardDescription>
                         </div>
-                         <div className="flex gap-2">
+                         <div className="flex gap-2 flex-wrap">
+                            <ImportAccountsDialog client={client} onImportComplete={fetchClientData} />
                              <DialogTrigger asChild>
                                 <Button size="sm" onClick={() => setEditingAccount(null)}>
                                     <PlusCircle className="mr-2 h-4 w-4" /> Create Account
