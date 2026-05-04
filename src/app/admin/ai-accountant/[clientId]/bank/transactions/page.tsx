@@ -708,6 +708,18 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
     const [currentPage, setCurrentPage] = useState(1);
 
+    // Helper to get display name for an allocated target
+    const getAllocationName = useCallback((allocation?: { value: string, type: 'account' | 'customer' | 'supplier' }) => {
+        if (!allocation) return 'Select Account...';
+        if (allocation.type === 'customer') {
+            return customers.find(c => c.id === allocation.value)?.name || 'Selected Customer';
+        }
+        if (allocation.type === 'supplier') {
+            return suppliers.find(s => s.id === allocation.value)?.name || 'Selected Supplier';
+        }
+        return client?.chartOfAccounts?.find(a => a.id === allocation.value)?.description || 'Selected Account';
+    }, [client?.chartOfAccounts, customers, suppliers]);
+
     // REAL-TIME LISTENER FOR THE ENTIRE WORK QUEUE FOR THIS ACCOUNT
     useEffect(() => {
         if (!client?.uid || !bankAccountId) return;
@@ -885,7 +897,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                 await batch.commit();
                 toast({ title: 'Rules Applied', description: `${count} transactions auto-allocated across all pages.` });
             } else { 
-                toast({ title: 'No Matches', description: 'No rules matched any unallocated transactions.' }); 
+                toast({ title: "No Matches", description: "No rules matched any unallocated transactions." }); 
             }
         } catch (e) { 
             console.error(e);
@@ -1104,10 +1116,10 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                             </CommandGroup>
                                             <CommandSeparator />
                                             <CommandGroup heading="Customers">
-                                                {customers.map(c => <CommandItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{c.name}</CommandItem>)}
+                                                {customers.map(c => <CommandItem key={c.id} value={c.name} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{c.name}</CommandItem>)}
                                             </CommandGroup>
                                             <CommandGroup heading="Suppliers">
-                                                {suppliers.map(s => <CommandItem key={s.id} onSelect={() => handleBulkAllocate({value: s.id, type: 'supplier'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{s.name}</CommandItem>)}
+                                                {suppliers.map(s => <CommandItem key={s.id} value={s.name} onSelect={() => handleBulkAllocate({value: s.id, type: 'supplier'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{s.name}</CommandItem>)}
                                             </CommandGroup>
                                             <CommandGroup heading="General Ledger Accounts">
                                                 {client?.chartOfAccounts?.map(acc => (
@@ -1189,9 +1201,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                             <PopoverTrigger asChild>
                                                 <Button variant="outline" className="h-8 text-[11px] w-full justify-start overflow-hidden">
                                                     <span className="truncate">
-                                                        {allocations[tx.id] 
-                                                            ? [...(client?.chartOfAccounts || []), ...customers, ...suppliers].find(o => o.id === allocations[tx.id].value)?.description || 'Selected' 
-                                                            : 'Select Account...'}
+                                                        {getAllocationName(allocations[tx.id])}
                                                     </span>
                                                 </Button>
                                             </PopoverTrigger>
@@ -1208,7 +1218,6 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                                     onSelect={() => setAllocations((p: any) => ({
                                                                         ...p, 
                                                                         [tx.id]: { 
-                                                                            ...(p[tx.id] || { type: 'account' }), 
                                                                             value: a.id, 
                                                                             type: 'account' 
                                                                         }
@@ -2201,16 +2210,16 @@ const ReviewedTab = ({ client, bankAccountId, customers, suppliers, globalRules,
         setSelectedTransactions([]);
     }, [activeSubTab, selectedGlAccountId, currentPage]);
 
-    const getAllocationName = (allocatedTo: any) => {
+    const getAllocationName = useCallback((allocatedTo: any) => {
         if (!allocatedTo) return 'Unallocated';
         if (allocatedTo.type === 'customer') {
-            return customers.find(c => c.id === allocatedTo.value)?.name || allocatedTo.value;
+            return customers.find(c => c.id === allocatedTo.value)?.name || 'Selected Customer';
         }
         if (allocatedTo.type === 'supplier') {
-            return suppliers.find(s => s.id === allocatedTo.value)?.name || allocatedTo.value;
+            return suppliers.find(s => s.id === allocatedTo.value)?.name || 'Selected Supplier';
         }
-        return uniqueChartOfAccounts.find(a => a.id === allocatedTo.value)?.description || allocatedTo.value;
-    };
+        return uniqueChartOfAccounts.find(a => a.id === allocatedTo.value)?.description || 'Selected Account';
+    }, [uniqueChartOfAccounts, customers, suppliers]);
 
     const handleBulkReallocate = async (allocation: { value: string, type: 'account' | 'customer' | 'supplier' }, vatType: VatType) => {
         if (!client?.uid || selectedTransactions.length === 0) return;
