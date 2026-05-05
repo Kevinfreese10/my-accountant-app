@@ -10,7 +10,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown, PlusCircle, Calculator, AlertCircle, CheckCircle, FileUp, Download, X } from 'lucide-react';
-import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -36,7 +36,7 @@ const db = getFirestore(firebaseApp);
 const journalLineSchema = z.object({
   date: z.date({ required_error: "Date is required for every line." }),
   accountId: z.string().min(1, "Account is required."),
-  description: z.string().optional(),
+  description: z.string().min(1, "Description is required."),
   debit: z.number().min(0).optional(),
   credit: z.number().min(0).optional(),
   vatType: z.string().default('no_vat'),
@@ -46,7 +46,6 @@ const formSchema = z.object({
   reference: z.string().min(1, "Reference is required."),
   lines: z.array(journalLineSchema).min(2, "At least two lines are required."),
 }).refine(data => {
-    // Group lines by date
     const groups: Record<string, typeof data.lines> = {};
     data.lines.forEach(line => {
         const dateKey = format(line.date, 'yyyy-MM-dd');
@@ -54,7 +53,6 @@ const formSchema = z.object({
         groups[dateKey].push(line);
     });
 
-    // Check if each date group balances
     return Object.values(groups).every(groupLines => {
         const totalDebits = groupLines.reduce((acc, line) => {
             const base = line.debit || 0;
@@ -77,7 +75,7 @@ type JournalFormValues = z.infer<typeof formSchema>;
 
 const formatPrice = (price: number | undefined) => {
     if (price === undefined || price === null || isNaN(price)) return '0.00';
-    return new Intl.NumberFormat('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
+    return new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
 };
 
 const generalAccountFormSchema = z.object({
@@ -92,8 +90,8 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
     const { toast } = useToast();
 
     const handleDownloadTemplate = () => {
-        const headers = [['Date (YYYY-MM-DD)', 'Account Number', 'Description', 'VAT Type', 'Debit', 'Credit']];
-        const today = format(new Date(), 'yyyy-MM-dd');
+        const headers = [['Date (DD/MM/YYYY)', 'Account Number', 'Description', 'VAT Type', 'Debit', 'Credit']];
+        const today = format(new Date(), 'dd/MM/yyyy');
         const example = [
             [today, '3000-010', 'Office Rent Payment', 'standard_rated_purchases', 5000, 0],
             [today, '8400-001', 'Bank Contra', 'no_vat', 0, 5750]
@@ -126,20 +124,22 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
                 const sheet = workbook.Sheets["Journal Template"] || workbook.Sheets[workbook.SheetNames[0]];
                 const json = XLSX.utils.sheet_to_json(sheet) as any[];
 
-                const importedLines = json.map((row, idx) => {
-                    const rawDate = row['Date (YYYY-MM-DD)'] || row['Date'] || row['date'];
+                const importedLines = json.map((row) => {
+                    const rawDate = row['Date (DD/MM/YYYY)'] || row['Date'] || row['date'];
                     let parsedDate: Date | null = null;
                     
                     if (rawDate) {
                         if (typeof rawDate === 'number') {
                             parsedDate = XLSX.utils.sheet_to_date(sheet, rawDate);
-                        } else {
-                            const d = new Date(rawDate);
-                            if (isValid(d)) parsedDate = d;
+                        } else if (typeof rawDate === 'string') {
+                            parsedDate = parse(rawDate.trim(), 'dd/MM/yyyy', new Date());
+                            if (!isValid(parsedDate)) {
+                                parsedDate = new Date(rawDate);
+                            }
                         }
                     }
 
-                    if (!parsedDate) return null;
+                    if (!parsedDate || !isValid(parsedDate)) return null;
 
                     const accNum = String(row['Account Number'] || row['accountNumber'] || '').trim();
                     const desc = String(row['Description'] || row['description'] || '').trim();
@@ -160,15 +160,15 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
                     return {
                         date: parsedDate,
                         accountId: account?.id || accNum,
-                        description: desc,
+                        description: desc || 'Journal Entry',
                         debit,
                         credit,
                         vatType
                     };
-                }).filter(l => l !== null);
+                }).filter((l): l is NonNullable<typeof l> => l !== null);
 
                 if (importedLines.length === 0) {
-                    toast({ title: "Import Failed", description: "No valid lines with dates found.", variant: "destructive" });
+                    toast({ title: "Import Failed", description: "No valid lines with UK format dates (DD/MM/YYYY) found.", variant: "destructive" });
                 } else {
                     onImport(importedLines);
                     toast({ title: "Import Successful", description: `Loaded ${importedLines.length} journal lines.` });
@@ -187,13 +187,13 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary font-bold">
-                    <FileUp className="h-4 w-4" /> Multi-Date Import
+                    <FileUp className="h-4 w-4" /> Multi-Date Import (UK)
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Import Multi-Date Journal</DialogTitle>
-                    <DialogDescription>Bulk load journal lines from Excel. Each line requires a date.</DialogDescription>
+                    <DialogDescription>Bulk load journal lines from Excel using UK date format (DD/MM/YYYY).</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-4">
                     <div className="space-y-2">
@@ -201,8 +201,8 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
                         <Button variant="secondary" className="w-full justify-start h-12 gap-3" onClick={handleDownloadTemplate}>
                             <Download className="h-5 w-5 text-primary" />
                             <div className="text-left">
-                                <p className="text-sm font-bold text-slate-900">Download Template</p>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">Supports multiple dates per ref</p>
+                                <p className="text-sm font-bold text-slate-900">Download UK Template</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">DD/MM/YYYY Required</p>
                             </div>
                         </Button>
                     </div>
@@ -268,7 +268,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
                     <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
                         <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g., 3000-058" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g., Office Flowers" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select></FormItem>)} />
+                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select></FormItem>)} />
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                             <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create</Button>
@@ -281,8 +281,6 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
 }
 
 function JournalManager({ clientId, client, fetchClientAndJournals, allJournals, isLoading, setIsLoading }: { clientId: string, client: User | null, fetchClientAndJournals: () => void, allJournals: AllocatedTransaction[], isLoading: boolean, setIsLoading: (val: boolean) => void }) {
-    const searchParams = useSearchParams();
-    const router = useRouter();
     const { toast } = useToast();
 
     const [viewingJournal, setViewingJournal] = useState<AllocatedTransaction[] | null>(null);
@@ -310,6 +308,7 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
     const totalsPerDate = useMemo(() => {
         const groups: Record<string, { exclDebit: number; exclCredit: number; vat: number }> = {};
         watchedLines.forEach(line => {
+            if (!line.date) return;
             const dateKey = format(line.date, 'yyyy-MM-dd');
             if (!groups[dateKey]) groups[dateKey] = { exclDebit: 0, exclCredit: 0, vat: 0 };
             
@@ -487,7 +486,7 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                     <div className="flex justify-between items-center flex-wrap gap-4">
                         <div>
                             <CardTitle className="text-xl font-bold">{editingJournalRef ? `Edit Journal: ${editingJournalRef}` : 'Post General Journal'}</CardTitle>
-                            <CardDescription>Support for multiple dates per reference. Every date must balance individually.</CardDescription>
+                            <CardDescription>Support for multi-date reference. UK date format (DD/MM/YYYY) supported.</CardDescription>
                         </div>
                         <div className="flex gap-2 flex-wrap">
                             <ImportJournalsDialog client={client} onImport={(lines) => replace(lines)} />
@@ -602,7 +601,7 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {totalsPerDate.map((group, i) => (
+                                {totalsPerDate.map((group) => (
                                     <Card key={group.date} className={cn("border-l-4 shadow-sm", Math.abs(group.inclDebit - group.inclCredit) > 0.01 ? "border-l-destructive bg-destructive/5" : "border-l-green-500 bg-green-50/30")}>
                                         <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
                                             <CardTitle className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{format(new Date(group.date), 'dd MMM yyyy')}</CardTitle>
@@ -767,7 +766,7 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                             </TableHeader>
                             <TableBody>
                                 {viewingJournal?.map((tx, idx) => {
-                                    const account = client.chartOfAccounts?.find(a => a.id === tx.allocatedTo.value);
+                                    const account = client?.chartOfAccounts?.find(a => a.id === tx.allocatedTo.value);
                                     return (
                                         <TableRow key={idx}>
                                             <TableCell className="text-xs">{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
