@@ -76,30 +76,43 @@ export default function CheckoutForm() {
   // Automatic user lookup when email is entered
   useEffect(() => {
     const lookupUser = async () => {
-        if ((user && user.role === 'client') || !watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
+        const email = watchedEmail?.toLowerCase().trim();
+        // Don't lookup if user is already logged in as a client
+        if ((user && user.role === 'client') || !email || !email.includes('@') || email.length < 5) {
             setLinkedUser(null);
             return;
         }
         
         setIsCheckingUser(true);
         try {
-            const usersQ = query(collection(db, 'users'), where("email", "==", watchedEmail.toLowerCase().trim()));
-            const userSnap = await getDocs(usersQ);
-            
-            if (!userSnap.empty) {
-                const userData = userSnap.docs[0].data();
-                setLinkedUser({ 
-                    name: userData.name, 
-                    id: userSnap.docs[0].id 
-                });
+            const collectionsToTry = ['users', 'aiAccountantClients', 'adminClients', 'partnerClients'];
+            let found = false;
 
-                // Auto-populate fields
-                const nameParts = userData.name.split(' ');
-                form.setValue('firstName', nameParts[0]);
-                form.setValue('lastName', nameParts.slice(1).join(' '));
-                form.setValue('phone', userData.contactNumber || '');
-                form.trigger();
-            } else {
+            for (const colName of collectionsToTry) {
+                const q = query(collection(db, colName), where("email", "==", email));
+                const snap = await getDocs(q);
+                
+                if (!snap.empty) {
+                    const userData = snap.docs[0].data();
+                    const fullName = userData.name || userData.companyName || 'Existing Client';
+                    
+                    setLinkedUser({ 
+                        name: fullName, 
+                        id: snap.docs[0].id 
+                    });
+
+                    // Auto-populate fields
+                    const nameParts = fullName.split(' ');
+                    form.setValue('firstName', nameParts[0] || '');
+                    form.setValue('lastName', nameParts.slice(1).join(' ') || '');
+                    form.setValue('phone', userData.contactNumber || userData.cellNumber || userData.phone || '');
+                    form.trigger();
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
                 setLinkedUser(null);
             }
         } catch (e) {
@@ -188,7 +201,7 @@ export default function CheckoutForm() {
                 if (authError.code === 'auth/email-already-in-use') {
                     toast({
                         title: 'Account Exists',
-                        description: 'An account already exists with this email. Please log in to continue.',
+                        description: 'An account already exists with this email address. Please log in to continue.',
                         variant: 'destructive',
                     });
                     setIsLoading(false);
@@ -221,8 +234,6 @@ export default function CheckoutForm() {
 
         await setDoc(doc(db, 'orders', orderId), orderData);
         
-        // Note: The confirmation email logic would follow here similarly to ServiceCheckoutForm.
-
         clearCart();
         submitToPayFast(orderData);
 

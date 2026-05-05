@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash, RefreshCw, Clock, AlertCircle, CheckCircle2, Mail } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where, onSnapshot, serverTimestamp, increment, getDoc } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, OrderNote, User } from '@/lib/types';
@@ -135,30 +135,42 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
 
   useEffect(() => {
     const lookupUser = async () => {
-        if (!watchedEmail || !watchedEmail.includes('@') || watchedEmail.length < 5) {
+        const email = watchedEmail?.toLowerCase().trim();
+        if (!email || !email.includes('@') || email.length < 5) {
             setLinkedUser(null);
             return;
         }
         
         setIsCheckingUser(true);
         try {
-            const usersQ = query(collection(db, 'users'), where("email", "==", watchedEmail.toLowerCase().trim()));
-            const userSnap = await getDocs(usersQ);
-            
-            if (!userSnap.empty) {
-                const userData = userSnap.docs[0].data();
-                setLinkedUser({ 
-                    name: userData.name, 
-                    id: userSnap.docs[0].id 
-                });
+            const collectionsToTry = ['users', 'aiAccountantClients', 'adminClients', 'partnerClients'];
+            let found = false;
 
-                // Auto-populate fields
-                const nameParts = userData.name.split(' ');
-                form.setValue('customerFirstName', nameParts[0]);
-                form.setValue('customerLastName', nameParts.slice(1).join(' '));
-                form.setValue('customerPhone', userData.contactNumber || '');
-                form.trigger(); // Refresh validation
-            } else {
+            for (const colName of collectionsToTry) {
+                const q = query(collection(db, colName), where("email", "==", email));
+                const snap = await getDocs(q);
+                
+                if (!snap.empty) {
+                    const userData = snap.docs[0].data();
+                    const fullName = userData.name || userData.companyName || 'Existing Client';
+                    
+                    setLinkedUser({ 
+                        name: fullName, 
+                        id: snap.docs[0].id 
+                    });
+
+                    // Auto-populate fields
+                    const nameParts = fullName.split(' ');
+                    form.setValue('customerFirstName', nameParts[0] || '');
+                    form.setValue('customerLastName', nameParts.slice(1).join(' ') || '');
+                    form.setValue('customerPhone', userData.contactNumber || userData.cellNumber || userData.phone || '');
+                    form.trigger();
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
                 setLinkedUser(null);
             }
         } catch (e) {
