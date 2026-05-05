@@ -204,6 +204,21 @@ export default function CreateOrderForm() {
 
     try {
         let finalUserId = linkedUser?.id || null;
+        const email = values.customerEmail.toLowerCase().trim();
+
+        // Final verification check in case debounce didn't catch it
+        if (!finalUserId) {
+            const collectionsToTry = ['users', 'aiAccountantClients', 'adminClients', 'partnerClients'];
+            for (const colName of collectionsToTry) {
+                const q = query(collection(db, colName), or(where("email", "==", email), where("email", "==", values.customerEmail.trim())));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    finalUserId = snap.docs[0].id;
+                    break;
+                }
+            }
+        }
+
         let isNewUser = false;
         let generatedPassword = null;
 

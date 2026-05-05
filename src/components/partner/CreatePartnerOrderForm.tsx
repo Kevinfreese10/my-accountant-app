@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash, RefreshCw, Clock, AlertCircle, CheckCircle2, Mail } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where, onSnapshot, serverTimestamp, increment, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where, onSnapshot, serverTimestamp, increment, getDoc, or } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, OrderNote, User } from '@/lib/types';
@@ -114,7 +114,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     const unsubscribe = onSnapshot(overridesRef, (snap) => {
         const data: Record<string, any> = {};
         snap.docs.forEach(doc => data[doc.id] = doc.data());
-        setServiceOverrides(data);
+        setOverrides(data);
     });
     return () => unsubscribe();
   }, [partnerId]);
@@ -135,8 +135,8 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
 
   useEffect(() => {
     const lookupUser = async () => {
-        const email = watchedEmail?.toLowerCase().trim();
-        if (!email || !email.includes('@') || email.length < 5) {
+        const rawEmail = watchedEmail?.trim();
+        if (!rawEmail || !rawEmail.includes('@') || rawEmail.length < 5) {
             setLinkedUser(null);
             return;
         }
@@ -147,7 +147,14 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
             let found = false;
 
             for (const colName of collectionsToTry) {
-                const q = query(collection(db, colName), where("email", "==", email));
+                // Perform case-insensitive search using OR for exact and lowercase versions
+                const q = query(
+                    collection(db, colName), 
+                    or(
+                        where("email", "==", rawEmail),
+                        where("email", "==", rawEmail.toLowerCase())
+                    )
+                );
                 const snap = await getDocs(q);
                 
                 if (!snap.empty) {
@@ -254,6 +261,21 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
 
     try {
         let finalUserId = linkedUser?.id || null;
+        const email = values.customerEmail.toLowerCase().trim();
+
+        // Final verification check in case debounce didn't catch it
+        if (!finalUserId) {
+            const collectionsToTry = ['users', 'aiAccountantClients', 'adminClients', 'partnerClients'];
+            for (const colName of collectionsToTry) {
+                const q = query(collection(db, colName), or(where("email", "==", email), where("email", "==", values.customerEmail.trim())));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    finalUserId = snap.docs[0].id;
+                    break;
+                }
+            }
+        }
+
         let isNewUser = false;
         let generatedPassword = null;
 
