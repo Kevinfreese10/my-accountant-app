@@ -1,4 +1,3 @@
-
 'use client';
 
 import { ReactNode, useState, useEffect } from 'react';
@@ -101,6 +100,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/suppliers`}>Supplier List</Link></MenubarItem>
                         <MenubarSeparator />
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/journals?type=supplier`}>Supplier Journals</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/supplier-ledger`}>Supplier Ledger</Link></MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
                  <MenubarMenu>
@@ -135,6 +135,9 @@ export default function AIAccountantClientLayout({ children }: { children: React
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/transaction-search`}>Transaction Search</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/gl-recon`}>GL Recon</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/age-analysis`}>Age Analysis</Link></MenubarItem>
+                        <MenubarSeparator />
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/customer-ledger`}>Customer Ledger</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/supplier-ledger`}>Supplier Ledger</Link></MenubarItem>
                         <MenubarSeparator />
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/account-transactions`}>Account Transactions</Link></MenubarItem>
                     </MenubarContent>
