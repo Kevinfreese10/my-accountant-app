@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Service, Order, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Loader2, Mail, User as UserIcon, CheckCircle2 } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, getDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp, getDoc, serverTimestamp, collection, query, where, getDocs, or } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
 import { getNextOrderId } from '@/lib/sequence';
@@ -63,9 +63,9 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
   // Automatic user lookup when email is entered
   useEffect(() => {
     const lookupUser = async () => {
-        const email = watchedEmail?.toLowerCase().trim();
+        const rawEmail = watchedEmail?.trim();
         // Don't lookup if user is already logged in as a client
-        if ((user && user.role === 'client') || !email || !email.includes('@') || email.length < 5) {
+        if ((user && user.role === 'client') || !rawEmail || !rawEmail.includes('@') || rawEmail.length < 5) {
             setLinkedUser(null);
             return;
         }
@@ -76,7 +76,13 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
             let found = false;
 
             for (const colName of collectionsToTry) {
-                const q = query(collection(db, colName), where("email", "==", email));
+                const q = query(
+                    collection(db, colName), 
+                    or(
+                        where("email", "==", rawEmail),
+                        where("email", "==", rawEmail.toLowerCase())
+                    )
+                );
                 const snap = await getDocs(q);
                 
                 if (!snap.empty) {

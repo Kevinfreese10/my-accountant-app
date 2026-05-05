@@ -12,7 +12,7 @@ import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail, CheckCircle2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { getFirestore, doc, setDoc, Timestamp, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp, collection, query, where, getDocs, serverTimestamp, or } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
 import { getNextOrderId } from '@/lib/sequence';
@@ -76,9 +76,9 @@ export default function CheckoutForm() {
   // Automatic user lookup when email is entered
   useEffect(() => {
     const lookupUser = async () => {
-        const email = watchedEmail?.toLowerCase().trim();
+        const rawEmail = watchedEmail?.trim();
         // Don't lookup if user is already logged in as a client
-        if ((user && user.role === 'client') || !email || !email.includes('@') || email.length < 5) {
+        if ((user && user.role === 'client') || !rawEmail || !rawEmail.includes('@') || rawEmail.length < 5) {
             setLinkedUser(null);
             return;
         }
@@ -89,7 +89,13 @@ export default function CheckoutForm() {
             let found = false;
 
             for (const colName of collectionsToTry) {
-                const q = query(collection(db, colName), where("email", "==", email));
+                const q = query(
+                    collection(db, colName), 
+                    or(
+                        where("email", "==", rawEmail),
+                        where("email", "==", rawEmail.toLowerCase())
+                    )
+                );
                 const snap = await getDocs(q);
                 
                 if (!snap.empty) {

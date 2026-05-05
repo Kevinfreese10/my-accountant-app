@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash, RefreshCw, Clock, Search, CheckCircle2, Mail } from 'lucide-react';
-import { getFirestore, collection, doc, setDoc, Timestamp, query, orderBy, getDocs, where, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, Timestamp, query, orderBy, getDocs, where, serverTimestamp, or } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User } from '@/lib/types';
@@ -86,8 +86,8 @@ export default function CreateOrderForm() {
 
   useEffect(() => {
     const lookupUser = async () => {
-        const email = watchedEmail?.toLowerCase().trim();
-        if (!email || !email.includes('@') || email.length < 5) {
+        const rawEmail = watchedEmail?.trim();
+        if (!rawEmail || !rawEmail.includes('@') || rawEmail.length < 5) {
             setLinkedUser(null);
             return;
         }
@@ -98,7 +98,14 @@ export default function CreateOrderForm() {
             let found = false;
 
             for (const colName of collectionsToTry) {
-                const q = query(collection(db, colName), where("email", "==", email));
+                // Perform case-insensitive search using OR for exact and lowercase versions
+                const q = query(
+                    collection(db, colName), 
+                    or(
+                        where("email", "==", rawEmail),
+                        where("email", "==", rawEmail.toLowerCase())
+                    )
+                );
                 const snap = await getDocs(q);
                 
                 if (!snap.empty) {
