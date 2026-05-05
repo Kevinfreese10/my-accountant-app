@@ -10,7 +10,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown, PlusCircle, Calculator, AlertCircle, CheckCircle, FileUp, Download, X } from 'lucide-react';
-import { getFirestore, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
