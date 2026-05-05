@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from "react";
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown, PlusCircle, Calculator, AlertCircle, CheckCircle, FileUp, Download, X } from 'lucide-react';
 import { getFirestore, doc, getDoc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion, setDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { User, ChartOfAccount, AllocatedTransaction, VatType } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -101,7 +101,6 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
         const ws = XLSX.utils.aoa_to_sheet([...headers, ...example]);
         const wb = XLSX.utils.book_new();
         
-        // Add COA Reference sheet
         if (client?.chartOfAccounts) {
             const coaData = [['Account Number', 'Description', 'Section']];
             client.chartOfAccounts.forEach(acc => coaData.push([acc.accountNumber, acc.description, acc.section]));
@@ -133,7 +132,6 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
                     
                     if (rawDate) {
                         if (typeof rawDate === 'number') {
-                            // Excel numeric date
                             parsedDate = XLSX.utils.sheet_to_date(sheet, rawDate);
                         } else {
                             const d = new Date(rawDate);
@@ -141,10 +139,7 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
                         }
                     }
 
-                    if (!parsedDate) {
-                        console.warn(`Line ${idx + 2} rejected: Missing or invalid date.`);
-                        return null;
-                    }
+                    if (!parsedDate) return null;
 
                     const accNum = String(row['Account Number'] || row['accountNumber'] || '').trim();
                     const desc = String(row['Description'] || row['description'] || '').trim();
@@ -173,7 +168,7 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
                 }).filter(l => l !== null);
 
                 if (importedLines.length === 0) {
-                    toast({ title: "Import Failed", description: "No valid lines with dates found. Use the template provided.", variant: "destructive" });
+                    toast({ title: "Import Failed", description: "No valid lines with dates found.", variant: "destructive" });
                 } else {
                     onImport(importedLines);
                     toast({ title: "Import Successful", description: `Loaded ${importedLines.length} journal lines.` });
@@ -181,7 +176,7 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
                 }
             } catch (error) {
                 console.error(error);
-                toast({ title: "Import Failed", description: "Error parsing the file.", variant: "destructive" });
+                toast({ title: "Import Failed", variant: "destructive" });
             } finally {
                 setIsUploading(false);
             }
@@ -252,13 +247,12 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
             const clientRef = doc(db, 'aiAccountantClients', client.uid);
             await setDoc(clientRef, { chartOfAccounts: arrayUnion(newAccount) }, { merge: true });
             
-            toast({ title: 'Account Created', description: `Account "${values.description}" has been added.` });
+            toast({ title: 'Account Created' });
             onAccountCreated();
             form.reset();
             onOpenChange(false);
         } catch (error) {
-            console.error("Error creating general account:", error);
-            toast({ title: 'Error', description: 'Could not create the account.', variant: 'destructive' });
+            toast({ title: 'Error', variant: 'destructive' });
         } finally {
             setIsSaving(false);
         }
@@ -268,17 +262,16 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Create New General Ledger Account</DialogTitle>
-                    <DialogDescription>Add a new account to this client's chart of accounts.</DialogDescription>
+                    <DialogTitle>Create New Account</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
                         <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g., 3000-058" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g., Office Flowers" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select></FormItem>)} />
+                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select></FormItem>)} />
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                            <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create Account</Button>
+                            <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create</Button>
                         </DialogFooter>
                     </form>
                 </Form>
@@ -287,17 +280,14 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
     );
 }
 
-export default function GeneralJournalsPage() {
-    const params = useParams();
+function JournalManager({ clientId, client, fetchClientAndJournals, allJournals, isLoading, setIsLoading }: { clientId: string, client: User | null, fetchClientAndJournals: () => void, allJournals: AllocatedTransaction[], isLoading: boolean, setIsLoading: (val: boolean) => void }) {
     const searchParams = useSearchParams();
-    const clientId = params.clientId as string;
-    const [client, setClient] = useState<User | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [allJournals, setAllJournals] = useState<AllocatedTransaction[]>([]);
+    const router = useRouter();
+    const { toast } = useToast();
+
     const [viewingJournal, setViewingJournal] = useState<AllocatedTransaction[] | null>(null);
     const [editingJournalRef, setEditingJournalRef] = useState<string | null>(null);
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
-    const { toast } = useToast();
 
     const form = useForm<JournalFormValues>({
         resolver: zodResolver(formSchema),
@@ -319,7 +309,6 @@ export default function GeneralJournalsPage() {
 
     const totalsPerDate = useMemo(() => {
         const groups: Record<string, { exclDebit: number; exclCredit: number; vat: number }> = {};
-        
         watchedLines.forEach(line => {
             const dateKey = format(line.date, 'yyyy-MM-dd');
             if (!groups[dateKey]) groups[dateKey] = { exclDebit: 0, exclCredit: 0, vat: 0 };
@@ -330,10 +319,7 @@ export default function GeneralJournalsPage() {
             
             groups[dateKey].exclDebit += debit;
             groups[dateKey].exclCredit += credit;
-
-            if (isStandard) {
-                groups[dateKey].vat += (debit - credit) * 0.15;
-            }
+            if (isStandard) groups[dateKey].vat += (debit - credit) * 0.15;
         });
 
         return Object.entries(groups).map(([date, vals]) => ({
@@ -355,60 +341,21 @@ export default function GeneralJournalsPage() {
     }, [totalsPerDate]);
     
     const generalAccounts = useMemo(() => {
-        const excludedAccountNumbers = ['8000-001', '7000-000'];
-        return client?.chartOfAccounts?.filter(acc => !excludedAccountNumbers.includes(acc.accountNumber)) || [];
+        const excluded = ['8000-001', '7000-000'];
+        return client?.chartOfAccounts?.filter(acc => !excluded.includes(acc.accountNumber)) || [];
     }, [client]);
 
-    const fetchClientAndJournals = async () => {
-        if (!clientId) return;
-        setIsLoading(true);
-        try {
-            const clientRef = doc(db, 'aiAccountantClients', clientId);
-            const clientSnap = await getDoc(clientRef);
-            if (clientSnap.exists()) {
-                const data = clientSnap.data() as User;
-                if (data.chartOfAccounts) {
-                    const uniqueAccounts = Array.from(new Map(data.chartOfAccounts.map(a => [a.accountNumber, a])).values());
-                    data.chartOfAccounts = uniqueAccounts;
-                }
-                setClient(data);
-            }
-
-            const journalsQuery = query(
-                collection(db, 'aiAccountantClients', clientId, 'transactions'),
-                where('bankAccountId', '==', 'JOURNAL'),
-                orderBy('date', 'desc'),
-                orderBy('reference', 'asc')
-            );
-            const journalsSnapshot = await getDocs(journalsQuery);
-            const journals = journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction);
-            setAllJournals(journals);
-        } catch (e) {
-            console.error("Failed to fetch data:", e);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchClientAndJournals();
-    }, [clientId]);
-    
     const onSubmit = async (data: JournalFormValues) => {
         if (!client) return;
         setIsLoading(true);
-        
         try {
             const batch = writeBatch(db);
             const journalTimestamp = Timestamp.now();
-
             const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
 
             if(editingJournalRef) {
-                 const journalsToDeleteSnapshot = await getDocs(query(collection(db, "aiAccountantClients", client.id, "transactions"), where("reference", "==", editingJournalRef)));
-                 journalsToDeleteSnapshot.forEach(journalDoc => {
-                    batch.delete(journalDoc.ref);
-                });
+                 const snap = await getDocs(query(collection(db, "aiAccountantClients", client.id, "transactions"), where("reference", "==", editingJournalRef)));
+                 snap.forEach(d => batch.delete(d.ref));
             }
 
             for (const line of data.lines) {
@@ -418,8 +365,8 @@ export default function GeneralJournalsPage() {
                 const isStandardVat = line.vatType === 'standard_rated_purchases' || line.vatType === 'standard_rated_sales' || line.vatType === 'capital_goods_purchases';
                 const vatAmount = isStandardVat ? amount * 0.15 : 0;
 
-                const journalEntryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                batch.set(journalEntryRef, {
+                const ref = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                batch.set(ref, {
                     clientId: client.id,
                     date: line.date.toISOString(),
                     reference: data.reference,
@@ -434,8 +381,8 @@ export default function GeneralJournalsPage() {
                 });
 
                 if (vatAmount !== 0 && vatControlAccount) {
-                    const vatEntryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                    batch.set(vatEntryRef, {
+                    const vatRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                    batch.set(vatRef, {
                         clientId: client.id,
                         date: line.date.toISOString(),
                         reference: data.reference,
@@ -450,10 +397,8 @@ export default function GeneralJournalsPage() {
                     });
                 }
             }
-
             await batch.commit();
-
-            toast({ title: `Journal ${editingJournalRef ? 'Updated' : 'Posted'}`, description: `The journal entry has been successfully recorded.` });
+            toast({ title: 'Journal Posted' });
             form.reset({
                  reference: '',
                  lines: [
@@ -464,7 +409,7 @@ export default function GeneralJournalsPage() {
             setEditingJournalRef(null);
             fetchClientAndJournals();
         } catch (error) {
-            toast({ title: 'Error', description: 'Failed to post journal entry.', variant: 'destructive' });
+            toast({ title: 'Error', variant: 'destructive' });
         } finally {
             setIsLoading(false);
         }
@@ -472,33 +417,30 @@ export default function GeneralJournalsPage() {
 
     const handleEditJournal = (entries: AllocatedTransaction[]) => {
         if (entries.length === 0) return;
+        const ref = entries[0].reference;
+        const vatCtrl = client?.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
+        const mainLines = entries.filter(e => e.allocatedTo.value !== vatCtrl);
 
-        const reference = entries[0].reference;
-        const vatControlAccountId = client?.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
-        const mainLines = entries.filter(e => e.allocatedTo.value !== vatControlAccountId);
-
-        const formLines = mainLines.map(entry => ({
-            date: entry.date instanceof Date ? entry.date : new Date(entry.date),
-            accountId: entry.allocatedTo.value,
-            description: entry.description,
-            debit: entry.amount > 0 ? entry.amount : 0,
-            credit: entry.amount < 0 ? -entry.amount : 0,
-            vatType: entry.vatType || 'no_vat',
-        }));
+        replace(mainLines.map(e => ({
+            date: e.date instanceof Date ? e.date : new Date(e.date),
+            accountId: e.allocatedTo.value,
+            description: e.description,
+            debit: e.amount > 0 ? e.amount : 0,
+            credit: e.amount < 0 ? -e.amount : 0,
+            vatType: e.vatType || 'no_vat',
+        })));
         
-        replace(formLines);
-        form.setValue('reference', reference);
-        setEditingJournalRef(reference);
+        form.setValue('reference', ref);
+        setEditingJournalRef(ref);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     
-    const handleDeleteJournal = async (journalReference: string) => {
+    const handleDeleteJournal = async (ref: string) => {
       if (!client) return;
       try {
-        const q = query(collection(db, "aiAccountantClients", client.id, "transactions"), where("reference", "==", journalReference));
-        const journalsToDeleteSnapshot = await getDocs(q);
+        const snap = await getDocs(query(collection(db, "aiAccountantClients", client.id, "transactions"), where("reference", "==", ref)));
         const batch = writeBatch(db);
-        journalsToDeleteSnapshot.forEach(journalDoc => batch.delete(journalDoc.ref));
+        snap.forEach(d => batch.delete(d.ref));
         await batch.commit();
         toast({ title: 'Journal Deleted' });
         fetchClientAndJournals();
@@ -509,15 +451,12 @@ export default function GeneralJournalsPage() {
     
     const groupedGeneralJournals = useMemo(() => {
         const grouped = new Map<string, AllocatedTransaction[]>();
-        const customerControlAccount = client?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
-        const supplierControlAccount = client?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
+        const custCtrl = client?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
+        const supCtrl = client?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
 
         allJournals.forEach(tx => {
-            if (tx.allocatedTo?.value !== customerControlAccount &&
-                tx.allocatedTo?.value !== supplierControlAccount &&
-                !tx.reference.startsWith('TAX-')) {
-                
-                const uniqueKey = `${tx.reference}-${tx.allocatedAt.seconds}`;
+            if (tx.allocatedTo?.value !== custCtrl && tx.allocatedTo?.value !== supCtrl && !tx.reference.startsWith('TAX-')) {
+                const uniqueKey = `${tx.reference}-${tx.allocatedAt?.seconds || 0}`;
                 if (!grouped.has(uniqueKey)) grouped.set(uniqueKey, []);
                 grouped.get(uniqueKey)?.push(tx);
             }
@@ -529,7 +468,7 @@ export default function GeneralJournalsPage() {
         const grouped = new Map<string, AllocatedTransaction[]>();
         allJournals.forEach(tx => {
             if (tx.reference.startsWith('TAX-')) {
-                 const uniqueKey = `${tx.reference}-${tx.allocatedAt.seconds}`;
+                 const uniqueKey = `${tx.reference}-${tx.allocatedAt?.seconds || 0}`;
                 if (!grouped.has(uniqueKey)) grouped.set(uniqueKey, []);
                 grouped.get(uniqueKey)?.push(tx);
             }
@@ -537,12 +476,7 @@ export default function GeneralJournalsPage() {
         return Array.from(grouped.values()).sort((a, b) => new Date(b[0].date).getTime() - new Date(a[0].date).getTime());
     }, [allJournals]);
 
-    const isDirty = form.formState.isDirty;
     const isUnbalanced = totalsPerDate.some(g => Math.abs(g.inclDebit - g.inclCredit) > 0.01);
-
-    if (isLoading && !client) {
-        return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-    }
 
     return (
         <div className="space-y-8">
@@ -560,13 +494,7 @@ export default function GeneralJournalsPage() {
                             {editingJournalRef && (
                                 <Button variant="outline" onClick={() => { 
                                     setEditingJournalRef(null); 
-                                    form.reset({ 
-                                        reference: '', 
-                                        lines: [
-                                            { date: new Date(), accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' }, 
-                                            { date: new Date(), accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' }
-                                        ] 
-                                    }); 
+                                    form.reset({ reference: '', lines: [ { date: new Date(), accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' }, { date: new Date(), accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' } ] }); 
                                 }}>
                                     Discard Edit
                                 </Button>
@@ -598,56 +526,48 @@ export default function GeneralJournalsPage() {
                                         {fields.map((field, index) => (
                                         <TableRow key={field.id} className="hover:bg-muted/10">
                                                 <TableCell>
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`lines.${index}.date`}
-                                                        render={({ field }) => (
-                                                            <Popover>
-                                                                <PopoverTrigger asChild>
-                                                                    <Button variant="outline" size="sm" className="w-full justify-start font-bold h-9 text-[11px] border-primary/10">
-                                                                        <CalendarIcon className="mr-2 h-3.5 w-3.5 opacity-50" />
-                                                                        {field.value ? format(field.value, "dd/MM/yyyy") : "Select Date"}
-                                                                    </Button>
-                                                                </PopoverTrigger>
-                                                                <PopoverContent className="w-auto p-0" align="start">
-                                                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                                                                </PopoverContent>
-                                                            </Popover>
-                                                        )}
-                                                    />
+                                                    <FormField control={form.control} name={`lines.${index}.date`} render={({ field }) => (
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <Button variant="outline" size="sm" className="w-full justify-start font-bold h-9 text-[11px] border-primary/10">
+                                                                    <CalendarIcon className="mr-2 h-3.5 w-3.5 opacity-50" />
+                                                                    {field.value ? format(field.value, "dd/MM/yyyy") : "Select Date"}
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-auto p-0" align="start">
+                                                                <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    )} />
                                                 </TableCell>
                                                 <TableCell>
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`lines.${index}.accountId`}
-                                                        render={({ field }) => (
-                                                            <Popover>
-                                                                <PopoverTrigger asChild>
-                                                                    <Button variant="outline" size="sm" className="w-full justify-between h-9 text-[11px] border-primary/10">
-                                                                        <span className="truncate">{field.value ? generalAccounts.find(acc => acc.id === field.value)?.description : "Select account..."}</span>
-                                                                        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-50 shrink-0" />
-                                                                    </Button>
-                                                                </PopoverTrigger>
-                                                                <PopoverContent className="w-[300px] p-0">
-                                                                    <Command>
-                                                                        <CommandInput placeholder="Search GL..." />
-                                                                        <CommandList>
-                                                                            <CommandEmpty>No account found.</CommandEmpty>
-                                                                            <CommandGroup>
-                                                                                <CommandItem onSelect={() => setIsCreateAccountOpen(true)} className="text-primary cursor-pointer font-bold"><PlusCircle className="mr-2 h-4 w-4" />New Ledger Account</CommandItem>
-                                                                                {generalAccounts.map((acc) => (
-                                                                                    <CommandItem key={acc.id} value={acc.description} onSelect={() => form.setValue(`lines.${index}.accountId`, acc.id, { shouldDirty: true })}>
-                                                                                        <CheckCircle className={cn("mr-2 h-4 w-4", field.value === acc.id ? "opacity-100" : "opacity-0")} />
-                                                                                        {acc.description}
-                                                                                    </CommandItem>
-                                                                                ))}
-                                                                            </CommandGroup>
-                                                                        </CommandList>
-                                                                    </Command>
-                                                                </PopoverContent>
-                                                            </Popover>
-                                                        )}
-                                                    />
+                                                    <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => (
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <Button variant="outline" size="sm" className="w-full justify-between h-9 text-[11px] border-primary/10">
+                                                                    <span className="truncate">{field.value ? generalAccounts.find(acc => acc.id === field.value)?.description : "Select account..."}</span>
+                                                                    <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-50 shrink-0" />
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-[300px] p-0">
+                                                                <Command>
+                                                                    <CommandInput placeholder="Search GL..." />
+                                                                    <CommandList>
+                                                                        <CommandEmpty>No account found.</CommandEmpty>
+                                                                        <CommandGroup>
+                                                                            <CommandItem onSelect={() => setIsCreateAccountOpen(true)} className="text-primary cursor-pointer font-bold"><PlusCircle className="mr-2 h-4 w-4" />New Account</CommandItem>
+                                                                            {generalAccounts.map((acc) => (
+                                                                                <CommandItem key={acc.id} value={acc.description} onSelect={() => form.setValue(`lines.${index}.accountId`, acc.id, { shouldDirty: true })}>
+                                                                                    <CheckCircle className={cn("mr-2 h-4 w-4", field.value === acc.id ? "opacity-100" : "opacity-0")} />
+                                                                                    {acc.description}
+                                                                                </CommandItem>
+                                                                            ))}
+                                                                        </CommandGroup>
+                                                                    </CommandList>
+                                                                </Command>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    )} />
                                                 </TableCell>
                                                 <TableCell><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-9 text-[11px] font-medium" {...field} /> )}/></TableCell>
                                                 <TableCell>
@@ -674,7 +594,7 @@ export default function GeneralJournalsPage() {
                                     <Plus className="h-4 w-4" /> Add Transaction Line
                                 </Button>
                                 {form.formState.errors.lines && (
-                                    <div className="flex items-center gap-2 text-destructive bg-destructive/10 px-4 py-2 rounded-lg border border-destructive/20 animate-in shake-2">
+                                    <div className="flex items-center gap-2 text-destructive bg-destructive/10 px-4 py-2 rounded-lg border border-destructive/20">
                                         <AlertCircle className="h-4 w-4" />
                                         <span className="text-xs font-black uppercase tracking-tight">{form.formState.errors.lines.message}</span>
                                     </div>
@@ -729,7 +649,7 @@ export default function GeneralJournalsPage() {
                             <div className="flex justify-end pt-4">
                                 <Button type="submit" size="lg" disabled={isLoading || isUnbalanced} className="font-black px-12 gap-2 shadow-lg h-12">
                                     {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Calculator className="h-5 w-5" />}
-                                    {editingJournalRef ? 'Update Complex Journal' : 'Finalize & Post Journal'}
+                                    {editingJournalRef ? 'Update Journal' : 'Finalize & Post Journal'}
                                 </Button>
                             </div>
                         </form>
@@ -776,7 +696,7 @@ export default function GeneralJournalsPage() {
                                                         <AlertDialog>
                                                             <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4"/></Button></AlertDialogTrigger>
                                                             <AlertDialogContent>
-                                                                <AlertDialogHeader><AlertDialogTitle>Delete Journal {ref}?</AlertDialogTitle><AlertDialogDescription>This will remove all associated transaction lines across all dates for this reference.</AlertDialogDescription></AlertDialogHeader>
+                                                                <AlertDialogHeader><AlertDialogTitle>Delete Journal {ref}?</AlertDialogTitle><AlertDialogDescription>This will remove all associated lines.</AlertDialogDescription></AlertDialogHeader>
                                                                 <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteJournal(ref)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter>
                                                             </AlertDialogContent>
                                                         </AlertDialog>
@@ -829,7 +749,7 @@ export default function GeneralJournalsPage() {
                         <div className="flex justify-between items-start">
                             <div>
                                 <DialogTitle className="text-xl">Journal Details: {viewingJournal?.[0]?.reference}</DialogTitle>
-                                <DialogDescription>Reviewing audit-locked transaction entries.</DialogDescription>
+                                <DialogDescription>Reviewing transaction entries.</DialogDescription>
                             </div>
                             <Button variant="ghost" size="icon" onClick={() => setViewingJournal(null)}><X className="h-4 w-4" /></Button>
                         </div>
@@ -861,7 +781,7 @@ export default function GeneralJournalsPage() {
                             </TableBody>
                             <TableFooterComponent>
                                 <TableRow className="bg-muted/50 font-black">
-                                    <TableCell colSpan={3}>Audit Totals</TableCell>
+                                    <TableCell colSpan={3}>Totals</TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(viewingJournal?.reduce((s, e) => s + (e.amount > 0 ? e.amount : 0), 0))}</TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(viewingJournal?.reduce((s, e) => s + (e.amount < 0 ? Math.abs(e.amount) : 0), 0))}</TableCell>
                                 </TableRow>
@@ -869,10 +789,65 @@ export default function GeneralJournalsPage() {
                         </Table>
                     </ScrollArea>
                     <DialogFooter className="p-4 border-t shrink-0">
-                        <Button variant="ghost" onClick={() => setViewingJournal(null)}>Close Viewer</Button>
+                        <Button variant="ghost" onClick={() => setViewingJournal(null)}>Close</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
+    );
+}
+
+export default function GeneralJournalsPage() {
+    const params = useParams();
+    const clientId = params.clientId as string;
+    const [client, setClient] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [allJournals, setAllJournals] = useState<AllocatedTransaction[]>([]);
+
+    const fetchClientAndJournals = async () => {
+        if (!clientId) return;
+        setIsLoading(true);
+        try {
+            const clientRef = doc(db, 'aiAccountantClients', clientId);
+            const clientSnap = await getDoc(clientRef);
+            if (clientSnap.exists()) {
+                const data = clientSnap.data() as User;
+                if (data.chartOfAccounts) {
+                    const uniqueAccounts = Array.from(new Map(data.chartOfAccounts.map(a => [a.accountNumber, a])).values());
+                    data.chartOfAccounts = uniqueAccounts;
+                }
+                setClient(data);
+            }
+
+            const journalsQuery = query(
+                collection(db, 'aiAccountantClients', clientId, 'transactions'),
+                where('bankAccountId', '==', 'JOURNAL'),
+                orderBy('date', 'desc'),
+                orderBy('reference', 'asc')
+            );
+            const journalsSnapshot = await getDocs(journalsQuery);
+            setAllJournals(journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction));
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchClientAndJournals();
+    }, [clientId]);
+
+    return (
+        <Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="animate-spin" /></div>}>
+            <JournalManager 
+                clientId={clientId}
+                client={client}
+                fetchClientAndJournals={fetchClientAndJournals}
+                allJournals={allJournals}
+                isLoading={isLoading}
+                setIsLoading={setIsLoading}
+            />
+        </Suspense>
     );
 }
