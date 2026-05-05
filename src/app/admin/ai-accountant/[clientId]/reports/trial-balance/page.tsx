@@ -76,6 +76,8 @@ function calculateBalances(client: User, transactions: (ImportedTransaction | Al
     
     const retainedIncomeAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '9000-004');
     const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008');
+    const supplierControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-000');
+    const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001');
     
     let priorPeriodNetIncome = 0;
 
@@ -120,9 +122,17 @@ function calculateBalances(client: User, transactions: (ImportedTransaction | Al
             processEntry(tx.bankAccountId, inclusiveAmount);
 
             // 2. Contra Account Entry (exclusive amount)
-            const contraAccountId = (tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo 
-                ? tx.allocatedTo.value 
-                : '9500-001'; // Suspense Account
+            let contraAccountId = '9500-001'; // Default to suspense
+            
+            if ((tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo) {
+                if (tx.allocatedTo.type === 'supplier') {
+                    contraAccountId = supplierControlAccount?.id || '7000-000';
+                } else if (tx.allocatedTo.type === 'customer') {
+                    contraAccountId = customerControlAccount?.id || '8000-001';
+                } else {
+                    contraAccountId = tx.allocatedTo.value;
+                }
+            }
             
             processEntry(contraAccountId, -exclusiveAmount);
 
@@ -407,6 +417,7 @@ export default function TrialBalancePage() {
             setClient(prev => prev ? { ...prev, savedReports: prev.savedReports?.filter(r => r.id !== reportId) } : null);
             toast({ title: 'Report Deleted', variant: 'destructive'});
         } catch(e) {
+            console.error(e);
             toast({ title: 'Error', description: 'Could not delete report.', variant: 'destructive'});
         }
     };
@@ -567,5 +578,3 @@ export default function TrialBalancePage() {
         </div>
     );
 }
-
-    
