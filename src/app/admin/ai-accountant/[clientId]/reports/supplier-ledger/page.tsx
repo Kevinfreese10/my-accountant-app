@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -72,26 +73,30 @@ function SupplierLedgerReport({
             filtered = filtered.filter(tx => new Date(tx.date) <= dateRange.to!);
         }
         
-        // Accounting: Credits (increase liability) should be positive, Debits (decrease liability) should be negative
-        // For a supplier ledger:
-        // A Payment (Bank Debit) is a DEBIT to the supplier account (decreases liability)
-        // A Journal (Purchases) is typically a CREDIT to the supplier account (increases liability)
         return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [transactions, supplier, dateRange, client.chartOfAccounts]);
 
     const reportData = useMemo(() => {
         let runningBalance = 0;
         return supplierTransactions.map(tx => {
-            // Invert the amount for display in the liability ledger:
-            // Bank transactions are stored as -ve for expenses. A payment to a supplier reduces the liability.
-            // Journal entries follow their stored sign.
-            const amount = tx.bankAccountId === 'JOURNAL' ? tx.amount : -tx.amount;
-            
-            // Standard SA Supplier Ledger:
-            // Debit (Payment) reduces balance
-            // Credit (Invoice/Journal) increases balance
-            const debit = amount < 0 ? -amount : 0;
-            const credit = amount > 0 ? amount : 0;
+            const isJournal = tx.bankAccountId === 'JOURNAL';
+            let debit = 0;
+            let credit = 0;
+
+            if (isJournal) {
+                // Journal: Debit increases (negative amount in our system logic?), Credit reduces
+                // Wait, in general-journal.tsx: Debit is positive, Credit is negative.
+                // For a Supplier (Liability):
+                // Credit increases liability (negative amount)
+                // Debit decreases liability (positive amount)
+                if (tx.amount < 0) credit = Math.abs(tx.amount);
+                else debit = tx.amount;
+            } else {
+                // Bank: Expense is negative amount.
+                // A payment to a supplier (expense) is a DEBIT to the supplier (decreases liability).
+                if (tx.amount < 0) debit = Math.abs(tx.amount);
+                else credit = tx.amount; // Refund
+            }
             
             runningBalance += credit - debit;
 
@@ -292,3 +297,4 @@ export default function SupplierLedgerPage() {
         </div>
     );
 }
+

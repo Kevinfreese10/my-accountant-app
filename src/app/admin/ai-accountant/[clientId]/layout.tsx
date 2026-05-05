@@ -1,3 +1,4 @@
+
 'use client';
 
 import { ReactNode, useState, useEffect } from 'react';
@@ -73,9 +74,9 @@ export default function AIAccountantClientLayout({ children }: { children: React
                 <p className="text-muted-foreground">AI Accountant Module</p>
             </div>
 
-            <Menubar className="w-full bg-card">
+            <Menubar className="w-full bg-card text-[12px] h-auto flex-wrap">
                  <MenubarMenu>
-                    <MenubarTrigger>Company <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                    <MenubarTrigger className="py-2">Company <ChevronDown className="h-3 w-3 ml-1" /></MenubarTrigger>
                     <MenubarContent>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/details`}>Company Details</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/chart-of-accounts`}>Chart of Accounts</Link></MenubarItem>
@@ -83,7 +84,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
                     </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
-                    <MenubarTrigger>Customers <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                    <MenubarTrigger className="py-2">Customers <ChevronDown className="h-3 w-3 ml-1" /></MenubarTrigger>
                     <MenubarContent>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/customers`}>Customer List</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/invoices`}>Invoices</Link></MenubarItem>
@@ -95,30 +96,31 @@ export default function AIAccountantClientLayout({ children }: { children: React
                     </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
-                    <MenubarTrigger>Suppliers <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                    <MenubarTrigger className="py-2">Suppliers <ChevronDown className="h-3 w-3 ml-1" /></MenubarTrigger>
                      <MenubarContent>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/suppliers`}>Supplier List</Link></MenubarItem>
                         <MenubarSeparator />
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/journals?type=supplier`}>Supplier Journals</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/supplier-balances`}>Supplier Balances</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/supplier-ledger`}>Supplier Ledger</Link></MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
                  <MenubarMenu>
-                    <MenubarTrigger>General Journal</MenubarTrigger>
+                    <MenubarTrigger className="py-2">General Journal</MenubarTrigger>
                      <MenubarContent>
                          <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/general-journal`}>Post General Journal</Link></MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
-                <MenubarMenu><MenubarTrigger>Items</MenubarTrigger></MenubarMenu>
+                <MenubarMenu><MenubarTrigger className="py-2">Items</MenubarTrigger></MenubarMenu>
                 <MenubarMenu>
-                     <MenubarTrigger>Banking <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                     <MenubarTrigger className="py-2">Banking <ChevronDown className="h-3 w-3 ml-1" /></MenubarTrigger>
                      <MenubarContent>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/bank/transactions`}>Bank & Credit Cards</Link></MenubarItem>
                          <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/bank-transactions`}>Bank Transaction Report</Link></MenubarItem>
                      </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
-                    <MenubarTrigger>VAT <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                    <MenubarTrigger className="py-2">VAT <ChevronDown className="h-3 w-3 ml-1" /></MenubarTrigger>
                     <MenubarContent>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/vat201`}>VAT201</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/vat-transactions`}>VAT Transactions</Link></MenubarItem>
@@ -127,7 +129,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
                     </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
-                    <MenubarTrigger>Reports <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                    <MenubarTrigger className="py-2">Reports <ChevronDown className="h-3 w-3 ml-1" /></MenubarTrigger>
                     <MenubarContent>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/profit-and-loss`}>Profit & Loss</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/trial-balance`}>Trial Balance</Link></MenubarItem>
@@ -137,6 +139,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/age-analysis`}>Age Analysis</Link></MenubarItem>
                         <MenubarSeparator />
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/customer-ledger`}>Customer Ledger</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/supplier-balances`}>Supplier Balances</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/supplier-ledger`}>Supplier Ledger</Link></MenubarItem>
                         <MenubarSeparator />
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/account-transactions`}>Account Transactions</Link></MenubarItem>
@@ -150,3 +153,4 @@ export default function AIAccountantClientLayout({ children }: { children: React
         </div>
     );
 }
+
