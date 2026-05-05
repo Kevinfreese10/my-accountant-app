@@ -28,6 +28,8 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandG
 import { allVatTypes } from '@/lib/vat-types';
 import * as XLSX from 'xlsx';
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const db = getFirestore(firebaseApp);
 
@@ -152,7 +154,7 @@ function ImportJournalsDialog({ client, onImport }: { client: User | null; onImp
 
                     if (vatType.includes('standard') && vatType.includes('purchase')) vatType = 'standard_rated_purchases';
                     else if (vatType.includes('standard') && vatType.includes('sale')) vatType = 'standard_rated_sales';
-                    else if (vatType.includes('capital')) vatType = 'capital_goods_purchases';
+                    else if (vatType.includes('capital') && vatType.includes('purchase')) vatType = 'capital_goods_purchases';
                     else if (vatType.includes('zero') && vatType.includes('sale')) vatType = 'zero_rated_sales';
                     else if (!allVatTypes.some(v => v.name === vatType)) vatType = 'no_vat';
 
@@ -632,7 +634,7 @@ export default function GeneralJournalsPage() {
                                                                         <CommandList>
                                                                             <CommandEmpty>No account found.</CommandEmpty>
                                                                             <CommandGroup>
-                                                                                <CommandItem onSelect={() => setIsCreateAccountOpen(true)} className="text-primary cursor-pointer font-bold"><PlusCircle className="mr-2 h-4 w-4"/>New Ledger Account</CommandItem>
+                                                                                <CommandItem onSelect={() => setIsCreateAccountOpen(true)} className="text-primary cursor-pointer font-bold"><PlusCircle className="mr-2 h-4 w-4" />New Ledger Account</CommandItem>
                                                                                 {generalAccounts.map((acc) => (
                                                                                     <CommandItem key={acc.id} value={acc.description} onSelect={() => form.setValue(`lines.${index}.accountId`, acc.id, { shouldDirty: true })}>
                                                                                         <CheckCircle className={cn("mr-2 h-4 w-4", field.value === acc.id ? "opacity-100" : "opacity-0")} />
@@ -673,13 +675,12 @@ export default function GeneralJournalsPage() {
                                 </Button>
                                 {form.formState.errors.lines && (
                                     <div className="flex items-center gap-2 text-destructive bg-destructive/10 px-4 py-2 rounded-lg border border-destructive/20 animate-in shake-2">
-                                        <AlertCircle className="h-4 w-4"/>
+                                        <AlertCircle className="h-4 w-4" />
                                         <span className="text-xs font-black uppercase tracking-tight">{form.formState.errors.lines.message}</span>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Summary Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {totalsPerDate.map((group, i) => (
                                     <Card key={group.date} className={cn("border-l-4 shadow-sm", Math.abs(group.inclDebit - group.inclCredit) > 0.01 ? "border-l-destructive bg-destructive/5" : "border-l-green-500 bg-green-50/30")}>
@@ -736,7 +737,6 @@ export default function GeneralJournalsPage() {
                 </CardContent>
             </Card>
 
-            {/* History Tables */}
             <Tabs defaultValue="general">
                 <TabsList className="w-full grid grid-cols-2 h-12 shadow-sm border">
                     <TabsTrigger value="general" className="font-bold">General Journals ({groupedGeneralJournals.length})</TabsTrigger>
@@ -823,7 +823,6 @@ export default function GeneralJournalsPage() {
                 </TabsContent>
             </Tabs>
 
-            {/* Viewer Modal */}
             <Dialog open={!!viewingJournal} onOpenChange={(o) => !o && setViewingJournal(null)}>
                 <DialogContent className="sm:max-w-4xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
                     <DialogHeader className="p-6 border-b bg-muted/20 shrink-0">
