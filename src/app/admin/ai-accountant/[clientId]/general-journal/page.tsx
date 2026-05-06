@@ -9,10 +9,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown, PlusCircle, Calculator, AlertCircle, CheckCircle, FileUp, Download, X } from 'lucide-react';
+import { Loader2, Plus, Trash2, CalendarIcon, Eye, Edit, ChevronsUpDown, PlusCircle, Calculator, AlertCircle, CheckCircle, FileUp, Download, X, ListTree, ArrowRightLeft } from 'lucide-react';
 import { getFirestore, doc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, deleteDoc, arrayUnion, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { User, ChartOfAccount, AllocatedTransaction, VatType } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -33,8 +33,23 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 const db = getFirestore(firebaseApp);
 
-const journalLineSchema = z.object({
-  date: z.date({ required_error: "Date is required for every line." }),
+// #region Schemas
+
+const quickJournalLineSchema = z.object({
+  date: z.date({ required_error: "Date is required." }),
+  effect: z.enum(['Debit', 'Credit']),
+  accountId: z.string().min(1, "Account is required."),
+  reference: z.string().min(1, "Ref is required."),
+  description: z.string().min(1, "Description is required."),
+  vatType: z.string().default('no_vat'),
+  inclusiveAmount: z.number().min(0.01, "Amount required."),
+  exclusiveAmount: z.number().optional(),
+  vatAmount: z.number().optional(),
+  affectingAccountId: z.string().min(1, "Contra account required."),
+});
+
+const complexJournalLineSchema = z.object({
+  date: z.date({ required_error: "Date is required." }),
   accountId: z.string().min(1, "Account is required."),
   description: z.string().min(1, "Description is required."),
   debit: z.number().min(0).optional(),
@@ -42,9 +57,13 @@ const journalLineSchema = z.object({
   vatType: z.string().default('no_vat'),
 });
 
-const formSchema = z.object({
-  reference: z.string().min(1, "Reference is required."),
-  lines: z.array(journalLineSchema).min(2, "At least two lines are required."),
+const quickFormSchema = z.object({
+  lines: z.array(quickJournalLineSchema).min(1),
+});
+
+const complexFormSchema = z.object({
+  reference: z.string().min(1, "Batch reference required."),
+  lines: z.array(complexJournalLineSchema).min(2),
 }).refine(data => {
     const groups: Record<string, typeof data.lines> = {};
     data.lines.forEach(line => {
@@ -67,189 +86,37 @@ const formSchema = z.object({
         return Math.abs(totalDebits - totalCredits) < 0.01;
     });
 }, {
-    message: "Each unique date within this journal must balance (Inclusive Debits == Inclusive Credits).",
+    message: "Each unique date must balance (Incl Debits == Incl Credits).",
     path: ["lines"],
 });
 
-type JournalFormValues = z.infer<typeof formSchema>;
+// #endregion
 
 const formatPrice = (price: number | undefined) => {
     if (price === undefined || price === null || isNaN(price)) return '0.00';
     return new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
 };
 
-const generalAccountFormSchema = z.object({
-  accountNumber: z.string().min(1, "Account number is required."),
-  description: z.string().min(3, "Description is required."),
-  section: z.enum(['Income Statement', 'Balance Sheet']),
-});
-
-function ImportJournalsDialog({ client, onImport }: { client: User | null; onImport: (lines: any[]) => void }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
-    const { toast } = useToast();
-
-    const handleDownloadTemplate = () => {
-        const headers = [['Date (DD/MM/YYYY)', 'Account Number', 'Description', 'VAT Type', 'Debit', 'Credit']];
-        const today = format(new Date(), 'dd/MM/yyyy');
-        const example = [
-            [today, '3000-010', 'Office Rent Payment', 'standard_rated_purchases', 5000, 0],
-            [today, '8400-001', 'Bank Contra', 'no_vat', 0, 5750]
-        ];
-        const ws = XLSX.utils.aoa_to_sheet([...headers, ...example]);
-        const wb = XLSX.utils.book_new();
-        
-        if (client?.chartOfAccounts) {
-            const coaData = [['Account Number', 'Description', 'Section']];
-            client.chartOfAccounts.forEach(acc => coaData.push([acc.accountNumber, acc.description, acc.section]));
-            const coaWs = XLSX.utils.aoa_to_sheet(coaData);
-            XLSX.utils.book_append_sheet(wb, coaWs, "Account Reference");
-        }
-
-        XLSX.utils.book_append_sheet(wb, ws, "Journal Template");
-        XLSX.writeFile(wb, "multi_date_journal_template.xlsx");
-    };
-
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !client) return;
-
-        setIsUploading(true);
-        const reader = new FileReader();
-        reader.readAsArrayBuffer(file);
-        reader.onload = async (event) => {
-            try {
-                const data = new Uint8Array(event.target?.result as ArrayBuffer);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheet = workbook.Sheets["Journal Template"] || workbook.Sheets[workbook.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(sheet) as any[];
-
-                const importedLines = json.map((row) => {
-                    const rawDate = row['Date (DD/MM/YYYY)'] || row['Date'] || row['date'];
-                    let parsedDate: Date | null = null;
-                    
-                    if (rawDate) {
-                        if (typeof rawDate === 'number') {
-                            parsedDate = XLSX.utils.sheet_to_date(sheet, rawDate);
-                        } else if (typeof rawDate === 'string') {
-                            parsedDate = parse(rawDate.trim(), 'dd/MM/yyyy', new Date());
-                            if (!isValid(parsedDate)) {
-                                parsedDate = new Date(rawDate);
-                            }
-                        }
-                    }
-
-                    if (!parsedDate || !isValid(parsedDate)) return null;
-
-                    const accNum = String(row['Account Number'] || row['accountNumber'] || '').trim();
-                    const desc = String(row['Description'] || row['description'] || '').trim();
-                    const debit = parseFloat(String(row['Debit'] || 0).replace(/[^\d.]/g, '')) || 0;
-                    const credit = parseFloat(String(row['Credit'] || 0).replace(/[^\d.]/g, '')) || 0;
-                    let vatType = String(row['VAT Type'] || 'no_vat').trim().toLowerCase();
-
-                    if (vatType.includes('standard') && vatType.includes('purchase')) vatType = 'standard_rated_purchases';
-                    else if (vatType.includes('standard') && vatType.includes('sale')) vatType = 'standard_rated_sales';
-                    else if (vatType.includes('capital') && vatType.includes('purchase')) vatType = 'capital_goods_purchases';
-                    else if (vatType.includes('zero') && vatType.includes('sale')) vatType = 'zero_rated_sales';
-                    else if (!allVatTypes.some(v => v.name === vatType)) vatType = 'no_vat';
-
-                    const account = client.chartOfAccounts?.find(a => a.accountNumber === accNum);
-
-                    if (!accNum || (!debit && !credit)) return null;
-
-                    return {
-                        date: parsedDate,
-                        accountId: account?.id || accNum,
-                        description: desc || 'Journal Entry',
-                        debit,
-                        credit,
-                        vatType
-                    };
-                }).filter((l): l is NonNullable<typeof l> => l !== null);
-
-                if (importedLines.length === 0) {
-                    toast({ title: "Import Failed", description: "No valid lines with UK format dates (DD/MM/YYYY) found.", variant: "destructive" });
-                } else {
-                    onImport(importedLines);
-                    toast({ title: "Import Successful", description: `Loaded ${importedLines.length} journal lines.` });
-                    setIsOpen(false);
-                }
-            } catch (error) {
-                console.error(error);
-                toast({ title: "Import Failed", variant: "destructive" });
-            } finally {
-                setIsUploading(false);
-            }
-        };
-    };
-
-    return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary font-bold">
-                    <FileUp className="h-4 w-4" /> Multi-Date Import (UK)
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Import Multi-Date Journal</DialogTitle>
-                    <DialogDescription>Bulk load journal lines from Excel using UK date format (DD/MM/YYYY).</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-6 py-4">
-                    <div className="space-y-2">
-                        <Label>1. Download the Template</Label>
-                        <Button variant="secondary" className="w-full justify-start h-12 gap-3" onClick={handleDownloadTemplate}>
-                            <Download className="h-5 w-5 text-primary" />
-                            <div className="text-left">
-                                <p className="text-sm font-bold text-slate-900">Download UK Template</p>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">DD/MM/YYYY Required</p>
-                            </div>
-                        </Button>
-                    </div>
-                    <Separator />
-                    <div className="space-y-2">
-                        <Label>2. Upload Your File</Label>
-                        <Input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} disabled={isUploading} className="cursor-pointer" />
-                        {isUploading && <div className="flex items-center gap-2 text-sm text-primary animate-pulse font-bold mt-2"><Loader2 className="h-4 w-4 animate-spin"/> Processing...</div>}
-                    </div>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChange }: { client: User | null; onAccountCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
-    const form = useForm<z.infer<typeof generalAccountFormSchema>>({
-        resolver: zodResolver(generalAccountFormSchema),
-        defaultValues: { accountNumber: '', description: '', section: 'Income Statement' },
+    const form = useForm({
+        resolver: zodResolver(z.object({
+            accountNumber: z.string().min(1),
+            description: z.string().min(3),
+            section: z.enum(['Income Statement', 'Balance Sheet']),
+        })),
+        defaultValues: { accountNumber: '', description: '', section: 'Income Statement' as const },
     });
 
-    const handleCreateAccount = async (values: z.infer<typeof generalAccountFormSchema>) => {
+    const handleCreateAccount = async (values: any) => {
         if (!client || !client.uid) return;
-        
-        const existingAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === values.accountNumber);
-        if (existingAccount) {
-            form.setError('accountNumber', { message: 'This account number already exists.' });
-            return;
-        }
-
         setIsSaving(true);
         try {
-            const newAccount: ChartOfAccount = {
-                id: values.accountNumber,
-                accountNumber: values.accountNumber,
-                description: values.description,
-                section: values.section,
-            };
-
             const clientRef = doc(db, 'aiAccountantClients', client.uid);
-            await setDoc(clientRef, { chartOfAccounts: arrayUnion(newAccount) }, { merge: true });
-            
+            await updateDoc(clientRef, { chartOfAccounts: arrayUnion({ ...values, id: values.accountNumber }) });
             toast({ title: 'Account Created' });
             onAccountCreated();
-            form.reset();
             onOpenChange(false);
         } catch (error) {
             toast({ title: 'Error', variant: 'destructive' });
@@ -261,18 +128,13 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Create New Account</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>Create New Account</DialogTitle></DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
-                        <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g., 3000-058" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g., Office Flowers" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select></FormItem>)} />
-                        <DialogFooter>
-                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                            <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create</Button>
-                        </DialogFooter>
+                        <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g. 3000-058" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g. Cleaning Materials" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select></FormItem>)} />
+                        <DialogFooter><Button type="submit" disabled={isSaving}>Create</Button></DialogFooter>
                     </form>
                 </Form>
             </DialogContent>
@@ -282,13 +144,117 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
 
 function JournalManager({ clientId, client, fetchClientAndJournals, allJournals, isLoading, setIsLoading }: { clientId: string, client: User | null, fetchClientAndJournals: () => void, allJournals: AllocatedTransaction[], isLoading: boolean, setIsLoading: (val: boolean) => void }) {
     const { toast } = useToast();
-
     const [viewingJournal, setViewingJournal] = useState<AllocatedTransaction[] | null>(null);
-    const [editingJournalRef, setEditingJournalRef] = useState<string | null>(null);
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
+    const [entryMode, setEntryMode] = useState<'quick' | 'complex'>('quick');
 
-    const form = useForm<JournalFormValues>({
-        resolver: zodResolver(formSchema),
+    // #region Quick Form Setup
+    const quickForm = useForm<z.infer<typeof quickFormSchema>>({
+        resolver: zodResolver(quickFormSchema),
+        defaultValues: {
+            lines: [{ date: new Date(), effect: 'Debit', accountId: '', reference: '', description: '', vatType: 'no_vat', inclusiveAmount: 0, exclusiveAmount: 0, vatAmount: 0, affectingAccountId: '' }]
+        }
+    });
+
+    const { fields: quickFields, append: appendQuick, remove: removeQuick } = useFieldArray({
+        control: quickForm.control,
+        name: "lines"
+    });
+
+    const updateQuickAmounts = (index: number) => {
+        const line = quickForm.getValues(`lines.${index}`);
+        const isStandard = line.vatType === 'standard_rated_sales' || line.vatType === 'standard_rated_purchases' || line.vatType === 'capital_goods_purchases';
+        
+        const inclusive = line.inclusiveAmount || 0;
+        const exclusive = isStandard ? inclusive / 1.15 : inclusive;
+        const vat = inclusive - exclusive;
+
+        quickForm.setValue(`lines.${index}.exclusiveAmount`, exclusive);
+        quickForm.setValue(`lines.${index}.vatAmount`, vat);
+    };
+
+    const onQuickSubmit = async (data: z.infer<typeof quickFormSchema>) => {
+        if (!client) return;
+        setIsLoading(true);
+        try {
+            const batch = writeBatch(db);
+            const journalTimestamp = Timestamp.now();
+            const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
+
+            for (const line of data.lines) {
+                const isStandard = line.vatType === 'standard_rated_sales' || line.vatType === 'standard_rated_purchases' || line.vatType === 'capital_goods_purchases';
+                const excl = line.exclusiveAmount || 0;
+                const vat = line.vatAmount || 0;
+                const incl = line.inclusiveAmount || 0;
+                
+                const multiplier = line.effect === 'Debit' ? 1 : -1;
+
+                // 1. Primary Account (Exclusive)
+                const pRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                batch.set(pRef, {
+                    clientId: client.id,
+                    date: line.date.toISOString(),
+                    reference: line.reference,
+                    description: line.description,
+                    amount: excl * multiplier,
+                    isExpense: (excl * multiplier) < 0,
+                    bankAccountId: 'JOURNAL',
+                    allocatedTo: { value: line.accountId, type: 'account' },
+                    vatType: line.vatType as VatType,
+                    status: 'allocated',
+                    allocatedAt: journalTimestamp,
+                });
+
+                // 2. Affecting Account (Inclusive)
+                const aRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                batch.set(aRef, {
+                    clientId: client.id,
+                    date: line.date.toISOString(),
+                    reference: line.reference,
+                    description: `Contra: ${line.description}`,
+                    amount: -(incl * multiplier),
+                    isExpense: -(incl * multiplier) < 0,
+                    bankAccountId: 'JOURNAL',
+                    allocatedTo: { value: line.affectingAccountId, type: 'account' },
+                    vatType: 'no_vat',
+                    status: 'allocated',
+                    allocatedAt: journalTimestamp,
+                });
+
+                // 3. VAT Entry
+                if (isStandard && vat !== 0 && vatControlAccount) {
+                    const vRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                    batch.set(vRef, {
+                        clientId: client.id,
+                        date: line.date.toISOString(),
+                        reference: line.reference,
+                        description: `VAT on: ${line.description}`,
+                        amount: vat * multiplier,
+                        isExpense: (vat * multiplier) < 0,
+                        bankAccountId: 'JOURNAL',
+                        allocatedTo: { value: vatControlAccount, type: 'account' },
+                        vatType: 'no_vat',
+                        status: 'allocated',
+                        allocatedAt: journalTimestamp,
+                    });
+                }
+            }
+
+            await batch.commit();
+            toast({ title: "Journal Posted Successfully" });
+            quickForm.reset();
+            fetchClientAndJournals();
+        } catch (e) {
+            toast({ title: "Error Posting", variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    // #endregion
+
+    // #region Complex Form Setup
+    const complexForm = useForm<z.infer<typeof complexFormSchema>>({
+        resolver: zodResolver(complexFormSchema),
         defaultValues: {
             reference: '',
             lines: [
@@ -297,65 +263,19 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
             ],
         },
     });
-    
-    const { fields, append, remove, replace } = useFieldArray({
-        control: form.control,
+
+    const { fields: complexFields, append: appendComplex, remove: removeComplex } = useFieldArray({
+        control: complexForm.control,
         name: "lines",
     });
-    
-    const watchedLines = form.watch("lines");
 
-    const totalsPerDate = useMemo(() => {
-        const groups: Record<string, { exclDebit: number; exclCredit: number; vat: number }> = {};
-        watchedLines.forEach(line => {
-            if (!line.date) return;
-            const dateKey = format(line.date, 'yyyy-MM-dd');
-            if (!groups[dateKey]) groups[dateKey] = { exclDebit: 0, exclCredit: 0, vat: 0 };
-            
-            const debit = line.debit || 0;
-            const credit = line.credit || 0;
-            const isStandard = line.vatType === 'standard_rated_purchases' || line.vatType === 'standard_rated_sales' || line.vatType === 'capital_goods_purchases';
-            
-            groups[dateKey].exclDebit += debit;
-            groups[dateKey].exclCredit += credit;
-            if (isStandard) groups[dateKey].vat += (debit - credit) * 0.15;
-        });
-
-        return Object.entries(groups).map(([date, vals]) => ({
-            date,
-            ...vals,
-            inclDebit: vals.exclDebit + (vals.vat > 0 ? vals.vat : 0),
-            inclCredit: vals.exclCredit + (vals.vat < 0 ? -vals.vat : 0)
-        }));
-    }, [watchedLines]);
-
-    const globalTotals = useMemo(() => {
-        return totalsPerDate.reduce((acc, curr) => ({
-            exclDebit: acc.exclDebit + curr.exclDebit,
-            exclCredit: acc.exclCredit + curr.exclCredit,
-            vat: acc.vat + curr.vat,
-            inclDebit: acc.inclDebit + curr.inclDebit,
-            inclCredit: acc.inclCredit + curr.inclCredit,
-        }), { exclDebit: 0, exclCredit: 0, vat: 0, inclDebit: 0, inclCredit: 0 });
-    }, [totalsPerDate]);
-    
-    const generalAccounts = useMemo(() => {
-        const excluded = ['8000-001', '7000-000'];
-        return client?.chartOfAccounts?.filter(acc => !excluded.includes(acc.accountNumber)) || [];
-    }, [client]);
-
-    const onSubmit = async (data: JournalFormValues) => {
+    const onComplexSubmit = async (data: z.infer<typeof complexFormSchema>) => {
         if (!client) return;
         setIsLoading(true);
         try {
             const batch = writeBatch(db);
             const journalTimestamp = Timestamp.now();
             const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
-
-            if(editingJournalRef) {
-                 const snap = await getDocs(query(collection(db, "aiAccountantClients", client.id, "transactions"), where("reference", "==", editingJournalRef)));
-                 snap.forEach(d => batch.delete(d.ref));
-            }
 
             for (const line of data.lines) {
                 const amount = (line.debit || 0) - (line.credit || 0);
@@ -369,7 +289,7 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                     clientId: client.id,
                     date: line.date.toISOString(),
                     reference: data.reference,
-                    description: line.description || 'General Journal Entry',
+                    description: line.description,
                     amount: amount,
                     isExpense: amount < 0,
                     bankAccountId: 'JOURNAL',
@@ -385,7 +305,7 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                         clientId: client.id,
                         date: line.date.toISOString(),
                         reference: data.reference,
-                        description: `VAT on: ${line.description || 'Journal Entry'}`,
+                        description: `VAT on: ${line.description}`,
                         amount: vatAmount,
                         isExpense: vatAmount < 0,
                         bankAccountId: 'JOURNAL',
@@ -397,15 +317,8 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                 }
             }
             await batch.commit();
-            toast({ title: 'Journal Posted' });
-            form.reset({
-                 reference: '',
-                 lines: [
-                    { date: new Date(), accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' },
-                    { date: new Date(), accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' },
-                ],
-            });
-            setEditingJournalRef(null);
+            toast({ title: 'Batch Posted' });
+            complexForm.reset();
             fetchClientAndJournals();
         } catch (error) {
             toast({ title: 'Error', variant: 'destructive' });
@@ -413,27 +326,10 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
             setIsLoading(false);
         }
     };
+    // #endregion
 
-    const handleEditJournal = (entries: AllocatedTransaction[]) => {
-        if (entries.length === 0) return;
-        const ref = entries[0].reference;
-        const vatCtrl = client?.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
-        const mainLines = entries.filter(e => e.allocatedTo.value !== vatCtrl);
+    const allAccounts = useMemo(() => client?.chartOfAccounts?.sort((a,b) => a.description.localeCompare(b.description)) || [], [client]);
 
-        replace(mainLines.map(e => ({
-            date: e.date instanceof Date ? e.date : new Date(e.date),
-            accountId: e.allocatedTo.value,
-            description: e.description,
-            debit: e.amount > 0 ? e.amount : 0,
-            credit: e.amount < 0 ? -e.amount : 0,
-            vatType: e.vatType || 'no_vat',
-        })));
-        
-        form.setValue('reference', ref);
-        setEditingJournalRef(ref);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-    
     const handleDeleteJournal = async (ref: string) => {
       if (!client) return;
       try {
@@ -447,300 +343,280 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
         toast({ title: 'Error', variant: 'destructive'});
       }
     };
-    
-    const groupedGeneralJournals = useMemo(() => {
-        const grouped = new Map<string, AllocatedTransaction[]>();
-        const custCtrl = client?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
-        const supCtrl = client?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
 
-        allJournals.forEach(tx => {
-            if (tx.allocatedTo?.value !== custCtrl && tx.allocatedTo?.value !== supCtrl && !tx.reference.startsWith('TAX-')) {
-                const uniqueKey = `${tx.reference}-${tx.allocatedAt?.seconds || 0}`;
-                if (!grouped.has(uniqueKey)) grouped.set(uniqueKey, []);
-                grouped.get(uniqueKey)?.push(tx);
-            }
-        });
-        return Array.from(grouped.values()).sort((a, b) => new Date(b[0].date).getTime() - new Date(a[0].date).getTime());
-    }, [allJournals, client]);
-    
-     const groupedTaxJournals = useMemo(() => {
+    const groupedJournals = useMemo(() => {
         const grouped = new Map<string, AllocatedTransaction[]>();
         allJournals.forEach(tx => {
-            if (tx.reference.startsWith('TAX-')) {
-                 const uniqueKey = `${tx.reference}-${tx.allocatedAt?.seconds || 0}`;
-                if (!grouped.has(uniqueKey)) grouped.set(uniqueKey, []);
-                grouped.get(uniqueKey)?.push(tx);
-            }
+            const key = tx.reference;
+            if (!grouped.has(key)) grouped.set(key, []);
+            grouped.get(key)?.push(tx);
         });
-        return Array.from(grouped.values()).sort((a, b) => new Date(b[0].date).getTime() - new Date(a[0].date).getTime());
+        return Array.from(grouped.values()).sort((a,b) => new Date(b[0].date).getTime() - new Date(a[0].date).getTime());
     }, [allJournals]);
-
-    const isUnbalanced = totalsPerDate.some(g => Math.abs(g.inclDebit - g.inclCredit) > 0.01);
 
     return (
         <div className="space-y-8">
             <CreateGeneralAccountDialog client={client} onAccountCreated={fetchClientAndJournals} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen} />
             
-            <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-center flex-wrap gap-4">
-                        <div>
-                            <CardTitle className="text-xl font-bold">{editingJournalRef ? `Edit Journal: ${editingJournalRef}` : 'Post General Journal'}</CardTitle>
-                            <CardDescription>Support for multi-date reference. UK date format (DD/MM/YYYY) supported.</CardDescription>
-                        </div>
-                        <div className="flex gap-2 flex-wrap">
-                            <ImportJournalsDialog client={client} onImport={(lines) => replace(lines)} />
-                            {editingJournalRef && (
-                                <Button variant="outline" onClick={() => { 
-                                    setEditingJournalRef(null); 
-                                    form.reset({ reference: '', lines: [ { date: new Date(), accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' }, { date: new Date(), accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' } ] }); 
-                                }}>
-                                    Discard Edit
-                                </Button>
-                            )}
-                        </div>
+            <Card className="border-primary/20 shadow-md">
+                <CardHeader className="bg-primary/5 border-b flex flex-row items-center justify-between space-y-0">
+                    <div>
+                        <CardTitle className="text-xl font-bold flex items-center gap-2">
+                            <ArrowRightLeft className="h-5 w-5 text-primary" />
+                            Post General Journal
+                        </CardTitle>
+                        <CardDescription>Select entry method below.</CardDescription>
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                            <div className="max-w-sm">
-                                <FormField control={form.control} name="reference" render={({ field }) => ( <FormItem><FormLabel className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Reference / Batch Code</FormLabel><FormControl><Input placeholder="e.g., JNL001" {...field} disabled={!!editingJournalRef} className="h-12 font-bold text-lg" /></FormControl><FormMessage /></FormItem> )}/>
-                            </div>
-
-                            <div className="border rounded-xl overflow-hidden shadow-sm">
-                                <Table>
-                                    <TableHeader className="bg-muted/50">
-                                        <TableRow>
-                                            <TableHead className="w-[180px] font-bold text-[10px] uppercase">Date</TableHead>
-                                            <TableHead className="w-[200px] font-bold text-[10px] uppercase">Account</TableHead>
-                                            <TableHead className="font-bold text-[10px] uppercase">Description</TableHead>
-                                            <TableHead className="w-[120px] font-bold text-[10px] uppercase">VAT %</TableHead>
-                                            <TableHead className="w-[120px] font-bold text-[10px] uppercase text-right">Debit (Excl)</TableHead>
-                                            <TableHead className="w-[120px] font-bold text-[10px] uppercase text-right">Credit (Excl)</TableHead>
-                                            <TableHead className="w-10"></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {fields.map((field, index) => (
-                                        <TableRow key={field.id} className="hover:bg-muted/10">
-                                                <TableCell>
-                                                    <FormField control={form.control} name={`lines.${index}.date`} render={({ field }) => (
-                                                        <Popover>
-                                                            <PopoverTrigger asChild>
-                                                                <Button variant="outline" size="sm" className="w-full justify-start font-bold h-9 text-[11px] border-primary/10">
-                                                                    <CalendarIcon className="mr-2 h-3.5 w-3.5 opacity-50" />
-                                                                    {field.value ? format(field.value, "dd/MM/yyyy") : "Select Date"}
-                                                                </Button>
-                                                            </PopoverTrigger>
-                                                            <PopoverContent className="w-auto p-0" align="start">
-                                                                <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                                                            </PopoverContent>
-                                                        </Popover>
-                                                    )} />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => (
-                                                        <Popover>
-                                                            <PopoverTrigger asChild>
-                                                                <Button variant="outline" size="sm" className="w-full justify-between h-9 text-[11px] border-primary/10">
-                                                                    <span className="truncate">{field.value ? generalAccounts.find(acc => acc.id === field.value)?.description : "Select account..."}</span>
-                                                                    <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-50 shrink-0" />
-                                                                </Button>
-                                                            </PopoverTrigger>
-                                                            <PopoverContent className="w-[300px] p-0">
-                                                                <Command>
-                                                                    <CommandInput placeholder="Search GL..." />
-                                                                    <CommandList>
-                                                                        <CommandEmpty>No account found.</CommandEmpty>
-                                                                        <CommandGroup>
-                                                                            <CommandItem onSelect={() => setIsCreateAccountOpen(true)} className="text-primary cursor-pointer font-bold"><PlusCircle className="mr-2 h-4 w-4" />New Account</CommandItem>
-                                                                            {generalAccounts.map((acc) => (
-                                                                                <CommandItem key={acc.id} value={acc.description} onSelect={() => form.setValue(`lines.${index}.accountId`, acc.id, { shouldDirty: true })}>
-                                                                                    <CheckCircle className={cn("mr-2 h-4 w-4", field.value === acc.id ? "opacity-100" : "opacity-0")} />
-                                                                                    {acc.description}
-                                                                                </CommandItem>
-                                                                            ))}
-                                                                        </CommandGroup>
-                                                                    </CommandList>
-                                                                </Command>
-                                                            </PopoverContent>
-                                                        </Popover>
-                                                    )} />
-                                                </TableCell>
-                                                <TableCell><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-9 text-[11px] font-medium" {...field} /> )}/></TableCell>
-                                                <TableCell>
-                                                    <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( 
-                                                        <Select onValueChange={field.onChange} value={field.value} disabled={!client?.isVatRegistered}>
-                                                            <FormControl><SelectTrigger className="h-9 text-[10px] font-bold"><SelectValue /></SelectTrigger></FormControl>
-                                                            <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name} className="text-xs">{vt.label}</SelectItem>)}</SelectContent>
-                                                        </Select>
-                                                    )} />
-                                                </TableCell>
-                                                <TableCell><FormField control={form.control} name={`lines.${index}.debit`} render={({ field }) => ( <Input type="number" step="0.01" className="h-9 text-[11px] text-right font-mono font-bold" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} /> )}/></TableCell>
-                                                <TableCell><FormField control={form.control} name={`lines.${index}.credit`} render={({ field }) => ( <Input type="number" step="0.01" className="h-9 text-[11px] text-right font-mono font-bold" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} /> )}/></TableCell>
-                                                <TableCell>
-                                                    <Button type="button" size="icon" variant="ghost" onClick={() => remove(index)} disabled={fields.length <= 2} className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                                                </TableCell>
-                                        </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-
-                            <div className="flex justify-between items-center">
-                                <Button type="button" variant="outline" size="sm" onClick={() => append({ date: new Date(), accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' })} className="font-bold gap-2">
-                                    <Plus className="h-4 w-4" /> Add Transaction Line
-                                </Button>
-                                {form.formState.errors.lines && (
-                                    <div className="flex items-center gap-2 text-destructive bg-destructive/10 px-4 py-2 rounded-lg border border-destructive/20">
-                                        <AlertCircle className="h-4 w-4" />
-                                        <span className="text-xs font-black uppercase tracking-tight">{form.formState.errors.lines.message}</span>
+                <CardContent className="p-0">
+                    <Tabs value={entryMode} onValueChange={(v: any) => setEntryMode(v)} className="w-full">
+                        <TabsList className="w-full grid grid-cols-2 h-12 rounded-none border-b">
+                            <TabsTrigger value="quick" className="font-bold gap-2">
+                                <ArrowRightLeft className="h-4 w-4" /> Quick Journal (Double Entry)
+                            </TabsTrigger>
+                            <TabsTrigger value="complex" className="font-bold gap-2">
+                                <ListTree className="h-4 w-4" /> Complex Journal (Multi-line)
+                            </TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="quick" className="p-6">
+                            <Form {...quickForm}>
+                                <form onSubmit={quickForm.handleSubmit(onQuickSubmit)} className="space-y-4">
+                                    <div className="border rounded-xl overflow-x-auto shadow-sm">
+                                        <Table>
+                                            <TableHeader className="bg-muted/50">
+                                                <TableRow>
+                                                    <TableHead className="w-[120px] text-[10px] font-black uppercase">Date</TableHead>
+                                                    <TableHead className="w-[110px] text-[10px] font-black uppercase">Effect</TableHead>
+                                                    <TableHead className="w-[180px] text-[10px] font-black uppercase">Account</TableHead>
+                                                    <TableHead className="w-[100px] text-[10px] font-black uppercase">Reference</TableHead>
+                                                    <TableHead className="text-[10px] font-black uppercase">Description</TableHead>
+                                                    <TableHead className="w-[150px] text-[10px] font-black uppercase">VAT Type</TableHead>
+                                                    <TableHead className="w-[110px] text-[10px] font-black uppercase text-right">Amount (Incl)</TableHead>
+                                                    <TableHead className="w-[180px] text-[10px] font-black uppercase">Affecting Account</TableHead>
+                                                    <TableHead className="w-10"></TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {quickFields.map((field, index) => (
+                                                    <TableRow key={field.id} className="hover:bg-muted/5">
+                                                        <TableCell className="p-2">
+                                                            <FormField control={quickForm.control} name={`lines.${index}.date`} render={({ field }) => (
+                                                                <Popover>
+                                                                    <PopoverTrigger asChild>
+                                                                        <Button variant="outline" className={cn("w-full pl-3 text-left font-normal h-8 text-[11px]", !field.value && "text-muted-foreground")}>
+                                                                            {field.value ? format(field.value, "dd/MM/yyyy") : <span>Date</span>}
+                                                                        </Button>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent>
+                                                                </Popover>
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={quickForm.control} name={`lines.${index}.effect`} render={({ field }) => (
+                                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                                    <FormControl><SelectTrigger className="h-8 text-[11px] font-bold"><SelectValue /></SelectTrigger></FormControl>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="Debit">Debit</SelectItem>
+                                                                        <SelectItem value="Credit">Credit</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={quickForm.control} name={`lines.${index}.accountId`} render={({ field }) => (
+                                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                                    <FormControl><SelectTrigger className="h-8 text-[11px]"><SelectValue placeholder="Select..." /></SelectTrigger></FormControl>
+                                                                    <SelectContent>
+                                                                        {allAccounts.map(a => <SelectItem key={a.id} value={a.id}>{a.description}</SelectItem>)}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={quickForm.control} name={`lines.${index}.reference`} render={({ field }) => <Input className="h-8 text-[11px] font-mono" {...field} />} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={quickForm.control} name={`lines.${index}.description`} render={({ field }) => <Input className="h-8 text-[11px]" {...field} />} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={quickForm.control} name={`lines.${index}.vatType`} render={({ field }) => (
+                                                                <Select onValueChange={(v) => { field.onChange(v); updateQuickAmounts(index); }} value={field.value}>
+                                                                    <FormControl><SelectTrigger className="h-8 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                                                                    <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name} className="text-xs">{vt.label}</SelectItem>)}</SelectContent>
+                                                                </Select>
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={quickForm.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => (
+                                                                <Input type="number" step="0.01" className="h-8 text-[11px] text-right font-mono font-bold" {...field} onChange={(e) => { field.onChange(parseFloat(e.target.value) || 0); updateQuickAmounts(index); }} />
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={quickForm.control} name={`lines.${index}.affectingAccountId`} render={({ field }) => (
+                                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                                    <FormControl><SelectTrigger className="h-8 text-[11px]"><SelectValue placeholder="Select..." /></SelectTrigger></FormControl>
+                                                                    <SelectContent>
+                                                                        {allAccounts.map(a => <SelectItem key={a.id} value={a.id}>{a.description}</SelectItem>)}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <Button type="button" variant="ghost" size="icon" onClick={() => removeQuick(index)} disabled={quickFields.length === 1} className="h-8 w-8 text-destructive"><Trash2 className="h-3.5 w-3.5"/></Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
                                     </div>
-                                )}
-                            </div>
+                                    <div className="flex justify-between items-center">
+                                        <Button type="button" variant="outline" size="sm" onClick={() => appendQuick({ date: new Date(), effect: 'Debit', accountId: '', reference: '', description: '', vatType: 'no_vat', inclusiveAmount: 0, affectingAccountId: '' })} className="font-bold gap-2">
+                                            <Plus className="h-4 w-4" /> Add Balanced Entry
+                                        </Button>
+                                        <Button type="submit" disabled={isLoading} className="font-black px-12 gap-2 h-11">
+                                            {isLoading ? <Loader2 className="animate-spin" /> : <Calculator className="h-5 w-5" />}
+                                            Post Journals
+                                        </Button>
+                                    </div>
+                                </form>
+                            </Form>
+                        </TabsContent>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {totalsPerDate.map((group) => (
-                                    <Card key={group.date} className={cn("border-l-4 shadow-sm", Math.abs(group.inclDebit - group.inclCredit) > 0.01 ? "border-l-destructive bg-destructive/5" : "border-l-green-500 bg-green-50/30")}>
-                                        <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
-                                            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{format(new Date(group.date), 'dd MMM yyyy')}</CardTitle>
-                                            {Math.abs(group.inclDebit - group.inclCredit) < 0.01 && <CheckCircle className="h-4 w-4 text-green-600" />}
-                                        </CardHeader>
-                                        <CardContent className="px-4 pb-3 space-y-2">
-                                            <div className="flex justify-between text-[11px]">
-                                                <span className="text-muted-foreground">Excl Debits:</span>
-                                                <span className="font-mono">{formatPrice(group.exclDebit)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-[11px]">
-                                                <span className="text-muted-foreground">Excl Credits:</span>
-                                                <span className="font-mono">{formatPrice(group.exclCredit)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-[11px] font-bold text-primary">
-                                                <span>VAT Portion:</span>
-                                                <span className="font-mono">R {formatPrice(Math.abs(group.vat))}</span>
-                                            </div>
-                                            <Separator />
-                                            <div className="flex justify-between text-xs font-black pt-1">
-                                                <span>INCLUSIVE:</span>
-                                                <span className={cn("font-mono", Math.abs(group.inclDebit - group.inclCredit) > 0.01 ? "text-destructive" : "text-slate-900")}>
-                                                    {formatPrice(group.inclDebit)} / {formatPrice(group.inclCredit)}
-                                                </span>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-
-                            <div className="bg-slate-900 rounded-xl p-6 text-white flex justify-between items-center shadow-xl mt-8">
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Global Journal Total</p>
-                                    <p className="text-xs opacity-80">Inclusive values for all dates</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-2xl font-black tabular-nums font-mono">
-                                        R {formatPrice(globalTotals.inclDebit)}
-                                    </p>
-                                    {isUnbalanced && <p className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">Reference is unbalanced</p>}
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end pt-4">
-                                <Button type="submit" size="lg" disabled={isLoading || isUnbalanced} className="font-black px-12 gap-2 shadow-lg h-12">
-                                    {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Calculator className="h-5 w-5" />}
-                                    {editingJournalRef ? 'Update Journal' : 'Finalize & Post Journal'}
-                                </Button>
-                            </div>
-                        </form>
-                    </Form>
+                        <TabsContent value="complex" className="p-6">
+                            <Form {...complexForm}>
+                                <form onSubmit={complexForm.handleSubmit(onComplexSubmit)} className="space-y-6">
+                                    <div className="max-w-sm">
+                                        <FormField control={complexForm.control} name="reference" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-black uppercase">Batch Reference</FormLabel><FormControl><Input {...field} className="h-10 font-bold" /></FormControl><FormMessage /></FormItem> )} />
+                                    </div>
+                                    <div className="border rounded-xl overflow-hidden shadow-sm">
+                                        <Table>
+                                            <TableHeader className="bg-muted/50">
+                                                <TableRow>
+                                                    <TableHead className="w-[180px] text-[10px] font-black uppercase">Date</TableHead>
+                                                    <TableHead className="w-[200px] text-[10px] font-black uppercase">Account</TableHead>
+                                                    <TableHead className="text-[10px] font-black uppercase">Description</TableHead>
+                                                    <TableHead className="w-[120px] text-[10px] font-black uppercase">VAT %</TableHead>
+                                                    <TableHead className="w-[120px] text-[10px] font-black uppercase text-right">Debit (Excl)</TableHead>
+                                                    <TableHead className="w-[120px] text-[10px] font-black uppercase text-right">Credit (Excl)</TableHead>
+                                                    <TableHead className="w-10"></TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {complexFields.map((field, index) => (
+                                                    <TableRow key={field.id} className="hover:bg-muted/5">
+                                                        <TableCell className="p-2">
+                                                            <FormField control={complexForm.control} name={`lines.${index}.date`} render={({ field }) => (
+                                                                <Popover>
+                                                                    <PopoverTrigger asChild>
+                                                                        <Button variant="outline" className={cn("w-full pl-3 text-left font-normal h-8 text-[11px]", !field.value && "text-muted-foreground")}>
+                                                                            {field.value ? format(field.value, "dd/MM/yyyy") : <span>Date</span>}
+                                                                        </Button>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent>
+                                                                </Popover>
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={complexForm.control} name={`lines.${index}.accountId`} render={({ field }) => (
+                                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                                    <FormControl><SelectTrigger className="h-8 text-[11px]"><SelectValue placeholder="Select..." /></SelectTrigger></FormControl>
+                                                                    <SelectContent>{allAccounts.map(a => <SelectItem key={a.id} value={a.id}>{a.description}</SelectItem>)}</SelectContent>
+                                                                </Select>
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={complexForm.control} name={`lines.${index}.description`} render={({ field }) => <Input className="h-8 text-[11px]" {...field} />} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={complexForm.control} name={`lines.${index}.vatType`} render={({ field }) => (
+                                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                                    <FormControl><SelectTrigger className="h-8 text-[10px]"><SelectValue /></SelectTrigger></FormControl>
+                                                                    <SelectContent>{allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name} className="text-xs">{vt.label}</SelectItem>)}</SelectContent>
+                                                                </Select>
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={complexForm.control} name={`lines.${index}.debit`} render={({ field }) => <Input type="number" step="0.01" className="h-8 text-[11px] text-right font-mono" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={complexForm.control} name={`lines.${index}.credit`} render={({ field }) => <Input type="number" step="0.01" className="h-8 text-[11px] text-right font-mono" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <Button type="button" variant="ghost" size="icon" onClick={() => removeComplex(index)} disabled={complexFields.length <= 2} className="h-8 w-8 text-destructive"><Trash2 className="h-3.5 w-3.5"/></Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <Button type="button" variant="outline" size="sm" onClick={() => appendComplex({ date: new Date(), accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' })} className="font-bold gap-2">
+                                            <Plus className="h-4 w-4" /> Add Line
+                                        </Button>
+                                        <Button type="submit" disabled={isLoading} className="font-black px-12 gap-2 h-11">
+                                            {isLoading ? <Loader2 className="animate-spin" /> : <Calculator className="h-5 w-5" />}
+                                            Post Batch
+                                        </Button>
+                                    </div>
+                                    {complexForm.formState.errors.lines && (
+                                        <div className="flex items-center gap-2 text-destructive bg-destructive/5 p-3 rounded-lg border border-destructive/10 text-xs font-bold uppercase tracking-tight">
+                                            <AlertCircle className="h-4 w-4" /> {complexForm.formState.errors.lines.message}
+                                        </div>
+                                    )}
+                                </form>
+                            </Form>
+                        </TabsContent>
+                    </Tabs>
                 </CardContent>
             </Card>
 
-            <Tabs defaultValue="general">
-                <TabsList className="w-full grid grid-cols-2 h-12 shadow-sm border">
-                    <TabsTrigger value="general" className="font-bold">General Journals ({groupedGeneralJournals.length})</TabsTrigger>
-                    <TabsTrigger value="tax" className="font-bold">Tax Provision Journals ({groupedTaxJournals.length})</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="general" className="pt-4">
-                    <Card>
-                        <CardHeader><CardTitle className="text-sm">Posted Journal History</CardTitle></CardHeader>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader className="bg-muted/30">
-                                    <TableRow>
-                                        <TableHead>Primary Date</TableHead>
-                                        <TableHead>Reference</TableHead>
-                                        <TableHead>Summary Description</TableHead>
-                                        <TableHead className="text-right">Total (Incl)</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-lg">Posted Journal History</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <Table>
+                        <TableHeader className="bg-muted/30">
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Reference</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="text-right">Total (Incl)</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {groupedJournals.length === 0 ? (
+                                <TableRow><TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic">No journals found.</TableCell></TableRow>
+                            ) : groupedJournals.map((entries, i) => {
+                                const ref = entries[0].reference;
+                                const total = entries.reduce((s, e) => s + (e.amount > 0 ? e.amount : 0), 0);
+                                return (
+                                    <TableRow key={i}>
+                                        <TableCell className="text-xs font-medium">{format(new Date(entries[0].date), 'dd/MM/yyyy')}</TableCell>
+                                        <TableCell className="font-bold text-primary">{ref}</TableCell>
+                                        <TableCell className="text-xs text-muted-foreground line-clamp-1">{entries[0].description}</TableCell>
+                                        <TableCell className="text-right font-mono font-bold">{formatPrice(total)}</TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-1">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4"/></Button></AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader><AlertDialogTitle>Delete Journal {ref}?</AlertDialogTitle><AlertDialogDescription>This will remove all associated lines.</AlertDialogDescription></AlertDialogHeader>
+                                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteJournal(ref)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        </TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {groupedGeneralJournals.length === 0 ? (
-                                        <TableRow><TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic">No journals found.</TableCell></TableRow>
-                                    ) : groupedGeneralJournals.map((entries, i) => {
-                                        const ref = entries[0].reference;
-                                        const total = entries.reduce((s, e) => s + (e.amount > 0 ? e.amount : 0), 0);
-                                        return (
-                                            <TableRow key={i}>
-                                                <TableCell className="text-xs font-medium">{format(new Date(entries[0].date), 'dd/MM/yyyy')}</TableCell>
-                                                <TableCell className="font-bold text-primary">{ref}</TableCell>
-                                                <TableCell className="text-xs text-muted-foreground line-clamp-1">{entries[0].description}</TableCell>
-                                                <TableCell className="text-right font-mono font-bold">{formatPrice(total)}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-1">
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditJournal(entries)}><Edit className="h-4 w-4" /></Button>
-                                                        <AlertDialog>
-                                                            <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4"/></Button></AlertDialogTrigger>
-                                                            <AlertDialogContent>
-                                                                <AlertDialogHeader><AlertDialogTitle>Delete Journal {ref}?</AlertDialogTitle><AlertDialogDescription>This will remove all associated lines.</AlertDialogDescription></AlertDialogHeader>
-                                                                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteJournal(ref)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                <TabsContent value="tax" className="pt-4">
-                    <Card>
-                        <CardHeader><CardTitle className="text-sm">Auto-Generated Tax Journals</CardTitle></CardHeader>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader className="bg-muted/30">
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Reference</TableHead>
-                                        <TableHead className="text-right">Provision Amount</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {groupedTaxJournals.map((entries, i) => (
-                                        <TableRow key={i}>
-                                            <TableCell className="text-xs">{format(new Date(entries[0].date), 'dd/MM/yyyy')}</TableCell>
-                                            <TableCell className="font-bold">{entries[0].reference}</TableCell>
-                                            <TableCell className="text-right font-mono font-bold text-destructive">{formatPrice(Math.abs(entries.find(e => e.amount > 0)?.amount || 0))}</TableCell>
-                                            <TableCell className="text-right">
-                                                <Button variant="ghost" size="icon" onClick={() => setViewingJournal(entries)}><Eye className="h-4 w-4" /></Button>
-                                                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteJournal(entries[0].reference)}><Trash2 className="h-4 w-4" /></Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
 
             <Dialog open={!!viewingJournal} onOpenChange={(o) => !o && setViewingJournal(null)}>
                 <DialogContent className="sm:max-w-4xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
