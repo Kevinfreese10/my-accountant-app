@@ -85,25 +85,29 @@ function calculateBalances(client: User, transactions: (ImportedTransaction | Al
         const txDate = new Date(tx.date);
         const isPriorPeriod = txDate < reportStartDate;
 
-        const processEntry = (accountId: string, amount: number) => {
-            const account = client.chartOfAccounts?.find(a => a.id === accountId);
+        const processEntry = (accountId: string, amount: number, type?: string) => {
+            // Resolve sub-ledger IDs to their GL Control Accounts
+            let targetId = accountId;
+            if (type === 'supplier') targetId = supplierControlAccount?.id || '7000-000';
+            else if (type === 'customer') targetId = customerControlAccount?.id || '8000-001';
+
+            const account = client.chartOfAccounts?.find(a => a.id === targetId);
             if (!account) return;
 
             if (isPriorPeriod) {
                 if (account.section === 'Income Statement') {
                     priorPeriodNetIncome -= amount; // Income is credit (negative), expenses are debit (positive)
                 } else { // Balance Sheet accounts
-                    balances.set(accountId, (balances.get(accountId) || 0) + amount);
+                    balances.set(targetId, (balances.get(targetId) || 0) + amount);
                 }
             } else if (txDate <= reportEndDate) {
-                // For the current period, we affect ALL accounts directly
-                balances.set(accountId, (balances.get(accountId) || 0) + amount);
+                balances.set(targetId, (balances.get(targetId) || 0) + amount);
             }
         };
         
         if (tx.bankAccountId === 'JOURNAL') {
             if (tx.allocatedTo?.value) {
-                processEntry(tx.allocatedTo.value, tx.amount);
+                processEntry(tx.allocatedTo.value, tx.amount, tx.allocatedTo.type);
             }
         } 
         else { // Bank Transactions
@@ -123,18 +127,14 @@ function calculateBalances(client: User, transactions: (ImportedTransaction | Al
 
             // 2. Contra Account Entry (exclusive amount)
             let contraAccountId = '9500-001'; // Default to suspense
+            let contraType = 'account';
             
             if ((tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo) {
-                if (tx.allocatedTo.type === 'supplier') {
-                    contraAccountId = supplierControlAccount?.id || '7000-000';
-                } else if (tx.allocatedTo.type === 'customer') {
-                    contraAccountId = customerControlAccount?.id || '8000-001';
-                } else {
-                    contraAccountId = tx.allocatedTo.value;
-                }
+                contraAccountId = tx.allocatedTo.value;
+                contraType = tx.allocatedTo.type || 'account';
             }
             
-            processEntry(contraAccountId, -exclusiveAmount);
+            processEntry(contraAccountId, -exclusiveAmount, contraType);
 
             // 3. VAT Control Account Entry
             if (isStandardVat && vatControlAccount) {

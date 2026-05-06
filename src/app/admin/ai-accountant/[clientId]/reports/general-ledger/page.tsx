@@ -1,3 +1,4 @@
+
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -172,7 +173,8 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
     const groupedTransactions = useMemo(() => {
         const suspenseAccountId = '9500-001';
         const vatControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id || '7000-008';
-
+        const supplierControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-000')?.id || '7000-000';
+        const customerControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id || '8000-001';
 
         const grouped = new Map<string, { account: ChartOfAccount; transactions: any[], totalDebit: number; totalCredit: number }>();
 
@@ -185,7 +187,12 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
             const isJournal = tx.bankAccountId === 'JOURNAL';
 
             if(isJournal) {
-                 const entry = grouped.get(tx.allocatedTo!.value);
+                 // Map sub-ledger actor IDs back to their Control Accounts
+                 let targetGLId = tx.allocatedTo!.value;
+                 if (tx.allocatedTo.type === 'supplier') targetGLId = supplierControlAccountId;
+                 else if (tx.allocatedTo.type === 'customer') targetGLId = customerControlAccountId;
+
+                 const entry = grouped.get(targetGLId);
                  if (entry) {
                      entry.transactions.push({
                         id: tx.id,
@@ -227,10 +234,14 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                 }
                 
                  // 2. Contra Account Entry (VAT Exclusive)
-                const contraAccountId = (tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo 
-                    ? tx.allocatedTo.value 
-                    : suspenseAccountId;
-                const contraEntry = grouped.get(contraAccountId);
+                let targetContraGLId = suspenseAccountId;
+                if ((tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo) {
+                    if (tx.allocatedTo.type === 'supplier') targetContraGLId = supplierControlAccountId;
+                    else if (tx.allocatedTo.type === 'customer') targetContraGLId = customerControlAccountId;
+                    else targetContraGLId = tx.allocatedTo.value;
+                }
+
+                const contraEntry = grouped.get(targetContraGLId);
                 if(contraEntry) {
                     const bankAccountName = accountsToDisplay.find(a => a.id === tx.bankAccountId)?.description || 'Bank';
                     contraEntry.transactions.push({
@@ -275,7 +286,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
         return Array.from(grouped.values()).filter(g => g.transactions.length > 0);
 
-    }, [filteredTransactions, accountsToDisplay, client.isVatRegistered]);
+    }, [filteredTransactions, accountsToDisplay, client.isVatRegistered, client.chartOfAccounts]);
     
     const handleSelectSuspenseTx = (id: string, isSelected: boolean) => {
         if (isSelected) {

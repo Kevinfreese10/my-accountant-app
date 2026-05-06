@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react"
@@ -71,6 +72,9 @@ function ProfitAndLossReport({ client, transactions, dateRange, onPostJournal }:
                 balances.set(acc.id, 0);
             }
         });
+
+        const supplierControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-000');
+        const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001');
         
         const reportStartDate = dateRange?.from ? startOfDay(dateRange.from) : getFinancialYearStart(new Date(), client.yearEnd);
         const reportEndDate = dateRange?.to ? endOfDay(dateRange.to) : new Date();
@@ -81,16 +85,20 @@ function ProfitAndLossReport({ client, transactions, dateRange, onPostJournal }:
                 return;
             }
 
-            const processEntry = (accountId: string, amount: number) => {
-                const account = client.chartOfAccounts?.find(a => a.id === accountId);
-                if (account && account.section === 'Income Statement' && balances.has(accountId)) {
-                    balances.set(accountId, (balances.get(accountId) || 0) + amount);
+            const processEntry = (accountId: string, amount: number, type?: string) => {
+                let targetId = accountId;
+                if (type === 'supplier') targetId = supplierControlAccount?.id || '7000-000';
+                else if (type === 'customer') targetId = customerControlAccount?.id || '8000-001';
+
+                const account = client.chartOfAccounts?.find(a => a.id === targetId);
+                if (account && account.section === 'Income Statement' && balances.has(targetId)) {
+                    balances.set(targetId, (balances.get(targetId) || 0) + amount);
                 }
             };
             
             if (tx.bankAccountId === 'JOURNAL') {
                 if (tx.allocatedTo?.value) {
-                    processEntry(tx.allocatedTo.value, tx.amount);
+                    processEntry(tx.allocatedTo.value, tx.amount, tx.allocatedTo.type);
                 }
             } else { // Bank Transactions
                 const inclusiveAmount = tx.amount;
@@ -105,8 +113,12 @@ function ProfitAndLossReport({ client, transactions, dateRange, onPostJournal }:
                 const contraAccountId = (tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo 
                     ? tx.allocatedTo.value 
                     : '9500-001'; // Suspense Account
+
+                const contraType = (tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo
+                    ? tx.allocatedTo.type
+                    : 'account';
                 
-                processEntry(contraAccountId, -exclusiveAmount);
+                processEntry(contraAccountId, -exclusiveAmount, contraType);
             }
         });
 
