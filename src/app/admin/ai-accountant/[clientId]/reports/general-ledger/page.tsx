@@ -1,12 +1,11 @@
-
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import React, { useState, useEffect, useMemo, ReactNode } from "react";
-import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
-import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs, deleteField } from 'firebase/firestore';
+import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType, Supplier, ClientCustomer } from "@/lib/types";
+import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs, deleteField, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye, Trash2, Search, Scale, ChevronsUpDown } from "lucide-react";
 import { useParams, useSearchParams } from 'next/navigation';
@@ -126,12 +125,14 @@ function ReallocateDialog({ transaction, client, onSave, onOpenChange, open }: {
     );
 }
 
-function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, onReallocate, onDelete, onClear }: { 
+function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount, suppliers, customers, onReallocate, onDelete, onClear }: { 
     client: User, 
     transactions: (ImportedTransaction | AllocatedTransaction)[], 
     dateRange?: DateRange, 
     fromAccount?: string, 
     toAccount?: string,
+    suppliers: Supplier[],
+    customers: ClientCustomer[],
     onReallocate: (tx: any) => void, 
     onDelete: (journalRef: string) => void,
     onClear: (txIds: string[]) => void
@@ -171,10 +172,21 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
     const cleanDisplayDescription = (description: string): string => {
         if (!description) return '';
-        // 1. Remove "Contra: ", "VAT on: ", or "VAT: " prefixes
+        
+        // 1. Initial clean of technical prefixes
         let cleaned = description.replace(/^(Contra:\s*|VAT on:?\s*|VAT:\s*)/i, '');
         
-        // 2. Remove "Actor Name: " if it follows that pattern
+        // 2. Aggressively strip known actor names (Suppliers/Customers) if they appear at the start
+        const actors = [...suppliers, ...customers];
+        for (const actor of actors) {
+            const name = actor.name.toUpperCase();
+            if (cleaned.toUpperCase().startsWith(`${name} - `)) {
+                cleaned = cleaned.substring(name.length + 3);
+                break;
+            }
+        }
+        
+        // 3. Fallback: Remove "Name: " if it follows that old pattern
         const colonIndex = cleaned.indexOf(': ');
         if (colonIndex > 0 && colonIndex < 40) {
             cleaned = cleaned.substring(colonIndex + 2);
@@ -294,7 +306,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
         return Array.from(grouped.values()).filter(g => g.transactions.length > 0);
 
-    }, [filteredTransactions, accountsToDisplay, client.isVatRegistered, client.chartOfAccounts]);
+    }, [filteredTransactions, accountsToDisplay, client.isVatRegistered, client.chartOfAccounts, suppliers, customers]);
     
     const handleSelectSuspenseTx = (id: string, isSelected: boolean) => {
         if (isSelected) {
@@ -502,8 +514,10 @@ export default function GeneralLedgerPage() {
 
     const [client, setClient] = useState<User | null>(null);
     const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [customers, setCustomers] = useState<ClientCustomer[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
     const [fromAccount, setFromAccount] = useState<string | undefined>();
     const [toAccount, setToAccount] = useState<string | undefined>();
     const [isReportOpen, setIsReportOpen] = useState(false);
@@ -529,6 +543,13 @@ export default function GeneralLedgerPage() {
                 const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
                 setClient(clientData);
             }
+
+            const supSnap = await getDocs(collection(db, `aiAccountantClients/${clientId}/suppliers`));
+            setSuppliers(supSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
+
+            const custSnap = await getDocs(collection(db, `aiAccountantClients/${clientId}/customers`));
+            setCustomers(custSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClientCustomer)));
+
              const transUnsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), snapshot => {
                 const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
                 setTransactions(fetched);
@@ -699,6 +720,8 @@ export default function GeneralLedgerPage() {
                                             dateRange={dateRange} 
                                             fromAccount={fromAccount} 
                                             toAccount={toAccount}
+                                            suppliers={suppliers}
+                                            customers={customers}
                                             onReallocate={handleReallocateClick}
                                             onDelete={handleDeleteJournal}
                                             onClear={handleClearAllocations}

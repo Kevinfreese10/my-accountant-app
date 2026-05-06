@@ -1,11 +1,10 @@
-
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
-import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType } from "@/lib/types";
+import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType, Supplier, ClientCustomer } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, where, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye, Scale, CheckCircle, ChevronsUpDown, CheckCheck } from "lucide-react";
@@ -31,10 +30,12 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-function AccountLedgerView({ transactions, account, client, onReallocate }: { 
+function AccountLedgerView({ transactions, account, client, suppliers, customers, onReallocate }: { 
     transactions: (ImportedTransaction | AllocatedTransaction)[], 
     account: ChartOfAccount,
     client: User,
+    suppliers: Supplier[],
+    customers: ClientCustomer[],
     onReallocate: (txIds: string[], values: { accountId: string, vatType: VatType }) => void,
 }) {
     
@@ -45,7 +46,21 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
 
     const cleanDisplayDescription = (description: string): string => {
         if (!description) return '';
+        
+        // 1. Initial clean of technical prefixes
         let cleaned = description.replace(/^(Contra:\s*|VAT on:?\s*|VAT:\s*)/i, '');
+        
+        // 2. Aggressively strip known actor names (Suppliers/Customers) if they appear at the start
+        const actors = [...suppliers, ...customers];
+        for (const actor of actors) {
+            const name = actor.name.toUpperCase();
+            if (cleaned.toUpperCase().startsWith(`${name} - `)) {
+                cleaned = cleaned.substring(name.length + 3);
+                break;
+            }
+        }
+        
+        // 3. Fallback: Remove "Name: " if it follows that old pattern
         const colonIndex = cleaned.indexOf(': ');
         if (colonIndex > 0 && colonIndex < 40) {
             cleaned = cleaned.substring(colonIndex + 2);
@@ -90,7 +105,7 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
             };
         });
 
-    }, [transactions, account]);
+    }, [transactions, account, suppliers, customers]);
     
     const visibleEntries = useMemo(() => {
         if (hideMatched) {
@@ -253,7 +268,7 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
                     <TableFooter>
                         <TableRow>
                             <TableCell colSpan={6} className="font-bold">Closing Balance</TableCell>
-                            <TableCell className="text-right font-bold font-mono">{formatPrice(visibleEntries[visibleEntries.length-1]?.balance || 0)}</TableCell>
+                            <TableCell className="text-right font-bold font-mono">{formatPrice(ledgerEntries[ledgerEntries.length-1]?.balance || 0)}</TableCell>
                         </TableRow>
                     </TableFooter>
                 </Table>
@@ -273,6 +288,8 @@ export default function GeneralLedgerReconPage() {
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [customers, setCustomers] = useState<ClientCustomer[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFetchingTransactions, setIsFetchingTransactions] = useState(false);
     const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
@@ -290,6 +307,13 @@ export default function GeneralLedgerReconPage() {
                 const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
                 setClient(clientData);
             }
+
+            const supSnap = await getDocs(collection(db, `aiAccountantClients/${clientId}/suppliers`));
+            setSuppliers(supSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
+
+            const custSnap = await getDocs(collection(db, `aiAccountantClients/${clientId}/customers`));
+            setCustomers(custSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClientCustomer)));
+
         } catch (error) {
             console.error("Error fetching client data:", error);
         } finally {
@@ -420,6 +444,8 @@ export default function GeneralLedgerReconPage() {
                     transactions={transactions} 
                     account={selectedAccount} 
                     client={client}
+                    suppliers={suppliers}
+                    customers={customers}
                     onReallocate={handleReallocate}
                 />
             )}
