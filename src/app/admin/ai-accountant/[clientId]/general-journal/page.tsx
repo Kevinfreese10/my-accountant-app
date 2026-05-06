@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, Eye, Calculator, ArrowRightLeft, X, ListTree, History, CheckCircle2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, Eye, Calculator, ArrowRightLeft, X, ListTree, History, CheckCircle2, FileUp, Download, AlertCircle, FileWarning } from 'lucide-react';
 import { getFirestore, doc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, updateDoc, arrayUnion, serverTimestamp, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
@@ -18,14 +18,16 @@ import { User, AllocatedTransaction, VatType } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterComponent } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { allVatTypes } from '@/lib/vat-types';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
 
@@ -54,6 +56,160 @@ const formatPrice = (price: number | undefined) => {
     if (price === undefined || price === null || isNaN(price)) return '0.00';
     return new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
 };
+
+function ImportJournalDialog({ client, onImported }: { client: User | null; onImported: (lines: any[]) => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isParsing, setIsParsing] = useState(false);
+    const { toast } = useToast();
+
+    const handleDownloadTemplate = () => {
+        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Account Number', 'Reference', 'Description', 'VAT Type', 'Inclusive Amount', 'Affecting Account Number'];
+        
+        // Find some valid account numbers for dummy data
+        const accounts = client?.chartOfAccounts || [];
+        const acc1 = accounts[0]?.accountNumber || '1000-001';
+        const acc2 = accounts[1]?.accountNumber || '8000-004';
+        
+        const dummyRows = [
+            ['15/03/2026', 'Debit', acc1, 'REF001', 'Sample Service Sale', 'Standard-rated supplies (15%)', '1150.00', acc2],
+            ['16/03/2026', 'Credit', acc1, 'REF002', 'Office Rent Payment', 'No VAT', '5000.00', acc2]
+        ];
+
+        const csvContent = Papa.unparse([headers, ...dummyRows]);
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', 'journal_import_template.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !client) return;
+
+        setIsParsing(true);
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                const data = results.data as any[];
+                const errors: any[] = [];
+                const validLines: any[] = [];
+
+                data.forEach((row, i) => {
+                    const rowNum = i + 2; // +1 for header, +1 for index
+                    const rawDate = row['Date (DD/MM/YYYY)'];
+                    const rawEffect = row['Effect (Debit/Credit)'];
+                    const rawAcc = row['Account Number'];
+                    const rawRef = row['Reference'];
+                    const rawDesc = row['Description'];
+                    const rawVat = row['VAT Type'];
+                    const rawAmt = row['Inclusive Amount'];
+                    const rawAffecting = row['Affecting Account Number'];
+
+                    // 1. Date Validation (UK Format)
+                    const parsedDate = parse(rawDate || '', 'dd/MM/yyyy', new Date());
+                    if (isNaN(parsedDate.getTime())) {
+                        errors.push({ Row: rowNum, Field: 'Date', Error: 'Invalid format. Use DD/MM/YYYY.', Value: rawDate });
+                    }
+
+                    // 2. Effect Validation
+                    if (rawEffect !== 'Debit' && rawEffect !== 'Credit') {
+                        errors.push({ Row: rowNum, Field: 'Effect', Error: 'Must be "Debit" or "Credit".', Value: rawEffect });
+                    }
+
+                    // 3. Account Validation
+                    const account = client.chartOfAccounts?.find(a => a.accountNumber === rawAcc);
+                    if (!account) {
+                        errors.push({ Row: rowNum, Field: 'Account Number', Error: 'Account number not found in chart of accounts.', Value: rawAcc });
+                    }
+
+                    const affectingAccount = client.chartOfAccounts?.find(a => a.accountNumber === rawAffecting);
+                    if (!affectingAccount) {
+                        errors.push({ Row: rowNum, Field: 'Affecting Account Number', Error: 'Affecting account not found in chart of accounts.', Value: rawAffecting });
+                    }
+
+                    // 4. Amount Validation
+                    const amount = parseFloat(String(rawAmt || '').replace(/[^\d.-]/g, ''));
+                    if (isNaN(amount) || amount <= 0) {
+                        errors.push({ Row: rowNum, Field: 'Inclusive Amount', Error: 'Must be a positive numeric value.', Value: rawAmt });
+                    }
+
+                    // 5. VAT Type Validation
+                    const vatTypeObj = allVatTypes.find(v => v.label === rawVat) || allVatTypes.find(v => v.name === 'no_vat');
+                    
+                    if (errors.length === 0) {
+                        validLines.push({
+                            date: parsedDate,
+                            effect: rawEffect,
+                            accountId: account?.id,
+                            reference: rawRef || `IMPORT-${Date.now()}`,
+                            description: rawDesc || 'Imported Journal',
+                            vatType: vatTypeObj?.name || 'no_vat',
+                            inclusiveAmount: amount
+                        });
+                    }
+                });
+
+                if (errors.length > 0) {
+                    const errorCsv = Papa.unparse(errors);
+                    const blob = new Blob([errorCsv], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.setAttribute('download', `import_errors_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    toast({
+                        title: "Import Errors Found",
+                        description: `We found ${errors.length} issues. An error report has been downloaded. Please fix and re-upload.`,
+                        variant: "destructive"
+                    });
+                } else if (validLines.length > 0) {
+                    onImported(validLines);
+                    toast({ title: "Import Successful", description: `Loaded ${validLines.length} rows for review.` });
+                    setIsOpen(false);
+                } else {
+                    toast({ title: "Empty File", description: "No valid transaction rows found.", variant: "destructive" });
+                }
+                setIsParsing(false);
+            }
+        });
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                    <FileUp className="h-4 w-4" /> Import CSV
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Bulk Journal Import</DialogTitle>
+                    <DialogDescription>Upload a CSV file to populate the journal grid. Dates must be in DD/MM/YYYY format.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                    <div className="space-y-2 text-center">
+                        <Button variant="secondary" className="w-full gap-2" onClick={handleDownloadTemplate}>
+                            <Download className="h-4 w-4" /> Download CSV Template
+                        </Button>
+                        <p className="text-[10px] text-muted-foreground italic">Template includes valid headers and sample data.</p>
+                    </div>
+                    <Separator />
+                    <div className="space-y-3">
+                        <Label>Select CSV File</Label>
+                        <Input type="file" accept=".csv" onChange={handleFileChange} disabled={isParsing} />
+                        {isParsing && <p className="text-xs text-primary flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/> Validating data...</p>}
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChange }: { client: User | null; onAccountCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
@@ -114,7 +270,7 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
         }
     });
 
-    const { fields: quickFields, append: appendQuick, remove: removeQuick } = useFieldArray({
+    const { fields: quickFields, append: appendQuick, remove: removeQuick, replace: replaceQuick } = useFieldArray({
         control: quickForm.control,
         name: "lines"
     });
@@ -129,6 +285,22 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
 
         quickForm.setValue(`lines.${index}.exclusiveAmount`, exclusive);
         quickForm.setValue(`lines.${index}.vatAmount`, vat);
+    };
+
+    const handleImportedLines = (lines: any[]) => {
+        const mapped = lines.map(line => {
+            const isStandard = line.vatType === 'standard_rated_sales' || line.vatType === 'standard_rated_purchases' || line.vatType === 'capital_goods_purchases';
+            const inclusive = line.inclusiveAmount || 0;
+            const exclusive = isStandard ? inclusive / 1.15 : inclusive;
+            const vat = inclusive - exclusive;
+
+            return {
+                ...line,
+                exclusiveAmount: exclusive,
+                vatAmount: vat
+            };
+        });
+        replaceQuick(mapped);
     };
 
     const onQuickSubmit = async (data: z.infer<typeof quickFormSchema>) => {
@@ -254,19 +426,24 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                    <div className="flex border-b">
-                        <button 
-                            className={cn("px-6 py-3 text-sm font-bold flex items-center gap-2 transition-all", activeTab === 'post' ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:bg-muted/50")}
-                            onClick={() => setActiveTab('post')}
-                        >
-                            <Plus className="h-4 w-4" /> Post New Journal
-                        </button>
-                        <button 
-                            className={cn("px-6 py-3 text-sm font-bold flex items-center gap-2 transition-all", activeTab === 'reviewed' ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:bg-muted/50")}
-                            onClick={() => setActiveTab('reviewed')}
-                        >
-                            <History className="h-4 w-4" /> Reviewed Journals
-                        </button>
+                    <div className="flex justify-between items-center pr-4 border-b">
+                        <div className="flex">
+                            <button 
+                                className={cn("px-6 py-3 text-sm font-bold flex items-center gap-2 transition-all", activeTab === 'post' ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:bg-muted/50")}
+                                onClick={() => setActiveTab('post')}
+                            >
+                                <Plus className="h-4 w-4" /> Post New Journal
+                            </button>
+                            <button 
+                                className={cn("px-6 py-3 text-sm font-bold flex items-center gap-2 transition-all", activeTab === 'reviewed' ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:bg-muted/50")}
+                                onClick={() => setActiveTab('reviewed')}
+                            >
+                                <History className="h-4 w-4" /> Reviewed Journals
+                            </button>
+                        </div>
+                        {activeTab === 'post' && (
+                            <ImportJournalDialog client={client} onImported={handleImportedLines} />
+                        )}
                     </div>
 
                     <div className="p-0">
@@ -419,7 +596,10 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                                                                 <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4"/></Button></AlertDialogTrigger>
                                                                 <AlertDialogContent>
                                                                     <AlertDialogHeader><AlertDialogTitle>Delete Journal {ref}?</AlertDialogTitle><AlertDialogDescription>This will remove all associated lines.</AlertDialogDescription></AlertDialogHeader>
-                                                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteJournal(ref)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                        <AlertDialogAction onClick={() => handleDeleteJournal(ref)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                                                                    </AlertDialogFooter>
                                                                 </AlertDialogContent>
                                                             </AlertDialog>
                                                         </div>
@@ -518,9 +698,6 @@ export default function GeneralJournalsPage() {
                 orderBy('reference', 'asc')
             );
             const journalsSnapshot = await getDocs(journalsQuery);
-            // Group and filter: only include those NOT allocated to a customer/supplier control directly
-            // (Standard journals only)
-            const controlAccounts = ['8000-001', '7000-000'];
             setAllJournals(journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction));
         } catch (e) {
             console.error(e);
