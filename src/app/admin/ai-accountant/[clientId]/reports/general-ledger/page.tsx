@@ -1,3 +1,4 @@
+
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -170,17 +171,13 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
     const cleanDisplayDescription = (description: string): string => {
         if (!description) return '';
-        // 1. Remove "Contra: " or "VAT on: " prefixes (case insensitive)
-        let cleaned = description.replace(/^(Contra:\s*|VAT on:?\s*)/i, '');
+        // 1. Remove "Contra: ", "VAT on: ", or "VAT: " prefixes
+        let cleaned = description.replace(/^(Contra:\s*|VAT on:?\s*|VAT:\s*)/i, '');
         
         // 2. Remove "Actor Name: " if it follows that pattern
-        // This regex looks for a string followed by a colon and a space at the start
-        if (cleaned.includes(': ')) {
-            const parts = cleaned.split(': ');
-            // If there's a colon-space pattern, we assume the first part is the actor/prefix the user wants to hide
-            if (parts.length > 1) {
-                cleaned = parts.slice(1).join(': ');
-            }
+        const colonIndex = cleaned.indexOf(': ');
+        if (colonIndex > 0 && colonIndex < 40) {
+            cleaned = cleaned.substring(colonIndex + 2);
         }
         
         return cleaned.trim();
@@ -239,7 +236,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                         id: tx.id,
                         isJournal,
                         date: txDate,
-                        description: tx.description,
+                        description: cleanDisplayDescription(tx.description),
                         ref: tx.reference,
                         debit: inclusiveAmount > 0 ? inclusiveAmount : 0,
                         credit: inclusiveAmount < 0 ? -inclusiveAmount : 0,
@@ -260,7 +257,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                          id: tx.id,
                          isJournal,
                          date: txDate,
-                         description: tx.description,
+                         description: cleanDisplayDescription(tx.description),
                          ref: tx.reference,
                          debit: inclusiveAmount < 0 ? -exclusiveAmount : 0,
                          credit: inclusiveAmount > 0 ? exclusiveAmount : 0,
@@ -273,7 +270,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                     if(vatEntry) {
                         vatEntry.transactions.push({
                             id: tx.id,
-                            description: `VAT: ${tx.description}`,
+                            description: `VAT: ${cleanDisplayDescription(tx.description)}`,
                             ref: tx.reference,
                             date: txDate,
                             debit: inclusiveAmount < 0 ? -vatAmount : 0, // Debit for purchases (input)
@@ -661,7 +658,7 @@ export default function GeneralLedgerPage() {
                      <div className="space-y-6 max-w-4xl">
                         <div className="grid grid-cols-1 md:grid-cols-[150px_1fr] items-center gap-4">
                             <Label>Date Range</Label>
-                            <DateRangePicker onDateChange={setDateRange} />
+                            <DateRangePicker onDateChange={setDateRange} financialYearEnd={client?.yearEnd} />
                         </div>
                          <div className="grid grid-cols-1 md:grid-cols-[150px_1fr] items-center gap-4">
                             <Label>Account</Label>

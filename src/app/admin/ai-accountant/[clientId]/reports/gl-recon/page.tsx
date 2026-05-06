@@ -1,3 +1,4 @@
+
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,12 +45,10 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
 
     const cleanDisplayDescription = (description: string): string => {
         if (!description) return '';
-        let cleaned = description.replace(/^(Contra:\s*|VAT on:?\s*)/i, '');
-        if (cleaned.includes(': ')) {
-            const parts = cleaned.split(': ');
-            if (parts.length > 1) {
-                cleaned = parts.slice(1).join(': ');
-            }
+        let cleaned = description.replace(/^(Contra:\s*|VAT on:?\s*|VAT:\s*)/i, '');
+        const colonIndex = cleaned.indexOf(': ');
+        if (colonIndex > 0 && colonIndex < 40) {
+            cleaned = cleaned.substring(colonIndex + 2);
         }
         return cleaned.trim();
     };
