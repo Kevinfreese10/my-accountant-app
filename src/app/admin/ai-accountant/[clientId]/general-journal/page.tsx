@@ -133,7 +133,7 @@ function CreateGeneralAccountDialog({ client, onAccountCreated, open, onOpenChan
                     <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
                         <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g. 3000-058" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder="e.g. Cleaning Materials" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select></FormItem>)} />
+                        <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select></FormItem>)} />
                         <DialogFooter><Button type="submit" disabled={isSaving}>Create</Button></DialogFooter>
                     </form>
                 </Form>
@@ -393,6 +393,8 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                                                     <TableHead className="text-[10px] font-black uppercase">Description</TableHead>
                                                     <TableHead className="w-[150px] text-[10px] font-black uppercase">VAT Type</TableHead>
                                                     <TableHead className="w-[110px] text-[10px] font-black uppercase text-right">Amount (Incl)</TableHead>
+                                                    <TableHead className="w-[110px] text-[10px] font-black uppercase text-right">Excl. Amount</TableHead>
+                                                    <TableHead className="w-[100px] text-[10px] font-black uppercase text-right">VAT Amount</TableHead>
                                                     <TableHead className="w-[180px] text-[10px] font-black uppercase">Affecting Account</TableHead>
                                                     <TableHead className="w-10"></TableHead>
                                                 </TableRow>
@@ -450,6 +452,16 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                                                         <TableCell className="p-2">
                                                             <FormField control={quickForm.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => (
                                                                 <Input type="number" step="0.01" className="h-8 text-[11px] text-right font-mono font-bold" {...field} onChange={(e) => { field.onChange(parseFloat(e.target.value) || 0); updateQuickAmounts(index); }} />
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={quickForm.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => (
+                                                                <Input readOnly className="h-8 text-[11px] text-right font-mono bg-muted border-none shadow-none focus-visible:ring-0" value={formatPrice(field.value)} />
+                                                            )} />
+                                                        </TableCell>
+                                                        <TableCell className="p-2">
+                                                            <FormField control={quickForm.control} name={`lines.${index}.vatAmount`} render={({ field }) => (
+                                                                <Input readOnly className="h-8 text-[11px] text-right font-mono bg-muted border-none shadow-none focus-visible:ring-0" value={formatPrice(field.value)} />
                                                             )} />
                                                         </TableCell>
                                                         <TableCell className="p-2">
