@@ -279,11 +279,11 @@ function ImportJournalDialog({ client, onImported }: { client: User | null; onIm
     const { toast } = useToast();
 
     const handleDownloadTemplate = () => {
-        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Account Number', 'Reference', 'Description', 'VAT Type', 'Amount (Incl)', 'VAT Amount', 'Affecting Account Number'];
+        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Account Number', 'Reference', 'Description', 'VAT Type', 'Amount (Excl)', 'VAT Amount', 'Amount (Incl)', 'Affecting Account Number'];
         const accounts = client?.chartOfAccounts || [];
         const acc1 = accounts[0]?.accountNumber || '1000-000';
         const acc2 = accounts[1]?.accountNumber || '8000-004';
-        const dummyRows = [['15/03/2026', 'Debit', acc1, 'REF001', 'Sample Service Sale', 'Standard-rated supplies (15%)', '1150.00', '150.00', acc2], ['16/03/2026', 'Credit', acc1, 'REF002', 'Office Rent Payment', 'No VAT', '5000.00', '0.00', acc2]];
+        const dummyRows = [['15/03/2026', 'Debit', acc1, 'REF001', 'Sample Service Sale', 'Standard-rated supplies (15%)', '1000.00', '150.00', '1150.00', acc2], ['16/03/2026', 'Credit', acc1, 'REF002', 'Office Rent Payment', 'No VAT', '5000.00', '0.00', '5000.00', acc2]];
         const csvContent = Papa.unparse([headers, ...dummyRows]);
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -313,8 +313,9 @@ function ImportJournalDialog({ client, onImported }: { client: User | null; onIm
                     const rawRef = row['Reference'];
                     const rawDesc = row['Description'];
                     const rawVatType = row['VAT Type'];
-                    const rawAmtIncl = row['Amount (Incl)'] || row['Inclusive Amount'];
+                    const rawAmtExcl = row['Amount (Excl)'];
                     const rawVatAmt = row['VAT Amount'];
+                    const rawAmtIncl = row['Amount (Incl)'];
                     const rawAffecting = row['Affecting Account Number'];
                     
                     const parsedDate = parse(rawDate || '', 'dd/MM/yyyy', new Date());
@@ -327,14 +328,19 @@ function ImportJournalDialog({ client, onImported }: { client: User | null; onIm
                     const affectingAccount = client.chartOfAccounts?.find(a => a.accountNumber === rawAffecting);
                     if (!affectingAccount) errors.push({ Row: rowNum, Field: 'Affecting Account Number', Error: 'Affecting account not found.', Value: rawAffecting });
                     
-                    const amount = parseFloat(String(rawAmtIncl || '').replace(/[^\d.-]/g, ''));
-                    if (isNaN(amount) || amount <= 0) errors.push({ Row: rowNum, Field: 'Amount (Incl)', Error: 'Must be a positive numeric value.', Value: rawAmtIncl });
+                    const amountIncl = parseFloat(String(rawAmtIncl || '').replace(/[^\d.-]/g, ''));
+                    if (isNaN(amountIncl) || amountIncl <= 0) errors.push({ Row: rowNum, Field: 'Amount (Incl)', Error: 'Must be a positive numeric value.', Value: rawAmtIncl });
                     
-                    const providedVatAmount = parseFloat(String(rawVatAmt || '0').replace(/[^\d.-]/g, ''));
-
+                    const vatAmt = parseFloat(String(rawVatAmt || '0').replace(/[^\d.-]/g, ''));
                     const vatTypeObj = allVatTypes.find(v => v.label === rawVatType) || allVatTypes.find(v => v.name === 'no_vat');
                     
                     if (errors.length === 0) {
+                        const isStandard = vatTypeObj?.name === 'standard_rated_sales' || vatTypeObj?.name === 'standard_rated_purchases' || vatTypeObj?.name === 'capital_goods_purchases';
+                        
+                        // Prioritize manual VAT if provided, else calculate
+                        const effectiveVat = !isNaN(vatAmt) && vatAmt !== 0 ? vatAmt : (isStandard ? amountIncl - (amountIncl / 1.15) : 0);
+                        const effectiveExcl = amountIncl - effectiveVat;
+
                         validLines.push({ 
                             date: parsedDate, 
                             effect: rawEffect, 
@@ -342,8 +348,9 @@ function ImportJournalDialog({ client, onImported }: { client: User | null; onIm
                             reference: rawRef || `IMPORT-${Date.now()}`, 
                             description: rawDesc || 'Imported Journal', 
                             vatType: vatTypeObj?.name || 'no_vat', 
-                            inclusiveAmount: amount, 
-                            providedVatAmount: providedVatAmount,
+                            inclusiveAmount: amountIncl, 
+                            vatAmount: effectiveVat,
+                            exclusiveAmount: effectiveExcl,
                             affectingAccountId: affectingAccount?.id 
                         });
                     }
@@ -465,17 +472,7 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
     };
 
     const handleImportedLines = (lines: any[]) => {
-        const mapped = lines.map(line => {
-            const inclusive = line.inclusiveAmount || 0;
-            const isStandard = line.vatType === 'standard_rated_sales' || line.vatType === 'standard_rated_purchases' || line.vatType === 'capital_goods_purchases';
-            
-            // If explicit VAT Amount was provided in CSV, use it. Otherwise calculate based on type.
-            const vat = line.providedVatAmount > 0 ? line.providedVatAmount : (isStandard ? inclusive - (inclusive / 1.15) : 0);
-            const exclusive = inclusive - vat;
-            
-            return { ...line, exclusiveAmount: exclusive, vatAmount: vat };
-        });
-        replaceQuick(mapped);
+        replaceQuick(lines);
     };
 
     const onQuickSubmit = async (data: z.infer<typeof quickFormSchema>) => {
@@ -750,7 +747,7 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
     );
 }
 
-export default function GeneralJournalsPage() {
+export default function GeneralLedgerPage() {
     const params = useParams();
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);

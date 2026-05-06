@@ -280,8 +280,8 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
     const { toast } = useToast();
 
     const handleDownloadTemplate = () => {
-        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Recipient Name', 'Reference', 'Description', 'VAT Type', 'Amount (Incl)', 'VAT Amount', 'Contra Account Number'];
-        const dummyRows = [['15/03/2026', 'Debit', actors[0]?.name || 'Example Actor', 'REF001', `Sample ${type} Journal`, 'No VAT', '1150.00', '0.00', '3000-000']];
+        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Recipient Name', 'Reference', 'Description', 'VAT Type', 'Amount (Excl)', 'VAT Amount', 'Amount (Incl)', 'Contra Account Number'];
+        const dummyRows = [['15/03/2026', 'Debit', actors[0]?.name || 'Example Actor', 'REF001', `Sample ${type} Journal`, 'No VAT', '1000.00', '0.00', '1000.00', '3000-000']];
         const csvContent = Papa.unparse([headers, ...dummyRows]);
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -311,8 +311,9 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
                     const rawRef = row['Reference'];
                     const rawDesc = row['Description'];
                     const rawVatType = row['VAT Type'];
-                    const rawAmtIncl = row['Amount (Incl)'] || row['Inclusive Amount'];
+                    const rawAmtExcl = row['Amount (Excl)'];
                     const rawVatAmt = row['VAT Amount'];
+                    const rawAmtIncl = row['Amount (Incl)'];
                     const rawContra = row['Contra Account Number'];
 
                     const parsedDate = parse(rawDate || '', 'dd/MM/yyyy', new Date());
@@ -325,13 +326,18 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
                     const contraAccount = client.chartOfAccounts?.find(a => a.accountNumber === rawContra);
                     if (!contraAccount) errors.push({ Row: rowNum, Field: 'Contra Account Number', Error: 'Account number not found.', Value: rawContra });
                     
-                    const amount = parseFloat(String(rawAmtIncl || '').replace(/[^\d.-]/g, ''));
-                    if (isNaN(amount) || amount <= 0) errors.push({ Row: rowNum, Field: 'Amount (Incl)', Error: 'Must be a positive numeric value.', Value: rawAmtIncl });
+                    const amountIncl = parseFloat(String(rawAmtIncl || '').replace(/[^\d.-]/g, ''));
+                    if (isNaN(amountIncl) || amountIncl <= 0) errors.push({ Row: rowNum, Field: 'Amount (Incl)', Error: 'Must be a positive numeric value.', Value: rawAmtIncl });
                     
-                    const providedVatAmount = parseFloat(String(rawVatAmt || '0').replace(/[^\d.-]/g, ''));
+                    const vatAmt = parseFloat(String(rawVatAmt || '0').replace(/[^\d.-]/g, ''));
                     const vatTypeObj = allVatTypes.find(v => v.label === rawVatType) || allVatTypes.find(v => v.name === 'no_vat');
                     
                     if (errors.length === 0) {
+                        const isStandard = vatTypeObj?.name === 'standard_rated_sales' || vatTypeObj?.name === 'standard_rated_purchases' || vatTypeObj?.name === 'capital_goods_purchases';
+                        
+                        const effectiveVat = !isNaN(vatAmt) && vatAmt !== 0 ? vatAmt : (isStandard ? amountIncl - (amountIncl / 1.15) : 0);
+                        const effectiveExcl = amountIncl - effectiveVat;
+
                         validLines.push({ 
                             date: parsedDate, 
                             effect: rawEffect, 
@@ -339,8 +345,9 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
                             reference: rawRef || `IMPORT-${Date.now()}`, 
                             description: rawDesc || `Imported ${type} Journal`, 
                             vatType: vatTypeObj?.name || 'no_vat', 
-                            inclusiveAmount: amount, 
-                            providedVatAmount: providedVatAmount,
+                            inclusiveAmount: amountIncl, 
+                            vatAmount: effectiveVat,
+                            exclusiveAmount: effectiveExcl,
                             affectingAccountId: contraAccount?.id 
                         });
                     }
@@ -462,17 +469,7 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
     };
 
     const handleImportedLines = (lines: any[]) => {
-        const mapped = lines.map(line => {
-            const inclusive = line.inclusiveAmount || 0;
-            const isStandard = line.vatType === 'standard_rated_sales' || line.vatType === 'standard_rated_purchases' || line.vatType === 'capital_goods_purchases';
-            
-            // If explicit VAT Amount was provided in CSV, use it. Otherwise calculate based on type.
-            const vat = line.providedVatAmount > 0 ? line.providedVatAmount : (isStandard ? inclusive - (inclusive / 1.15) : 0);
-            const exclusive = inclusive - vat;
-            
-            return { ...line, exclusiveAmount: exclusive, vatAmount: vat };
-        });
-        replaceQuick(mapped);
+        replaceQuick(lines);
     };
 
     const onQuickSubmit = async (data: z.infer<typeof quickFormSchema>) => {
