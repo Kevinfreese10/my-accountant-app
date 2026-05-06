@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -10,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, Eye, Calculator, ArrowRightLeft, X, ListTree, History, CheckCircle2, FileUp, Download, AlertCircle, FileWarning, Edit, Save, Calendar as CalendarIcon, ChevronsUpDown, CheckCheck, Search } from 'lucide-react';
+import { Loader2, Plus, Trash2, Eye, Calculator, ArrowRightLeft, X, ListTree, History, CheckCircle2, FileUp, Download, AlertCircle, FileWarning, Edit, Save, Calendar as CalendarIcon } from 'lucide-react';
 import { getFirestore, doc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, updateDoc, arrayUnion, serverTimestamp, getDoc, deleteField } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -281,8 +280,8 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
     const { toast } = useToast();
 
     const handleDownloadTemplate = () => {
-        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Recipient Name', 'Reference', 'Description', 'VAT Type', 'Inclusive Amount', 'Contra Account Number'];
-        const dummyRows = [['15/03/2026', 'Debit', actors[0]?.name || 'Example Actor', 'REF001', `Sample ${type} Journal`, 'No VAT', '1150.00', '3000-000']];
+        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Recipient Name', 'Reference', 'Description', 'VAT Type', 'Amount (Incl)', 'VAT Amount', 'Contra Account Number'];
+        const dummyRows = [['15/03/2026', 'Debit', actors[0]?.name || 'Example Actor', 'REF001', `Sample ${type} Journal`, 'No VAT', '1150.00', '0.00', '3000-000']];
         const csvContent = Papa.unparse([headers, ...dummyRows]);
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -311,8 +310,9 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
                     const rawActor = row['Recipient Name'];
                     const rawRef = row['Reference'];
                     const rawDesc = row['Description'];
-                    const rawVat = row['VAT Type'];
-                    const rawAmt = row['Inclusive Amount'];
+                    const rawVatType = row['VAT Type'];
+                    const rawAmtIncl = row['Amount (Incl)'] || row['Inclusive Amount'];
+                    const rawVatAmt = row['VAT Amount'];
                     const rawContra = row['Contra Account Number'];
 
                     const parsedDate = parse(rawDate || '', 'dd/MM/yyyy', new Date());
@@ -325,10 +325,11 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
                     const contraAccount = client.chartOfAccounts?.find(a => a.accountNumber === rawContra);
                     if (!contraAccount) errors.push({ Row: rowNum, Field: 'Contra Account Number', Error: 'Account number not found.', Value: rawContra });
                     
-                    const amount = parseFloat(String(rawAmt || '').replace(/[^\d.-]/g, ''));
-                    if (isNaN(amount) || amount <= 0) errors.push({ Row: rowNum, Field: 'Inclusive Amount', Error: 'Must be a positive numeric value.', Value: rawAmt });
+                    const amount = parseFloat(String(rawAmtIncl || '').replace(/[^\d.-]/g, ''));
+                    if (isNaN(amount) || amount <= 0) errors.push({ Row: rowNum, Field: 'Amount (Incl)', Error: 'Must be a positive numeric value.', Value: rawAmtIncl });
                     
-                    const vatTypeObj = allVatTypes.find(v => v.label === rawVat) || allVatTypes.find(v => v.name === 'no_vat');
+                    const providedVatAmount = parseFloat(String(rawVatAmt || '0').replace(/[^\d.-]/g, ''));
+                    const vatTypeObj = allVatTypes.find(v => v.label === rawVatType) || allVatTypes.find(v => v.name === 'no_vat');
                     
                     if (errors.length === 0) {
                         validLines.push({ 
@@ -339,6 +340,7 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
                             description: rawDesc || `Imported ${type} Journal`, 
                             vatType: vatTypeObj?.name || 'no_vat', 
                             inclusiveAmount: amount, 
+                            providedVatAmount: providedVatAmount,
                             affectingAccountId: contraAccount?.id 
                         });
                     }
@@ -372,7 +374,7 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
             <DialogContent className="sm:max-w-md">
                 <DialogHeader><DialogTitle>Import {type} Journals</DialogTitle><DialogDescription>Upload a CSV file to populate the journal grid. Dates must be in DD/MM/YYYY format.</DialogDescription></DialogHeader>
                 <div className="space-y-6 py-4">
-                    <Button variant="secondary" className="w-full gap-2" onClick={handleDownloadTemplate}><Download className="h-4 w-4" /> Download Template</Button>
+                    <Button variant="secondary" className="w-full gap-2" onClick={handleDownloadTemplate}><Download className="h-4 w-4" /> Download CSV Template</Button>
                     <Separator />
                     <div className="space-y-3">
                         <Label>Select CSV File</Label>
@@ -461,10 +463,13 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
 
     const handleImportedLines = (lines: any[]) => {
         const mapped = lines.map(line => {
-            const isStandard = line.vatType === 'standard_rated_sales' || line.vatType === 'standard_rated_purchases' || line.vatType === 'capital_goods_purchases';
             const inclusive = line.inclusiveAmount || 0;
-            const exclusive = isStandard ? inclusive / 1.15 : inclusive;
-            const vat = inclusive - exclusive;
+            const isStandard = line.vatType === 'standard_rated_sales' || line.vatType === 'standard_rated_purchases' || line.vatType === 'capital_goods_purchases';
+            
+            // If explicit VAT Amount was provided in CSV, use it. Otherwise calculate based on type.
+            const vat = line.providedVatAmount > 0 ? line.providedVatAmount : (isStandard ? inclusive - (inclusive / 1.15) : 0);
+            const exclusive = inclusive - vat;
+            
             return { ...line, exclusiveAmount: exclusive, vatAmount: vat };
         });
         replaceQuick(mapped);
@@ -485,7 +490,6 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
             if (!controlAccountId) throw new Error("Control account missing.");
 
             for (const line of data.lines) {
-                const isStandard = line.vatType === 'standard_rated_sales' || line.vatType === 'standard_rated_purchases' || line.vatType === 'capital_goods_purchases';
                 const excl = line.exclusiveAmount || 0;
                 const vat = line.vatAmount || 0;
                 const incl = line.inclusiveAmount || 0;
@@ -500,7 +504,7 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                 const aRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
                 batch.set(aRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `Contra: ${actorName} - ${line.description}`, amount: -(excl * multiplier), isExpense: -(excl * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: line.affectingAccountId, type: 'account' }, vatType: line.vatType as VatType, status: 'allocated', allocatedAt: journalTimestamp });
                 
-                if (isStandard && vat !== 0 && vatControlAccount) {
+                if (vat !== 0 && vatControlAccount) {
                     const vRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
                     batch.set(vRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `VAT on: ${line.description}`, amount: -(vat * multiplier), isExpense: -(vat * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: vatControlAccount, type: 'account' }, vatType: 'no_vat', status: 'allocated', allocatedAt: journalTimestamp });
                 }
