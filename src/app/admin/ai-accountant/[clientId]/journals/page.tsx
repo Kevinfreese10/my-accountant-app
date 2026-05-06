@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, Eye, Calculator, ArrowRightLeft, X, ListTree, History, CheckCircle2, FileUp, Download, AlertCircle, FileWarning, Edit, Save, Calendar as CalendarIcon, Search } from 'lucide-react';
+import { Loader2, Plus, Trash2, Eye, Calculator, ArrowRightLeft, X, ListTree, History, CheckCircle2, FileUp, Download, AlertCircle, FileWarning, Edit, Save, Calendar as CalendarIcon, Search, ChevronsUpDown, Check } from 'lucide-react';
 import { getFirestore, doc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, updateDoc, arrayUnion, serverTimestamp, getDoc, deleteField, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command';
 import Papa from 'papaparse';
 
 const db = getFirestore(firebaseApp);
@@ -53,6 +54,7 @@ const quickFormSchema = z.object({
 const editJournalLineSchema = z.object({
     id: z.string(),
     accountId: z.string().min(1),
+    accountType: z.enum(['account', 'customer', 'supplier']).default('account'),
     description: z.string().min(1),
     amount: z.number(),
     vatType: z.string(),
@@ -71,12 +73,14 @@ const formatPrice = (price: number | undefined) => {
     return new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
 };
 
-function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSave }: { 
+function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, actors, onSave, journalType }: { 
     isOpen: boolean, 
     onOpenChange: (open: boolean) => void, 
     journalEntries: AllocatedTransaction[] | null, 
     client: User | null, 
-    onSave: (data: z.infer<typeof editJournalFormSchema>) => Promise<void> 
+    actors: any[],
+    onSave: (data: z.infer<typeof editJournalFormSchema>) => Promise<void>,
+    journalType: string
 }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
@@ -104,6 +108,7 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                 lines: journalEntries.map(entry => ({
                     id: entry.id,
                     accountId: entry.allocatedTo.value,
+                    accountType: entry.allocatedTo.type || 'account',
                     description: entry.description,
                     amount: entry.amount,
                     vatType: entry.vatType || 'no_vat',
@@ -137,6 +142,13 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const getAccountName = (line: any) => {
+        if (line.accountType === 'customer' || line.accountType === 'supplier') {
+            return actors.find(a => a.id === line.accountId)?.name || 'Unknown Actor';
+        }
+        return client?.chartOfAccounts?.find(a => a.id === line.accountId)?.description || 'Select Account...';
     };
 
     if (!journalEntries) return null;
@@ -181,7 +193,7 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                             <Table>
                                 <TableHeader className="bg-muted/50">
                                     <TableRow>
-                                        <TableHead className="text-[10px] uppercase font-black">Account</TableHead>
+                                        <TableHead className="text-[10px] uppercase font-black">Account / Recipient</TableHead>
                                         <TableHead className="text-[10px] uppercase font-black">Description</TableHead>
                                         <TableHead className="text-[10px] uppercase font-black">VAT Type</TableHead>
                                         <TableHead className="text-right text-[10px] uppercase font-black">Debit</TableHead>
@@ -192,14 +204,57 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                                 <TableBody>
                                     {fields.map((field, index) => (
                                         <TableRow key={field.id}>
-                                            <TableCell className="p-2">
-                                                <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => (
-                                                    <Select onValueChange={field.onChange} value={field.value}>
-                                                        <FormControl><SelectTrigger className="h-8 text-11px]"><SelectValue /></SelectTrigger></FormControl>
-                                                        <SelectContent>
-                                                            {client?.chartOfAccounts?.map(a => <SelectItem key={a.id} value={a.id}>{a.description}</SelectItem>)}
-                                                        </SelectContent>
-                                                    </Select>
+                                            <TableCell className="p-2 min-w-[200px]">
+                                                <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field: accField }) => (
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <FormControl>
+                                                                <Button variant="outline" size="sm" className="w-full justify-between h-8 text-[11px] font-medium">
+                                                                    <span className="truncate">{getAccountName(watchedLines[index])}</span>
+                                                                    <ChevronsUpDown className="h-3 w-3 opacity-50 shrink-0 ml-2" />
+                                                                </Button>
+                                                            </FormControl>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="p-0 w-[300px]" align="start">
+                                                            <Command>
+                                                                <CommandInput placeholder="Search accounts or actors..." />
+                                                                <CommandList>
+                                                                    <CommandEmpty>No results found.</CommandEmpty>
+                                                                    <CommandGroup heading={journalType === 'customer' ? 'Customers' : 'Suppliers'}>
+                                                                        {actors.map(a => (
+                                                                            <CommandItem 
+                                                                                key={a.id} 
+                                                                                onSelect={() => {
+                                                                                    form.setValue(`lines.${index}.accountId`, a.id);
+                                                                                    form.setValue(`lines.${index}.accountType`, journalType as any);
+                                                                                }}
+                                                                                className="text-xs"
+                                                                            >
+                                                                                <Check className={cn("mr-2 h-3 w-3", watchedLines[index].accountId === a.id ? "opacity-100" : "opacity-0")} />
+                                                                                {a.name}
+                                                                            </CommandItem>
+                                                                        ))}
+                                                                    </CommandGroup>
+                                                                    <CommandSeparator />
+                                                                    <CommandGroup heading="GL Accounts">
+                                                                        {client?.chartOfAccounts?.map(a => (
+                                                                            <CommandItem 
+                                                                                key={a.id} 
+                                                                                onSelect={() => {
+                                                                                    form.setValue(`lines.${index}.accountId`, a.id);
+                                                                                    form.setValue(`lines.${index}.accountType`, 'account');
+                                                                                }}
+                                                                                className="text-xs"
+                                                                            >
+                                                                                <Check className={cn("mr-2 h-3 w-3", watchedLines[index].accountId === a.id ? "opacity-100" : "opacity-0")} />
+                                                                                {a.description}
+                                                                            </CommandItem>
+                                                                        ))}
+                                                                    </CommandGroup>
+                                                                </CommandList>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
                                                 )} />
                                             </TableCell>
                                             <TableCell className="p-2">
@@ -243,8 +298,8 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                                 </TableBody>
                             </Table>
                         </div>
-                        <Button type="button" variant="outline" size="sm" onClick={() => append({ id: `new_${Date.now()}`, accountId: '', description: '', amount: 0, vatType: 'no_vat' })} className="font-bold gap-2">
-                            <Plus className="h-4 w-4" /> Add Line
+                        <Button type="button" variant="outline" size="sm" onClick={() => append({ id: `new_${Date.now()}`, accountId: '', accountType: 'account', description: '', amount: 0, vatType: 'no_vat' })} className="font-bold gap-2">
+                            <Plus className="h-3 w-3" /> Add Line
                         </Button>
 
                         <div className="bg-muted/30 p-4 rounded-xl border flex justify-between items-center">
@@ -514,10 +569,37 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                 const actorName = actors.find(a => a.id === line.actorId)?.name || 'Actor';
 
                 const pRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                batch.set(pRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `${actorName}: ${line.description}`, amount: incl * multiplier, isExpense: (incl * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: controlAccountId, type: 'account' }, vatType: 'no_vat', status: 'allocated', allocatedAt: journalTimestamp });
+                batch.set(pRef, { 
+                    clientId: client.id, 
+                    date: line.date.toISOString(), 
+                    reference: line.reference, 
+                    description: `${actorName}: ${line.description}`, 
+                    amount: incl * multiplier, 
+                    isExpense: (incl * multiplier) < 0, 
+                    bankAccountId: 'JOURNAL', 
+                    allocatedTo: { 
+                        value: line.actorId, 
+                        type: journalType as any 
+                    }, 
+                    vatType: 'no_vat', 
+                    status: 'allocated', 
+                    allocatedAt: journalTimestamp 
+                });
                 
                 const aRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                batch.set(aRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `Contra: ${actorName} - ${line.description}`, amount: -(excl * multiplier), isExpense: -(incl * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: line.affectingAccountId, type: 'account' }, vatType: line.vatType as VatType, status: 'allocated', allocatedAt: journalTimestamp });
+                batch.set(aRef, { 
+                    clientId: client.id, 
+                    date: line.date.toISOString(), 
+                    reference: line.reference, 
+                    description: `Contra: ${actorName} - ${line.description}`, 
+                    amount: -(excl * multiplier), 
+                    isExpense: -(incl * multiplier) < 0, 
+                    bankAccountId: 'JOURNAL', 
+                    allocatedTo: { value: line.affectingAccountId, type: 'account' }, 
+                    vatType: line.vatType as VatType, 
+                    status: 'allocated', 
+                    allocatedAt: journalTimestamp 
+                });
                 
                 if (vat !== 0 && vatControlAccount) {
                     const vRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
@@ -559,7 +641,7 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                     amount: line.amount,
                     isExpense: line.amount < 0,
                     bankAccountId: 'JOURNAL',
-                    allocatedTo: { value: line.accountId, type: 'account' },
+                    allocatedTo: { value: line.accountId, type: line.accountType },
                     vatType: line.vatType,
                     status: 'allocated',
                     updatedAt: serverTimestamp(),
@@ -619,7 +701,15 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
     return (
         <div className="space-y-8">
             <CreateGeneralAccountDialog client={client} onAccountCreated={fetchAllData} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen} />
-            <EditJournalDialog isOpen={!!editingJournal} onOpenChange={(o) => !o && setEditingJournal(null)} journalEntries={editingJournal} client={client} onSave={handleUpdateJournal} />
+            <EditJournalDialog 
+                isOpen={!!editingJournal} 
+                onOpenChange={(o) => !o && setEditingJournal(null)} 
+                journalEntries={editingJournal} 
+                client={client} 
+                actors={actors}
+                onSave={handleUpdateJournal} 
+                journalType={journalType}
+            />
             
             <Card className="border-primary/20 shadow-md">
                 <CardHeader className="bg-primary/5 border-b flex flex-row items-center justify-between space-y-0">
@@ -838,19 +928,8 @@ export default function JournalsPage() {
             );
             const journalsSnapshot = await getDocs(journalsQuery);
             
-            // Filter journals relevant to this specific type by checking the contra account or actor name in description
-            const controlAccountNum = journalType === 'customer' ? '8000-001' : '7000-000';
-            const controlAccountId = clientSnap.data()?.chartOfAccounts?.find((a: any) => a.accountNumber === controlAccountNum)?.id;
-            
             const fetched = journalsSnapshot.docs.map(d => ({id: d.id, ...d.data()}) as AllocatedTransaction);
-            const filtered = fetched.filter(tx => {
-                // If we have a direct match to the control account, it's definitely part of this journal set
-                if (tx.allocatedTo?.value === controlAccountId) return true;
-                // Or if another line in the same reference matches the control account
-                return fetched.some(f => f.reference === tx.reference && f.allocatedTo?.value === controlAccountId);
-            });
-
-            setAllJournals(filtered);
+            setAllJournals(fetched);
         } catch (e) {
             console.error(e);
             toast({ title: 'Error', description: 'Failed to fetch data.', variant: 'destructive' });
