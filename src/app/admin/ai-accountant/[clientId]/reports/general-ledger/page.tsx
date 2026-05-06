@@ -1,4 +1,3 @@
-
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -169,6 +168,24 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
         return accounts.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
     }, [client.chartOfAccounts, fromAccount, toAccount]);
 
+    const cleanDisplayDescription = (description: string): string => {
+        if (!description) return '';
+        // 1. Remove "Contra: " or "VAT on: " prefixes (case insensitive)
+        let cleaned = description.replace(/^(Contra:\s*|VAT on:?\s*)/i, '');
+        
+        // 2. Remove "Actor Name: " if it follows that pattern
+        // This regex looks for a string followed by a colon and a space at the start
+        if (cleaned.includes(': ')) {
+            const parts = cleaned.split(': ');
+            // If there's a colon-space pattern, we assume the first part is the actor/prefix the user wants to hide
+            if (parts.length > 1) {
+                cleaned = parts.slice(1).join(': ');
+            }
+        }
+        
+        return cleaned.trim();
+    };
+
 
     const groupedTransactions = useMemo(() => {
         const suspenseAccountId = '9500-001';
@@ -198,7 +215,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                         id: tx.id,
                         isJournal,
                         date: txDate,
-                        description: tx.description,
+                        description: cleanDisplayDescription(tx.description),
                         ref: tx.reference,
                         debit: tx.amount > 0 ? tx.amount : 0,
                         credit: tx.amount < 0 ? -tx.amount : 0,
@@ -218,15 +235,11 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                  // 1. Bank Account Entry
                 const bankEntry = grouped.get(tx.bankAccountId);
                 if (bankEntry) {
-                    const contraAccount = (tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo 
-                        ? accountsToDisplay.find(a => a.id === tx.allocatedTo?.value)?.description || 'Unallocated'
-                        : 'Suspense Account';
-                    
                     bankEntry.transactions.push({
                         id: tx.id,
                         isJournal,
                         date: txDate,
-                        description: `${tx.description} (Contra: ${contraAccount})`,
+                        description: tx.description,
                         ref: tx.reference,
                         debit: inclusiveAmount > 0 ? inclusiveAmount : 0,
                         credit: inclusiveAmount < 0 ? -inclusiveAmount : 0,
@@ -243,12 +256,11 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
                 const contraEntry = grouped.get(targetContraGLId);
                 if(contraEntry) {
-                    const bankAccountName = accountsToDisplay.find(a => a.id === tx.bankAccountId)?.description || 'Bank';
                     contraEntry.transactions.push({
                          id: tx.id,
                          isJournal,
                          date: txDate,
-                         description: `${tx.description} (Bank: ${bankAccountName})`,
+                         description: tx.description,
                          ref: tx.reference,
                          debit: inclusiveAmount < 0 ? -exclusiveAmount : 0,
                          credit: inclusiveAmount > 0 ? exclusiveAmount : 0,
@@ -259,10 +271,9 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                 if(isStandardVat && vatAmount !== 0) {
                     const vatEntry = grouped.get(vatControlAccountId);
                     if(vatEntry) {
-                        const bankAccountName = accountsToDisplay.find(a => a.id === tx.bankAccountId)?.description || 'Bank';
                         vatEntry.transactions.push({
                             id: tx.id,
-                            description: `VAT on ${tx.description} (Bank: ${bankAccountName})`,
+                            description: `VAT: ${tx.description}`,
                             ref: tx.reference,
                             date: txDate,
                             debit: inclusiveAmount < 0 ? -vatAmount : 0, // Debit for purchases (input)
@@ -678,7 +689,7 @@ export default function GeneralLedgerPage() {
                                     <DialogTrigger asChild>
                                         <Button>View Report</Button>
                                     </DialogTrigger>
-                                    <DialogContent className="sm:max-w-4xl">
+                                    <DialogContent className="sm:max-w-6xl">
                                         <DialogHeader className="text-center mb-4">
                                             <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
                                             <DialogDescription>

@@ -279,7 +279,7 @@ function ImportJournalDialog({ client, onImported }: { client: User | null; onIm
     const { toast } = useToast();
 
     const handleDownloadTemplate = () => {
-        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Account Number', 'Reference', 'Description', 'VAT Type', 'Amount (Excl)', 'VAT Amount', 'Amount (Incl)', 'Affecting Account Number'];
+        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Account Number', 'Reference', 'Description', 'VAT Type', 'Amount (Excl)', 'VAT Amount', 'Amount (Incl)', 'Contra Account Number'];
         const accounts = client?.chartOfAccounts || [];
         const acc1 = accounts[0]?.accountNumber || '1000-000';
         const acc2 = accounts[1]?.accountNumber || '8000-004';
@@ -497,10 +497,10 @@ function JournalManager({ clientId, client, fetchClientAndJournals, allJournals,
                 const pRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
                 batch.set(pRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: line.description, amount: excl * multiplier, isExpense: (excl * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: line.accountId, type: 'account' }, vatType: line.vatType as VatType, status: 'allocated', allocatedAt: journalTimestamp });
                 const aRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                batch.set(aRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `Contra: ${line.description}`, amount: -(incl * multiplier), isExpense: -(incl * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: line.affectingAccountId, type: 'account' }, vatType: 'no_vat', status: 'allocated', allocatedAt: journalTimestamp });
+                batch.set(aRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: line.description, amount: -(incl * multiplier), isExpense: -(incl * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: line.affectingAccountId, type: 'account' }, vatType: 'no_vat', status: 'allocated', allocatedAt: journalTimestamp });
                 if (vat !== 0 && vatControlAccount) {
                     const vRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                    batch.set(vRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `VAT on: ${line.description}`, amount: vat * multiplier, isExpense: (vat * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: vatControlAccount, type: 'account' }, vatType: 'no_vat', status: 'allocated', allocatedAt: journalTimestamp });
+                    batch.set(vRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `VAT: ${line.description}`, amount: vat * multiplier, isExpense: (vat * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: vatControlAccount, type: 'account' }, vatType: 'no_vat', status: 'allocated', allocatedAt: journalTimestamp });
                 }
             }
             await batch.commit();

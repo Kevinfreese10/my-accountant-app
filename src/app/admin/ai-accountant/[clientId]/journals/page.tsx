@@ -27,7 +27,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList, CommandGroup, CommandSeparator } from '@/components/ui/command';
 import Papa from 'papaparse';
 
 const db = getFirestore(firebaseApp);
@@ -566,14 +566,13 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                 
                 // Map Effect based on Journal Type
                 let multiplier = line.effect === 'Debit' ? 1 : -1;
-                const actorName = actors.find(a => a.id === line.actorId)?.name || 'Actor';
-
+                
                 const pRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
                 batch.set(pRef, { 
                     clientId: client.id, 
                     date: line.date.toISOString(), 
                     reference: line.reference, 
-                    description: `${actorName}: ${line.description}`, 
+                    description: line.description, 
                     amount: incl * multiplier, 
                     isExpense: (incl * multiplier) < 0, 
                     bankAccountId: 'JOURNAL', 
@@ -591,7 +590,7 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                     clientId: client.id, 
                     date: line.date.toISOString(), 
                     reference: line.reference, 
-                    description: `Contra: ${actorName} - ${line.description}`, 
+                    description: line.description, 
                     amount: -(excl * multiplier), 
                     isExpense: -(incl * multiplier) < 0, 
                     bankAccountId: 'JOURNAL', 
@@ -603,7 +602,7 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                 
                 if (vat !== 0 && vatControlAccount) {
                     const vRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                    batch.set(vRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `VAT on: ${line.description}`, amount: -(vat * multiplier), isExpense: -(vat * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: vatControlAccount, type: 'account' }, vatType: 'no_vat', status: 'allocated', allocatedAt: journalTimestamp });
+                    batch.set(vRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `VAT: ${line.description}`, amount: -(vat * multiplier), isExpense: -(vat * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: vatControlAccount, type: 'account' }, vatType: 'no_vat', status: 'allocated', allocatedAt: journalTimestamp });
                 }
             }
             await batch.commit();

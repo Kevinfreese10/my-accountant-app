@@ -1,4 +1,3 @@
-
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,13 +42,26 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
     const [reallocateTo, setReallocateTo] = useState<{accountId: string, vatType: VatType} | null>(null);
     const [open, setOpen] = useState(false)
 
+    const cleanDisplayDescription = (description: string): string => {
+        if (!description) return '';
+        let cleaned = description.replace(/^(Contra:\s*|VAT on:?\s*)/i, '');
+        if (cleaned.includes(': ')) {
+            const parts = cleaned.split(': ');
+            if (parts.length > 1) {
+                cleaned = parts.slice(1).join(': ');
+            }
+        }
+        return cleaned.trim();
+    };
+
     const ledgerEntries = useMemo(() => {
         const processedTransactions = transactions
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
             .map(tx => ({
                 ...tx,
+                displayDescription: cleanDisplayDescription(tx.description),
                 displayAmount: tx.allocatedTo?.value === account.id ? tx.amount : -tx.amount,
-                matched: false, // Add a matched flag
+                matched: false, 
             }));
 
         const debits = processedTransactions.filter(tx => tx.displayAmount > 0);
@@ -106,7 +118,7 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
         const dataToExport = visibleEntries.map(tx => ({
             'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
             'Reference': tx.reference,
-            'Description': tx.description,
+            'Description': tx.displayDescription,
             'Debit': tx.displayAmount > 0 ? tx.displayAmount : '',
             'Credit': tx.displayAmount < 0 ? -tx.displayAmount : '',
             'Balance': tx.balance,
@@ -152,12 +164,12 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
                         <p className="text-sm font-semibold">{selectedTransactions.length} selected</p>
                          <Popover open={open} onOpenChange={setOpen}>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" role="combobox" aria-expanded={open} className="w-[200px] justify-between h-8">
+                                <Button variant="outline" role="combobox" aria-expanded={open} className="w-[200px] justify-between h-8 text-xs font-bold">
                                     {reallocateTo ? client.chartOfAccounts?.find(acc => acc.id === reallocateTo.accountId)?.description : "Reallocate to..."}
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[200px] p-0">
+                            <PopoverContent className="w-[300px] p-0" align="start">
                                 <Command>
                                     <CommandInput placeholder="Search account..." />
                                     <CommandList>
@@ -186,13 +198,14 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
                             onValueChange={(value) => reallocateTo && setReallocateTo({...reallocateTo, vatType: value as VatType})}
                             disabled={!reallocateTo}
                         >
-                            <SelectTrigger className="w-[180px] h-8"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="w-[180px] h-8 text-[11px] font-bold"><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 {allVatTypes.map(vt => <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <Button 
                             size="sm"
+                            className="h-8 font-bold"
                             onClick={() => {
                                 if (reallocateTo) {
                                     onReallocate(selectedTransactions, reallocateTo);
@@ -231,7 +244,7 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
                                     </div>
                                 </TableCell>
                                 <TableCell>{tx.reference}</TableCell>
-                                <TableCell>{tx.description}</TableCell>
+                                <TableCell>{tx.displayDescription}</TableCell>
                                 <TableCell className="text-right font-mono">{tx.displayAmount > 0 ? formatPrice(tx.displayAmount) : ''}</TableCell>
                                 <TableCell className="text-right font-mono">{tx.displayAmount < 0 ? formatPrice(-tx.displayAmount) : ''}</TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(tx.balance)}</TableCell>
@@ -247,7 +260,7 @@ function AccountLedgerView({ transactions, account, client, onReallocate }: {
                 </Table>
             </CardContent>
              <CardFooter>
-                 <Button onClick={handleDownloadExcel} size="sm" variant="outline">
+                 <Button onClick={handleDownloadExcel} size="sm" variant="outline" className="font-bold">
                     <Download className="mr-2 h-4 w-4" />
                     Download as Excel
                 </Button>
@@ -370,7 +383,7 @@ export default function GeneralLedgerReconPage() {
                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                                         <Command>
                                             <CommandInput placeholder="Search account..." />
                                             <CommandList>
@@ -395,7 +408,7 @@ export default function GeneralLedgerReconPage() {
                                     </PopoverContent>
                                 </Popover>
                         </div>
-                        <Button onClick={handleViewReport} disabled={isFetchingTransactions || !selectedAccountId}>
+                        <Button onClick={handleViewReport} disabled={isFetchingTransactions || !selectedAccountId} className="font-bold gap-2">
                             {isFetchingTransactions ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4"/>}
                             View Ledger
                         </Button>
