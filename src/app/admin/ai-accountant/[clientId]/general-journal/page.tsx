@@ -24,6 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Papa from 'papaparse';
@@ -67,7 +68,7 @@ function ImportJournalDialog({ client, onImported }: { client: User | null; onIm
         
         // Find some valid account numbers for dummy data
         const accounts = client?.chartOfAccounts || [];
-        const acc1 = accounts[0]?.accountNumber || '1000-001';
+        const acc1 = accounts[0]?.accountNumber || '1000-000';
         const acc2 = accounts[1]?.accountNumber || '8000-004';
         
         const dummyRows = [
@@ -148,7 +149,8 @@ function ImportJournalDialog({ client, onImported }: { client: User | null; onIm
                             reference: rawRef || `IMPORT-${Date.now()}`,
                             description: rawDesc || 'Imported Journal',
                             vatType: vatTypeObj?.name || 'no_vat',
-                            inclusiveAmount: amount
+                            inclusiveAmount: amount,
+                            affectingAccountId: affectingAccount?.id
                         });
                     }
                 });
