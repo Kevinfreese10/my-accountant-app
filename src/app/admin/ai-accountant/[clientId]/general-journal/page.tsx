@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, Eye, Calculator, ArrowRightLeft, X, ListTree, History, CheckCircle2, FileUp, Download, AlertCircle, FileWarning, Edit, Save } from 'lucide-react';
+import { Loader2, Plus, Trash2, Eye, Calculator, ArrowRightLeft, X, ListTree, History, CheckCircle2, FileUp, Download, AlertCircle, FileWarning, Edit, Save, Calendar as CalendarIcon } from 'lucide-react';
 import { getFirestore, doc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, updateDoc, arrayUnion, serverTimestamp, getDoc, deleteField } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
@@ -99,7 +99,7 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
         if (journalEntries && journalEntries.length > 0) {
             form.reset({
                 reference: journalEntries[0].reference,
-                date: new Date(journalEntries[0].date),
+                date: journalEntries[0].date?.toDate ? journalEntries[0].date.toDate() : new Date(journalEntries[0].date),
                 lines: journalEntries.map(entry => ({
                     id: entry.id,
                     accountId: entry.allocatedTo.value,
