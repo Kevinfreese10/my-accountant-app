@@ -281,7 +281,24 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
 
     const handleDownloadTemplate = () => {
         const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Recipient Name', 'Reference', 'Description', 'VAT Type', 'Amount (Excl)', 'VAT Amount', 'Amount (Incl)', 'Contra Account Number'];
-        const dummyRows = [['15/03/2026', 'Debit', actors[0]?.name || 'Example Actor', 'REF001', `Sample ${type} Journal`, 'No VAT', '1000.00', '0.00', '1000.00', '3000-000']];
+        const actorName = actors[0]?.name || 'Example Recipient';
+        
+        let dummyRows = [];
+        if (type === 'supplier') {
+            dummyRows = [
+                ['15/03/2026', 'Debit', actorName, 'REF-S001', 'Stock Purchase', 'Standard-rated purchases (15%)', '1000.00', '150.00', '1150.00', '2000-000'],
+                ['16/03/2026', 'Debit', actorName, 'REF-S002', 'Laptop Purchase', 'Capital goods (15%)', '15000.00', '2250.00', '17250.00', '5000-007'],
+                ['17/03/2026', 'Debit', actorName, 'REF-S003', 'Fuel Purchase', 'Zero-rated purchases (0%)', '800.00', '0.00', '800.00', '3000-033'],
+                ['18/03/2026', 'Debit', actorName, 'REF-S004', 'Parking Fee', 'No VAT', '50.00', '0.00', '50.00', '3000-004']
+            ];
+        } else {
+            dummyRows = [
+                ['15/03/2026', 'Credit', actorName, 'REF-C001', 'Consulting Service', 'Standard-rated supplies (15%)', '5000.00', '750.00', '5750.00', '1000-000'],
+                ['16/03/2026', 'Credit', actorName, 'REF-C002', 'Training Service', 'Zero-rated supplies (0%)', '2000.00', '0.00', '2000.00', '1000-001'],
+                ['17/03/2026', 'Credit', actorName, 'REF-C003', 'Rent Income', 'No VAT', '12000.00', '0.00', '12000.00', '1000-002']
+            ];
+        }
+        
         const csvContent = Papa.unparse([headers, ...dummyRows]);
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -499,7 +516,7 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                 batch.set(pRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `${actorName}: ${line.description}`, amount: incl * multiplier, isExpense: (incl * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: controlAccountId, type: 'account' }, vatType: 'no_vat', status: 'allocated', allocatedAt: journalTimestamp });
                 
                 const aRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                batch.set(aRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `Contra: ${actorName} - ${line.description}`, amount: -(excl * multiplier), isExpense: -(excl * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: line.affectingAccountId, type: 'account' }, vatType: line.vatType as VatType, status: 'allocated', allocatedAt: journalTimestamp });
+                batch.set(aRef, { clientId: client.id, date: line.date.toISOString(), reference: line.reference, description: `Contra: ${actorName} - ${line.description}`, amount: -(excl * multiplier), isExpense: -(incl * multiplier) < 0, bankAccountId: 'JOURNAL', allocatedTo: { value: line.affectingAccountId, type: 'account' }, vatType: line.vatType as VatType, status: 'allocated', allocatedAt: journalTimestamp });
                 
                 if (vat !== 0 && vatControlAccount) {
                     const vRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));

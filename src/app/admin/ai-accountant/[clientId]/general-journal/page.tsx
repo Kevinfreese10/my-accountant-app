@@ -283,7 +283,14 @@ function ImportJournalDialog({ client, onImported }: { client: User | null; onIm
         const accounts = client?.chartOfAccounts || [];
         const acc1 = accounts[0]?.accountNumber || '1000-000';
         const acc2 = accounts[1]?.accountNumber || '8000-004';
-        const dummyRows = [['15/03/2026', 'Debit', acc1, 'REF001', 'Sample Service Sale', 'Standard-rated supplies (15%)', '1000.00', '150.00', '1150.00', acc2], ['16/03/2026', 'Credit', acc1, 'REF002', 'Office Rent Payment', 'No VAT', '5000.00', '0.00', '5000.00', acc2]];
+        
+        const dummyRows = [
+            ['15/03/2026', 'Debit', acc1, 'GJ-001', 'Service Sale Example', 'Standard-rated supplies (15%)', '1000.00', '150.00', '1150.00', acc2],
+            ['16/03/2026', 'Debit', acc1, 'GJ-002', 'Asset Purchase Example', 'Capital goods (15%)', '20000.00', '3000.00', '23000.00', acc2],
+            ['17/03/2026', 'Credit', acc1, 'GJ-003', 'Inventory Adj Example', 'No VAT', '5000.00', '0.00', '5000.00', acc2],
+            ['18/03/2026', 'Debit', acc1, 'GJ-004', 'Fuel Example', 'Zero-rated purchases (0%)', '800.00', '0.00', '800.00', acc2]
+        ];
+        
         const csvContent = Papa.unparse([headers, ...dummyRows]);
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
