@@ -9,8 +9,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, Eye, Calculator, ArrowRightLeft, X, ListTree, History, CheckCircle2, FileUp, Download, AlertCircle, FileWarning, Edit, Save, Calendar as CalendarIcon } from 'lucide-react';
-import { getFirestore, doc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, updateDoc, arrayUnion, serverTimestamp, getDoc, deleteField } from 'firebase/firestore';
+import { Loader2, Plus, Trash2, Eye, Calculator, ArrowRightLeft, X, ListTree, History, CheckCircle2, FileUp, Download, AlertCircle, FileWarning, Edit, Save, Calendar as CalendarIcon, Search } from 'lucide-react';
+import { getFirestore, doc, collection, writeBatch, Timestamp, query, where, orderBy, getDocs, updateDoc, arrayUnion, serverTimestamp, getDoc, deleteField, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -195,7 +195,7 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, onSav
                                             <TableCell className="p-2">
                                                 <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => (
                                                     <Select onValueChange={field.onChange} value={field.value}>
-                                                        <FormControl><SelectTrigger className="h-8 text-[11px]"><SelectValue /></SelectTrigger></FormControl>
+                                                        <FormControl><SelectTrigger className="h-8 text-11px]"><SelectValue /></SelectTrigger></FormControl>
                                                         <SelectContent>
                                                             {client?.chartOfAccounts?.map(a => <SelectItem key={a.id} value={a.id}>{a.description}</SelectItem>)}
                                                         </SelectContent>
@@ -462,6 +462,7 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
     const [editingJournal, setEditingJournal] = useState<AllocatedTransaction[] | null>(null);
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'post' | 'reviewed'>('post');
+    const [searchTerm, setSearchTerm] = useState('');
 
     const quickForm = useForm<z.infer<typeof quickFormSchema>>({
         resolver: zodResolver(quickFormSchema),
@@ -600,6 +601,19 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
         return Array.from(grouped.values()).sort((a,b) => new Date(b[0].date).getTime() - new Date(a[0].date).getTime());
     }, [allJournals]);
 
+    const filteredGroupedJournals = useMemo(() => {
+        if (!searchTerm.trim()) return groupedJournals;
+        const term = searchTerm.toLowerCase();
+        return groupedJournals.filter(entries => {
+            const first = entries[0];
+            return (
+                first.reference?.toLowerCase().includes(term) ||
+                first.description?.toLowerCase().includes(term) ||
+                entries.some(e => e.description?.toLowerCase().includes(term))
+            );
+        });
+    }, [groupedJournals, searchTerm]);
+
     const allGLAccounts = useMemo(() => client?.chartOfAccounts?.sort((a,b) => a.description.localeCompare(b.description)) || [], [client]);
 
     return (
@@ -669,6 +683,17 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                         </div>
                     ) : (
                         <div className="p-0">
+                            <div className="p-4 border-b bg-muted/5">
+                                <div className="relative max-w-sm">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search reference or description..."
+                                        className="pl-8"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                            </div>
                             <Table>
                                 <TableHeader className="bg-muted/30">
                                     <TableRow>
@@ -680,9 +705,9 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {groupedJournals.length === 0 ? (
+                                    {filteredGroupedJournals.length === 0 ? (
                                         <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground italic">No journals found.</TableCell></TableRow>
-                                    ) : groupedJournals.map((entries, i) => {
+                                    ) : filteredGroupedJournals.map((entries, i) => {
                                         const ref = entries[0].reference;
                                         const total = entries.reduce((s, e) => s + (e.amount > 0 ? e.amount : 0), 0);
                                         const date = entries[0].date?.toDate ? entries[0].date.toDate() : new Date(entries[0].date);
