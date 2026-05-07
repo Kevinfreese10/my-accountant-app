@@ -335,7 +335,7 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
     const { toast } = useToast();
 
     const handleDownloadTemplate = () => {
-        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Recipient Name', 'Reference', 'Description', 'VAT Type', 'Amount (Excl)', 'VAT Amount', 'Amount (Incl)', 'Contra Account Number'];
+        const headers = ['Date (DD/MM/YYYY)', 'Effect (Debit/Credit)', 'Recipient Name', 'Reference', 'Description', 'VAT Type', 'Amount (Excl)', 'VAT Amount', 'Amount (Incl)', 'Affecting Account Number'];
         const actorName = actors[0]?.name || 'Example Recipient';
         
         let dummyRows = [];
@@ -386,7 +386,7 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
                     const rawAmtExcl = row['Amount (Excl)'];
                     const rawVatAmt = row['VAT Amount'];
                     const rawAmtIncl = row['Amount (Incl)'];
-                    const rawContra = row['Contra Account Number'];
+                    const rawContra = row['Affecting Account Number'];
 
                     const parsedDate = parse(rawDate || '', 'dd/MM/yyyy', new Date());
                     if (isNaN(parsedDate.getTime())) errors.push({ Row: rowNum, Field: 'Date', Error: 'Invalid format. Use DD/MM/YYYY.', Value: rawDate });
@@ -396,7 +396,7 @@ function ImportJournalDialog({ client, type, actors, onImported }: { client: Use
                     if (!actorMatch) errors.push({ Row: rowNum, Field: 'Recipient Name', Error: 'Name not found in your list.', Value: rawActor });
                     
                     const contraAccount = client.chartOfAccounts?.find(a => a.accountNumber === rawContra);
-                    if (!contraAccount) errors.push({ Row: rowNum, Field: 'Contra Account Number', Error: 'Account number not found.', Value: rawContra });
+                    if (!contraAccount) errors.push({ Row: rowNum, Field: 'Affecting Account Number', Error: 'Affecting account not found.', Value: rawContra });
                     
                     const amountIncl = parseFloat(String(rawAmtIncl || '').replace(/[^\d.-]/g, ''));
                     if (isNaN(amountIncl) || amountIncl <= 0) errors.push({ Row: rowNum, Field: 'Amount (Incl)', Error: 'Must be a positive numeric value.', Value: rawAmtIncl });
