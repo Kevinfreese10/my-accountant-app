@@ -172,27 +172,8 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
     const cleanDisplayDescription = (description: string): string => {
         if (!description) return '';
-        
-        // 1. Initial clean of technical prefixes
-        let cleaned = description.replace(/^(Contra:\s*|VAT on:?\s*|VAT:\s*)/i, '');
-        
-        // 2. Aggressively strip known actor names (Suppliers/Customers) if they appear at the start
-        const actors = [...suppliers, ...customers];
-        for (const actor of actors) {
-            const name = actor.name.toUpperCase();
-            if (cleaned.toUpperCase().startsWith(`${name} - `)) {
-                cleaned = cleaned.substring(name.length + 3);
-                break;
-            }
-        }
-        
-        // 3. Fallback: Remove "Name: " if it follows that old pattern
-        const colonIndex = cleaned.indexOf(': ');
-        if (colonIndex > 0 && colonIndex < 40) {
-            cleaned = cleaned.substring(colonIndex + 2);
-        }
-        
-        return cleaned.trim();
+        // Show description verbatim as requested, only stripping legacy technical prefixes like "Contra:"
+        return description.replace(/^(Contra:\s*)/i, '').trim();
     };
 
 
