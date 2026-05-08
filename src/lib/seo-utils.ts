@@ -24,6 +24,7 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
       const keywords = data.metaKeywords || data.keywords || defaults.keywords;
       
       let imageUrl = data.seoImageUrl || globalFallbackImg;
+      // Force absolute URL
       if (imageUrl.startsWith('/')) {
         imageUrl = `${siteUrl}${imageUrl}`;
       }

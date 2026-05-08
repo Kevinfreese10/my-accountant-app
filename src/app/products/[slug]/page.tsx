@@ -36,12 +36,6 @@ async function getService(slug: string): Promise<Service | null> {
     return serviceData as Service;
 }
 
-async function getPartnerOverride(partnerId: string, serviceId: string): Promise<any | null> {
-    const overrideRef = doc(db, 'users', partnerId, 'serviceOverrides', serviceId);
-    const snap = await getDoc(overrideRef);
-    return snap.exists() ? snap.data() : null;
-}
-
 type Props = {
   params: Promise<{ slug: string }>
 }
