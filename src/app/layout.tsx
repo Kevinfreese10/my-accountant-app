@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -18,6 +19,9 @@ export const metadata: Metadata = {
   },
   description: 'Professional online tax, accounting, CIPC, SARS and compliance services for South African businesses.',
   keywords: ['accounting', 'tax services', 'CIPC', 'SARS', 'bookkeeping', 'South Africa'],
+  alternates: {
+    canonical: 'https://www.myacc.co.za',
+  },
   openGraph: {
     title: 'My Accountant | South African Tax, Accounting & Compliance Services',
     description: 'Professional online tax, accounting, CIPC, SARS and compliance services for South African businesses.',

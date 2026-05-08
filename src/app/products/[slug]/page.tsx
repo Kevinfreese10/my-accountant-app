@@ -1,3 +1,4 @@
+
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
@@ -46,15 +47,14 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { slug } = await params;
   const service = await getService(slug);
-  const globalFallbackImg = 'https://www.myacc.co.za/og-image.jpg';
+  const siteUrl = 'https://www.myacc.co.za';
+  const globalFallbackImg = `${siteUrl}/og-image.jpg`;
 
   if (!service) {
     return { title: 'Product Not Found' }
   }
 
-  const siteUrl = 'https://www.myacc.co.za';
   const canonicalUrl = `${siteUrl}/products/${service.slug}`;
-  
   const title = service.metaTitle || `${service.title} | My Accountant`;
   const description = service.metaDescription || service.description;
   

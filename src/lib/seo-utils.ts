@@ -1,3 +1,4 @@
+
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Metadata } from 'next';

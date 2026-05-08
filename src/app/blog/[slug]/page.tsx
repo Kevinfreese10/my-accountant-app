@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { BlogPost, Service } from '@/lib/types';
@@ -51,13 +52,13 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPost(slug);
-  const globalFallbackImg = 'https://www.myacc.co.za/og-image.jpg';
+  const siteUrl = 'https://www.myacc.co.za';
+  const globalFallbackImg = `${siteUrl}/og-image.jpg`;
  
   if (!post) {
     return { title: 'Post Not Found' }
   }
 
-  const siteUrl = 'https://www.myacc.co.za';
   const canonicalUrl = `${siteUrl}/blog/${post.slug}`;
   const title = post.metaTitle || `${post.title} | My Accountant`;
   const description = post.metaDescription || post.excerpt;
