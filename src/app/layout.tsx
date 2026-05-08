@@ -13,7 +13,7 @@ const GLOBAL_OG_IMAGE = 'https://firebasestorage.googleapis.com/v0/b/studio-2604
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.myacc.co.za'),
   title: {
-    default: 'My Accountant | South African Tax, Accounting & Compliance Services',
+    default: 'My Accountant | Professional Accounting & Tax Services',
     template: '%s | My Accountant',
   },
   description: 'Professional online tax, accounting, CIPC, SARS and compliance services for South African businesses.',
