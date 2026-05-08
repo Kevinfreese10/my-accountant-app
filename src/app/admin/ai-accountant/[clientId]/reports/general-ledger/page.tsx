@@ -172,8 +172,23 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
     const cleanDisplayDescription = (description: string): string => {
         if (!description) return '';
-        // Show description verbatim as requested, only stripping legacy technical prefixes like "Contra:"
-        return description.replace(/^(Contra:\s*)/i, '').trim();
+        let clean = description.replace(/^(Contra:\s*|VAT:\s*)/i, '').trim();
+
+        // Rule: If it starts exactly with a Supplier or Customer name followed by " - ", strip it.
+        // This ensures "MASA KEKANA - ..." is cleaned but "WARDROBE - H&M - ..." stays verbatim as requested.
+        const allActors = [...suppliers, ...customers].sort((a, b) => b.name.length - a.name.length);
+        for (const actor of allActors) {
+            const name = actor.name.toUpperCase();
+            if (clean.toUpperCase().startsWith(name)) {
+                const remaining = clean.substring(name.length).trim();
+                if (remaining.startsWith('-')) {
+                    clean = remaining.substring(1).trim();
+                    break; 
+                }
+            }
+        }
+        
+        return clean;
     };
 
 

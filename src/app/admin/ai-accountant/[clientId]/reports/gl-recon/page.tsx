@@ -46,8 +46,22 @@ function AccountLedgerView({ transactions, account, client, suppliers, customers
 
     const cleanDisplayDescription = (description: string): string => {
         if (!description) return '';
-        // Only strip legacy technical prefixes, keep verbatim description as requested
-        return description.replace(/^(Contra:\s*)/i, '').trim();
+        let clean = description.replace(/^(Contra:\s*|VAT:\s*)/i, '').trim();
+
+        // Rule: If it starts exactly with a Supplier or Customer name followed by " - ", strip it.
+        const allActors = [...suppliers, ...customers].sort((a, b) => b.name.length - a.name.length);
+        for (const actor of allActors) {
+            const name = actor.name.toUpperCase();
+            if (clean.toUpperCase().startsWith(name)) {
+                const remaining = clean.substring(name.length).trim();
+                if (remaining.startsWith('-')) {
+                    clean = remaining.substring(1).trim();
+                    break; 
+                }
+            }
+        }
+        
+        return clean;
     };
 
     const ledgerEntries = useMemo(() => {
