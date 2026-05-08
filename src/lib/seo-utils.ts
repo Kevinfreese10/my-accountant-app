@@ -12,7 +12,9 @@ const db = getFirestore(firebaseApp);
 export async function getStaticPageMetadata(pageId: string, defaults: Metadata): Promise<Metadata> {
   const siteUrl = 'https://www.myacc.co.za';
   const canonicalUrl = `${siteUrl}${pageId === 'home' ? '' : `/${pageId}`}`;
-  const globalFallbackImg = 'https://www.myacc.co.za/og-image.jpg';
+  
+  // Using direct Storage URL as fallback for reliability with scrapers that don't follow redirects
+  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0';
 
   try {
     const docRef = doc(db, 'staticSeo', pageId);
@@ -25,7 +27,7 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
       const keywords = data.metaKeywords || data.keywords || defaults.keywords;
       
       let imageUrl = data.seoImageUrl || globalFallbackImg;
-      // Force absolute URL
+      // Force absolute URL for local paths
       if (imageUrl.startsWith('/')) {
         imageUrl = `${siteUrl}${imageUrl}`;
       }
