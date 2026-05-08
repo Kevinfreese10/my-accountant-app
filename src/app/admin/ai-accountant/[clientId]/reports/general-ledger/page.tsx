@@ -7,7 +7,7 @@ import React, { useState, useEffect, useMemo, ReactNode } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction, VatType, Supplier, ClientCustomer } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, updateDoc, writeBatch, deleteDoc, where, getDocs, deleteField, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Download, Eye, Trash2, Search, Scale, ChevronsUpDown } from "lucide-react";
+import { Loader2, Download, Eye, Trash2, Search, Scale, ChevronsUpDown, CheckCheck } from "lucide-react";
 import { useParams, useSearchParams } from 'next/navigation';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
@@ -170,20 +170,20 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
         return accounts.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
     }, [client.chartOfAccounts, fromAccount, toAccount]);
 
-    const cleanDisplayDescription = (description: string): string => {
+    const cleanDisplayDescription = (description: string, allocatedTo?: { value: string, type: 'account' | 'customer' | 'supplier' }): string => {
         if (!description) return '';
         let clean = description.replace(/^(Contra:\s*|VAT:\s*)/i, '').trim();
 
-        // Rule: If it starts exactly with a Supplier or Customer name followed by " - ", strip it.
-        // This ensures "MASA KEKANA - ..." is cleaned but "WARDROBE - H&M - ..." stays verbatim as requested.
-        const allActors = [...suppliers, ...customers].sort((a, b) => b.name.length - a.name.length);
-        for (const actor of allActors) {
-            const name = actor.name.toUpperCase();
-            if (clean.toUpperCase().startsWith(name)) {
-                const remaining = clean.substring(name.length).trim();
-                if (remaining.startsWith('-')) {
-                    clean = remaining.substring(1).trim();
-                    break; 
+        if (allocatedTo && (allocatedTo.type === 'supplier' || allocatedTo.type === 'customer')) {
+            const actor = (allocatedTo.type === 'supplier' ? suppliers : customers).find(a => a.id === allocatedTo.value);
+            if (actor) {
+                const name = actor.name.toUpperCase();
+                if (clean.toUpperCase().startsWith(name)) {
+                    let remaining = clean.substring(name.length).trim();
+                    if (remaining.startsWith('-')) {
+                        remaining = remaining.substring(1).trim();
+                    }
+                    clean = remaining;
                 }
             }
         }
@@ -220,7 +220,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                         id: tx.id,
                         isJournal,
                         date: txDate,
-                        description: cleanDisplayDescription(tx.description),
+                        description: cleanDisplayDescription(tx.description, tx.allocatedTo),
                         ref: tx.reference,
                         debit: tx.amount > 0 ? tx.amount : 0,
                         credit: tx.amount < 0 ? -tx.amount : 0,
@@ -244,7 +244,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                         id: tx.id,
                         isJournal,
                         date: txDate,
-                        description: cleanDisplayDescription(tx.description),
+                        description: cleanDisplayDescription(tx.description, tx.allocatedTo),
                         ref: tx.reference,
                         debit: inclusiveAmount > 0 ? inclusiveAmount : 0,
                         credit: inclusiveAmount < 0 ? -inclusiveAmount : 0,
@@ -253,10 +253,12 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                 
                  // 2. Contra Account Entry (VAT Exclusive)
                 let targetContraGLId = suspenseAccountId;
-                if ((tx.status === 'allocated' || tx.status === 'reviewed') && tx.allocatedTo) {
-                    if (tx.allocatedTo.type === 'supplier') targetContraGLId = supplierControlAccountId;
-                    else if (tx.allocatedTo.type === 'customer') targetContraGLId = customerControlAccountId;
-                    else targetContraGLId = tx.allocatedTo.value;
+                let currentAllocatedTo = tx.allocatedTo;
+
+                if (tx.status === 'allocated' || tx.status === 'reviewed') {
+                    if (tx.allocatedTo?.type === 'supplier') targetContraGLId = supplierControlAccountId;
+                    else if (tx.allocatedTo?.type === 'customer') targetContraGLId = customerControlAccountId;
+                    else if (tx.allocatedTo?.value) targetContraGLId = tx.allocatedTo.value;
                 }
 
                 const contraEntry = grouped.get(targetContraGLId);
@@ -265,7 +267,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                          id: tx.id,
                          isJournal,
                          date: txDate,
-                         description: cleanDisplayDescription(tx.description),
+                         description: cleanDisplayDescription(tx.description, currentAllocatedTo),
                          ref: tx.reference,
                          debit: inclusiveAmount < 0 ? -exclusiveAmount : 0,
                          credit: inclusiveAmount > 0 ? exclusiveAmount : 0,
@@ -278,7 +280,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                     if(vatEntry) {
                         vatEntry.transactions.push({
                             id: tx.id,
-                            description: `VAT: ${cleanDisplayDescription(tx.description)}`,
+                            description: `VAT: ${cleanDisplayDescription(tx.description, currentAllocatedTo)}`,
                             ref: tx.reference,
                             date: txDate,
                             debit: inclusiveAmount < 0 ? -vatAmount : 0, // Debit for purchases (input)

@@ -44,19 +44,20 @@ function AccountLedgerView({ transactions, account, client, suppliers, customers
     const [reallocateTo, setReallocateTo] = useState<{accountId: string, vatType: VatType} | null>(null);
     const [open, setOpen] = useState(false)
 
-    const cleanDisplayDescription = (description: string): string => {
+    const cleanDisplayDescription = (description: string, allocatedTo?: { value: string, type: 'account' | 'customer' | 'supplier' }): string => {
         if (!description) return '';
         let clean = description.replace(/^(Contra:\s*|VAT:\s*)/i, '').trim();
 
-        // Rule: If it starts exactly with a Supplier or Customer name followed by " - ", strip it.
-        const allActors = [...suppliers, ...customers].sort((a, b) => b.name.length - a.name.length);
-        for (const actor of allActors) {
-            const name = actor.name.toUpperCase();
-            if (clean.toUpperCase().startsWith(name)) {
-                const remaining = clean.substring(name.length).trim();
-                if (remaining.startsWith('-')) {
-                    clean = remaining.substring(1).trim();
-                    break; 
+        if (allocatedTo && (allocatedTo.type === 'supplier' || allocatedTo.type === 'customer')) {
+            const actor = (allocatedTo.type === 'supplier' ? suppliers : customers).find(a => a.id === allocatedTo.value);
+            if (actor) {
+                const name = actor.name.toUpperCase();
+                if (clean.toUpperCase().startsWith(name)) {
+                    let remaining = clean.substring(name.length).trim();
+                    if (remaining.startsWith('-')) {
+                        remaining = remaining.substring(1).trim();
+                    }
+                    clean = remaining;
                 }
             }
         }
@@ -69,7 +70,7 @@ function AccountLedgerView({ transactions, account, client, suppliers, customers
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
             .map(tx => ({
                 ...tx,
-                displayDescription: cleanDisplayDescription(tx.description),
+                displayDescription: cleanDisplayDescription(tx.description, tx.allocatedTo),
                 displayAmount: tx.allocatedTo?.value === account.id ? tx.amount : -tx.amount,
                 matched: false, 
             }));
