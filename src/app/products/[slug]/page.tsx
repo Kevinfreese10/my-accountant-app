@@ -46,7 +46,7 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { slug } = await params;
   const service = await getService(slug);
-  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0';
+  const globalFallbackImg = 'https://www.myacc.co.za/og-image.jpg';
 
   if (!service) {
     return { title: 'Product Not Found' }

@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 import ExternalScripts from '@/components/layout/ExternalScripts';
 
-const GLOBAL_OG_IMAGE = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0';
+const GLOBAL_OG_IMAGE = 'https://www.myacc.co.za/og-image.jpg';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.myacc.co.za'),

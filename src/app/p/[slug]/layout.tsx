@@ -50,16 +50,26 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const partner = await getPartnerBySlug(slug);
+  const siteUrl = 'https://www.myacc.co.za';
+  const fallbackImg = `${siteUrl}/og-image.jpg`;
+
   if (!partner) return { title: 'Practice Not Found' };
 
   const lp = partner.landingPage;
   const title = lp?.metaTitle || `${partner.companyName || partner.name} | Professional Accounting & Tax`;
   const description = lp?.metaDescription || lp?.heroSubtitle;
-  const ogImage = lp?.heroImageUrl || 'https://www.myacc.co.za/og-image.jpg';
+  
+  let ogImage = lp?.heroImageUrl || fallbackImg;
+  if (ogImage.startsWith('/')) {
+    ogImage = `${siteUrl}${ogImage}`;
+  }
 
   return {
     title,
     description,
+    alternates: {
+        canonical: `${siteUrl}/p/${slug}`,
+    },
     openGraph: {
       title,
       description,
@@ -70,7 +80,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         alt: title
       }],
       type: 'website',
-      url: `https://www.myacc.co.za/p/${slug}`,
+      url: `${siteUrl}/p/${slug}`,
       siteName: partner.companyName || partner.name,
       locale: 'en_ZA',
     },
