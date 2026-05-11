@@ -1,3 +1,4 @@
+
 import {
   Body,
   Container,
@@ -86,7 +87,7 @@ export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: Docume
     const companyName = reseller?.companyName || 'My Accountant';
     const companyEmail = reseller?.email || 'info@myacc.co.za';
     
-    let companyAddress = 'Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road Roodepoort';
+    let companyAddress = 'Ground Floor, Waterstone Building, Stonemill Office Park, 300 Acacia Road, Darrenwood, Johannesburg, 2195';
     if (reseller?.address) {
         const addr = reseller.address;
         companyAddress = [addr.street, addr.suburb, addr.city, addr.province, addr.zip].filter(Boolean).join(', ');

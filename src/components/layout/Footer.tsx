@@ -16,10 +16,11 @@ const Footer = () => {
                     <div className="flex items-start gap-3">
                         <MapPin className="h-4 w-4 mt-1 flex-shrink-0" />
                         <span>
-                          Clearwater Office Park<br />
-                          Building 3<br />
-                          Millenium Road & Christiaan de Wet Road<br />
-                          Roodepoort
+                          Ground Floor, Waterstone Building<br />
+                          Stonemill Office Park<br />
+                          300 Acacia Road<br />
+                          Darrenwood, Johannesburg<br />
+                          2195
                         </span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -52,7 +53,7 @@ const Footer = () => {
 
             <div>
                 <iframe
-                    src="https://www.google.com/maps?q=Clearwater+Office+Park+Roodepoort&output=embed"
+                    src="https://www.google.com/maps?q=Stonemill+Office+Park+Johannesburg&output=embed"
                     width="100%"
                     height="200"
                     style={{ border: 0 }}

@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Metadata } from 'next';
 import { getStaticPageMetadata } from '@/lib/seo-utils';
@@ -118,7 +119,7 @@ export default function PopiaPage() {
                     <div className="mt-2 p-4 bg-muted/50 rounded-md">
                         <p><strong>Name:</strong> Kevin William Freese</p>
                         <p><strong>Email:</strong> info@myacc.co.za</p>
-                        <p><strong>Address:</strong> Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road Roodepoort</p>
+                        <p><strong>Address:</strong> Ground Floor, Waterstone Building, Stonemill Office Park, 300 Acacia Road, Darrenwood, Johannesburg, 2195</p>
                     </div>
                     <p className="mt-2">The Information Officer is responsible for compliance with POPIA, maintaining records of processing activities, and managing data subject requests.</p>
                 </section>

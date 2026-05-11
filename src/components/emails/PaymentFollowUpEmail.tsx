@@ -1,3 +1,4 @@
+
 import {
   Body,
   Container,
@@ -105,7 +106,7 @@ export const PaymentFollowUpEmail = ({ order, reseller }: PaymentFollowUpEmailPr
 
     const companyName = reseller?.companyName || 'My Accountant';
     const companyEmail = reseller?.email || 'info@myacc.co.za';
-    const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : 'Clearwater Office Park Building 3 Millenium Road & Christiaan de Wet Road Roodepoort';
+    const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : 'Ground Floor, Waterstone Building, Stonemill Office Park, 300 Acacia Road, Darrenwood, Johannesburg, 2195';
 
     const bankingDetails = reseller?.bankingDetails || {
         bankName: 'FNB',

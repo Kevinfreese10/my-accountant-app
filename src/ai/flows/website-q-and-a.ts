@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for answering questions based on website content and general knowledge.
@@ -94,7 +95,7 @@ export async function websiteQAndA(
   
   const footerContent = `
     CONTACT INFORMATION:
-    - Address: Clearwater Office Park, Building 3, Millenium Road & Christiaan de Wet Road, Roodepoort
+    - Address: Ground Floor, Waterstone Building, Stonemill Office Park, 300 Acacia Road, Darrenwood, Johannesburg, 2195
     - Email: info@myacc.co.za
     - Phone: 010 109 1625
   `;
