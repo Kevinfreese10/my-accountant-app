@@ -1,4 +1,3 @@
-
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -8,6 +7,8 @@ import { bodyFont, headlineFont } from '@/app/fonts';
 import { cn } from '@/lib/utils';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 import ExternalScripts from '@/components/layout/ExternalScripts';
+import Script from 'next/script';
+import { generateOrganizationSchema } from '@/lib/schema/productSchema';
 
 // Using the direct Storage URL as the global fallback to ensure scrapers (WhatsApp/FB) 
 // don't fail on redirects.
@@ -53,10 +54,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const organizationSchema = generateOrganizationSchema();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <ExternalScripts />
+        <Script
+          id="organization-schema"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
       </head>
       <body className={cn("antialiased", bodyFont.variable, headlineFont.variable)} suppressHydrationWarning>
         <AuthProvider>

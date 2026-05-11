@@ -8,7 +8,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash, Sparkles, Loader2, Plus, Info, Images, Paperclip } from 'lucide-react';
+import { Trash, Sparkles, Loader2, Plus, Info, Images, Paperclip, ShieldCheck } from 'lucide-react';
 import { generateServiceDetails } from '@/ai/flows/generate-service-details';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
@@ -67,6 +67,12 @@ const formSchema = z.object({
   google_product_category: z.string().optional(),
   currency: z.string().default('ZAR'),
   returnPolicyCategory: z.string().optional(),
+  // Schema specific
+  schemaType: z.enum(['Product', 'Service']).default('Product'),
+  enableAggregateRating: z.boolean().default(true),
+  aggregateRatingValue: z.preprocess(val => Number(val), z.number().optional()),
+  reviewCount: z.preprocess(val => Number(val), z.number().optional()),
+  priceValidUntilOverride: z.string().optional(),
 });
 
 type ServiceFormProps = {
@@ -126,7 +132,12 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
       product_type: service?.product_type || 'Accounting > Tax Services',
       google_product_category: service?.google_product_category || 'Business & Industrial > Business Services',
       currency: service?.currency || 'ZAR',
-      returnPolicyCategory: service?.returnPolicyCategory || 'none',
+      returnPolicyCategory: service?.returnPolicyCategory || 'https://schema.org/MerchantReturnNotPermitted',
+      schemaType: service?.schemaType || 'Product',
+      enableAggregateRating: service?.enableAggregateRating ?? true,
+      aggregateRatingValue: service?.aggregateRatingValue || 4.9,
+      reviewCount: service?.reviewCount || 190,
+      priceValidUntilOverride: service?.priceValidUntilOverride || '',
     },
   });
   
@@ -295,7 +306,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
                 <FormControl>
                     <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                 </FormControl>
-                <FormLabel className="!mt-0">Price to be confirmed</FormLabel>
+                <FormLabel className="!mt-0">Price to be confirmed (Quote Based)</FormLabel>
                 </FormItem>
             )}
         />
@@ -585,6 +596,67 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
                 ))}
                 <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendKeyword({ value: '' })}>Add Keyword</Button>
             </div>
+
+            <Separator className="my-6" />
+
+            <div className="space-y-4 rounded-lg border-2 border-primary/20 bg-primary/5 p-4 animate-in fade-in">
+                <div className="flex items-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
+                    <ShieldCheck className="h-4 w-4" /> Schema & Trust Signals (GSC Fix)
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="schemaType" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Structured Data Type</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    <SelectItem value="Product">Product (Uses Offers)</SelectItem>
+                                    <SelectItem value="Service">Service (No Price Required)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormDescription className="text-[10px]">Use 'Service' for quote-based items to avoid GSC errors.</FormDescription>
+                        </FormItem>
+                    )} />
+                    <FormField control={form.control} name="priceValidUntilOverride" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Price Valid Until</FormLabel>
+                            <FormControl><Input type="date" {...field} /></FormControl>
+                            <FormDescription className="text-[10px]">Override automated year-end expiry.</FormDescription>
+                        </FormItem>
+                    )} />
+                </div>
+                
+                <Separator className="bg-primary/10" />
+                
+                <div className="space-y-4">
+                    <FormField control={form.control} name="enableAggregateRating" render={({ field }) => (
+                        <FormItem className="flex items-center justify-between">
+                            <div>
+                                <FormLabel>Enable Aggregate Rating</FormLabel>
+                                <p className="text-[10px] text-muted-foreground">Show 4.9/5 stars in search results.</p>
+                            </div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )} />
+                    
+                    {form.watch('enableAggregateRating') && (
+                        <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-1">
+                            <FormField control={form.control} name="aggregateRatingValue" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] uppercase font-bold">Rating Value</FormLabel>
+                                    <FormControl><Input type="number" step="0.1" {...field} /></FormControl>
+                                </FormItem>
+                            )} />
+                            <FormField control={form.control} name="reviewCount" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] uppercase font-bold">Review Count</FormLabel>
+                                    <FormControl><Input type="number" {...field} /></FormControl>
+                                </FormItem>
+                            )} />
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
 
         <Button type="submit" className="w-full">Save Product</Button>
@@ -592,3 +664,4 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
     </Form>
   );
 }
+

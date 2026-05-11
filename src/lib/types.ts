@@ -53,6 +53,7 @@ export type Service = {
   imageUrl: string;
   imageHint: string;
   seoImageUrl?: string;
+  seoImageLabel?: string;
   category: string;
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   whatsIncluded: string[];
@@ -74,6 +75,12 @@ export type Service = {
   product_type?: string;
   google_product_category?: string;
   returnPolicyCategory?: string;
+  // Schema Overrides
+  schemaType?: 'Product' | 'Service';
+  enableAggregateRating?: boolean;
+  aggregateRatingValue?: number;
+  reviewCount?: number;
+  priceValidUntilOverride?: string;
 };
 
 export type BlogPost = {
@@ -90,6 +97,8 @@ export type BlogPost = {
   metaDescription?: string;
   metaKeywords?: string[];
   relatedProducts?: string[];
+  seoImageUrl?: string;
+  seoImageLabel?: string;
 };
 
 export type FAQ = {

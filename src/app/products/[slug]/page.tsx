@@ -1,4 +1,3 @@
-
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
@@ -10,6 +9,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Metadata, ResolvingMetadata } from 'next';
 import ServiceCheckoutForm from '@/components/checkout/ServiceCheckoutForm';
 import Script from 'next/script';
+import { generateStructuredData } from '@/lib/schema/productSchema';
 
 const db = getFirestore(firebaseApp);
 
@@ -109,38 +109,7 @@ export default async function ProductDetailPage({ params }: Props) {
     notFound();
   }
 
-  const offers: any = service.isPriceTbc ? null : {
-    '@type': 'Offer',
-    url: `https://www.myacc.co.za/products/${service.slug}`,
-    priceCurrency: service.currency || 'ZAR',
-    price: service.price.toString(),
-    priceValidUntil: '2027-02-28',
-    availability: `https://schema.org/${service.availability === 'in_stock' ? 'InStock' : 'OutOfStock'}`,
-    itemCondition: `https://schema.org/${service.condition === 'new' ? 'NewCondition' : 'UsedCondition'}`,
-    ...(service.returnPolicyCategory && service.returnPolicyCategory !== 'none' && {
-        hasMerchantReturnPolicy: {
-            '@type': 'MerchantReturnPolicy',
-            applicableCountry: 'ZA',
-            returnPolicyCategory: service.returnPolicyCategory,
-            merchantReturnLink: 'https://www.myacc.co.za/refund-policy'
-        }
-    })
-  };
-
-  const jsonLd: any = {
-    '@context': 'https://schema.org/',
-    '@type': 'Product',
-    name: service.title,
-    image: service.imageUrl,
-    description: service.description,
-    brand: {
-      '@type': 'Brand',
-      name: service.brand || 'My Accountant',
-    },
-    sku: service.id,
-    ...(offers && { offers }),
-    ...(service.google_product_category && { google_product_category: service.google_product_category }),
-  };
+  const jsonLd = generateStructuredData(service);
 
   return (
     <>
