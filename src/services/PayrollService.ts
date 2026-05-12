@@ -1,7 +1,7 @@
 import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Employee, Payslip, PayslipItem } from '@/lib/types';
-import { format } from 'date-fns';
+import { format, addDays, isValid, parse } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 
@@ -42,36 +42,56 @@ const MONTHS = [ "January", "February", "March", "April", "May", "June", "July",
 export class PayrollService {
   /**
    * Helper to convert frequency string to numeric multiplier.
-   * Simplified to focus on Monthly (12) by default.
    */
   static getFrequencyMultiplier(freq?: string): number {
+    if (freq === 'Fortnightly') return 26;
     return 12;
   }
 
   /**
-   * Identifies the tax year based on the period string (e.g. "March 2026")
+   * Identifies the tax year based on the period string (e.g. "March 2026" or "06/03/2026")
    */
   static getTaxConfig(period?: string) {
-    if (period) {
-      const parts = period.split(' ');
-      const monthIdx = MONTHS.indexOf(parts[0]);
-      const year = parseInt(parts[1]);
-      
-      if (monthIdx !== -1 && !isNaN(year)) {
-        // South African tax year runs from March to Feb.
-        // e.g. March 2025 to Feb 2026 is the 2026 tax year.
-        const taxYear = monthIdx >= 2 ? (year + 1).toString() : year.toString();
-        return TAX_YEAR_CONFIGS[taxYear] || TAX_YEAR_CONFIGS['2026'];
+    if (!period) return TAX_YEAR_CONFIGS['2026'];
+    
+    let monthIdx = -1;
+    let year = 2026;
+
+    // Try parsing as "Month Year" (Monthly)
+    const monthYearParts = period.split(' ');
+    if (monthYearParts.length >= 2) {
+      monthIdx = MONTHS.indexOf(monthYearParts[0]);
+      year = parseInt(monthYearParts[1]);
+    } else {
+      // Try parsing as DD/MM/YYYY (Fortnightly)
+      const dateParts = period.split('/');
+      if (dateParts.length === 3) {
+        monthIdx = parseInt(dateParts[1]) - 1;
+        year = parseInt(dateParts[2]);
       }
     }
+    
+    if (monthIdx !== -1 && !isNaN(year)) {
+      // South African tax year runs from March to Feb.
+      const taxYear = monthIdx >= 2 ? (year + 1).toString() : year.toString();
+      return TAX_YEAR_CONFIGS[taxYear] || TAX_YEAR_CONFIGS['2026'];
+    }
+
     return TAX_YEAR_CONFIGS['2026'];
   }
 
   /**
-   * Parses a period label like "March 2026" or "March 2026 - Run 1" into a Date object.
+   * Parses a period label like "March 2026" or "06/03/2026" into a Date object.
    */
   static getPeriodDate(period?: string): Date {
     if (!period) return new Date();
+    
+    // Check if it's a date string (DD/MM/YYYY)
+    if (period.includes('/')) {
+        const parsed = parse(period, 'dd/MM/yyyy', new Date());
+        return isValid(parsed) ? parsed : new Date();
+    }
+
     const base = period.split(' - ')[0];
     const parts = base.split(' ');
     if (parts.length < 2) return new Date();
@@ -118,7 +138,7 @@ export class PayrollService {
     if (targetNet <= 0) return 0;
     
     let low = targetNet;
-    let high = targetNet * 2;
+    let high = targetNet * 2.5; // Slightly higher margin for fortnightly
     let mid = (low + high) / 2;
     let iterations = 0;
     
@@ -154,14 +174,21 @@ export class PayrollService {
       const hourlyRate = employee.hourlyRate || 0;
 
       if (employee.payType === 'Hourly') {
-          const normalHours = hours?.normal ?? 160;
+          const defaultHours = frequency === 26 ? 80 : 160;
+          const normalHours = hours?.normal ?? defaultHours;
           earnings.push({ label: 'Normal Hours pay', amount: parseFloat((hourlyRate * normalHours).toFixed(2)) });
       } else {
-          let gross = baseValue;
-          if (employee.isNetSalary) {
-              gross = this.calculateGrossFromNet(baseValue, basePeriod, frequency);
+          let periodAmount = baseValue;
+          if (frequency === 26) {
+              // Convert monthly salary to fortnightly (Salary * 12 / 26)
+              periodAmount = (baseValue * 12) / 26;
           }
-          earnings.push({ label: 'Basic salary', amount: gross });
+
+          if (employee.isNetSalary) {
+              periodAmount = this.calculateGrossFromNet(periodAmount, basePeriod, frequency);
+          }
+          
+          earnings.push({ label: frequency === 26 ? 'Fortnightly salary' : 'Basic salary', amount: parseFloat(periodAmount.toFixed(2)) });
       }
 
       if (hours) {
@@ -209,21 +236,27 @@ export class PayrollService {
       const clientSnap = await getDoc(clientRef);
       if (!clientSnap.exists()) throw new Error("Client not found");
       const clientData = clientSnap.data() as User;
-      const basePeriod = clientData.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
       
-      const frequency = 12; // Force monthly multiplier
-      const periodLabel = basePeriod;
+      const frequency = clientData.payrollFrequency === 'Fortnightly' ? 26 : 12;
+      
+      let periodLabel = '';
+      if (frequency === 26) {
+          const startDate = clientData.firstRunStartDate ? (clientData.firstRunStartDate.toDate ? clientData.firstRunStartDate.toDate() : new Date(clientData.firstRunStartDate)) : new Date();
+          periodLabel = format(startDate, 'dd/MM/yyyy');
+      } else {
+          periodLabel = clientData.firstProcessingMonth || format(new Date(), 'MMMM yyyy');
+      }
 
       const employeeRef = doc(db, 'aiPayrollClients', clientId, 'employees', employeeId);
       const employeeSnap = await getDoc(employeeRef);
       if (!employeeSnap.exists()) throw new Error("Employee not found");
       const employee = employeeSnap.data() as Employee;
 
-      const earnings = this.calculateEarningsList(employee, baseValue, basePeriod, frequency, hours);
+      const earnings = this.calculateEarningsList(employee, baseValue, periodLabel, frequency, hours);
       const gross = earnings.reduce((sum, i) => sum + i.amount, 0);
 
-      const deductions = this.getInitialDeductions(gross, basePeriod, frequency);
-      const contributions = this.getInitialContributions(gross, basePeriod, frequency, !!clientData.excludeSdl);
+      const deductions = this.getInitialDeductions(gross, periodLabel, frequency);
+      const contributions = this.getInitialContributions(gross, periodLabel, frequency, !!clientData.excludeSdl);
 
       const totalDeductions = deductions.reduce((sum, item) => sum + item.amount, 0);
 
@@ -239,7 +272,7 @@ export class PayrollService {
         grossPay: gross,
         totalDeductions,
         netPay: parseFloat((gross - totalDeductions).toFixed(2)),
-        frequency: 'Monthly',
+        frequency: clientData.payrollFrequency || 'Monthly',
         status: 'draft'
       };
 

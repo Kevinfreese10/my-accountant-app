@@ -16,7 +16,7 @@ import { BankCleaner } from '@/lib/bank-cleaner';
 import { aiSmartRegroup } from '@/ai/flows/ai-smart-regroup';
 import { analyzeClientComment as analyzeClientCommentAction } from '@/ai/flows/analyze-client-comment';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
-import { format, addDays, addMonths, addYears, parse, subMonths } from 'date-fns';
+import { format, addDays, addMonths, addYears, parse, subMonths, subDays } from 'date-fns';
 import { PayrollService } from '@/services/PayrollService';
 
 const db = getFirestore(firebaseApp);
@@ -97,7 +97,6 @@ export async function updatePayslipAction({
         const docData: any = { ...data };
         
         // Next.js Server Actions cannot accept Firestore Timestamp objects.
-        // We expect dates to arrive as strings and convert them here for storage.
         if (docData.date && typeof docData.date === 'string') {
             const parsed = new Date(docData.date);
             if (!isNaN(parsed.getTime())) {
@@ -152,7 +151,16 @@ export async function updateDraftPayslipHoursAction({
         const clientSnap = await getDoc(clientRef);
         if (!clientSnap.exists()) throw new Error("Client not found");
         const client = clientSnap.data() as User;
-        const basePeriod = client.firstProcessingMonth;
+        
+        const frequency = client.payrollFrequency === 'Fortnightly' ? 26 : 12;
+        let basePeriod = '';
+        
+        if (frequency === 26) {
+            const startDate = client.firstRunStartDate ? (client.firstRunStartDate.toDate ? client.firstRunStartDate.toDate() : new Date(client.firstRunStartDate)) : new Date();
+            basePeriod = format(startDate, 'dd/MM/yyyy');
+        } else {
+            basePeriod = client.firstProcessingMonth || '';
+        }
 
         if (!basePeriod) throw new Error("No active period set for client.");
 
@@ -170,13 +178,12 @@ export async function updateDraftPayslipHoursAction({
 
         if (snap.empty) throw new Error("No draft payslip found for this period. Generate payslips first.");
 
-        const frequency = 12; // Simplified to Monthly
         const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0);
 
         const batch = writeBatch(db);
 
         snap.docs.forEach(payslipDoc => {
-            const earnings = PayrollService.calculateEarningsList(employee, baseValue, basePeriod || 'March 2026', frequency, hours);
+            const earnings = PayrollService.calculateEarningsList(employee, baseValue, basePeriod, frequency, hours);
             const gross = earnings.reduce((s, i) => s + i.amount, 0);
 
             const deductions = PayrollService.getInitialDeductions(gross, basePeriod, frequency);
@@ -223,7 +230,16 @@ export async function syncEmployeeSalaryToActivePayslipAction({
         const clientSnap = await getDoc(clientRef);
         if (!clientSnap.exists()) throw new Error("Client not found");
         const client = clientSnap.data() as User;
-        const basePeriod = client.firstProcessingMonth;
+
+        const frequency = client.payrollFrequency === 'Fortnightly' ? 26 : 12;
+        let basePeriod = '';
+        
+        if (frequency === 26) {
+            const startDate = client.firstRunStartDate ? (client.firstRunStartDate.toDate ? client.firstRunStartDate.toDate() : new Date(client.firstRunStartDate)) : new Date();
+            basePeriod = format(startDate, 'dd/MM/yyyy');
+        } else {
+            basePeriod = client.firstProcessingMonth || '';
+        }
 
         if (!basePeriod) return { success: true, message: "No active period" };
 
@@ -236,8 +252,6 @@ export async function syncEmployeeSalaryToActivePayslipAction({
         const snap = await getDocs(q);
 
         if (snap.empty) return { success: true, message: "No draft payslip to sync" };
-
-        const frequency = 12; // Simplified to Monthly
 
         const batch = writeBatch(db);
 
@@ -252,7 +266,7 @@ export async function syncEmployeeSalaryToActivePayslipAction({
             const contributions = PayrollService.getInitialContributions(effectiveGross, basePeriod, frequency, !!client.excludeSdl);
 
             const updatedEarnings = payslip.earnings.map(e => 
-                (e.label.toLowerCase() === 'basic salary' || e.label.toLowerCase().includes('hourly rate')) ? { ...e, amount: effectiveGross } : e
+                (e.label.toLowerCase() === 'basic salary' || e.label.toLowerCase().includes('hourly rate') || e.label.toLowerCase().includes('fortnightly salary')) ? { ...e, amount: effectiveGross } : e
             );
 
             const totalEarnings = updatedEarnings.reduce((s, i) => s + i.amount, 0);
@@ -278,7 +292,7 @@ export async function syncEmployeeSalaryToActivePayslipAction({
 }
 
 /**
- * Rolls back the payroll period. (Simplified to Monthly)
+ * Rolls back the payroll period.
  */
 export async function rollBackPayrollAction({
     clientId
@@ -291,15 +305,25 @@ export async function rollBackPayrollAction({
         if (!clientSnap.exists()) throw new Error("Client not found");
         const client = clientSnap.data() as User;
 
-        const currentPeriodLabel = client.firstProcessingMonth;
-        if (!currentPeriodLabel) throw new Error("No active payroll period found.");
+        const frequency = client.payrollFrequency === 'Fortnightly' ? 26 : 12;
+        let currentPeriodLabel = '';
+        let nextPeriodLabel = '';
+        let nextStartDate: Date | null = null;
 
-        const parsedDate = parse(currentPeriodLabel, 'MMMM yyyy', new Date());
-        const prevDate = subMonths(parsedDate, 1);
-        const nextPeriodLabel = format(prevDate, 'MMMM yyyy');
+        if (frequency === 26) {
+            const startDate = client.firstRunStartDate ? (client.firstRunStartDate.toDate ? client.firstRunStartDate.toDate() : new Date(client.firstRunStartDate)) : new Date();
+            currentPeriodLabel = format(startDate, 'dd/MM/yyyy');
+            nextStartDate = subDays(startDate, 14);
+            nextPeriodLabel = format(nextStartDate, 'dd/MM/yyyy');
+        } else {
+            currentPeriodLabel = client.firstProcessingMonth || '';
+            if (!currentPeriodLabel) throw new Error("No active payroll period found.");
+            const parsedDate = parse(currentPeriodLabel, 'MMMM yyyy', new Date());
+            const prevDate = subMonths(parsedDate, 1);
+            nextPeriodLabel = format(prevDate, 'MMMM yyyy');
+        }
 
         const batch = writeBatch(db);
-
         const payslipsRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
         const q = query(payslipsRef, where('period', '==', currentPeriodLabel));
         const snap = await getDocs(q);
@@ -308,9 +332,14 @@ export async function rollBackPayrollAction({
             batch.delete(d.ref);
         });
 
-        batch.update(clientRef, {
+        const updateData: any = {
             firstProcessingMonth: nextPeriodLabel
-        });
+        };
+        if (nextStartDate) {
+            updateData.firstRunStartDate = Timestamp.fromDate(nextStartDate);
+        }
+
+        batch.update(clientRef, updateData);
 
         await batch.commit();
 
@@ -322,7 +351,7 @@ export async function rollBackPayrollAction({
 }
 
 /**
- * Rolls forward the payroll period for a client. (Simplified to Monthly)
+ * Rolls forward the payroll period for a client.
  */
 export async function rollForwardPayrollAction({
     clientId
@@ -335,16 +364,32 @@ export async function rollForwardPayrollAction({
         if (!clientSnap.exists()) throw new Error("Client not found");
         const client = clientSnap.data() as User;
 
-        const currentPeriodLabel = client.firstProcessingMonth;
-        if (!currentPeriodLabel) throw new Error("No active payroll period found.");
+        const frequency = client.payrollFrequency === 'Fortnightly' ? 26 : 12;
+        let currentPeriodLabel = '';
+        let nextPeriodLabel = '';
+        let nextStartDate: Date | null = null;
 
-        const parsedDate = parse(currentPeriodLabel, 'MMMM yyyy', new Date());
-        const nextDate = addMonths(parsedDate, 1);
-        const nextPeriodLabel = format(nextDate, 'MMMM yyyy');
+        if (frequency === 26) {
+            const startDate = client.firstRunStartDate ? (client.firstRunStartDate.toDate ? client.firstRunStartDate.toDate() : new Date(client.firstRunStartDate)) : new Date();
+            currentPeriodLabel = format(startDate, 'dd/MM/yyyy');
+            nextStartDate = addDays(startDate, 14);
+            nextPeriodLabel = format(nextStartDate, 'dd/MM/yyyy');
+        } else {
+            currentPeriodLabel = client.firstProcessingMonth || '';
+            if (!currentPeriodLabel) throw new Error("No active payroll period found.");
+            const parsedDate = parse(currentPeriodLabel, 'MMMM yyyy', new Date());
+            const nextDate = addMonths(parsedDate, 1);
+            nextPeriodLabel = format(nextDate, 'MMMM yyyy');
+        }
 
-        await updateDoc(clientRef, {
+        const updateData: any = {
             firstProcessingMonth: nextPeriodLabel
-        });
+        };
+        if (nextStartDate) {
+            updateData.firstRunStartDate = Timestamp.fromDate(nextStartDate);
+        }
+
+        await updateDoc(clientRef, updateData);
 
         const employeesRef = collection(db, 'aiPayrollClients', clientId, 'employees');
         const q = query(employeesRef, where('status', '==', 'Active'));
@@ -365,7 +410,7 @@ export async function rollForwardPayrollAction({
 }
 
 /**
- * Automatically generates a payslip for a new employee. (Simplified to Monthly)
+ * Automatically generates a payslip for a new employee.
  */
 export async function generateEmployeePayslipAction({
     clientId,

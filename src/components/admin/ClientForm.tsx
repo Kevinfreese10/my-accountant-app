@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar, ShieldAlert, Settings, Eraser, Info } from 'lucide-react';
+import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar, ShieldAlert, Settings, Eraser, Info, CalendarIcon } from 'lucide-react';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '..
 import { allVatTypes } from '@/lib/vat-types';
 import { chartOfAccounts as masterChartOfAccounts } from '@/lib/chart-of-accounts';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
@@ -43,7 +46,8 @@ const formSchema = z.object({
   registrationNumber: z.string().optional(),
   payeReference: z.string().optional(),
   firstProcessingMonth: z.string().optional(),
-  payrollFrequency: z.literal('Monthly').default('Monthly'),
+  firstRunStartDate: z.date().optional(),
+  payrollFrequency: z.enum(['Monthly', 'Fortnightly']).default('Monthly'),
   excludeSdl: z.boolean().default(false),
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
@@ -95,7 +99,8 @@ export default function ClientForm({
             registrationNumber: client?.registrationNumber || '',
             payeReference: client?.payeReference || '',
             firstProcessingMonth: client?.firstProcessingMonth || '',
-            payrollFrequency: 'Monthly',
+            firstRunStartDate: client?.firstRunStartDate ? (client.firstRunStartDate.toDate ? client.firstRunStartDate.toDate() : new Date(client.firstRunStartDate)) : undefined,
+            payrollFrequency: client?.payrollFrequency || 'Monthly',
             excludeSdl: client?.excludeSdl || false,
             yearEnd: client?.yearEnd || 'February',
             isVatRegistered: client?.isVatRegistered || false,
@@ -132,6 +137,7 @@ export default function ClientForm({
     const useGlobalRules = form.watch('useGlobalRules');
     const isIsolatedMode = form.watch('disableGlobalRules');
     const isBlankProfile = form.watch('isBlankProfile');
+    const payrollFrequency = form.watch('payrollFrequency');
 
     const processingPeriods = useMemo(() => {
         const periods: string[] = [];
@@ -229,19 +235,6 @@ export default function ClientForm({
                     {isPayrollClient && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField control={form.control} name="firstProcessingMonth" render={({ field }) => ( 
-                                    <FormItem>
-                                        <FormLabel>1st Processing Month (Start Period)</FormLabel>
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <FormControl><SelectTrigger><SelectValue placeholder="Select start period..." /></SelectTrigger></FormControl>
-                                            <SelectContent>
-                                                {processingPeriods.map(period => <SelectItem key={period} value={period}>{period}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )} />
-
                                 <FormField control={form.control} name="payrollFrequency" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Payroll Cycle Frequency</FormLabel>
@@ -249,11 +242,48 @@ export default function ClientForm({
                                             <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                                             <SelectContent>
                                                 <SelectItem value="Monthly">Monthly</SelectItem>
+                                                <SelectItem value="Fortnightly">Bi-Weekly (Fortnightly)</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
                                     </FormItem>
                                 )} />
+
+                                {payrollFrequency === 'Monthly' ? (
+                                    <FormField control={form.control} name="firstProcessingMonth" render={({ field }) => ( 
+                                        <FormItem>
+                                            <FormLabel>1st Processing Month (Start Period)</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl><SelectTrigger><SelectValue placeholder="Select start period..." /></SelectTrigger></FormControl>
+                                                <SelectContent>
+                                                    {processingPeriods.map(period => <SelectItem key={period} value={period}>{period}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                ) : (
+                                    <FormField control={form.control} name="firstRunStartDate" render={({ field }) => ( 
+                                        <FormItem className="flex flex-col">
+                                            <FormLabel className="mb-1">1st Period Start Date</FormLabel>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <FormControl>
+                                                        <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                                            {field.value ? format(field.value, "dd/MM/yyyy") : <span>Pick a date</span>}
+                                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                        </Button>
+                                                    </FormControl>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                                </PopoverContent>
+                                            </Popover>
+                                            <FormDescription className="text-[10px]">The first bi-weekly payment date.</FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                )}
                             </div>
 
                             <FormField control={form.control} name="excludeSdl" render={({ field }) => (
