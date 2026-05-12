@@ -19,6 +19,7 @@ import Image from 'next/image';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Checkbox } from '../ui/checkbox';
+import { Switch } from '../ui/switch';
 
 
 const db = getFirestore(firebaseApp);
@@ -59,7 +60,6 @@ const formSchema = z.object({
   metaTitle: z.string().max(60, "Title must be 60 characters or less.").optional(),
   metaDescription: z.string().max(160, "Description must be 160 characters or less.").optional(),
   metaKeywords: z.array(z.object({ value: z.string() })).optional(),
-  // Google Merchant Center Fields
   brand: z.string().optional(),
   availability: z.enum(['in_stock', 'out_of_stock', 'preorder']).default('in_stock'),
   condition: z.enum(['new', 'refurbished', 'used']).default('new'),
@@ -67,7 +67,6 @@ const formSchema = z.object({
   google_product_category: z.string().optional(),
   currency: z.string().default('ZAR'),
   returnPolicyCategory: z.string().optional(),
-  // Schema specific
   schemaType: z.enum(['Product', 'Service']).default('Product'),
   enableAggregateRating: z.boolean().default(true),
   aggregateRatingValue: z.preprocess(val => Number(val), z.number().optional()),
@@ -136,7 +135,7 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
       schemaType: service?.schemaType || 'Product',
       enableAggregateRating: service?.enableAggregateRating ?? true,
       aggregateRatingValue: service?.aggregateRatingValue || 4.9,
-      reviewCount: service?.reviewCount || 190,
+      reviewCount: service?.reviewCount || 187,
       priceValidUntilOverride: service?.priceValidUntilOverride || '',
     },
   });
@@ -664,4 +663,3 @@ export default function ServiceForm({ service, allServices, onSubmit }: ServiceF
     </Form>
   );
 }
-

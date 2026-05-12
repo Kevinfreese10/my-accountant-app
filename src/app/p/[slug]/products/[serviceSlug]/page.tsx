@@ -86,16 +86,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!partner || !rawService) return { title: 'Product Not Found' };
 
   const override = await getPartnerOverride(partner.id, rawService.id);
-  
-  // Use branded AI title if available, fallback to template
   const title = override?.metaTitle || `${override?.title || rawService.title} | ${partner.companyName || partner.name}`;
   const description = override?.metaDescription || override?.description || rawService.metaDescription || rawService.description;
-
   const ogImage = partner.landingPage?.heroImageUrl || rawService.imageUrl;
 
   return {
-    title,
-    description,
+    title: title,
+    description: description,
+    alternates: {
+        canonical: `https://www.myacc.co.za/p/${slug}/products/${serviceSlug}`,
+    },
     openGraph: {
         title,
         description,
@@ -133,7 +133,6 @@ export default async function PartnerProductDetailPage({ params }: { params: Pro
   const lp = partner.landingPage;
   const override = await getPartnerOverride(partner.id, rawService.id);
 
-  // Merge override but prioritize AI branded content
   const service = override ? {
       ...rawService,
       ...override,

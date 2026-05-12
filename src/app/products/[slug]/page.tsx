@@ -4,7 +4,7 @@ import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
 import { Service } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
-import { getFirestore, collection, query, where, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Metadata, ResolvingMetadata } from 'next';
 import ServiceCheckoutForm from '@/components/checkout/ServiceCheckoutForm';
@@ -48,7 +48,7 @@ export async function generateMetadata(
   const { slug } = await params;
   const service = await getService(slug);
   const siteUrl = 'https://www.myacc.co.za';
-  const globalFallbackImg = `${siteUrl}/og-image.jpg`;
+  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0';
 
   if (!service) {
     return { title: 'Product Not Found' }
