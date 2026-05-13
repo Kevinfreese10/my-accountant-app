@@ -11,28 +11,7 @@ export function generateStructuredData(service: Service) {
   // Rolling expiry: 31 December of next year
   const expiryDate = service.priceValidUntilOverride || `${new Date().getFullYear() + 1}-12-31`;
 
-  // For products with no price (TBC), we fallback to a minimal Service schema 
-  // to avoid GSC "Price missing" errors on Product rich results.
-  const isTbc = service.isPriceTbc || !service.price || service.price === 0;
-
-  if (isTbc && service.schemaType !== 'Product') {
-    return {
-      "@context": "https://schema.org",
-      "@type": "Service",
-      "name": service.title,
-      "description": service.description || service.metaDescription,
-      "url": fullUrl,
-      "provider": {
-        "@type": "AccountingService",
-        "name": service.brand || "My Accountant",
-        "url": baseUrl
-      },
-      "serviceType": service.category || "Financial Service",
-      "areaServed": "ZA"
-    };
-  }
-
-  // Standard Product Schema for fixed-price items
+  // Standard Product Schema for all items as per GSC requirements
   return {
     "@context": "https://schema.org/",
     "@type": "Product",
@@ -65,8 +44,7 @@ export function generateStructuredData(service: Service) {
       },
       "hasMerchantReturnPolicy": {
         "@type": "MerchantReturnPolicy",
-        "returnPolicyCategory": service.returnPolicyCategory || "https://schema.org/MerchantReturnNotPermitted",
-        "merchantReturnLink": `${baseUrl}/refund-policy`
+        "returnPolicyCategory": service.returnPolicyCategory || "https://schema.org/MerchantReturnNotPermitted"
       },
       "shippingDetails": {
         "@type": "OfferShippingDetails",
