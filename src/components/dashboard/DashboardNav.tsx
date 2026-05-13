@@ -11,20 +11,14 @@ import {
   Shapes,
   Users,
   ClipboardCheck,
-  BookUser,
   Settings,
-  ArrowRightLeft,
-  Search,
   BookMarked,
-  BrainCircuit,
   Images,
-  ListOrdered,
   Percent,
   Wrench,
   PanelLeft,
   ChevronDown,
   Presentation,
-  UsersRound,
   Megaphone,
 } from 'lucide-react';
 
@@ -66,9 +60,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     pathname.startsWith('/admin/staff') ||
     pathname.startsWith('/admin/discounts') ||
     pathname.startsWith('/admin/knowledge-base') ||
-    pathname.startsWith('/admin/media') ||
-    pathname.includes('/ai-accountant/allocation-rules') ||
-    pathname.includes('/ai-accountant/chart-of-accounts')
+    pathname.startsWith('/admin/media')
   );
 
   const handleLogout = () => {
@@ -76,15 +68,9 @@ export default function DashboardNav({ user }: { user: UserType }) {
     router.push('/');
   };
 
-  const basePath = user.role === 'client' || user.role === 'ai_accountant'
-    ? '/dashboard'
-    : user.role === 'partner' || user.role === 'partner_staff' || user.role === 'franchisee'
-    ? '/partner'
-    : '/admin';
-
   const navItems = [
      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
-     { href: '/dashboard/orders', label: 'My Orders', icon: ShieldCheck, roles: ['client', 'ai_accountant'] },
+     { href: '/dashboard/orders', label: 'My Orders', icon: ShieldCheck, roles: ['client'] },
      { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
   ];
 
@@ -94,17 +80,10 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/pages', label: 'Pages', icon: FileText, roles: ['admin'] },
     { href: '/admin/demo-leads', label: 'Demo Leads', icon: Presentation, roles: ['admin'] },
     { href: '/admin/resellers', label: 'Manage Partners', icon: Users, roles: ['admin'] },
-    { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
-    { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['admin', 'staff'] },
-    { href: '/admin/ai-payroll/clients', label: 'AI Payroll', icon: UsersRound, roles: ['admin', 'staff'] },
+    { href: '/admin/clients', label: 'Manage Clients', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/services', label: 'Manage Products', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/social-marketing', label: 'Social Marketing', icon: Megaphone, roles: ['admin'] },
     { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin', 'staff'] },
-  ];
-
-  const aiAccountantNavItems = [
-    { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ai_accountant'] },
-    { href: '/admin/ai-accountant/clients', label: 'AI Accountant', icon: BrainCircuit, roles: ['ai_accountant'] },
   ];
   
   const settingsNavItems = [
@@ -116,9 +95,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },
     { href: '/admin/users', label: 'Manage Users', icon: Users, roles: ['admin'] },
     { href: '/admin/discounts', label: 'Manage Discounts', icon: Percent, roles: ['admin'] },
-    { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: BrainCircuit, roles: ['admin'] },
-    { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
-    { href: '/admin/ai-accountant/chart-of-accounts', label: 'Chart of Accounts', icon: ListOrdered, roles: ['admin']},
+    { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: FileText, roles: ['admin'] },
     { href: '/admin/media', label: 'Media', icon: Images, roles: ['admin'] },
   ];
 
@@ -130,11 +107,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/partner/profile', label: 'My Profile', icon: User, roles: ['partner', 'partner_staff', 'franchisee'] },
   ];
 
-  const hasAIAccountantAccess = user.hasNumeraProfile || user.source === 'AI Accountant' || (user.sharedWith && user.sharedWith.length > 0);
-  
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
-  const visibleAiAccountantNavItems = aiAccountantNavItems.filter(item => item.roles.includes(user.role));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visiblePartnerNavItems = partnerNavItems.filter(item => item.roles.includes(user.role));
 
@@ -158,7 +132,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
       </SidebarHeader>
 
       <SidebarMenu className="flex-1">
-        
         {(user.role === 'client') && visibleNavItems.map((item) => (
             <SidebarMenuItem key={item.label}>
             <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
@@ -167,28 +140,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
                 <span>{item.label}</span>
                 </Link>
             </SidebarMenuButton>
-            </SidebarMenuItem>
-        ))}
-        
-        {(hasAIAccountantAccess && (user.role === 'client')) && (
-             <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.startsWith(`${basePath}/ai-accountant`)} tooltip="AI Accountant">
-                    <Link href={`${basePath}/ai-accountant/clients`}>
-                        <BrainCircuit />
-                        <span>AI Accountant</span>
-                    </Link>
-                </SidebarMenuButton>
-            </SidebarMenuItem>
-        )}
-
-        {user.role === 'ai_accountant' && visibleAiAccountantNavItems.map((item) => (
-            <SidebarMenuItem key={item.label}>
-                <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
-                <Link href={item.href}>
-                    <item.icon />
-                    <span>{item.label}</span>
-                </Link>
-                </SidebarMenuButton>
             </SidebarMenuItem>
         ))}
         
@@ -216,7 +167,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
             ))
         )}
 
-        
         {(user.role === 'admin' || user.role === 'staff') && (
             <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen} className="group/collapsible">
                 <SidebarMenuItem>

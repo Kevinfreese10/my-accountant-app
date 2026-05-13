@@ -1,34 +1,3 @@
-export type VatType =
-  // Output Tax
-  | 'standard_rated_sales'
-  | 'zero_rated_sales'
-  | 'exempt_sales'
-  // Input Tax
-  | 'standard_rated_purchases'
-  | 'capital_goods_purchases'
-  | 'zero_rated_purchases'
-  | 'exempt_purchases'
-  | 'no_vat';
-
-export type ChartOfAccount = {
-  id: string;
-  accountNumber: string;
-  description: string;
-  section: 'Income Statement' | 'Balance Sheet';
-};
-
-export type AllocationRule = {
-  id:string;
-  type: 'hard' | 'soft';
-  description: string; // Used for soft rules, or as a note for hard rules
-  keywords: string[]; // Only for hard rules
-  accountId: string;
-  accountType?: 'account' | 'customer' | 'supplier';
-  vatType: VatType;
-  scope?: 'client' | 'global';
-  priority?: number;
-};
-
 export type DocumentUpload = {
   serviceId: string;
   requirementLabel: string;
@@ -143,8 +112,8 @@ export type Order = {
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
-  endCustomerName?: string; // Added for partner's client
-  endCustomerEmail?: string; // Added for partner's client
+  endCustomerName?: string; 
+  endCustomerEmail?: string; 
   date: any;
   items: any[];
   total: number;
@@ -270,17 +239,16 @@ export type User = {
   source?: 'AI Accountant' | 'Client Management' | 'Partner Management' | 'AI Payroll' | 'Franchise';
   clientSource?: 'admin' | 'partner' | 'ai_accountant' | 'ai_payroll';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP' | string;
-  departments?: string[]; // Practice custom departments
+  departments?: string[]; 
   entityType?: 'Company' | 'Trust' | 'Individual';
   status?: 'Active' | 'Inactive' | 'Archived' | 'Pending Setup Payment';
-  partnerId?: string; // Links staff or clients to a partner
-  // Partner specific fields or contact person for AI Accountant
+  partnerId?: string; 
   companyName?: string;
   contactPerson?: string;
   contactEmail?: string;
   contactNumber?: string;
   creditBalance?: number;
-  geminiApiKey?: string; // BYOK for Gemini
+  geminiApiKey?: string;
   address?: {
       street?: string;
       suburb?: string;
@@ -311,7 +279,6 @@ export type User = {
   cvUrl?: string;
   certificateUrl?: string;
   capableServices?: string[];
-  // Client specific fields for task automation & AI Accountant
   yearEnd?: any;
   cipcDueDate?: any;
   preparesFinancials?: boolean;
@@ -332,12 +299,6 @@ export type User = {
   submitsAnnualReturns?: boolean;
   submitsBeneficialOwnership?: boolean;
   complianceDueDate?: string;
-  chartOfAccounts?: ChartOfAccount[];
-  allocationRules?: AllocationRule[];
-  disableGlobalRules?: boolean;
-  isBlankProfile?: boolean;
-  hasNumeraProfile?: boolean;
-  subscription?: SubscriptionData;
   sharedWith?: string[];
   enableInvoicing?: boolean;
   logoUrl?: string;
@@ -348,37 +309,14 @@ export type User = {
   landingPage?: PartnerLandingPageConfig;
   archivedNotificationsClient?: string[];
   monthlyRetainerFee?: number;
-  // Payroll specific fields
   registrationNumber?: string;
   payeReference?: string;
   firstProcessingMonth?: string;
   excludeSdl?: boolean;
   payrollFrequency?: 'Monthly' | 'Weekly' | 'Fortnightly';
   firstRunStartDate?: any;
-  // Franchisee specific
   franchise?: FranchiseConfig;
 };
-
-export type ClientCustomer = {
-    id: string;
-    name: string;
-    contactPerson?: string;
-    email?: string;
-    cellNumber?: string;
-    address?: string;
-    street?: string;
-    suburb?: string;
-    city?: string;
-    country?: string;
-    zip?: string;
-    vatNumber?: string;
-}
-
-export type Supplier = {
-  id: string;
-  name: string;
-};
-
 
 export type DiscountCode = {
   id: string; // The code itself
@@ -389,7 +327,6 @@ export type DiscountCode = {
   createdAt: any;
   usedAt?: any;
 };
-
 
 export type TaskComment = {
   text: string;
@@ -412,166 +349,13 @@ export type Task = {
   orderId?: string;
   clientId?: string;
   clientSource?: 'admin' | 'partner' | 'ai_accountant' | 'system' | 'ai_payroll';
-  partnerId?: string; // Tracks which partner practice this task belongs to
+  partnerId?: string; 
   comments?: TaskComment[];
   tags?: string[];
   triggerField?: string;
   vatCategory?: 'A' | 'B' | 'C';
   dueMonthOffset: number;
   dueDay: number;
-};
-
-export type SmartAllocationResult = {
-  ruleId?: string;
-  accountId: string;
-  accountType?: 'account' | 'customer' | 'supplier';
-  vatType: VatType;
-  confidence: number;
-  summary?: string;
-  suggestedKeyword?: string;
-  matchedKeyword?: string;
-};
-
-export type ImportedTransaction = {
-    id: string;
-    clientId: string;
-    date: string;
-    reference: string;
-    description: string;
-    rawDescription: string;
-    cleanDescription: string;
-    clientComment?: string;
-    merchantKey?: string;
-    merchantKey2?: string;
-    cleaningVersion?: string;
-    paymentChannel?: "CARD" | "EFT" | "DEBIT_ORDER" | "ATM" | "TRANSFER" | "UNKNOWN";
-    confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
-    confidenceScore?: number;
-    amount: number;
-    isExpense: boolean;
-    bankAccountId: string;
-    status: 'new' | 'allocated' | 'review' | 'reviewed' | 'ai_processing' | 'ai_review';
-    allocatedTo?: { 
-        value: string;
-        type: 'account' | 'customer' | 'supplier';
-    };
-    vatType?: VatType;
-    allocationSource?: 'rule' | 'manual' | 'ai' | 'history' | 'global_db';
-    matchType?: 'exact' | 'alias' | 'fuzzy' | 'manual';
-    matchedOn?: string;
-    matchedRuleId?: string;
-    matchedRuleDescription?: string;
-    matchedKeyword?: string;
-    auditFiles?: { name: string; url: string; }[];
-    smartAllocationResult?: SmartAllocationResult;
-};
-
-export type AllocatedTransaction = {
-    id: string;
-    clientId: string;
-    date: string;
-    reference: string;
-    description: string;
-    amount: number;
-    isExpense: boolean;
-    bankAccountId: string;
-    allocatedTo: {
-        value: string;
-        type: 'account' | 'customer' | 'supplier';
-    };
-    vatType: VatType;
-    vatAmount: number;
-    status: 'allocated';
-    allocatedAt: any; // Using `any` for Firestore Timestamp compatibility
-    extractedSupplier?: string;
-    auditFiles?: { name: string; url: string; }[];
-    allocationSource?: 'rule' | 'manual' | 'ai' | 'history' | 'global_db';
-    matchedRuleId?: string;
-    matchedRuleDescription?: string;
-    matchedKeyword?: string;
-};
-
-export type ExtractedInvoice = {
-  id: string;
-  supplier: string;
-  invoiceNumber: string;
-  date: string;
-  lineItems: { 
-    description: string; 
-    exclusiveAmount: number; 
-    vatAmount: number; 
-    accountId?: string;
-    paye?: boolean;
-  }[];
-  invoiceTotal: number;
-  status: 'pending_review' | 'approved' | 'approved_for_payment' | 'rejected' | 'batched_for_payment' | 'duplicate';
-  fileName: string;
-  fileUrl: string;
-  createdAt: any;
-  uploadedBy: string;
-  expenseType?: 'CAP' | 'S38';
-  commissionNumber?: string;
-  storyName?: string;
-  rejectionReason?: string;
-  paymentBatch?: 'this_week' | 'month_end';
-  sourceEmailUid?: number;
-  proofOfPaymentUrl?: string;
-};
-
-export type AIAllocationJob = {
-    id: string;
-    clientId: string;
-    status: 'running' | 'completed' | 'stopped' | 'failed';
-    total: number;
-    processed: number;
-    createdAt: any;
-    completedAt?: any;
-    error?: string;
-}
-
-export type ProcessedEmail = {
-  id: string; // Hash of messageId
-  uid: number; // IMAP UID
-  messageId: string;
-  mailbox: string;
-  date: any; // Firestore Timestamp
-  from: { name: string; address: string };
-  to: { name: string; address: string }[];
-  subject: string;
-  snippet: string;
-  text: string;
-  html: string;
-  status: 'new' | 'processed' | 'archived';
-  ownerId: string;
-  attachments?: {
-    filename: string;
-    contentType: string;
-    size: number;
-    dataUrl: string;
-  }[];
-  // AI-generated fields
-  aiSummary?: string;
-  aiCategory?: 'Account issues' | 'Tax preparation' | 'Service inquiry' | 'Document upload' | 'Spam/Promo' | 'Other';
-  aiPriority?: 'High' | 'Medium' | 'Low';
-  aiSuggestedAction?: 'create_task' | 'draft_reply' | 'archive' | 'none';
-  aiTask?: {
-    title: string;
-    description: string;
-  };
-  aiDraftReply?: string | null;
-  taskCreated?: boolean;
-  replySent?: boolean;
-};
-
-export type CVLead = {
-  id: string;
-  email?: string;
-  name?: string;
-  role: string;
-  score: number;
-  analysis: any;
-  cvUrl?: string;
-  createdAt: any;
 };
 
 export type DemoLead = {
@@ -581,75 +365,6 @@ export type DemoLead = {
   email: string;
   cell: string;
   createdAt: any;
-};
-
-export type Employee = {
-  id: string;
-  employeeCode: string;
-  initials: string;
-  name: string; // First Name
-  surname: string;
-  idNumber: string; // RSA ID Number
-  address: {
-    street?: string;
-    suburb?: string;
-    city?: string;
-    province?: string;
-    zip?: string;
-  };
-  cellNumber: string;
-  email: string;
-  jobTitle: string;
-  department: string;
-  joinDate: any; // Started working on (Timestamp)
-  taxNumber: string; // Income Tax Number
-  basicSalary: number;
-  hourlyRate: number;
-  payType: 'Salary' | 'Hourly';
-  isNetSalary: boolean; // New field
-  paymentFrequency: 'Monthly' | 'Weekly' | 'Fortnightly';
-  bankingDetails: {
-    bankName: string;
-    accountNumber: string;
-    accountType: string;
-    branchCode: string;
-  };
-  status: 'Active' | 'Inactive';
-};
-
-export type PayslipItem = {
-    label: string;
-    amount: number;
-    isStatutory?: boolean;
-};
-
-export type Payslip = {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  period: string; // e.g. "February 2024" or "March 2026 - Run 1"
-  date: any; // Timestamp
-  earnings: PayslipItem[];
-  deductions: PayslipItem[];
-  contributions: PayslipItem[];
-  fringeBenefits: PayslipItem[];
-  grossPay: number;
-  totalDeductions: number;
-  netPay: number;
-  hoursWorked?: number;
-  runNumber?: 1 | 2;
-  frequency: 'Monthly' | 'Weekly' | 'Fortnightly';
-  status?: 'draft' | 'finalized';
-};
-
-export type LeaveRequest = {
-  id: string;
-  employeeId: string;
-  type: 'Annual' | 'Sick' | 'Family Responsibility' | 'Maternity' | 'Unpaid';
-  startDate: any;
-  endDate: any;
-  status: 'Pending' | 'Approved' | 'Rejected';
-  reason?: string;
 };
 
 import { z } from 'zod';

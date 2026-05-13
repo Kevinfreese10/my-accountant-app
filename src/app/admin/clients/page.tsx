@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, CheckCircle2, RotateCw } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, RotateCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -38,7 +38,6 @@ const clientFormSchema = z.object({
   status: z.enum(['Active', 'Inactive', 'Archived']).default('Active'),
   yearEnd: z.string().min(1, 'Financial year end is required.'),
   monthlyRetainerFee: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
-  // Automation settings
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(['A', 'B', 'C']).optional().nullable(),
   submitsEmp201: z.boolean().default(false),
@@ -86,7 +85,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input placeholder="e.g. Acme Corp (Pty) Ltd" {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <div className="grid grid-cols-2 gap-4">
                         <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{['Active', 'Inactive', 'Archived'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></FormItem>)} />
-                        <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></FormItem>)} />
+                        <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></FormItem>)} />
                     </div>
                     <FormField control={form.control} name="monthlyRetainerFee" render={({ field }) => ( <FormItem><FormLabel>Monthly Retainer Fee (R)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
@@ -296,7 +295,6 @@ export default function AdminClientsPage() {
             return Timestamp.fromDate(setSeconds(setMinutes(setHours(setDate(date, day), 9), 0), 0));
         };
 
-        // Monthly PAYE (EMP201)
         if (values.submitsEmp201) {
             let found = false;
             for (let i = -1; i < 12 && !found; i++) {
@@ -315,7 +313,6 @@ export default function AdminClientsPage() {
             }
         }
 
-        // Monthly Payroll
         if (values.preparesPayroll && values.payrollDay) {
             let found = false;
             for (let i = 0; i < 12 && !found; i++) {
@@ -334,12 +331,10 @@ export default function AdminClientsPage() {
             }
         }
 
-        // Monthly Management Accounts
         if (values.preparesManagementAccounts && values.managementAccountsDay) {
             let found = false;
             for (let i = 0; i < 12 && !found; i++) {
                 const periodDate = addMonths(today, i);
-                // Due date is usually in the FOLLOWING month for the previous period
                 const dueDate = getDueDate(addMonths(periodDate, 1), values.managementAccountsDay);
                 if (dueDate.toDate() >= today) {
                     tasksToCreate.push({
@@ -354,7 +349,6 @@ export default function AdminClientsPage() {
             }
         }
 
-        // VAT (VAT201)
         if (values.isVatRegistered && values.vatCategory) {
             let found = false;
             for (let i = -1; i < 12 && !found; i++) {
@@ -382,7 +376,6 @@ export default function AdminClientsPage() {
             }
         }
 
-        // Annual Financial Statements
         if (values.preparesFinancials) {
             const yeMonthIndex = months.indexOf(values.yearEnd);
             let yeDate = new Date(today.getFullYear(), yeMonthIndex, 28);
@@ -402,11 +395,9 @@ export default function AdminClientsPage() {
             });
         }
 
-        // Annual Income Tax Return (ITR14)
         if (values.submitsIncomeTax) {
             const yeMonthIndex = months.indexOf(values.yearEnd);
             let yeDate = new Date(today.getFullYear(), yeMonthIndex, 28);
-            // Due 12 months after FYE (usually last day of that month)
             let dueDate = getDueDate(addYears(yeDate, 1), 28);
             
             if (dueDate.toDate() < today) {
@@ -423,7 +414,6 @@ export default function AdminClientsPage() {
             });
         }
 
-        // Provisional Tax
         if (values.submitsProvisionalTax) {
             const yeMonthIndex = months.indexOf(values.yearEnd);
             let firstPeriod = new Date(today.getFullYear(), yeMonthIndex - 6, 25);

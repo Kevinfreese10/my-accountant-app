@@ -1,4 +1,3 @@
-
 'use client';
 
 import { ReactNode, useEffect } from 'react';
@@ -13,12 +12,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   
   useEffect(() => {
-    if (isAuthenticated && user?.role !== 'admin' && user?.role !== 'staff' && user?.role !== 'cap_staff' && user?.role !== 'cap_supervisor' && user?.role !== 'ai_accountant') {
+    if (isAuthenticated && user?.role !== 'admin' && user?.role !== 'staff' && user?.role !== 'cap_staff' && user?.role !== 'cap_supervisor') {
       router.push('/login');
     }
   }, [isAuthenticated, user, router]);
   
-  if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'admin' && user?.role !== 'staff' && user?.role !== 'cap_staff' && user?.role !== 'cap_supervisor' && user?.role !== 'ai_accountant')) {
+  if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'admin' && user?.role !== 'staff' && user?.role !== 'cap_staff' && user?.role !== 'cap_supervisor')) {
      return (
         <div className="flex min-h-screen">
             <Skeleton className="hidden md:block w-16 lg:w-64" />
