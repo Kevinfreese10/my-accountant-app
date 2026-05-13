@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { services as allServices } from '@/lib/data';
 import { render } from '@react-email/components';
@@ -45,6 +45,16 @@ export default function PaymentSuccessPage() {
                 if (orderSnap.exists()) {
                     const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
                     
+                    // Trigger Google Customer Reviews Opt-in
+                    const deliveryDate = format(addDays(new Date(), 10), 'yyyy-MM-dd');
+                    if (typeof window !== 'undefined' && (window as any).renderOptIn) {
+                        (window as any).renderOptIn({
+                            id: orderData.id,
+                            customerEmail: orderData.customerEmail,
+                            estimated_delivery_date: deliveryDate
+                        });
+                    }
+
                     // Fetch reseller details if it's a white-label order
                     let resellerData: User | undefined;
                     if (orderData.resellerId) {

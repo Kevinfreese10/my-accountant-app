@@ -1,4 +1,3 @@
-
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, notFound, useRouter } from 'next/navigation';
@@ -12,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { addDays, format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 
@@ -47,6 +47,16 @@ export default function OrderConfirmationPage() {
                     } as Order;
                     setOrder(orderData);
 
+                    // Trigger Google Customer Reviews Opt-in
+                    const deliveryDate = format(addDays(new Date(), 10), 'yyyy-MM-dd');
+                    if (typeof window !== 'undefined' && (window as any).renderOptIn) {
+                        (window as any).renderOptIn({
+                            id: orderData.id,
+                            customerEmail: orderData.customerEmail,
+                            estimated_delivery_date: deliveryDate
+                        });
+                    }
+
                     // Fetch reseller details if it's a white-label order
                     if (orderData.resellerId) {
                         const resellerSnap = await getDoc(doc(db, 'users', orderData.resellerId));
@@ -56,8 +66,6 @@ export default function OrderConfirmationPage() {
                     }
 
                     // If user is authenticated and lands here, redirect them to PayFast immediately.
-                    // ONLY if it's not a reseller order (resellers use EFT)
-                    // AND NOT a setup/topup fee (which always uses PayFast)
                     const isSetupOrTopup = orderData.items.some(i => i.id === 'partner_setup_fee' || i.id === 'partner_credit_topup');
                     
                     if (isAuthenticated && orderData.status === 'Pending Payment' && (!orderData.resellerId || isSetupOrTopup)) {
