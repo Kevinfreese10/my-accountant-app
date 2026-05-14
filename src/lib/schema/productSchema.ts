@@ -69,6 +69,21 @@ export function generateStructuredData(service: Service) {
           "@type": "DefinedRegion",
           "addressCountry": "ZA"
         },
+        "deliveryTime": {
+          "@type": "ShippingDeliveryTime",
+          "handlingTime": {
+            "@type": "QuantitativeValue",
+            "minValue": 0,
+            "maxValue": 1,
+            "unitCode": "DAY"
+          },
+          "transitTime": {
+            "@type": "QuantitativeValue",
+            "minValue": 0,
+            "maxValue": 1,
+            "unitCode": "DAY"
+          }
+        },
         "shippingRate": {
           "@type": "MonetaryAmount",
           "value": "0",
