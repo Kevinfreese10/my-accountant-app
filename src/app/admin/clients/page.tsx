@@ -113,7 +113,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                                     <FormItem>
                                         <FormLabel className="text-xs">VAT Category</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value || ''}>
-                                            <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select category..." /></SelectTrigger></FormControl>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger></FormControl>
                                             <SelectContent>
                                                 {vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}
                                             </SelectContent>
@@ -315,7 +315,7 @@ export default function AdminClientsPage() {
 
         if (values.preparesPayroll && values.payrollDay) {
             let found = false;
-            for (let i = 0; i < 12 && !found; i++) {
+            for (let i = -1; i < 12 && !found; i++) {
                 const periodDate = addMonths(today, i);
                 const dueDate = getDueDate(periodDate, values.payrollDay);
                 if (dueDate.toDate() >= today) {
@@ -333,7 +333,7 @@ export default function AdminClientsPage() {
 
         if (values.preparesManagementAccounts && values.managementAccountsDay) {
             let found = false;
-            for (let i = 0; i < 12 && !found; i++) {
+            for (let i = -1; i < 12 && !found; i++) {
                 const periodDate = addMonths(today, i);
                 const dueDate = getDueDate(addMonths(periodDate, 1), values.managementAccountsDay);
                 if (dueDate.toDate() >= today) {

@@ -1,7 +1,5 @@
+import { notFound } from 'next/navigation';
 
-import { redirect } from 'next/navigation';
-
-export default function AIAccountantRedirectPage() {
-  redirect('/admin/ai-accountant/clients');
-  return null;
+export default function AIAccountantPage() {
+  return notFound();
 }

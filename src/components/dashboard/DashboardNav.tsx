@@ -15,7 +15,6 @@ import {
   BookMarked,
   Images,
   Percent,
-  Wrench,
   PanelLeft,
   ChevronDown,
   Presentation,
@@ -83,7 +82,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/clients', label: 'Manage Clients', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/services', label: 'Manage Products', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/social-marketing', label: 'Social Marketing', icon: Megaphone, roles: ['admin'] },
-    { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin', 'staff'] },
   ];
   
   const settingsNavItems = [

@@ -1,8 +1,5 @@
+import { notFound } from 'next/navigation';
 
-'use client';
-import { redirect } from 'next/navigation';
-
-export default function NumeraSettingsRedirectPage() {
-  redirect('/admin/ai-accountant/clients');
-  return null;
+export default function SettingsPage() {
+  return notFound();
 }

@@ -161,13 +161,6 @@ export async function sendOutstandingDocumentsReminder({ orderId, clientName, cl
     });
 }
 
-export async function findStoryName(
-  input: { commissionNumber: string; knowledgeBase: string; }
-): Promise<{ storyName?: string; }> {
-  const { findStoryName: findStoryNameAction } = await import('@/ai/flows/find-story-name');
-  return findStoryNameAction(input);
-}
-
 export async function generateNextTaskOccurrence(taskId: string) {
     const taskRef = doc(db, 'tasks', taskId);
     const taskSnap = await getDoc(taskRef);
@@ -198,9 +191,9 @@ export async function generateNextTaskOccurrence(taskId: string) {
         
         if (task.type === 'EMP201' || task.type === 'VAT201' || task.type === 'PAYROLL' || task.type === 'MGMT') {
             const nextPeriod = addMonths(nextDueDate, task.type === 'MGMT' ? -1 : 0);
-            newTitle = `${task.type} Submission - ${format(nextPeriod, 'MMMM yyyy')} for ${clientName}`;
-            if (task.type === 'PAYROLL') newTitle = `Payroll Preparation - ${format(nextPeriod, 'MMMM yyyy')} for ${clientName}`;
-            if (task.type === 'MGMT') newTitle = `Management Accounts - ${format(nextPeriod, 'MMMM yyyy')} for ${clientName}`;
+            newTitle = `${task.type} Submission - ${format(periodDate, 'MMMM yyyy')} for ${clientName}`;
+            if (task.type === 'PAYROLL') newTitle = `Payroll Preparation - ${format(periodDate, 'MMMM yyyy')} for ${clientName}`;
+            if (task.type === 'MGMT') newTitle = `Management Accounts - ${format(periodDate, 'MMMM yyyy')} for ${clientName}`;
         } else if (task.type === 'AFS' || task.type === 'ITR') {
             newTitle = task.title.replace(/\d{4}/, (match) => (parseInt(match) + 1).toString());
         } else if (task.type === 'IRP6') {
