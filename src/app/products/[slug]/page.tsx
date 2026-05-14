@@ -109,6 +109,7 @@ export default async function ProductDetailPage({ params }: Props) {
     notFound();
   }
 
+  // Generate structured data server-side
   const jsonLd = generateStructuredData(service);
 
   return (
