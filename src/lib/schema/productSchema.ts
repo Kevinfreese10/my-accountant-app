@@ -60,6 +60,7 @@ export function generateStructuredData(service: Service) {
       },
       "hasMerchantReturnPolicy": {
         "@type": "MerchantReturnPolicy",
+        "applicableCountry": "ZA",
         "returnPolicyCategory": service.returnPolicyCategory || "https://schema.org/MerchantReturnNotPermitted"
       },
       "shippingDetails": {
