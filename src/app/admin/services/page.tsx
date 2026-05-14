@@ -20,18 +20,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import Papa from 'papaparse';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
-
-const serviceCategories = [
-    "SARS Services",
-    "Entity Registrations",
-    "CIPC Services",
-    "COIDA Services",
-    "NCR Registrations",
-    "Accounting Services",
-    "CIDB Services",
-];
 
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
@@ -262,6 +253,34 @@ export default function AdminServicesPage() {
     });
   };
 
+  const getSeoStatus = (service: Service) => {
+      const errors: string[] = [];
+      const warnings: string[] = [];
+
+      // Critical GSC Errors
+      if (!service.isPriceTbc && (service.price === undefined || service.price === null || service.price === 0)) {
+          errors.push("Missing Price: Fixed-price services must have a numeric price. Use 'Price to be confirmed' if it varies.");
+      }
+      if (!service.isPriceTbc && (!service.returnPolicyCategory || service.returnPolicyCategory === 'none' || service.returnPolicyCategory === '')) {
+          errors.push("Missing Return Policy: Google requires this for rich snippets. Select one in the 'Marketing & SEO' section.");
+      }
+
+      // Warnings
+      if (!service.metaTitle || service.metaTitle.length > 60) {
+          warnings.push("Shorten Title: Meta Title should be present and under 60 characters to avoid truncation.");
+      }
+      if (!service.metaDescription || service.metaDescription.length > 160) {
+          warnings.push("Shorten Description: Meta Description should be under 160 characters for best display.");
+      }
+      if (!service.imageUrl) {
+          warnings.push("Missing Image: A display image is required for rich search results.");
+      }
+
+      if (errors.length > 0) return { status: 'Error', color: 'text-destructive', icon: <XCircle className="h-4 w-4" />, items: errors };
+      if (warnings.length > 0) return { status: 'Warning', color: 'text-warning', icon: <AlertTriangle className="h-4 w-4" />, items: warnings };
+      return { status: 'Valid', color: 'text-green-600', icon: <CheckCircle2 className="h-4 w-4" />, items: ['The product schema is fully optimized and compliant.'] };
+  };
+
   const handleDownloadAuditCsv = () => {
     const dataForCsv = services.map(s => {
         const seoStatus = getSeoStatus(s);
@@ -411,34 +430,9 @@ export default function AdminServicesPage() {
         }
     };
 
-  const getSeoStatus = (service: Service) => {
-      const errors: string[] = [];
-      const warnings: string[] = [];
-
-      // Critical GSC Errors
-      if (!service.isPriceTbc && (service.price === undefined || service.price === null || service.price === 0)) {
-          errors.push("Missing Price: Fixed-price services must have a numeric price. Use 'Price to be confirmed' if it varies.");
-      }
-      if (!service.isPriceTbc && (!service.returnPolicyCategory || service.returnPolicyCategory === 'none' || service.returnPolicyCategory === '')) {
-          errors.push("Missing Return Policy: Google requires this for rich snippets. Select one in the 'Marketing & SEO' section.");
-      }
-
-      // Warnings
-      if (!service.metaTitle || service.metaTitle.length > 60) {
-          warnings.push("Shorten Title: Meta Title should be present and under 60 characters to avoid truncation.");
-      }
-      if (!service.metaDescription || service.metaDescription.length > 160) {
-          warnings.push("Shorten Description: Meta Description should be under 160 characters for best display.");
-      }
-      if (!service.imageUrl) {
-          warnings.push("Missing Image: A display image is required for rich search results.");
-      }
-
-      if (errors.length > 0) return { status: 'Error', color: 'text-destructive', icon: <XCircle className="h-4 w-4" />, items: errors };
-      if (warnings.length > 0) return { status: 'Warning', color: 'text-warning', icon: <AlertTriangle className="h-4 w-4" />, items: warnings };
-      return { status: 'Valid', color: 'text-green-600', icon: <CheckCircle2 className="h-4 w-4" />, items: ['The product schema is fully optimized and compliant.'] };
+  if (isLoading && services.length === 0) {
+    return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin" /></div>;
   }
-
 
   return (
     <div className="space-y-8">
@@ -493,9 +487,11 @@ export default function AdminServicesPage() {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All Categories</SelectItem>
-                        {serviceCategories.map(cat => (
-                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                        ))}
+                        {/* Categories will be populated from service data if not static */}
+                        <SelectItem value="SARS Services">SARS Services</SelectItem>
+                        <SelectItem value="Entity Registrations">Entity Registrations</SelectItem>
+                        <SelectItem value="CIPC Services">CIPC Services</SelectItem>
+                        <SelectItem value="Accounting Services">Accounting Services</SelectItem>
                     </SelectContent>
                 </Select>
                  <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
@@ -723,3 +719,4 @@ export default function AdminServicesPage() {
     </div>
   );
 }
+
