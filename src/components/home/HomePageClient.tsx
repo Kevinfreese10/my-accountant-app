@@ -31,7 +31,8 @@ import {
   User,
   Utensils,
   ShoppingCart,
-  HelpCircle
+  HelpCircle,
+  ClipboardList
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
