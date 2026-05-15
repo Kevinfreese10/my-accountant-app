@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -254,7 +255,7 @@ export default function HomePageClient() {
       {/* Hero Image Section */}
       <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
         <Image 
-          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778842309292-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(1).png?alt=media&token=f64e0df6-ab06-4ebb-9470-e15c9f827437"
+          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
           alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
           fill
           priority
@@ -372,24 +373,24 @@ export default function HomePageClient() {
       </section>
 
       {/* Industry-Specific SEO Sections */}
-      <section className="bg-slate-900 py-24 text-white overflow-hidden relative">
+      <section className="bg-white py-24 text-slate-900 overflow-hidden relative">
         <div className="container mx-auto px-4 relative z-10">
             <div className="text-center mb-16 space-y-4">
-                <Badge className="bg-primary/20 text-primary border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Specialised Solutions</Badge>
+                <Badge className="bg-primary/10 text-primary border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Specialised Solutions</Badge>
                 <h2 className="text-4xl font-bold tracking-tight">Industry-Specific Accounting</h2>
-                <p className="text-slate-400 max-w-2xl mx-auto text-lg">Expert financial guidance tailored to your specific business sector.</p>
+                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Expert financial guidance tailored to your specific business sector.</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
                 {industryNiches.map((niche) => (
                     <Link key={niche.title} href={niche.href} className="group">
-                        <Card className="h-full bg-slate-800/50 border-slate-700 transition-all group-hover:bg-slate-800 group-hover:border-primary/50 group-hover:shadow-2xl">
+                        <Card className="h-full border-2 transition-all group-hover:border-primary group-hover:shadow-2xl group-hover:-translate-y-1 bg-white">
                             <CardHeader>
                                 <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary transition-colors">
                                     <niche.icon className="h-6 w-6 text-primary group-hover:text-white" />
                                 </div>
-                                <CardTitle className="text-xl text-white group-hover:text-primary transition-colors">{niche.title}</CardTitle>
-                                <CardDescription className="text-slate-400 group-hover:text-slate-300">
+                                <CardTitle className="text-xl group-hover:text-primary transition-colors">{niche.title}</CardTitle>
+                                <CardDescription className="leading-relaxed">
                                     {niche.description}
                                 </CardDescription>
                             </CardHeader>
@@ -403,8 +404,6 @@ export default function HomePageClient() {
                 ))}
             </div>
         </div>
-        {/* Background Accent */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
       </section>
 
       {/* Blog Section */}
@@ -464,7 +463,7 @@ export default function HomePageClient() {
       </section>
 
       {/* Product FAQ Section */}
-      <section className="bg-slate-50 py-24 border-y">
+      <section className="bg-white py-24 border-y">
         <div className="container mx-auto px-4 max-w-4xl">
             <div className="text-center mb-12 space-y-4">
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Product Knowledge</Badge>
