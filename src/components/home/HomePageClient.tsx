@@ -275,7 +275,7 @@ export default function HomePageClient() {
           
           <div className="flex flex-wrap justify-center gap-3 pt-4">
             {keywordButtons.map((btn) => (
-              <Button key={btn.label} asChild variant="outline" className="h-9 md:h-11 px-4 md:px-6 rounded-full font-bold transition-all">
+              <Button key={btn.label} asChild variant="outline" className="h-9 md:h-11 px-4 md:px-6 rounded-full font-bold transition-all text-xs md:text-sm">
                 <Link href={btn.href}>{btn.label}</Link>
               </Button>
             ))}
@@ -472,61 +472,71 @@ export default function HomePageClient() {
                 <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Learn more about our individual services, turnaround times, and requirements.</p>
             </div>
 
-            <Accordion type="single" collapsible className="w-full space-y-4">
-                {services.map((service, idx) => (
-                    <div key={service.id} className="bg-white border rounded-xl overflow-hidden shadow-sm">
-                        <AccordionItem value={`service-${service.id}`} className="border-none">
-                            <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-50 transition-colors text-left font-bold text-slate-900">
-                                {service.title}
-                            </AccordionTrigger>
-                            <AccordionContent className="px-6 pb-6 pt-2">
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <p className="flex items-center gap-2 text-xs font-black uppercase text-primary tracking-widest">
-                                                <Clock className="h-3 w-3" /> Turnaround Time
-                                            </p>
-                                            <p className="text-sm text-slate-700 font-medium">
-                                                How long does {service.title} take to complete?
-                                            </p>
-                                            <p className="text-sm text-muted-foreground">
-                                                This service typically takes <strong>{service.turnaroundTime}</strong> to finalize once all documents are received.
-                                            </p>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <p className="flex items-center gap-2 text-xs font-black uppercase text-primary tracking-widest">
-                                                <ClipboardList className="h-3 w-3" /> Requirements
-                                            </p>
-                                            <p className="text-sm text-slate-700 font-medium">
-                                                What are the requirements for {service.title}?
-                                            </p>
-                                            <ul className="space-y-1">
-                                                {service.clientRequirements.map((req, i) => (
-                                                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                                                        <span className="text-primary font-bold mt-1">•</span>
-                                                        <span>{req}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </div>
-                                    <Separator />
-                                    <div className="flex justify-between items-center">
-                                        <p className="text-xs text-muted-foreground italic">
-                                            Pricing: {service.isPriceTbc ? 'Price on Request' : formatPrice(service.price)}
-                                        </p>
-                                        <Button asChild size="sm" variant="link" className="font-bold gap-1 text-primary">
-                                            <Link href={`/products/${service.slug}`}>
-                                                View Product Details <ArrowRight className="h-3 w-3" />
-                                            </Link>
-                                        </Button>
-                                    </div>
+            <div className="space-y-12">
+                {categorizedServices.map((category) => (
+                    <div key={category.id} className="space-y-6">
+                        <div className="flex items-center gap-4">
+                            <h3 className="text-xl font-bold text-slate-900">{category.name}</h3>
+                            <div className="h-px bg-slate-200 flex-grow" />
+                        </div>
+                        <Accordion type="single" collapsible className="w-full space-y-4">
+                            {category.data.map((service) => (
+                                <div key={service.id} className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                                    <AccordionItem value={`service-${service.id}`} className="border-none">
+                                        <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-50 transition-colors text-left font-bold text-slate-900">
+                                            {service.title}
+                                        </AccordionTrigger>
+                                        <AccordionContent className="px-6 pb-6 pt-2">
+                                            <div className="space-y-6">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    <div className="space-y-2">
+                                                        <p className="flex items-center gap-2 text-xs font-black uppercase text-primary tracking-widest">
+                                                            <Clock className="h-3 w-3" /> Turnaround Time
+                                                        </p>
+                                                        <p className="text-sm text-slate-700 font-medium">
+                                                            How long does {service.title} take to complete?
+                                                        </p>
+                                                        <p className="text-sm text-muted-foreground">
+                                                            This service typically takes <strong>{service.turnaroundTime}</strong> to finalize once all documents are received.
+                                                        </p>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <p className="flex items-center gap-2 text-xs font-black uppercase text-primary tracking-widest">
+                                                            <ClipboardList className="h-3 w-3" /> Requirements
+                                                        </p>
+                                                        <p className="text-sm text-slate-700 font-medium">
+                                                            What are the requirements for {service.title}?
+                                                        </p>
+                                                        <ul className="space-y-1">
+                                                            {service.clientRequirements.map((req, i) => (
+                                                                <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                                                    <span className="text-primary font-bold mt-1">•</span>
+                                                                    <span>{req}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                                <Separator />
+                                                <div className="flex justify-between items-center">
+                                                    <p className="text-xs text-muted-foreground italic">
+                                                        Pricing: {service.isPriceTbc ? 'Price on Request' : formatPrice(service.price)}
+                                                    </p>
+                                                    <Button asChild size="sm" variant="link" className="font-bold gap-1 text-primary">
+                                                        <Link href={`/products/${service.slug}`}>
+                                                            View Product Details <ArrowRight className="h-3 w-3" />
+                                                        </Link>
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </AccordionContent>
+                                    </AccordionItem>
                                 </div>
-                            </AccordionContent>
-                        </AccordionItem>
+                            ))}
+                        </Accordion>
                     </div>
                 ))}
-            </Accordion>
+            </div>
         </div>
       </section>
 
