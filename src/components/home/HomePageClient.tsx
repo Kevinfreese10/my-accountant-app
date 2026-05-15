@@ -147,22 +147,6 @@ export default function HomePageClient() {
           className="object-cover"
           data-ai-hint="accounting office"
         />
-        <div className="absolute inset-0 bg-black/40" />
-        <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24 relative z-10">
-          <div className="space-y-6 text-center max-w-4xl mx-auto">
-            <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl text-white drop-shadow-xl">
-              South Africa’s leading online <span className="text-primary-foreground">#accounting</span> and <span className="text-primary-foreground">#tax</span> store
-            </h1>
-            <p className="text-lg text-slate-100 max-w-2xl mx-auto font-medium drop-shadow-md">
-              Professional, AI-powered financial management and compliance solutions for your business.
-            </p>
-            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
-              <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-2xl">
-                <Link href="#products">Explore Products</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
       </section>
 
       <TrustIndexWidget />
