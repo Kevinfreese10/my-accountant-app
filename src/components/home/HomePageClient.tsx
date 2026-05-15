@@ -135,11 +135,11 @@ export default function HomePageClient() {
   }, [categories, services, searchTerm]);
 
   const keywordButtons = [
-    { label: 'Company Registration', href: '/products/new-company-registration' },
-    { label: 'Tax Returns', href: '/products/personal-tax-return' },
-    { label: 'VAT Registration', href: '/products#sars-services' },
-    { label: 'CIPC Annual Returns', href: '/products/cipc-annual-returns' },
-    { label: 'Bookkeeping Services', href: '/products/monthly-bookkeeping-basic' },
+    { label: 'Entity Registrations', href: '/products#entity-registrations' },
+    { label: 'SARS Services', href: '/products#sars-services' },
+    { label: 'CIPC Services', href: '/products#cipc-services' },
+    { label: 'Accounting Services', href: '/products#accounting-services' },
+    { label: 'Payroll Services', href: '/products#payroll-services' },
   ];
 
   return (
