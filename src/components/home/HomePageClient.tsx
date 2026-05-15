@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -12,7 +11,27 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Rocket, ShieldCheck, Wallet, Clock, Search, Loader2, CheckCircle2, ArrowRight, Calculator, Users, Landmark, Scale, Building, MapPin } from 'lucide-react';
+import { 
+  Rocket, 
+  ShieldCheck, 
+  Wallet, 
+  Clock, 
+  Search, 
+  Loader2, 
+  CheckCircle2, 
+  ArrowRight, 
+  Calculator, 
+  Users, 
+  Landmark, 
+  Scale, 
+  Building, 
+  MapPin,
+  HardHat,
+  Camera,
+  User,
+  Utensils,
+  ShoppingCart
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { Service } from '@/lib/types';
@@ -22,6 +41,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { Separator } from '../ui/separator';
+import { Badge } from '@/components/ui/badge';
 import {
   Accordion,
   AccordionContent,
@@ -170,6 +190,45 @@ export default function HomePageClient() {
     },
   ];
 
+  const industryNiches = [
+    {
+        title: 'Accounting for SMEs',
+        description: 'Scalable financial management for small and medium enterprises.',
+        icon: Building,
+        href: '/industries/sme'
+    },
+    {
+        title: 'Accounting for Construction',
+        description: 'Specialised project-based accounting and progress billing support.',
+        icon: HardHat,
+        href: '/industries/construction'
+    },
+    {
+        title: 'Accounting for Influencers',
+        description: 'Tax optimization and multi-platform income tracking for creators.',
+        icon: Camera,
+        href: '/industries/influencers'
+    },
+    {
+        title: 'Accounting for Freelancers',
+        description: 'Simple, effective bookkeeping and provisional tax for independent pros.',
+        icon: User,
+        href: '/industries/freelancers'
+    },
+    {
+        title: 'Accounting for Restaurants',
+        description: 'Inventory management and point-of-sale integration expertise.',
+        icon: Utensils,
+        href: '/industries/restaurants'
+    },
+    {
+        title: 'Accounting for E-commerce',
+        description: 'Automated VAT and multi-currency tracking for online stores.',
+        icon: ShoppingCart,
+        href: '/industries/ecommerce'
+    },
+  ];
+
   const specialisations = [
     { label: "SARS tax services", href: "/products#sars-services" },
     { label: "Company registrations", href: "/products#entity-registrations" },
@@ -286,8 +345,6 @@ export default function HomePageClient() {
         </div>
       </section>
 
-      <TrustIndexWidget />
-
       {/* Location SEO Section */}
       <section className="container mx-auto px-4 py-12 bg-white">
         <div className="max-w-4xl mx-auto text-center space-y-6">
@@ -308,6 +365,44 @@ export default function HomePageClient() {
             </div>
         </div>
       </section>
+
+      {/* Industry-Specific SEO Sections */}
+      <section className="bg-slate-900 py-24 text-white overflow-hidden relative">
+        <div className="container mx-auto px-4 relative z-10">
+            <div className="text-center mb-16 space-y-4">
+                <Badge className="bg-primary/20 text-primary border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Specialised Solutions</Badge>
+                <h2 className="text-4xl font-bold tracking-tight">Industry-Specific Accounting</h2>
+                <p className="text-slate-400 max-w-2xl mx-auto text-lg">Expert financial guidance tailored to your specific business sector.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                {industryNiches.map((niche) => (
+                    <Link key={niche.title} href={niche.href} className="group">
+                        <Card className="h-full bg-slate-800/50 border-slate-700 transition-all group-hover:bg-slate-800 group-hover:border-primary/50 group-hover:shadow-2xl">
+                            <CardHeader>
+                                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary transition-colors">
+                                    <niche.icon className="h-6 w-6 text-primary group-hover:text-white" />
+                                </div>
+                                <CardTitle className="text-xl text-white group-hover:text-primary transition-colors">{niche.title}</CardTitle>
+                                <CardDescription className="text-slate-400 group-hover:text-slate-300">
+                                    {niche.description}
+                                </CardDescription>
+                            </CardHeader>
+                            <CardFooter className="pt-0">
+                                <span className="text-xs font-bold text-primary flex items-center gap-1">
+                                    Explore Sector Solutions <ArrowRight className="h-3 w-3" />
+                                </span>
+                            </CardFooter>
+                        </Card>
+                    </Link>
+                ))}
+            </div>
+        </div>
+        {/* Background Accent */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
+      </section>
+
+      <TrustIndexWidget />
 
       {/* About Section */}
       <section id="about" className="container mx-auto px-4 py-8 scroll-m-20">
