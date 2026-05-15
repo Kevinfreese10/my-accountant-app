@@ -1,4 +1,3 @@
-
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Metadata } from 'next';
@@ -13,8 +12,8 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
   const siteUrl = 'https://www.myacc.co.za';
   const canonicalUrl = `${siteUrl}${pageId === 'home' ? '' : `/${pageId}`}`;
   
-  // Using direct Storage URL as fallback for reliability with scrapers that don't follow redirects
-  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0';
+  // Using the primary brand image as the fallback for reliability
+  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778839044371-WWW.MYACC.CO.ZA%20(1).png?alt=media&token=03ae6272-11d3-4943-83ad-e63089d789cf';
 
   try {
     const docRef = doc(db, 'staticSeo', pageId);

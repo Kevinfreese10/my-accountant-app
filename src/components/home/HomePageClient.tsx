@@ -137,15 +137,27 @@ export default function HomePageClient() {
 
   return (
     <div className="space-y-16 pb-16">
-      <section className="relative">
-        <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
-          <div className="space-y-6 text-center">
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-foreground">
-              South Africa’s leading online <span className="text-gradient">#accounting</span> and <span className="text-gradient">#tax</span> store
+      {/* Hero Section */}
+      <section className="relative min-h-[500px] lg:min-h-[650px] flex items-center overflow-hidden">
+        <Image 
+          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778839044371-WWW.MYACC.CO.ZA%20(1).png?alt=media&token=03ae6272-11d3-4943-83ad-e63089d789cf"
+          alt="My Accountant Professional Services"
+          fill
+          priority
+          className="object-cover"
+          data-ai-hint="accounting office"
+        />
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24 relative z-10">
+          <div className="space-y-6 text-center max-w-4xl mx-auto">
+            <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl text-white drop-shadow-xl">
+              South Africa’s leading online <span className="text-primary-foreground">#accounting</span> and <span className="text-primary-foreground">#tax</span> store
             </h1>
-            
-            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-              <Button asChild size="lg">
+            <p className="text-lg text-slate-100 max-w-2xl mx-auto font-medium drop-shadow-md">
+              Professional, AI-powered financial management and compliance solutions for your business.
+            </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
+              <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-2xl">
                 <Link href="#products">Explore Products</Link>
               </Button>
             </div>

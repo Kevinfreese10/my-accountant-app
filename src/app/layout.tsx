@@ -10,9 +10,8 @@ import ExternalScripts from '@/components/layout/ExternalScripts';
 import Script from 'next/script';
 import { generateOrganizationSchema } from '@/lib/schema/productSchema';
 
-// Using the direct Storage URL as the global fallback to ensure scrapers (WhatsApp/FB) 
-// don't fail on redirects.
-const GLOBAL_OG_IMAGE = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0';
+// Using the provided brand image as the global fallback for social sharing
+const GLOBAL_OG_IMAGE = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778839044371-WWW.MYACC.CO.ZA%20(1).png?alt=media&token=03ae6272-11d3-4943-83ad-e63089d789cf';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.myacc.co.za'),
