@@ -134,11 +134,18 @@ export default function HomePageClient() {
       .filter(c => c.data.length > 0);
   }, [categories, services, searchTerm]);
 
+  const keywordButtons = [
+    { label: 'Company Registration', href: '/products/new-company-registration' },
+    { label: 'Tax Returns', href: '/products/personal-tax-return' },
+    { label: 'VAT Registration', href: '/products#sars-services' },
+    { label: 'CIPC Annual Returns', href: '/products/cipc-annual-returns' },
+    { label: 'Bookkeeping Services', href: '/products/monthly-bookkeeping-basic' },
+  ];
 
   return (
     <div className="space-y-16 pb-16">
-      {/* Hero Section - Aspect ratio ensures full visibility on mobile without cropping */}
-      <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
+      {/* Hero Section */}
+      <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900 flex items-center justify-center">
         <Image 
           src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778842309292-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(1).png?alt=media&token=f64e0df6-ab06-4ebb-9470-e15c9f827437"
           alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
@@ -147,6 +154,27 @@ export default function HomePageClient() {
           className="object-contain lg:object-cover"
           data-ai-hint="accounting banner"
         />
+        {/* Dark overlay for text readability */}
+        <div className="absolute inset-0 bg-black/40" />
+
+        <div className="container relative z-10 mx-auto px-4 text-center text-white">
+          <div className="max-w-4xl mx-auto space-y-6">
+            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl drop-shadow-md">
+              South Africa’s Leading Online Accounting, Tax & Compliance Firm
+            </h1>
+            <p className="text-lg sm:text-xl md:text-2xl font-medium opacity-90 drop-shadow-sm max-w-3xl mx-auto">
+              Professional SARS, CIPC, bookkeeping, payroll, tax and business compliance services for South African businesses and entrepreneurs.
+            </p>
+            
+            <div className="flex flex-wrap justify-center gap-3 pt-4">
+              {keywordButtons.map((btn) => (
+                <Button key={btn.label} asChild variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white/40 backdrop-blur-sm h-9 md:h-11 px-4 md:px-6 rounded-full font-bold transition-all">
+                  <Link href={btn.href}>{btn.label}</Link>
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
       <TrustIndexWidget />
