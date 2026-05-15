@@ -176,6 +176,44 @@ export default function HomePageClient() {
         </div>
       </section>
 
+      {/* SEO Content Section */}
+      <section className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto space-y-12">
+            <div className="text-center space-y-6">
+                <h2 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">Professional Accounting & Tax Services in South Africa</h2>
+                <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
+                    <p>
+                        At My Accountant, we help South African businesses, entrepreneurs, freelancers and individuals stay compliant with SARS, CIPC and all financial regulations. Our online accounting firm provides affordable and professional accounting services throughout South Africa.
+                    </p>
+                    <p>
+                        Whether you need assistance with company registration, VAT registration, bookkeeping, payroll, annual financial statements, tax returns or CIPC compliance, our experienced team is ready to assist.
+                    </p>
+                </div>
+            </div>
+            
+            <div className="space-y-6">
+                <h3 className="text-xl font-bold text-center text-slate-900 uppercase tracking-widest text-xs">We specialise in:</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[
+                        "SARS tax services", "Company registrations", "VAT and PAYE registrations",
+                        "Monthly bookkeeping", "Payroll services", "Annual Financial Statements",
+                        "CIPC annual returns", "Tax clearance certificates", "Beneficial Ownership submissions",
+                        "COIDA registrations", "CIDB registrations", "NCR registrations"
+                    ].map((item) => (
+                        <div key={item} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 shadow-sm transition-all hover:border-primary/20">
+                            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                            <span className="text-sm font-semibold text-slate-700">{item}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <p className="text-lg text-center text-muted-foreground leading-relaxed font-medium">
+                Our goal is to simplify accounting and compliance so that business owners can focus on growing their businesses while we manage the administration and regulatory requirements.
+            </p>
+        </div>
+      </section>
+
       <TrustIndexWidget />
 
       {/* About Section */}
