@@ -13,7 +13,7 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
   const canonicalUrl = `${siteUrl}${pageId === 'home' ? '' : `/${pageId}`}`;
   
   // Using the primary brand image as the fallback for reliability
-  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778839044371-WWW.MYACC.CO.ZA%20(1).png?alt=media&token=03ae6272-11d3-4943-83ad-e63089d789cf';
+  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778839478227-WWW.MYACC.CO.ZA%20(2).png?alt=media&token=5badc0d5-0bb5-43f9-ac07-8c9a61c76ec6';
 
   try {
     const docRef = doc(db, 'staticSeo', pageId);
