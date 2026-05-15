@@ -30,7 +30,8 @@ import {
   Camera,
   User,
   Utensils,
-  ShoppingCart
+  ShoppingCart,
+  HelpCircle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
@@ -44,6 +45,12 @@ import { Separator } from '../ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useBlog } from '@/contexts/BlogContext';
 import { format } from 'date-fns';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 
 const db = getFirestore(firebaseApp);
 
@@ -455,7 +462,72 @@ export default function HomePageClient() {
           </div>
       </section>
 
-      <TrustIndexWidget />
+      {/* Product FAQ Section */}
+      <section className="bg-slate-50 py-24 border-y">
+        <div className="container mx-auto px-4 max-w-4xl">
+            <div className="text-center mb-12 space-y-4">
+                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Product Knowledge</Badge>
+                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Service Frequently Asked Questions</h2>
+                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Learn more about our individual services, turnaround times, and requirements.</p>
+            </div>
+
+            <Accordion type="single" collapsible className="w-full space-y-4">
+                {services.map((service, idx) => (
+                    <div key={service.id} className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                        <AccordionItem value={`service-${service.id}`} className="border-none">
+                            <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-50 transition-colors text-left font-bold text-slate-900">
+                                {service.title}
+                            </AccordionTrigger>
+                            <AccordionContent className="px-6 pb-6 pt-2">
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <p className="flex items-center gap-2 text-xs font-black uppercase text-primary tracking-widest">
+                                                <Clock className="h-3 w-3" /> Turnaround Time
+                                            </p>
+                                            <p className="text-sm text-slate-700 font-medium">
+                                                How long does {service.title} take to complete?
+                                            </p>
+                                            <p className="text-sm text-muted-foreground">
+                                                This service typically takes <strong>{service.turnaroundTime}</strong> to finalize once all documents are received.
+                                            </p>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <p className="flex items-center gap-2 text-xs font-black uppercase text-primary tracking-widest">
+                                                <ClipboardList className="h-3 w-3" /> Requirements
+                                            </p>
+                                            <p className="text-sm text-slate-700 font-medium">
+                                                What are the requirements for {service.title}?
+                                            </p>
+                                            <ul className="space-y-1">
+                                                {service.clientRequirements.map((req, i) => (
+                                                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                                        <span className="text-primary font-bold mt-1">•</span>
+                                                        <span>{req}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <Separator />
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-xs text-muted-foreground italic">
+                                            Pricing: {service.isPriceTbc ? 'Price on Request' : formatPrice(service.price)}
+                                        </p>
+                                        <Button asChild size="sm" variant="link" className="font-bold gap-1 text-primary">
+                                            <Link href={`/products/${service.slug}`}>
+                                                View Product Details <ArrowRight className="h-3 w-3" />
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </div>
+                ))}
+            </Accordion>
+        </div>
+      </section>
 
       <section className="bg-background pt-8">
          <div className="container mx-auto px-4">
@@ -501,7 +573,7 @@ export default function HomePageClient() {
         </div>
       </section>
       
-        <div id="products" className="container mx-auto px-4 space-y-12 scroll-m-20">
+        <div className="container mx-auto px-4 space-y-12 scroll-m-20">
             {isLoading ? (
                 <div className="flex justify-center items-center h-40">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
