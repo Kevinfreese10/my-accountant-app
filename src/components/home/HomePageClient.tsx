@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Rocket, ShieldCheck, Wallet, Clock, Search, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Clock, Search, Loader2, CheckCircle2, ArrowRight, Calculator, Users, Landmark, Scale, Building } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { Service } from '@/lib/types';
@@ -142,6 +142,48 @@ export default function HomePageClient() {
     { label: 'Payroll Services', href: '/products#payroll-services' },
   ];
 
+  const servicePillars = [
+    {
+      title: 'Monthly Accounting',
+      description: 'Full-service bookkeeping, management accounts, and VAT for South African SMEs.',
+      icon: Calculator,
+      href: '/monthly-accounting',
+    },
+    {
+      title: 'Monthly Payroll',
+      description: 'Compliant payroll management, digital payslips, and statutory SARS submissions.',
+      icon: Users,
+      href: '/monthly-payroll',
+    },
+    {
+      title: 'Tax Compliance',
+      description: 'Expert SARS representation, income tax returns, and free compliance health checks.',
+      icon: Landmark,
+      href: '/compliance',
+    },
+    {
+      title: 'Liquidations',
+      description: 'Professional assistance with voluntary company liquidations and responsible business closure.',
+      icon: Scale,
+      href: '/liquidations',
+    },
+  ];
+
+  const specialisations = [
+    { label: "SARS tax services", href: "/products#sars-services" },
+    { label: "Company registrations", href: "/products#entity-registrations" },
+    { label: "VAT and PAYE registrations", href: "/products#sars-services" },
+    { label: "Monthly bookkeeping", href: "/products#accounting-services" },
+    { label: "Payroll services", href: "/products#payroll-services" },
+    { label: "Annual Financial Statements", href: "/products#accounting-services" },
+    { label: "CIPC annual returns", href: "/products#cipc-services" },
+    { label: "Tax clearance certificates", href: "/products#sars-services" },
+    { label: "Beneficial Ownership submissions", href: "/products#cipc-services" },
+    { label: "COIDA registrations", href: "/products#coida-services" },
+    { label: "CIDB registrations", href: "/products#cidb-services" },
+    { label: "NCR registrations", href: "/products#ncr-services" }
+  ];
+
   return (
     <div className="space-y-16 pb-16">
       {/* Hero Image Section */}
@@ -194,16 +236,13 @@ export default function HomePageClient() {
             <div className="space-y-6">
                 <h3 className="text-xl font-bold text-center text-slate-900 uppercase tracking-widest text-xs">We specialise in:</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {[
-                        "SARS tax services", "Company registrations", "VAT and PAYE registrations",
-                        "Monthly bookkeeping", "Payroll services", "Annual Financial Statements",
-                        "CIPC annual returns", "Tax clearance certificates", "Beneficial Ownership submissions",
-                        "COIDA registrations", "CIDB registrations", "NCR registrations"
-                    ].map((item) => (
-                        <div key={item} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 shadow-sm transition-all hover:border-primary/20">
-                            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                            <span className="text-sm font-semibold text-slate-700">{item}</span>
-                        </div>
+                    {specialisations.map((item) => (
+                        <Link key={item.label} href={item.href} className="group">
+                            <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 shadow-sm transition-all group-hover:border-primary/30 group-hover:bg-primary/5">
+                                <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                                <span className="text-sm font-semibold text-slate-700 group-hover:text-primary transition-colors">{item.label}</span>
+                            </div>
+                        </Link>
                     ))}
                 </div>
             </div>
@@ -211,6 +250,38 @@ export default function HomePageClient() {
             <p className="text-lg text-center text-muted-foreground leading-relaxed font-medium">
                 Our goal is to simplify accounting and compliance so that business owners can focus on growing their businesses while we manage the administration and regulatory requirements.
             </p>
+        </div>
+      </section>
+
+      {/* Service Pillars / Internal Linking Blocks */}
+      <section className="bg-slate-50 py-16 border-y">
+        <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold tracking-tight text-slate-900">Explore Our Core Solutions</h2>
+                <p className="text-muted-foreground mt-2">Comprehensive financial and regulatory support for your growing business.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+                {servicePillars.map((pillar) => (
+                    <Link key={pillar.title} href={pillar.href} className="group">
+                        <Card className="h-full border-2 transition-all group-hover:border-primary group-hover:shadow-xl group-hover:-translate-y-1">
+                            <CardHeader>
+                                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-colors">
+                                    <pillar.icon className="h-6 w-6" />
+                                </div>
+                                <CardTitle className="text-xl group-hover:text-primary transition-colors">{pillar.title}</CardTitle>
+                                <CardDescription className="leading-relaxed">
+                                    {pillar.description}
+                                </CardDescription>
+                            </CardHeader>
+                            <CardFooter className="pt-0">
+                                <span className="text-sm font-bold text-primary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Learn More <ArrowRight className="h-3 w-3" />
+                                </span>
+                            </CardFooter>
+                        </Card>
+                    </Link>
+                ))}
+            </div>
         </div>
       </section>
 
