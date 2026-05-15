@@ -144,8 +144,8 @@ export default function HomePageClient() {
 
   return (
     <div className="space-y-16 pb-16">
-      {/* Hero Section */}
-      <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900 flex items-center justify-center">
+      {/* Hero Image Section */}
+      <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
         <Image 
           src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778842309292-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(1).png?alt=media&token=f64e0df6-ab06-4ebb-9470-e15c9f827437"
           alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
@@ -154,25 +154,24 @@ export default function HomePageClient() {
           className="object-contain lg:object-cover"
           data-ai-hint="accounting banner"
         />
-        {/* Dark overlay for text readability */}
-        <div className="absolute inset-0 bg-black/40" />
+      </section>
 
-        <div className="container relative z-10 mx-auto px-4 text-center text-white">
-          <div className="max-w-4xl mx-auto space-y-6">
-            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl drop-shadow-md">
-              South Africa’s Leading Online Accounting, Tax & Compliance Firm
-            </h1>
-            <p className="text-lg sm:text-xl md:text-2xl font-medium opacity-90 drop-shadow-sm max-w-3xl mx-auto">
-              Professional SARS, CIPC, bookkeeping, payroll, tax and business compliance services for South African businesses and entrepreneurs.
-            </p>
-            
-            <div className="flex flex-wrap justify-center gap-3 pt-4">
-              {keywordButtons.map((btn) => (
-                <Button key={btn.label} asChild variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white/40 backdrop-blur-sm h-9 md:h-11 px-4 md:px-6 rounded-full font-bold transition-all">
-                  <Link href={btn.href}>{btn.label}</Link>
-                </Button>
-              ))}
-            </div>
+      {/* Hero Content Section (Below Image) */}
+      <section className="container mx-auto px-4 text-center">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl text-slate-900">
+            South Africa’s Leading Online Accounting, Tax & Compliance Firm
+          </h1>
+          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
+            Professional SARS, CIPC, bookkeeping, payroll, tax and business compliance services for South African businesses and entrepreneurs.
+          </p>
+          
+          <div className="flex flex-wrap justify-center gap-3 pt-4">
+            {keywordButtons.map((btn) => (
+              <Button key={btn.label} asChild variant="outline" className="h-9 md:h-11 px-4 md:px-6 rounded-full font-bold transition-all">
+                <Link href={btn.href}>{btn.label}</Link>
+              </Button>
+            ))}
           </div>
         </div>
       </section>
@@ -180,7 +179,7 @@ export default function HomePageClient() {
       <TrustIndexWidget />
 
       {/* About Section */}
-      <section id="about" className="container mx-auto px-4 py-16 scroll-m-20">
+      <section id="about" className="container mx-auto px-4 py-8 scroll-m-20">
         <div className="max-w-4xl mx-auto text-center space-y-12">
             <div className="space-y-6">
                 <div className="space-y-4">
@@ -236,7 +235,7 @@ export default function HomePageClient() {
         </div>
       </section>
 
-      <section className="bg-background pt-16">
+      <section className="bg-background pt-8">
          <div className="container mx-auto px-4">
             <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold">Why Choose My Accountant?</h2>
