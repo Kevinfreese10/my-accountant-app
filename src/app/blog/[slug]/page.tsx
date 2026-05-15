@@ -53,7 +53,7 @@ export async function generateMetadata(
   const { slug } = await params;
   const post = await getPost(slug);
   const siteUrl = 'https://www.myacc.co.za';
-  const globalFallbackImg = `${siteUrl}/og-image.jpg`;
+  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778842309292-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(1).png?alt=media&token=f64e0df6-ab06-4ebb-9470-e15c9f827437';
  
   if (!post) {
     return { title: 'Post Not Found' }

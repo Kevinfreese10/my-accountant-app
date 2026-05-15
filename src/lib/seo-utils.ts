@@ -1,3 +1,4 @@
+
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Metadata } from 'next';
@@ -15,87 +16,59 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
   // Using the primary brand image as the fallback for reliability
   const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778842309292-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(1).png?alt=media&token=f64e0df6-ab06-4ebb-9470-e15c9f827437';
 
+  let title = String(defaults.title || 'My Accountant');
+  let description = String(defaults.description || '');
+  let imageUrl = globalFallbackImg;
+  let imageAlt = title;
+
   try {
     const docRef = doc(db, 'staticSeo', pageId);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
       const data = docSnap.data();
-      const title = String(data.metaTitle || data.title || defaults.title || 'My Accountant');
-      const description = String(data.metaDescription || data.description || defaults.description || '');
-      const keywords = data.metaKeywords || data.keywords || defaults.keywords;
-      
-      let imageUrl = data.seoImageUrl || globalFallbackImg;
-      // Force absolute URL for local paths
-      if (imageUrl.startsWith('/')) {
-        imageUrl = `${siteUrl}${imageUrl}`;
-      }
-
-      return {
-        ...defaults,
-        title,
-        description,
-        keywords,
-        alternates: {
-          canonical: canonicalUrl,
-        },
-        openGraph: {
-          title,
-          description,
-          url: canonicalUrl,
-          siteName: 'My Accountant',
-          locale: 'en_ZA',
-          type: 'website',
-          images: [
-            { 
-              url: imageUrl, 
-              width: 1200, 
-              height: 630,
-              alt: data.seoImageLabel || title
-            }
-          ],
-        },
-        twitter: {
-          card: 'summary_large_image',
-          title,
-          description,
-          images: [imageUrl],
+      title = String(data.metaTitle || data.title || title);
+      description = String(data.metaDescription || data.description || description);
+      if (data.seoImageUrl) {
+        imageUrl = data.seoImageUrl;
+        if (imageUrl.startsWith('/')) {
+            imageUrl = `${siteUrl}${imageUrl}`;
         }
-      };
+      }
+      imageAlt = data.seoImageLabel || title;
     }
   } catch (e) {
     console.error(`Error fetching SEO for ${pageId}:`, e);
   }
   
-  const fallbackTitle = String(defaults.title || 'My Accountant');
-  const fallbackDesc = String(defaults.description || '');
-
   return {
     ...defaults,
+    title,
+    description,
     alternates: {
       canonical: canonicalUrl,
     },
     openGraph: {
-        title: fallbackTitle,
-        description: fallbackDesc,
+        title,
+        description,
         url: canonicalUrl,
         siteName: 'My Accountant',
         locale: 'en_ZA',
         type: 'website',
         images: [
-            {
-                url: globalFallbackImg,
-                width: 1200, 
-                height: 630,
-                alt: fallbackTitle,
+            { 
+              url: imageUrl, 
+              width: 1200, 
+              height: 630,
+              alt: imageAlt
             }
-        ]
+        ],
     },
     twitter: {
         card: 'summary_large_image',
-        title: fallbackTitle,
-        description: fallbackDesc,
-        images: [globalFallbackImg],
+        title,
+        description,
+        images: [imageUrl],
     }
   };
 }
