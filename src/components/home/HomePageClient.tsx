@@ -140,7 +140,7 @@ export default function HomePageClient() {
       {/* Hero Section */}
       <section className="relative min-h-[500px] lg:min-h-[650px] flex items-center overflow-hidden">
         <Image 
-          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778839478227-WWW.MYACC.CO.ZA%20(2).png?alt=media&token=5badc0d5-0bb5-43f9-ac07-8c9a61c76ec6"
+          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778839771858-WWW.MYACC.CO.ZA%20(3).png?alt=media&token=474f3c05-f9b7-479b-843b-89cf719f9240"
           alt="My Accountant Professional Services"
           fill
           priority
