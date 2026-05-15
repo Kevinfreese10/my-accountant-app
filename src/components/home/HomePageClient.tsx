@@ -140,7 +140,7 @@ export default function HomePageClient() {
       {/* Hero Section - Aspect ratio ensures full visibility on mobile without cropping */}
       <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
         <Image 
-          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778841517299-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner.png?alt=media&token=70d6af1c-faef-4964-b0bc-4a7bca97a302"
+          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778842309292-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(1).png?alt=media&token=f64e0df6-ab06-4ebb-9470-e15c9f827437"
           alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
           fill
           priority
