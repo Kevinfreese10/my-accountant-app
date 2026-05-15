@@ -90,8 +90,8 @@ export default function WebsiteAIWidget() {
               {chatHistory.map((message, index) => (
                 <div key={index} className={cn("flex items-end gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}>
                   {message.role === 'bot' && (
-                    <div className="relative h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
-                      <Image src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1761278314476-Playful%20Accountant%20Co.%20Logo%20Design.png?alt=media&token=d0f0c369-7b88-4e41-bdaf-400d292b592b" alt="Khai AI Assistant" fill className="object-cover" />
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 border border-primary/20">
+                      <Bot className="h-5 w-5 text-primary" />
                     </div>
                   )}
                    <div className={cn(
@@ -118,8 +118,8 @@ export default function WebsiteAIWidget() {
               ))}
               {isLoading && (
                  <div className="flex items-end gap-2 justify-start">
-                    <div className="relative h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
-                      <Image src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1761278314476-Playful%20Accountant%20Co.%20Logo%20Design.png?alt=media&token=d0f0c369-7b88-4e41-bdaf-400d292b592b" alt="Khai AI Assistant" fill className="object-cover" />
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 border border-primary/20">
+                      <Bot className="h-5 w-5 text-primary" />
                     </div>
                     <div className="p-3 rounded-lg bg-muted flex items-center border border-muted">
                        <Loader2 className="h-5 w-5 animate-spin text-primary" />

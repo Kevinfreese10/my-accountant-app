@@ -96,11 +96,6 @@ const Header = () => {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-4 lg:gap-8">
           {!isAuthPage && (
-            <Link href="/" className="text-2xl font-bold text-gradient shrink-0">
-              My Accountant
-            </Link>
-          )}
-          {!isAuthPage && (
             <nav className="hidden items-center gap-1 lg:flex">
               {navGroups.map(group => (
                 <DropdownMenu key={group.label}>
@@ -162,7 +157,7 @@ const Header = () => {
                 <SheetContent side="left" className="flex flex-col h-full">
                   <div className="py-4 border-b">
                     <Link href="/" className="text-2xl font-bold text-primary" onClick={() => setMobileMenuOpen(false)}>
-                      My Accountant
+                      Home
                     </Link>
                   </div>
                   <ScrollArea className="flex-1 mt-4">

@@ -106,8 +106,6 @@ export function generateOrganizationSchema() {
     "@type": "AccountingService",
     "name": "My Accountant",
     "url": baseUrl,
-    "logo": `${baseUrl}/logo.png`,
-    "image": "https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1777450406330-WWW.MYACC.CO.ZA.png?alt=media&token=e5cf2944-6006-4f21-9a20-ff403ff380e0",
     "telephone": "+27-10-109-1625",
     "email": "info@myacc.co.za",
     "address": {
