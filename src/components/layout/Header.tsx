@@ -59,9 +59,9 @@ const navGroups = [
   },
   {
     label: 'Company',
-    href: '/about',
+    href: '/#about',
     items: [
-      { label: 'About Us', href: '/about' },
+      { label: 'About Us', href: '/#about' },
       { label: 'Tax Tip Blog', href: '/blog' },
       { label: 'Contact Us', href: '/contact' },
     ],
