@@ -1,4 +1,3 @@
-
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
@@ -11,6 +10,7 @@ import { Metadata, ResolvingMetadata } from 'next';
 import ServiceCheckoutForm from '@/components/checkout/ServiceCheckoutForm';
 import Script from 'next/script';
 import { generateStructuredData } from '@/lib/schema/productSchema';
+import { SITE_URL, GLOBAL_OG_IMAGE } from '@/lib/constants';
 
 const db = getFirestore(firebaseApp);
 
@@ -48,20 +48,18 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { slug } = await params;
   const service = await getService(slug);
-  const siteUrl = 'https://www.myacc.co.za';
-  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778842309292-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(1).png?alt=media&token=f64e0df6-ab06-4ebb-9470-e15c9f827437';
 
   if (!service) {
     return { title: 'Product Not Found' }
   }
 
-  const canonicalUrl = `${siteUrl}/products/${service.slug}`;
+  const canonicalUrl = `${SITE_URL}/products/${service.slug}`;
   const title = service.metaTitle || `${service.title} | My Accountant`;
   const description = service.metaDescription || service.description;
   
-  let ogImage = service.seoImageUrl || service.imageUrl || globalFallbackImg;
+  let ogImage = service.seoImageUrl || service.imageUrl || GLOBAL_OG_IMAGE;
   if (ogImage.startsWith('/')) {
-    ogImage = `${siteUrl}${ogImage}`;
+    ogImage = `${SITE_URL}${ogImage}`;
   }
  
   return {

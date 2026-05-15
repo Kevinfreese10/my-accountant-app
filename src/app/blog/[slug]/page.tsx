@@ -1,4 +1,3 @@
-
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { BlogPost, Service } from '@/lib/types';
@@ -10,6 +9,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { SITE_URL, GLOBAL_OG_IMAGE } from '@/lib/constants';
 
 const db = getFirestore(firebaseApp);
 
@@ -52,20 +52,18 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPost(slug);
-  const siteUrl = 'https://www.myacc.co.za';
-  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778842309292-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(1).png?alt=media&token=f64e0df6-ab06-4ebb-9470-e15c9f827437';
  
   if (!post) {
     return { title: 'Post Not Found' }
   }
 
-  const canonicalUrl = `${siteUrl}/blog/${post.slug}`;
+  const canonicalUrl = `${SITE_URL}/blog/${post.slug}`;
   const title = post.metaTitle || `${post.title} | My Accountant`;
   const description = post.metaDescription || post.excerpt;
   
-  let ogImage = post.seoImageUrl || post.imageUrl || globalFallbackImg;
+  let ogImage = post.seoImageUrl || post.imageUrl || GLOBAL_OG_IMAGE;
   if (ogImage.startsWith('/')) {
-    ogImage = `${siteUrl}${ogImage}`;
+    ogImage = `${SITE_URL}${ogImage}`;
   }
  
   return {

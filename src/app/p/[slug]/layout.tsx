@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import PartnerHeader from '@/components/partner/PartnerHeader';
 import PartnerFooter from '@/components/partner/PartnerFooter';
 import { Metadata } from 'next';
+import { SITE_URL, GLOBAL_OG_IMAGE } from '@/lib/constants';
 
 const db = getFirestore(firebaseApp);
 
@@ -50,8 +51,6 @@ async function getPartnerBySlug(slug: string): Promise<User | null> {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const partner = await getPartnerBySlug(slug);
-  const siteUrl = 'https://www.myacc.co.za';
-  const fallbackImg = `${siteUrl}/og-image.jpg`;
 
   if (!partner) return { title: 'Practice Not Found' };
 
@@ -59,20 +58,20 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const title = lp?.metaTitle || `${partner.companyName || partner.name} | Professional Accounting & Tax`;
   const description = lp?.metaDescription || lp?.heroSubtitle;
   
-  let ogImage = lp?.heroImageUrl || fallbackImg;
+  let ogImage = lp?.heroImageUrl || GLOBAL_OG_IMAGE;
   if (ogImage.startsWith('/')) {
-    ogImage = `${siteUrl}${ogImage}`;
+    ogImage = `${SITE_URL}${ogImage}`;
   }
 
   return {
-    title,
-    description,
+    title: title,
+    description: description,
     alternates: {
-        canonical: `${siteUrl}/p/${slug}`,
+        canonical: `${SITE_URL}/p/${slug}`,
     },
     openGraph: {
-      title,
-      description,
+      title: title,
+      description: description,
       images: [{
         url: ogImage,
         width: 1200,
@@ -80,7 +79,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         alt: title
       }],
       type: 'website',
-      url: `${siteUrl}/p/${slug}`,
+      url: `${SITE_URL}/p/${slug}`,
       siteName: partner.companyName || partner.name,
       locale: 'en_ZA',
     },

@@ -1,4 +1,3 @@
-
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -10,12 +9,10 @@ import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 import ExternalScripts from '@/components/layout/ExternalScripts';
 import Script from 'next/script';
 import { generateOrganizationSchema } from '@/lib/schema/productSchema';
-
-// Using the provided brand image as the global fallback for social sharing
-const GLOBAL_OG_IMAGE = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778842309292-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(1).png?alt=media&token=f64e0df6-ab06-4ebb-9470-e15c9f827437';
+import { SITE_URL, GLOBAL_OG_IMAGE } from '@/lib/constants';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://www.myacc.co.za'),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'My Accountant | Professional Accounting & Tax Services',
     template: '%s | My Accountant',
@@ -23,12 +20,12 @@ export const metadata: Metadata = {
   description: 'Professional online tax, accounting, CIPC, SARS and compliance services for South African businesses.',
   keywords: ['accounting', 'tax services', 'CIPC', 'SARS', 'bookkeeping', 'South Africa'],
   alternates: {
-    canonical: 'https://www.myacc.co.za',
+    canonical: SITE_URL,
   },
   openGraph: {
     title: 'My Accountant | South African Tax, Accounting & Compliance Services',
     description: 'Professional online tax, accounting, CIPC, SARS and compliance services for South African businesses.',
-    url: 'https://www.myacc.co.za',
+    url: SITE_URL,
     siteName: 'My Accountant',
     images: [
       {

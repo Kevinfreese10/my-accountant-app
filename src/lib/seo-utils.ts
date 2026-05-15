@@ -1,7 +1,7 @@
-
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Metadata } from 'next';
+import { SITE_URL, GLOBAL_OG_IMAGE } from './constants';
 
 const db = getFirestore(firebaseApp);
 
@@ -10,15 +10,11 @@ const db = getFirestore(firebaseApp);
  * Ensures absolute URLs and explicit image objects for og:image to satisfy social scrapers.
  */
 export async function getStaticPageMetadata(pageId: string, defaults: Metadata): Promise<Metadata> {
-  const siteUrl = 'https://www.myacc.co.za';
-  const canonicalUrl = `${siteUrl}${pageId === 'home' ? '' : `/${pageId}`}`;
+  const canonicalUrl = `${SITE_URL}${pageId === 'home' ? '' : `/${pageId}`}`;
   
-  // Using the primary brand image as the fallback for reliability
-  const globalFallbackImg = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778842309292-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(1).png?alt=media&token=f64e0df6-ab06-4ebb-9470-e15c9f827437';
-
   let title = String(defaults.title || 'My Accountant');
   let description = String(defaults.description || '');
-  let imageUrl = globalFallbackImg;
+  let imageUrl = GLOBAL_OG_IMAGE;
   let imageAlt = title;
 
   try {
@@ -31,8 +27,9 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
       description = String(data.metaDescription || data.description || description);
       if (data.seoImageUrl) {
         imageUrl = data.seoImageUrl;
+        // Ensure URL is absolute
         if (imageUrl.startsWith('/')) {
-            imageUrl = `${siteUrl}${imageUrl}`;
+            imageUrl = `${SITE_URL}${imageUrl}`;
         }
       }
       imageAlt = data.seoImageLabel || title;
