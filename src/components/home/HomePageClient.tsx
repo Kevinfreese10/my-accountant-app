@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -11,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Rocket, ShieldCheck, Wallet, Clock, Search, Loader2, CheckCircle2, ArrowRight, Calculator, Users, Landmark, Scale, Building } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Clock, Search, Loader2, CheckCircle2, ArrowRight, Calculator, Users, Landmark, Scale, Building, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { Service } from '@/lib/types';
@@ -286,6 +287,27 @@ export default function HomePageClient() {
       </section>
 
       <TrustIndexWidget />
+
+      {/* Location SEO Section */}
+      <section className="container mx-auto px-4 py-12 bg-white">
+        <div className="max-w-4xl mx-auto text-center space-y-6">
+            <div className="flex items-center justify-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
+                <MapPin className="h-4 w-4" /> Based in Gauteng
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">Accounting Firm in Randburg, Johannesburg</h2>
+            <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
+                <p>
+                    My Accountant is based in Randburg, Johannesburg and provides online accounting and tax services across South Africa. Our digital platform allows clients nationwide to securely upload documents, purchase services online and communicate directly with our team.
+                </p>
+                <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-semibold text-slate-500 uppercase tracking-tighter">
+                    <span>• Accountant Randburg</span>
+                    <span>• Accountants Johannesburg</span>
+                    <span>• Tax Consultant Johannesburg</span>
+                    <span>• Bookkeeping Randburg</span>
+                </div>
+            </div>
+        </div>
+      </section>
 
       {/* About Section */}
       <section id="about" className="container mx-auto px-4 py-8 scroll-m-20">
