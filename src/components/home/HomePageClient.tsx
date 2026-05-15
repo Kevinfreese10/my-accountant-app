@@ -152,50 +152,48 @@ export default function HomePageClient() {
       {/* About Section */}
       <section id="about" className="container mx-auto px-4 py-16 scroll-m-20">
         <div className="max-w-4xl mx-auto text-center space-y-12">
-            <div className="space-y-4">
-                <h2 className="text-4xl font-bold tracking-tight">About My Accountant</h2>
-                <p className="text-xl text-muted-foreground font-medium">Your dynamic partner in conquering the financial world.</p>
-            </div>
-            
-            <div className="space-y-6 text-lg text-muted-foreground leading-relaxed text-left sm:text-center">
-                <p>
-                    Welcome to My Accountant—your dynamic partner in conquering the financial world. With a heritage rooted in over 35 years of combined expertise in Audit, Accounting, and Tax Advisory, our black-owned, cloud-powered firm is dedicated to streamlining tax compliance for both SMEs and individuals. Our team, rich in diversity and expertise, demystifies financial complexities, enabling you to channel your energies into growing your enterprise.
-                </p>
-                <p>
-                    At My Accountant we go beyond accounting; we’re your partners in progress, equipped with the latest tech and deep insights to propel your business forward. Embrace a financial journey marked by growth, clarity, and success with us. Let’s navigate the path to your financial empowerment together, making every step towards achieving your business ambitions a confident stride into a prosperous future.
-                </p>
+            <div className="space-y-6">
+                <div className="space-y-4">
+                    <h2 className="text-4xl font-bold tracking-tight">About My Accountant</h2>
+                    <p className="text-xl text-muted-foreground font-medium">Your dynamic partner in conquering the financial world.</p>
+                </div>
+                
+                <div className="space-y-6 text-lg text-muted-foreground leading-relaxed text-left sm:text-center">
+                    <p>
+                        Welcome to My Accountant—your dynamic partner in conquering the financial world. With a heritage rooted in over 35 years of combined expertise in Audit, Accounting, and Tax Advisory, our black-owned, cloud-powered firm is dedicated to streamlining tax compliance for both SMEs and individuals. Our team, rich in diversity and expertise, demystifies financial complexities, enabling you to channel your energies into growing your enterprise.
+                    </p>
+                    <p>
+                        At My Accountant we go beyond accounting; we’re your partners in progress, equipped with the latest tech and deep insights to propel your business forward. Embrace a financial journey marked by growth, clarity, and success with us. Let’s navigate the path to your financial empowerment together, making every step towards achieving your business ambitions a confident stride into a prosperous future.
+                    </p>
+                </div>
             </div>
 
             <Separator className="max-w-xs mx-auto" />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-                <Card className="border-2 transition-all hover:border-primary/20">
-                    <CardHeader>
-                        <CardTitle className="text-2xl font-bold">Our Vision</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4 text-muted-foreground leading-relaxed">
-                        <p>
-                            Our vision at My Accountant is to redefine excellence in financial services, grounded in integrity, transparency, and professionalism. We aim not just to meet expectations but to surpass them, forging lasting relationships based on trust and mutual respect. We’re committed to your long-term success, employing a forward-thinking strategy to stay ahead of financial trends and provide solutions that cater to your evolving needs.
-                        </p>
-                        <p>
-                            As your trusted partners, we’re dedicated to your growth, offering personalized guidance through every financial challenge and opportunity. Our mission is to empower you with the knowledge and strategies for lasting prosperity, ensuring you navigate the future with confidence. Join us in a journey toward achieving your highest potential, where commitment to excellence and client success lights the way. Together, let’s build a legacy of success and achieve greatness.
-                        </p>
-                    </CardContent>
-                </Card>
+            <div className="space-y-6">
+                <h3 className="text-3xl font-bold tracking-tight">Our Vision</h3>
+                <div className="space-y-6 text-lg text-muted-foreground leading-relaxed text-left sm:text-center">
+                    <p>
+                        Our vision at My Accountant is to redefine excellence in financial services, grounded in integrity, transparency, and professionalism. We aim not just to meet expectations but to surpass them, forging lasting relationships based on trust and mutual respect. We’re committed to your long-term success, employing a forward-thinking strategy to stay ahead of financial trends and provide solutions that cater to your evolving needs.
+                    </p>
+                    <p>
+                        As your trusted partners, we’re dedicated to your growth, offering personalized guidance through every financial challenge and opportunity. Our mission is to empower you with the knowledge and strategies for lasting prosperity, ensuring you navigate the future with confidence. Join us in a journey toward achieving your highest potential, where commitment to excellence and client success lights the way. Together, let’s build a legacy of success and achieve greatness.
+                    </p>
+                </div>
+            </div>
 
-                <Card className="border-2 transition-all hover:border-primary/20">
-                    <CardHeader>
-                        <CardTitle className="text-2xl font-bold">Our Mission</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4 text-muted-foreground leading-relaxed">
-                        <p>
-                            Our mission at My Accountant is to set a new standard in financial and professional services, driven by our core values of integrity, transparency, and professionalism. We’re committed to not just meeting, but exceeding your expectations, building a foundation of trust and reliability with every interaction.
-                        </p>
-                        <p>
-                            We see your success as a journey, not just a destination. That’s why we’re dedicated to supporting both your immediate and future financial goals with our forward-thinking approach. Our team is passionate about providing personalized solutions that cater to your unique needs, empowering you to navigate the complexities of finance with confidence.
-                        </p>
-                    </CardContent>
-                </Card>
+            <Separator className="max-w-xs mx-auto" />
+
+            <div className="space-y-6">
+                <h3 className="text-3xl font-bold tracking-tight">Our Mission</h3>
+                <div className="space-y-6 text-lg text-muted-foreground leading-relaxed text-left sm:text-center">
+                    <p>
+                        Our mission at My Accountant is to set a new standard in financial and professional services, driven by our core values of integrity, transparency, and professionalism. We’re committed to not just meeting, but exceeding your expectations, building a foundation of trust and reliability with every interaction.
+                    </p>
+                    <p>
+                        We see your success as a journey, not just a destination. That’s why we’re dedicated to supporting both your immediate and future financial goals with our forward-thinking approach. Our team is passionate about providing personalized solutions that cater to your unique needs, empowering you to navigate the complexities of finance with confidence.
+                    </p>
+                </div>
             </div>
         </div>
       </section>
