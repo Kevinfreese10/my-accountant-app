@@ -21,6 +21,12 @@ import { firebaseApp } from '@/lib/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { Separator } from '../ui/separator';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 
 const db = getFirestore(firebaseApp);
 
@@ -170,31 +176,39 @@ export default function HomePageClient() {
 
             <Separator className="max-w-xs mx-auto" />
 
-            <div className="space-y-6">
-                <h3 className="text-3xl font-bold tracking-tight">Our Vision</h3>
-                <div className="space-y-6 text-lg text-muted-foreground leading-relaxed text-left sm:text-center">
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="vision" className="border-none">
+                <AccordionTrigger className="text-3xl font-bold tracking-tight hover:no-underline justify-center gap-4">
+                  Our Vision
+                </AccordionTrigger>
+                <AccordionContent className="text-lg text-muted-foreground leading-relaxed text-left sm:text-center pt-4">
+                  <div className="space-y-6">
                     <p>
                         Our vision at My Accountant is to redefine excellence in financial services, grounded in integrity, transparency, and professionalism. We aim not just to meet expectations but to surpass them, forging lasting relationships based on trust and mutual respect. We’re committed to your long-term success, employing a forward-thinking strategy to stay ahead of financial trends and provide solutions that cater to your evolving needs.
                     </p>
                     <p>
                         As your trusted partners, we’re dedicated to your growth, offering personalized guidance through every financial challenge and opportunity. Our mission is to empower you with the knowledge and strategies for lasting prosperity, ensuring you navigate the future with confidence. Join us in a journey toward achieving your highest potential, where commitment to excellence and client success lights the way. Together, let’s build a legacy of success and achieve greatness.
                     </p>
-                </div>
-            </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-            <Separator className="max-w-xs mx-auto" />
-
-            <div className="space-y-6">
-                <h3 className="text-3xl font-bold tracking-tight">Our Mission</h3>
-                <div className="space-y-6 text-lg text-muted-foreground leading-relaxed text-left sm:text-center">
+              <AccordionItem value="mission" className="border-none">
+                <AccordionTrigger className="text-3xl font-bold tracking-tight hover:no-underline justify-center gap-4">
+                  Our Mission
+                </AccordionTrigger>
+                <AccordionContent className="text-lg text-muted-foreground leading-relaxed text-left sm:text-center pt-4">
+                  <div className="space-y-6">
                     <p>
                         Our mission at My Accountant is to set a new standard in financial and professional services, driven by our core values of integrity, transparency, and professionalism. We’re committed to not just meeting, but exceeding your expectations, building a foundation of trust and reliability with every interaction.
                     </p>
                     <p>
                         We see your success as a journey, not just a destination. That’s why we’re dedicated to supporting both your immediate and future financial goals with our forward-thinking approach. Our team is passionate about providing personalized solutions that cater to your unique needs, empowering you to navigate the complexities of finance with confidence.
                     </p>
-                </div>
-            </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
         </div>
       </section>
 
