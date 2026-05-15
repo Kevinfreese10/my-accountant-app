@@ -11,7 +11,7 @@ import Script from 'next/script';
 import { generateOrganizationSchema } from '@/lib/schema/productSchema';
 
 // Using the provided brand image as the global fallback for social sharing
-const GLOBAL_OG_IMAGE = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778839771858-WWW.MYACC.CO.ZA%20(3).png?alt=media&token=474f3c05-f9b7-479b-843b-89cf719f9240';
+const GLOBAL_OG_IMAGE = 'https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778841517299-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner.png?alt=media&token=70d6af1c-faef-4964-b0bc-4a7bca97a302';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.myacc.co.za'),

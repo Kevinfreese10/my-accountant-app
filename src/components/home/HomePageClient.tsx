@@ -137,15 +137,15 @@ export default function HomePageClient() {
 
   return (
     <div className="space-y-16 pb-16">
-      {/* Hero Section */}
-      <section className="relative min-h-[500px] lg:min-h-[650px] flex items-center overflow-hidden">
+      {/* Hero Section - Aspect ratio ensures full visibility on mobile without cropping */}
+      <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
         <Image 
-          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778839771858-WWW.MYACC.CO.ZA%20(3).png?alt=media&token=474f3c05-f9b7-479b-843b-89cf719f9240"
-          alt="My Accountant Professional Services"
+          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778841517299-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner.png?alt=media&token=70d6af1c-faef-4964-b0bc-4a7bca97a302"
+          alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
           fill
           priority
-          className="object-cover"
-          data-ai-hint="accounting office"
+          className="object-contain lg:object-cover"
+          data-ai-hint="accounting banner"
         />
       </section>
 
