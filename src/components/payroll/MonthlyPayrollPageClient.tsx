@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, ShieldCheck, Users, Receipt, Landmark, CalendarDays, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+import { Separator } from '@/components/ui/separator';
 
 export default function MonthlyPayrollPageClient() {
   const features = [
