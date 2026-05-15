@@ -30,7 +30,8 @@ import {
   Camera,
   User,
   Utensils,
-  ShoppingCart
+  ShoppingCart,
+  BookMarked
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
@@ -48,6 +49,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { useBlog } from '@/contexts/BlogContext';
+import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 
@@ -72,6 +75,7 @@ export default function HomePageClient() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const { blogPosts, isLoading: isBlogLoading } = useBlog();
   
   useEffect(() => {
     const fetchData = async () => {
@@ -402,6 +406,62 @@ export default function HomePageClient() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
       </section>
 
+      {/* Blog Section */}
+      <section className="container mx-auto px-4 py-16">
+          <div className="text-center mb-12 space-y-4">
+              <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Resources</Badge>
+              <h2 className="text-4xl font-bold tracking-tight text-slate-900">Latest from our Tax Tip Blog</h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Stay updated with the latest South African tax and compliance news.</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {isBlogLoading ? (
+                  <div className="col-span-full flex justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+              ) : (
+                  blogPosts.slice(0, 3).map((post) => (
+                      <Card key={post.id} className="flex flex-col overflow-hidden group hover:shadow-xl transition-all duration-300 border shadow-sm">
+                          <Link href={`/blog/${post.slug}`} className="relative h-48 block overflow-hidden">
+                              <Image 
+                                  src={post.imageUrl} 
+                                  alt={post.title} 
+                                  fill 
+                                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                                  data-ai-hint={post.imageHint}
+                              />
+                          </Link>
+                          <CardHeader className="pb-4">
+                              <CardTitle className="text-xl leading-tight group-hover:text-primary transition-colors line-clamp-2">
+                                  <Link href={`/blog/${post.slug}`}>{post.title}</Link>
+                              </CardTitle>
+                              <CardDescription className="flex items-center gap-2 text-xs font-medium uppercase tracking-tighter pt-1">
+                                  <Clock className="h-3 w-3" />
+                                  {format(new Date(post.date), 'dd MMMM yyyy')}
+                              </CardDescription>
+                          </CardHeader>
+                          <CardContent className="flex-grow">
+                              <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{post.excerpt}</p>
+                          </CardContent>
+                          <CardFooter className="pt-0">
+                              <Button variant="link" asChild className="p-0 h-auto font-bold text-primary group-hover:translate-x-1 transition-transform">
+                                  <Link href={`/blog/${post.slug}`}>
+                                      Read Article <ArrowRight className="ml-2 h-4 w-4" />
+                                  </Link>
+                              </Button>
+                          </CardFooter>
+                      </Card>
+                  ))
+              )}
+          </div>
+          
+          <div className="mt-12 text-center">
+              <Button asChild variant="outline" size="lg" className="font-bold h-12 px-10 border-2 border-primary/20 text-primary hover:bg-primary/5 transition-all">
+                  <Link href="/blog">View All Tax Tips</Link>
+              </Button>
+          </div>
+      </section>
+
       <TrustIndexWidget />
 
       {/* About Section */}
@@ -409,7 +469,7 @@ export default function HomePageClient() {
         <div className="max-w-4xl mx-auto text-center space-y-12">
             <div className="space-y-6">
                 <div className="space-y-4">
-                    <h2 className="text-4xl font-bold tracking-tight">About My Accountant</h2>
+                    <h2 className="text-4xl font-bold tracking-tight text-slate-900">About My Accountant</h2>
                     <p className="text-xl text-muted-foreground font-medium">Your dynamic partner in conquering the financial world.</p>
                 </div>
                 
@@ -464,7 +524,7 @@ export default function HomePageClient() {
       <section className="bg-background pt-8">
          <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Why Choose My Accountant?</h2>
+                <h2 className="text-3xl font-bold text-slate-900">Why Choose My Accountant?</h2>
                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
                     We're committed to providing you with the best service possible.
                 </p>
@@ -476,7 +536,7 @@ export default function HomePageClient() {
                             <item.icon className="h-8 w-8 text-primary" />
                         </div>
                         <div>
-                            <h3 className="font-semibold">{item.title}</h3>
+                            <h3 className="font-semibold text-slate-900">{item.title}</h3>
                             <p className="text-sm text-muted-foreground">{item.description}</p>
                         </div>
                     </div>
@@ -514,14 +574,14 @@ export default function HomePageClient() {
                 categorizedServices.map(category => (
                 <section key={category.id} id={category.name.toLowerCase().replace(/ /g, '-')}>
                     <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold">{category.name}</h2>
+                        <h2 className="text-3xl font-bold text-slate-900">{category.name}</h2>
                         <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
                             {category.description}
                         </p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {category.data.map(service => (
-                        <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 border">
+                        <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 border shadow-sm">
                             <CardHeader className="space-y-2 pb-4">
                                 <CardTitle className="text-2xl font-bold leading-tight group-hover:text-primary transition-colors">
                                     {service.title}
@@ -550,7 +610,7 @@ export default function HomePageClient() {
                                         {(service.whatsIncluded || []).slice(0, 3).map((item, i) => (
                                             <li key={i} className="flex items-start text-xs opacity-90">
                                                 <CheckCircle2 className="h-4 w-4 mr-3 mt-0.5 text-primary flex-shrink-0" />
-                                                <span className="leading-tight">{item}</span>
+                                                <span className="leading-tight text-slate-700">{item}</span>
                                             </li>
                                         ))}
                                     </ul>
