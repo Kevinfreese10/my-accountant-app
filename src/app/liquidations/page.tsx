@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, ShieldCheck, Scale, Users, FileText } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Metadata } from 'next';
 import { getStaticPageMetadata } from '@/lib/seo-utils';
 
@@ -63,22 +64,48 @@ export default function LiquidationsPage() {
     },
   ];
 
+  const keywordButtons = [
+    { label: 'Entity Registrations', href: '/products#entity-registrations' },
+    { label: 'SARS Services', href: '/products#sars-services' },
+    { label: 'CIPC Services', href: '/products#cipc-services' },
+    { label: 'Accounting Services', href: '/products#accounting-services' },
+    { label: 'Payroll Services', href: '/products#payroll-services' },
+  ];
+
   return (
     <div className="space-y-16 pb-16">
-      <section className="bg-background">
-        <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
+      {/* Hero Image Section */}
+      <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
+        <Image 
+          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
+          alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
+          fill
+          priority
+          className="object-contain lg:object-cover"
+        />
+      </section>
+
+      {/* Hero Content Section */}
+      <section className="container mx-auto px-4 text-center">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <h1 className="text-3xl font-extrabold tracking-tight md:text-5xl lg:text-6xl text-slate-900">
             Liquidation Services in South Africa
           </h1>
-          <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
-            Simple, Compliant & Stress-Free Company Closures. Closing a company doesn’t have to be complicated or overwhelming. At My Accountant, we provide professional liquidation services to help directors, shareholders, and business owners wind up companies legally, efficiently, and with peace of mind.
+          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
+            Simple, Compliant & Stress-Free Company Closures. We guide you through the process from start to finish—ensuring full compliance with CIPC and SARS.
           </p>
-           <p className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto">
-            Whether your company is solvent or insolvent, we guide you through the process from start to finish—ensuring full compliance with CIPC, SARS, and applicable legislation.
-          </p>
-          <Button asChild size="lg" className="mt-8">
-            <Link href="/contact">Get Professional Advice</Link>
-          </Button>
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
+            <Button asChild size="lg" className="font-bold px-10">
+                <Link href="/contact">Get Professional Advice</Link>
+            </Button>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3 pt-6">
+            {keywordButtons.map((btn) => (
+              <Button key={btn.label} asChild variant="outline" className="h-9 md:h-11 px-4 md:px-6 rounded-full font-bold transition-all text-xs md:text-sm">
+                <Link href={btn.href}>{btn.label}</Link>
+              </Button>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -88,7 +115,7 @@ export default function LiquidationsPage() {
             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
               A liquidation is the formal legal process of closing a company by settling its affairs, paying creditors (where applicable), and removing it from the Companies Register. Liquidation may be appropriate when:
             </p>
-            <ul className="mt-4 text-muted-foreground list-disc list-inside inline-block text-left">
+            <ul className="mt-4 text-muted-foreground list-disc list-inside inline-block text-left text-sm space-y-1">
                 <li>The company is no longer trading</li>
                 <li>The business is financially distressed</li>
                 <li>Shareholders wish to exit the business</li>
@@ -179,8 +206,8 @@ export default function LiquidationsPage() {
                             <benefit.icon className="h-8 w-8 text-primary" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-semibold">{benefit.title}</h3>
-                            <p className="text-sm text-muted-foreground mt-1">{benefit.description}</p>
+                            <h3 className="font-semibold">{benefit.title}</h3>
+                            <p className="text-xs text-muted-foreground mt-1">{benefit.description}</p>
                         </div>
                     </div>
                 ))}
@@ -194,7 +221,7 @@ export default function LiquidationsPage() {
                         <CardTitle>Important Things Directors Should Know</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-muted-foreground">
-                        <ul className="list-disc pl-6 space-y-2">
+                        <ul className="list-disc pl-6 space-y-2 text-sm">
                             <li>Liquidation does not automatically remove director liability</li>
                             <li>Outstanding tax returns and compliance issues must still be addressed</li>
                             <li>Early professional advice can prevent unnecessary personal exposure</li>
@@ -207,8 +234,8 @@ export default function LiquidationsPage() {
                         <CardTitle>Documents Typically Required</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-muted-foreground">
-                        <p>While requirements differ by case, we usually need:</p>
-                        <ul className="list-disc pl-6 space-y-1">
+                        <p className="text-sm">While requirements differ by case, we usually need:</p>
+                        <ul className="list-disc pl-6 space-y-1 text-sm">
                             <li>Company registration details</li>
                             <li>Latest financial statements (if available)</li>
                             <li>List of assets and liabilities</li>

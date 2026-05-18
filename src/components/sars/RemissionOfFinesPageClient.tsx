@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { CheckCircle, ShieldCheck, Scale, FileText, BadgeDollarSign, FileWarning } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 
 export default function RemissionOfFinesPageClient() {
@@ -63,19 +64,48 @@ export default function RemissionOfFinesPageClient() {
     }
   ];
 
+  const keywordButtons = [
+    { label: 'Entity Registrations', href: '/products#entity-registrations' },
+    { label: 'SARS Services', href: '/products#sars-services' },
+    { label: 'CIPC Services', href: '/products#cipc-services' },
+    { label: 'Accounting Services', href: '/products#accounting-services' },
+    { label: 'Payroll Services', href: '/products#payroll-services' },
+  ];
+
   return (
     <div className="space-y-16 pb-16">
-      <section className="bg-background">
-        <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
-            Remission of <span className="text-gradient">#Fines</span> & Penalties
+      {/* Hero Image Section */}
+      <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
+        <Image 
+          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
+          alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
+          fill
+          priority
+          className="object-contain lg:object-cover"
+        />
+      </section>
+
+      {/* Hero Content Section */}
+      <section className="container mx-auto px-4 text-center">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <h1 className="text-3xl font-extrabold tracking-tight md:text-5xl lg:text-6xl text-slate-900">
+            Remission of <span className="text-primary">#Fines</span> & Penalties
           </h1>
-           <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
-            Get your tax penalties waived. SARS penalties can be aggressive, but they are not always final. If you have been hit with administrative or understatement penalties, you have the right to request a remission.
+          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
+            Get your tax penalties waived. SARS penalties can be aggressive, but they are not always final. If you have been hit with penalties, you have the right to request a remission.
           </p>
-          <Button asChild size="lg" className="mt-8">
-            <Link href="/contact">Request a Penalty Review</Link>
-          </Button>
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
+            <Button asChild size="lg" className="font-bold px-10">
+                <Link href="/contact">Request a Penalty Review</Link>
+            </Button>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3 pt-6">
+            {keywordButtons.map((btn) => (
+              <Button key={btn.label} asChild variant="outline" className="h-9 md:h-11 px-4 md:px-6 rounded-full font-bold transition-all text-xs md:text-sm">
+                <Link href={btn.href}>{btn.label}</Link>
+              </Button>
+            ))}
+          </div>
         </div>
       </section>
 

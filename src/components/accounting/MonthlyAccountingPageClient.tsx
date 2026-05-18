@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, ShieldCheck, BarChart3, Calculator, Clock, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 
 export default function MonthlyAccountingPageClient() {
@@ -49,23 +50,43 @@ export default function MonthlyAccountingPageClient() {
     },
   ];
 
+  const keywordButtons = [
+    { label: 'Entity Registrations', href: '/products#entity-registrations' },
+    { label: 'SARS Services', href: '/products#sars-services' },
+    { label: 'CIPC Services', href: '/products#cipc-services' },
+    { label: 'Accounting Services', href: '/products#accounting-services' },
+    { label: 'Payroll Services', href: '/products#payroll-services' },
+  ];
+
   return (
     <div className="space-y-16 pb-16">
-      <section className="bg-slate-900 text-white">
-        <div className="container mx-auto px-4 py-16 lg:py-24 text-center">
-          <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
+      {/* Hero Image Section */}
+      <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
+        <Image 
+          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
+          alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
+          fill
+          priority
+          className="object-contain lg:object-cover"
+        />
+      </section>
+
+      {/* Hero Content Section */}
+      <section className="container mx-auto px-4 text-center">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl text-slate-900">
             Monthly <span className="text-primary">#Accounting</span> & Bookkeeping
           </h1>
-          <p className="mt-6 text-xl text-slate-300 max-w-3xl mx-auto">
+          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
             Focus on your business, we&apos;ll handle the numbers. Our monthly accounting packages provide SMEs with the accurate data and compliance support needed to scale.
           </p>
-          <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
-            <Button asChild size="lg" className="h-12 px-8 font-bold">
-              <Link href="/contact">Get a Custom Quote</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 px-8 font-bold text-white border-white hover:bg-white hover:text-slate-900">
-              <Link href="/products#accounting-services">View All Packages</Link>
-            </Button>
+          
+          <div className="flex flex-wrap justify-center gap-3 pt-4">
+            {keywordButtons.map((btn) => (
+              <Button key={btn.label} asChild variant="outline" className="h-9 md:h-11 px-4 md:px-6 rounded-full font-bold transition-all text-xs md:text-sm">
+                <Link href={btn.href}>{btn.label}</Link>
+              </Button>
+            ))}
           </div>
         </div>
       </section>

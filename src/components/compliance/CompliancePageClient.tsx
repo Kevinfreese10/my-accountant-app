@@ -22,6 +22,7 @@ import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import { format } from 'date-fns';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 const db = getFirestore(firebaseApp);
@@ -182,24 +183,49 @@ export default function CompliancePageClient() {
     { title: 'Common mistakes fixed', description: 'We identify issues before they affect you.', icon: FileWarning },
   ];
 
+  const keywordButtons = [
+    { label: 'Entity Registrations', href: '/products#entity-registrations' },
+    { label: 'SARS Services', href: '/products#sars-services' },
+    { label: 'CIPC Services', href: '/products#cipc-services' },
+    { label: 'Accounting Services', href: '/products#accounting-services' },
+    { label: 'Payroll Services', href: '/products#payroll-services' },
+  ];
+
   return (
      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <div className="space-y-6 pb-16">
-        <section>
-            <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
-            <div className="space-y-6 text-center">
-                <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-foreground">
-                Free <span className="text-gradient">#Compliance</span> Check
+        <div className="space-y-16 pb-16">
+        {/* Hero Image Section */}
+        <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
+            <Image 
+                src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
+                alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
+                fill
+                priority
+                className="object-contain lg:object-cover"
+            />
+        </section>
+
+        {/* Hero Content Section */}
+        <section className="container mx-auto px-4 text-center">
+            <div className="max-w-4xl mx-auto space-y-6">
+                <h1 className="text-3xl font-extrabold tracking-tight md:text-5xl lg:text-6xl text-slate-900">
+                    Free <span className="text-gradient">#Compliance</span> Check
                 </h1>
-                <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                Ensure your business is compliant with CIPC and SARS. Enter your details below for a free assessment and get 5% off your next service.
+                <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
+                    Ensure your business is compliant with CIPC and SARS. Enter your details for a free assessment and get 5% off your next service.
                 </p>
-                <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-                <DialogTrigger asChild>
-                    <Button size="lg">Get My Free Assessment</Button>
-                </DialogTrigger>
+                <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
+                    <DialogTrigger asChild>
+                        <Button size="lg" className="font-bold px-10">Get My Free Assessment</Button>
+                    </DialogTrigger>
                 </div>
-            </div>
+                <div className="flex flex-wrap justify-center gap-3 pt-6">
+                    {keywordButtons.map((btn) => (
+                    <Button key={btn.label} asChild variant="outline" className="h-9 md:h-11 px-4 md:px-6 rounded-full font-bold transition-all text-xs md:text-sm">
+                        <Link href={btn.href}>{btn.label}</Link>
+                    </Button>
+                    ))}
+                </div>
             </div>
         </section>
 
