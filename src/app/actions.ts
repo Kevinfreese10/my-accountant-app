@@ -1,8 +1,8 @@
 'use server';
 
-import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, setDoc, writeBatch, serverTimestamp, addDoc, deleteField, increment, limit } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task, DocumentUpload, DemoLead } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload, DemoLead, ImportedTransaction, SmartAllocationResult, AllocationRule, ClientCustomer, Employee, Payslip } from '@/lib/types';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import React from 'react';
@@ -11,6 +11,7 @@ import { DocumentReviewEmail } from '@/components/emails/DocumentReviewEmail';
 import { NewNoteNotificationEmail } from '@/components/emails/NewNoteNotificationEmail';
 import { OutstandingDocumentsEmail } from '@/components/emails/OutstandingDocumentsEmail';
 import { format, addDays, addMonths, addYears } from 'date-fns';
+import { BankCleaner } from '@/lib/bank-cleaner';
 
 const db = getFirestore(firebaseApp);
 
@@ -190,7 +191,7 @@ export async function generateNextTaskOccurrence(taskId: string) {
         const clientName = clientNameMatch ? clientNameMatch[1] : "";
         
         if (task.type === 'EMP201' || task.type === 'VAT201' || task.type === 'PAYROLL' || task.type === 'MGMT') {
-            const nextPeriod = addMonths(nextDueDate, task.type === 'MGMT' ? -1 : 0);
+            const periodDate = addMonths(nextDueDate, task.type === 'MGMT' ? -1 : 0);
             newTitle = `${task.type} Submission - ${format(periodDate, 'MMMM yyyy')} for ${clientName}`;
             if (task.type === 'PAYROLL') newTitle = `Payroll Preparation - ${format(periodDate, 'MMMM yyyy')} for ${clientName}`;
             if (task.type === 'MGMT') newTitle = `Management Accounts - ${format(periodDate, 'MMMM yyyy')} for ${clientName}`;
@@ -216,4 +217,463 @@ export async function generateNextTaskOccurrence(taskId: string) {
     };
 
     await addDoc(collection(db, 'tasks'), newTaskData);
+}
+
+// AI ACCOUNTANT ACTIONS
+
+export async function extractStatementChunk({ chunkBase64 }: { chunkBase64: string }) {
+    try {
+        const { extractStatementData } = await import('@/ai/flows/extract-statement-data');
+        const result = await extractStatementData({ statementFile: chunkBase64 });
+        return { success: true, transactions: result.transactions };
+    } catch (e) {
+        console.error("Chunk extraction failed:", e);
+        return { success: false, error: "Failed to extract data" };
+    }
+}
+
+export async function prepareAiAccountantAnalysis({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
+    const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+    const q = query(transRef, where('bankAccountId', '==', bankAccountId), where('status', '==', 'new'), where('isExpense', '==', true));
+    const snap = await getDocs(q);
+    
+    if (snap.empty) return { count: 0 };
+
+    const batch = writeBatch(db);
+    snap.docs.forEach(d => batch.update(d.ref, { status: 'ai_processing' }));
+    await batch.commit();
+
+    return { count: snap.size };
+}
+
+export async function runAiAccountantAnalysis({ clientId, bankAccountId, initiatorEmail }: { clientId: string, bankAccountId: string, initiatorEmail: string }) {
+    const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+    const q = query(transRef, where('bankAccountId', '==', bankAccountId), where('status', '==', 'ai_processing'));
+    const snap = await getDocs(q);
+
+    if (snap.empty) return;
+
+    const clientDoc = await getDoc(doc(db, 'aiAccountantClients', clientId));
+    const clientData = clientDoc.data() as User;
+    let allRules = [...(clientData.allocationRules || [])];
+    if (!clientData.disableGlobalRules) {
+        const globalSnap = await getDocs(collection(db, 'allocationRules'));
+        allRules = [...allRules, ...globalSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule))];
+    }
+
+    const batch = writeBatch(db);
+    for (const d of snap.docs) {
+        const tx = d.data() as ImportedTransaction;
+        const result = BankCleaner.process(tx.description);
+        
+        const match = allRules.find(r => r.keywords.some(kw => result.cleanDescription.includes(kw.toUpperCase())));
+        
+        if (match) {
+            batch.update(d.ref, {
+                ...result,
+                status: 'ai_review',
+                smartAllocationResult: {
+                    accountId: match.accountId,
+                    accountType: match.accountType || 'account',
+                    vatType: match.vatType,
+                    confidence: 100,
+                    summary: `Match found for rule keyword.`,
+                    ruleId: match.id,
+                    matchedKeyword: match.keywords.find(kw => result.cleanDescription.includes(kw.toUpperCase()))
+                },
+                allocationSource: 'rule'
+            });
+        } else {
+            batch.update(d.ref, {
+                ...result,
+                status: 'ai_review',
+                allocationSource: 'none'
+            });
+        }
+    }
+
+    await batch.commit();
+}
+
+export async function moveTransactionToNew({ clientId, transactionId }: { clientId: string, transactionId: string }) {
+    const txRef = doc(db, 'aiAccountantClients', clientId, 'transactions', transactionId);
+    await updateDoc(txRef, {
+        status: 'new',
+        allocatedTo: deleteField(),
+        vatType: deleteField(),
+        smartAllocationResult: deleteField(),
+        allocationSource: deleteField(),
+        merchantKey: deleteField(),
+        cleanDescription: deleteField(),
+        rawDescription: deleteField()
+    });
+}
+
+export async function bulkMoveTransactionsToNew({ clientId, transactionIds }: { clientId: string, transactionIds: string[] }) {
+    const batch = writeBatch(db);
+    transactionIds.forEach(id => {
+        const ref = doc(db, 'aiAccountantClients', clientId, 'transactions', id);
+        batch.update(ref, {
+            status: 'new',
+            allocatedTo: deleteField(),
+            vatType: deleteField(),
+            smartAllocationResult: deleteField(),
+            allocationSource: deleteField()
+        });
+    });
+    await batch.commit();
+    return { count: transactionIds.length };
+}
+
+export async function researchMerchantWithAi({ clientId, description, chartOfAccounts, isVatRegistered, isExpense }: any) {
+    const { suggestTransactionAllocation } = await import('@/ai/flows/suggest-transaction-allocation');
+    const res = await suggestTransactionAllocation({
+        description,
+        chartOfAccounts,
+        isVatRegistered
+    });
+    return res as SmartAllocationResult;
+}
+
+export async function updateGlobalMerchantDb(data: any) {
+    console.log("Global DB Update:", data);
+}
+
+export async function resetAiAccountantAnalysis({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
+    const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+    const q = query(transRef, where('bankAccountId', '==', bankAccountId), where('status', 'in', ['ai_processing', 'ai_review']));
+    const snap = await getDocs(q);
+    
+    if (snap.empty) return { count: 0 };
+
+    const batch = writeBatch(db);
+    snap.docs.forEach(d => batch.update(d.ref, { status: 'new', smartAllocationResult: deleteField() }));
+    await batch.commit();
+
+    return { count: snap.size };
+}
+
+export async function proposeRegroups({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
+    const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+    const q = query(transRef, where('bankAccountId', '==', bankAccountId), where('status', '==', 'ai_review'));
+    const snap = await getDocs(q);
+    
+    const txs = snap.docs.map(d => ({ ...d.data(), id: d.id } as ImportedTransaction));
+    const groups: Record<string, string[]> = {};
+    txs.forEach(t => {
+        if (!groups[t.merchantKey!]) groups[t.merchantKey!] = [];
+        groups[t.merchantKey!].push(t.id);
+    });
+
+    const proposals = [];
+    const keys = Object.keys(groups);
+    for (let i = 0; i < keys.length; i++) {
+        for (let j = i + 1; j < keys.length; j++) {
+            const sim = BankCleaner.getSimilarity(keys[i], keys[j]);
+            if (sim.score > 0.85) {
+                proposals.push({
+                    fromKey: keys[j],
+                    toKey: keys[i],
+                    fromImpact: groups[keys[j]].length,
+                    toImpact: groups[keys[i]].length,
+                    score: Math.round(sim.score * 100),
+                    confidence: 'High',
+                    reason: sim.reason,
+                    fromTxIds: groups[keys[j]],
+                    fromExamples: [txs.find(t => t.merchantKey === keys[j])?.description],
+                    toExamples: [txs.find(t => t.merchantKey === keys[i])?.description]
+                });
+            }
+        }
+    }
+    return proposals;
+}
+
+export async function applyRegroups({ clientId, merges, userId }: { clientId: string, merges: any[], userId: string }) {
+    const batch = writeBatch(db);
+    merges.forEach(m => {
+        m.fromTxIds.forEach((id: string) => {
+            const ref = doc(db, 'aiAccountantClients', clientId, 'transactions', id);
+            batch.update(ref, { merchantKey: m.toKey });
+        });
+    });
+    await batch.commit();
+}
+
+export async function proposeAiRegroups({ clientId, bankAccountId, selectedMerchantKeys }: any) {
+    const { aiSmartRegroup } = await import('@/ai/flows/ai-smart-regroup');
+    const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+    const q = query(transRef, where('bankAccountId', '==', bankAccountId), where('status', '==', 'ai_review'));
+    const snap = await getDocs(q);
+    
+    const txs = snap.docs.map(d => ({ ...d.data(), id: d.id } as ImportedTransaction));
+    const groupData: any[] = [];
+    const merchantMap: Record<string, string[]> = {};
+
+    txs.forEach(t => {
+        if (!merchantMap[t.merchantKey!]) {
+            merchantMap[t.merchantKey!] = [];
+            groupData.push({ key: t.merchantKey, example: t.description, count: 0 });
+        }
+        merchantMap[t.merchantKey!].push(t.id);
+    });
+
+    groupData.forEach(g => g.count = merchantMap[g.key].length);
+
+    const res = await aiSmartRegroup({ groups: groupData });
+    return res.proposals.map(p => ({
+        ...p,
+        fromTxIds: merchantMap[p.fromKey],
+        fromImpact: merchantMap[p.fromKey]?.length || 0,
+        toImpact: merchantMap[p.toKey]?.length || 0,
+        score: p.confidence,
+        reason: p.reasoning,
+        fromExamples: [txs.find(t => t.merchantKey === p.fromKey)?.description],
+        toExamples: [txs.find(t => t.merchantKey === p.toKey)?.description]
+    }));
+}
+
+export async function analyzeClientCommentAndSuggest({ clientId, transactionIds, comment, merchantKey, examples, chartOfAccounts, isVatRegistered }: any) {
+    const { analyzeClientComment } = await import('@/ai/flows/analyze-client-comment');
+    const res = await analyzeClientComment({
+        comment,
+        merchantKey,
+        examples,
+        chartOfAccounts,
+        isVatRegistered
+    });
+
+    const batch = writeBatch(db);
+    transactionIds.forEach((id: string) => {
+        const ref = doc(db, 'aiAccountantClients', clientId, 'transactions', id);
+        batch.update(ref, { 
+            clientComment: comment,
+            smartAllocationResult: {
+                accountId: res.accountId,
+                vatType: res.vatType,
+                confidence: res.confidence,
+                summary: `AI Analysis of client comment: ${res.reasoning}`
+            }
+        });
+    });
+    await batch.commit();
+
+    return res;
+}
+
+export async function matchTransactionsToSuppliers({ clientId, bankAccountId }: { clientId: string, bankAccountId: string }) {
+    const supSnap = await getDocs(collection(db, `aiAccountantClients/${clientId}/suppliers`));
+    const suppliers = supSnap.docs.map(d => ({ id: d.id, name: d.data().name.toUpperCase() }));
+
+    const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+    const q = query(transRef, where('bankAccountId', '==', bankAccountId), where('status', 'in', ['new', 'ai_review']), where('isExpense', '==', true));
+    const snap = await getDocs(q);
+
+    const batch = writeBatch(db);
+    let count = 0;
+
+    snap.docs.forEach(d => {
+        const tx = d.data() as ImportedTransaction;
+        const match = suppliers.find(s => tx.description.toUpperCase().includes(s.name) || BankCleaner.getSimilarity(tx.description, s.name).score > 0.9);
+        if (match) {
+            batch.update(d.ref, {
+                status: 'reviewed',
+                allocatedTo: { value: match.id, type: 'supplier' },
+                vatType: 'no_vat',
+                allocatedAt: serverTimestamp(),
+                allocationSource: 'manual'
+            });
+            count++;
+        }
+    });
+
+    if (count > 0) await batch.commit();
+    return { count };
+}
+
+export async function finalizeChatAllocation({ clientId, transactionId, accountId, vatType, explanation }: any) {
+    const txRef = doc(db, 'aiAccountantClients', clientId, 'transactions', transactionId);
+    await updateDoc(txRef, {
+        status: 'reviewed',
+        allocatedTo: { value: accountId, type: 'account' },
+        vatType: vatType,
+        clientExplanation: explanation,
+        allocatedAt: serverTimestamp(),
+        allocationSource: 'chat'
+    });
+}
+
+// AI PAYROLL ACTIONS
+
+export async function saveEmployeeAction({ clientId, employeeId, data }: { clientId: string, employeeId?: string, data: any }) {
+    try {
+        const targetRef = employeeId 
+            ? doc(db, 'aiPayrollClients', clientId, 'employees', employeeId)
+            : doc(collection(db, 'aiPayrollClients', clientId, 'employees'));
+        
+        await setDoc(targetRef, { ...data, updatedAt: serverTimestamp() }, { merge: true });
+        
+        if (!employeeId) {
+            const { PayrollService } = await import('@/services/PayrollService');
+            const baseValue = data.payType === 'Hourly' ? data.hourlyRate : data.basicSalary;
+            await PayrollService.generateInitialPayslip(clientId, targetRef.id, baseValue);
+        }
+
+        return { success: true, id: targetRef.id };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function generateEmployeePayslipAction({ clientId, employeeId, basicSalary, hours }: any) {
+    try {
+        const { PayrollService } = await import('@/services/PayrollService');
+        return await PayrollService.generateInitialPayslip(clientId, employeeId, basicSalary, hours);
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function updateDraftPayslipHoursAction({ clientId, employeeId, hours }: any) {
+    const psRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+    const q = query(psRef, where('employeeId', '==', employeeId), where('status', '==', 'draft'), limit(1));
+    const snap = await getDocs(q);
+    
+    if (snap.empty) throw new Error("No draft payslip found");
+
+    const ps = snap.docs[0].data() as Payslip;
+    const empSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'employees', employeeId));
+    const employee = empSnap.data() as Employee;
+    
+    const { PayrollService } = await import('@/services/PayrollService');
+    const freq = PayrollService.getFrequencyMultiplier(ps.frequency);
+    const baseValue = employee.payType === 'Hourly' ? employee.hourlyRate : employee.basicSalary;
+
+    const earnings = PayrollService.calculateEarningsList(employee, baseValue, ps.period, freq, hours);
+    const gross = earnings.reduce((s, i) => s + i.amount, 0);
+    const deductions = PayrollService.getInitialDeductions(gross, ps.period, freq);
+    const totalDeductions = deductions.reduce((s, i) => s + i.amount, 0);
+
+    await updateDoc(snap.docs[0].ref, {
+        earnings,
+        deductions,
+        grossPay: gross,
+        totalDeductions,
+        netPay: gross - totalDeductions,
+        hoursWorked: hours.normal
+    });
+
+    return { success: true };
+}
+
+export async function syncEmployeeSalaryToActivePayslipAction({ clientId, employeeId, newSalary, isNetSalary }: any) {
+    const psRef = collection(db, 'aiPayrollClients', clientId, 'payslips');
+    const q = query(psRef, where('employeeId', '==', employeeId), where('status', '==', 'draft'), limit(1));
+    const snap = await getDocs(q);
+    
+    if (snap.empty) return { success: false };
+
+    const ps = snap.docs[0].data() as Payslip;
+    const { PayrollService } = await import('@/services/PayrollService');
+    const freq = PayrollService.getFrequencyMultiplier(ps.frequency);
+
+    const empSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'employees', employeeId));
+    const employee = empSnap.data() as Employee;
+
+    const earnings = PayrollService.calculateEarningsList(employee, newSalary, ps.period, freq);
+    const gross = earnings.reduce((s, i) => s + i.amount, 0);
+    const deductions = PayrollService.getInitialDeductions(gross, ps.period, freq);
+    
+    await updateDoc(snap.docs[0].ref, {
+        earnings,
+        deductions,
+        grossPay: gross,
+        netPay: gross - deductions.reduce((s, i) => s + i.amount, 0)
+    });
+
+    return { success: true };
+}
+
+export async function updatePayslipAction({ clientId, payslipId, data }: { clientId: string, payslipId: string, data: any }) {
+    try {
+        const psRef = doc(db, 'aiPayrollClients', clientId, 'payslips', payslipId);
+        await updateDoc(psRef, { ...data, status: 'finalized', updatedAt: serverTimestamp() });
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function rollForwardPayrollAction({ clientId }: { clientId: string }) {
+    const clientRef = doc(db, 'aiPayrollClients', clientId);
+    const clientSnap = await getDoc(clientRef);
+    const client = clientSnap.data() as User;
+
+    const currentPeriod = client.firstProcessingMonth!;
+    const nextPeriod = format(addMonths(parse(currentPeriod, 'MMMM yyyy', new Date()), 1), 'MMMM yyyy');
+
+    const empsSnap = await getDocs(query(collection(db, 'aiPayrollClients', clientId, 'employees'), where('status', '==', 'Active')));
+    
+    const batch = writeBatch(db);
+    let created = 0;
+
+    for (const d of empsSnap.docs) {
+        const emp = d.data() as Employee;
+        const newPsRef = doc(collection(db, 'aiPayrollClients', clientId, 'payslips'));
+        batch.set(newPsRef, {
+            employeeId: d.id,
+            employeeName: `${emp.name} ${emp.surname}`,
+            period: nextPeriod,
+            status: 'draft',
+            createdAt: serverTimestamp(),
+            earnings: [],
+            deductions: [],
+            contributions: [],
+            fringeBenefits: [],
+            grossPay: 0,
+            totalDeductions: 0,
+            netPay: 0,
+            frequency: 'Monthly'
+        });
+        created++;
+    }
+
+    batch.update(clientRef, { firstProcessingMonth: nextPeriod });
+    await batch.commit();
+
+    return { success: true, nextPeriod, created };
+}
+
+export async function rollBackPayrollAction({ clientId }: { clientId: string }) {
+    const clientRef = doc(db, 'aiPayrollClients', clientId);
+    const clientSnap = await getDoc(clientRef);
+    const client = clientSnap.data() as User;
+
+    const currentPeriod = client.firstProcessingMonth!;
+    const prevPeriod = format(addMonths(parse(currentPeriod, 'MMMM yyyy', new Date()), -1), 'MMMM yyyy');
+
+    const psSnap = await getDocs(query(collection(db, 'aiPayrollClients', clientId, 'payslips'), where('period', '==', currentPeriod)));
+    
+    const batch = writeBatch(db);
+    psSnap.forEach(d => batch.delete(d.ref));
+    batch.update(clientRef, { firstProcessingMonth: prevPeriod });
+    
+    await batch.commit();
+
+    return { success: true, prevPeriod, deletedCount: psSnap.size };
+}
+
+export async function reactivatePracticeSubscription({ userId }: { userId: string }) {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+        'subscription.subscriptionStatus': 'active',
+        'subscription.subscriptionEndDate': Timestamp.fromDate(addMonths(new Date(), 1))
+    });
+    return { success: true };
+}
+
+function parse(str: string, fmt: string, base: Date) {
+    const parts = str.split(' ');
+    const m = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].indexOf(parts[0]);
+    return new Date(parseInt(parts[1]), m, 1);
 }
