@@ -1,8 +1,31 @@
-
 'use client';
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { useState, useEffect } from 'react';
+import { 
+  Rocket, 
+  ShieldCheck, 
+  Wallet, 
+  CheckCircle2, 
+  ArrowRight, 
+  Calculator, 
+  Users, 
+  Landmark, 
+  Building, 
+  MapPin,
+  ClipboardList,
+  RefreshCw,
+  Info,
+  Briefcase,
+  TrendingUp,
+  ShoppingCart,
+  FileUp,
+  Bot,
+  CheckCircle,
+  FileText,
+  Smartphone
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -13,646 +36,487 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { 
-  Rocket, 
-  ShieldCheck, 
-  Wallet, 
-  Clock, 
-  Search, 
-  Loader2, 
-  CheckCircle2, 
-  ArrowRight, 
-  Calculator, 
-  Users, 
-  Landmark, 
-  Scale, 
-  Building, 
-  MapPin,
-  HardHat,
-  Camera,
-  User,
-  Utensils,
-  ShoppingCart,
-  HelpCircle,
-  ClipboardList
-} from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
-import { Service } from '@/lib/types';
-import { useEffect, useState, useMemo } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
-import { Separator } from '../ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { useBlog } from '@/contexts/BlogContext';
-import { format } from 'date-fns';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
+  Accordion, 
+  AccordionContent, 
+  AccordionItem, 
+  AccordionTrigger 
 } from '@/components/ui/accordion';
-
-const db = getFirestore(firebaseApp);
-
-type Category = { 
-    id: string; 
-    name: string; 
-    description: string; 
-    order: number; 
-};
-
-const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
-      maximumFractionDigits: 2,
-    }).format(price);
-};
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+import Script from 'next/script';
 
 export default function HomePageClient() {
-  const [services, setServices] = useState<Service[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const { blogPosts, isLoading: isBlogLoading } = useBlog();
-  
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      
-      const servicesRef = collection(db, 'services');
-      const servicesQuery = query(servicesRef, orderBy('title'));
-      getDocs(servicesQuery)
-        .then((snapshot) => {
-          const fetchedServices = snapshot.docs.map(doc => {
-            const data = doc.data();
-            const serviceData = { ...data, id: doc.id } as any;
-            if (data.createdAt && data.createdAt instanceof Timestamp) {
-                serviceData.createdAt = data.createdAt.toDate().toISOString();
-            }
-            return serviceData as Service;
-          });
-          setServices(fetchedServices);
-        })
-        .catch(async (error) => {
-          const permissionError = new FirestorePermissionError({
-            path: servicesRef.path,
-            operation: 'list',
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        });
-
-      const categoriesRef = collection(db, 'categories');
-      const categoriesQuery = query(categoriesRef, orderBy('order'));
-      getDocs(categoriesQuery)
-        .then((snapshot) => {
-          const fetchedCategories = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Category));
-          setCategories(fetchedCategories);
-        })
-        .catch(async (error) => {
-          const permissionError = new FirestorePermissionError({
-            path: categoriesRef.path,
-            operation: 'list',
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    };
-
-    fetchData();
+    setMounted(true);
   }, []);
 
-  const whyChooseUs = [
-    {
-      title: 'Expert & Reliable',
-      description: 'Our team of seasoned professionals ensures accuracy and dependability.',
-      icon: ShieldCheck,
-    },
-    {
-      title: 'Affordable Pricing',
-      description: 'Transparent, competitive rates with no hidden costs.',
-      icon: Wallet,
-    },
-    {
-      title: 'Fast Turnaround',
-      description: 'We prioritize efficiency to meet your deadlines without compromising quality.',
-      icon: Rocket,
-    },
-  ];
-  
-  const categorizedServices = useMemo(() => {
-    let filteredServices = services;
-    if (searchTerm) {
-        filteredServices = services.filter(service => 
-            service.title.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }
-
-    return categories
-      .map(category => ({
-          ...category,
-          data: filteredServices.filter(s => s.category === category.name)
-      }))
-      .filter(c => c.data.length > 0);
-  }, [categories, services, searchTerm]);
-
-  const keywordButtons = [
-    { label: 'Entity Registrations', href: '/products#entity-registrations' },
-    { label: 'SARS Services', href: '/products#sars-services' },
-    { label: 'CIPC Services', href: '/products#cipc-services' },
-    { label: 'Accounting Services', href: '/products#accounting-services' },
-    { label: 'Payroll Services', href: '/products#payroll-services' },
+  const faqData = [
+    { q: "Do you assist clients throughout South Africa?", a: "Yes. My Accountant provides online accounting, tax, and compliance services nationwide." },
+    { q: "What accounting services do you provide?", a: "We assist with bookkeeping, annual financial statements, payroll, management accounts, and accounting compliance services." },
+    { q: "Do you assist with SARS registrations?", a: "Yes. We assist with VAT registration, PAYE registration, income tax registration, and other SARS compliance services." },
+    { q: "Can I buy services online?", a: "Yes. Our online platform allows clients to purchase accounting and compliance services online through a secure checkout process." },
+    { q: "Do you assist with CIPC annual returns?", a: "Yes. We assist companies and close corporations with annual return submissions and CIPC compliance requirements." },
+    { q: "How long does company registration take?", a: "Turnaround times vary depending on CIPC processing times and document submission requirements, but typically take between 1–3 working days." },
+    { q: "Do you assist startups and small businesses?", a: "Yes. We work with startups, entrepreneurs, SMEs, and established businesses throughout South Africa." }
   ];
 
-  const servicePillars = [
-    {
-      title: 'Monthly Accounting',
-      description: 'Full-service bookkeeping, management accounts, and VAT for South African SMEs.',
-      icon: Calculator,
-      href: '/monthly-accounting',
-    },
-    {
-      title: 'Monthly Payroll',
-      description: 'Compliant payroll management, digital payslips, and statutory SARS submissions.',
-      icon: Users,
-      href: '/monthly-payroll',
-    },
-    {
-      title: 'Tax Compliance',
-      description: 'Expert SARS representation, income tax returns, and free compliance health checks.',
-      icon: Landmark,
-      href: '/compliance',
-    },
-    {
-      title: 'Liquidations',
-      description: 'Professional assistance with voluntary company liquidations and responsible business closure.',
-      icon: Scale,
-      href: '/liquidations',
-    },
-  ];
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqData.map(item => ({
+      "@type": "Question",
+      "name": item.q,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": item.a
+      }
+    }))
+  };
 
-  const industryNiches = [
-    {
-        title: 'Accounting for SMEs',
-        description: 'Scalable financial management for small and medium enterprises.',
-        icon: Building,
-        href: '/industries/sme'
-    },
-    {
-        title: 'Accounting for Construction',
-        description: 'Specialised project-based accounting and progress billing support.',
-        icon: HardHat,
-        href: '/industries/construction'
-    },
-    {
-        title: 'Accounting for Influencers',
-        description: 'Tax optimization and multi-platform income tracking for creators.',
-        icon: Camera,
-        href: '/industries/influencers'
-    },
-    {
-        title: 'Accounting for Freelancers',
-        description: 'Simple, effective bookkeeping and provisional tax for independent pros.',
-        icon: User,
-        href: '/industries/freelancers'
-    },
-    {
-        title: 'Accounting for Restaurants',
-        description: 'Inventory management and point-of-sale integration expertise.',
-        icon: Utensils,
-        href: '/industries/restaurants'
-    },
-    {
-        title: 'Accounting for E-commerce',
-        description: 'Automated VAT and multi-currency tracking for online stores.',
-        icon: ShoppingCart,
-        href: '/industries/ecommerce'
-    },
-  ];
-
-  const specialisations = [
-    { label: "SARS tax services", href: "/products#sars-services" },
-    { label: "Company registrations", href: "/products#entity-registrations" },
-    { label: "VAT and PAYE registrations", href: "/products#sars-services" },
-    { label: "Monthly bookkeeping", href: "/products#accounting-services" },
-    { label: "Payroll services", href: "/products#payroll-services" },
-    { label: "Annual Financial Statements", href: "/products#accounting-services" },
-    { label: "CIPC annual returns", href: "/products#cipc-services" },
-    { label: "Tax clearance certificates", href: "/products#sars-services" },
-    { label: "Beneficial Ownership submissions", href: "/products#cipc-services" },
-    { label: "COIDA registrations", href: "/products#coida-services" },
-    { label: "CIDB registrations", href: "/products#cidb-services" },
-    { label: "NCR registrations", href: "/products#ncr-services" }
-  ];
+  if (!mounted) return null;
 
   return (
-    <div className="space-y-16 pb-16">
-      {/* Hero Image Section */}
-      <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
-        <Image 
-          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
-          alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
-          fill
-          priority
-          className="object-contain lg:object-cover"
-          data-ai-hint="accounting banner"
-        />
+    <div className="flex flex-col min-h-screen">
+      <Script
+        id="faq-schema"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+
+      {/* HERO SECTION */}
+      <section className="relative w-full overflow-hidden bg-slate-900 pt-16 lg:pt-24 pb-20">
+        <div className="absolute inset-0 z-0 opacity-20">
+          <Image 
+            src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
+            alt="My Accountant - Online Accounting & Tax Services"
+            fill
+            priority
+            className="object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 to-slate-900" />
+        </div>
+
+        <div className="container relative z-10 mx-auto px-4 text-center">
+          <h1 className="mb-6 text-4xl font-black tracking-tight text-white md:text-6xl lg:text-7xl">
+            Online Accounting, Tax & <span className="text-primary">CIPC Services</span> in South Africa
+          </h1>
+          <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-slate-300 md:text-xl leading-relaxed space-y-4">
+            <p>
+              My Accountant helps South African businesses stay compliant with professional accounting, tax, payroll, SARS, and CIPC services — all through a simple online process.
+            </p>
+            <p className="text-base text-slate-400">
+              Whether you need company registration, VAT registration, bookkeeping, payroll, annual financial statements, tax compliance, or CIPC annual returns, our team assists businesses throughout Johannesburg, Randburg, Gauteng, and across South Africa.
+            </p>
+          </div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
+            <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
+              <Link href="/signup">Get Started</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm">
+              <Link href="/products">View Services</Link>
+            </Button>
+            <Button asChild variant="secondary" size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
+              <Link href="/compliance">Request a Compliance Assessment</Link>
+            </Button>
+          </div>
+
+          <div className="mt-16 grid grid-cols-2 md:grid-cols-5 gap-4 max-w-5xl mx-auto">
+              {[
+                  { label: "Trusted by South African businesses", icon: CheckCircle },
+                  { label: "Professional accounting & compliance support", icon: ShieldCheck },
+                  { label: "Online service delivery nationwide", icon: Globe },
+                  { label: "Transparent pricing", icon: Wallet },
+                  { label: "Secure document submission", icon: ShieldCheck }
+              ].map((item, idx) => (
+                  <div key={idx} className="flex flex-col items-center gap-2 text-slate-300">
+                      <item.icon className="h-5 w-5 text-primary" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-center">{item.label}</span>
+                  </div>
+              ))}
+          </div>
+        </div>
       </section>
 
-      {/* Hero Content Section (Below Image) */}
-      <section className="container mx-auto px-4 text-center">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl text-slate-900">
-            South Africa’s Leading Online Accounting, Tax & Compliance Firm
-          </h1>
-          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
-            Professional SARS, CIPC, bookkeeping, payroll, tax and business compliance services for South African businesses and entrepreneurs.
-          </p>
-          
-          <div className="flex flex-wrap justify-center gap-3 pt-4">
-            {keywordButtons.map((btn) => (
-              <Button key={btn.label} asChild variant="outline" className="h-9 md:h-11 px-4 md:px-6 rounded-full font-bold transition-all text-xs md:text-sm">
-                <Link href={btn.href}>{btn.label}</Link>
-              </Button>
+      <TrustIndexWidget />
+
+      {/* TRUST & AUTHORITY SECTION */}
+      <section className="py-24 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div className="space-y-6">
+              <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
+                Why South African Businesses Choose My Accountant
+              </h2>
+              <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
+                <p>
+                  At My Accountant, we focus on helping South African entrepreneurs, startups, SMEs, and established businesses simplify accounting and compliance.
+                </p>
+                <p>
+                  Our online accounting platform allows clients to purchase services online, upload documents securely, and receive professional support without needing to visit a physical office.
+                </p>
+              </div>
+              <div className="space-y-3 pt-4">
+                  <p className="font-bold text-slate-900 uppercase text-xs tracking-widest">We assist businesses throughout South Africa with:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                    {[
+                      "Accounting services", "Tax compliance", "SARS registrations", "CIPC compliance",
+                      "Payroll administration", "VAT services", "Company registrations", "COIDA compliance",
+                      "CIDB registrations", "NCR registrations", "BEE certificates", "PBO registrations"
+                    ].map((service) => (
+                      <div key={service} className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                        <span className="text-sm font-semibold text-slate-700">{service}</span>
+                      </div>
+                    ))}
+                  </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {[
+                { title: "Professional & Reliable", desc: "Our team focuses on practical accounting and compliance solutions designed specifically for South African businesses.", icon: ShieldCheck },
+                { title: "Nationwide Online Support", desc: "We assist clients throughout Johannesburg, Pretoria, Durban, Cape Town, Gauteng, and across South Africa.", icon: Globe },
+                { title: "Transparent Process", desc: "Our online system makes it easy to purchase services, upload documents, and track your compliance requirements.", icon: RefreshCw },
+                { title: "Business Compliance Specialists", desc: "We assist businesses with ongoing SARS, CIPC, payroll, and accounting compliance requirements.", icon: Landmark }
+              ].map((block, idx) => (
+                <Card key={idx} className="border-2 border-slate-100 shadow-none hover:border-primary/20 transition-all">
+                  <CardHeader className="pb-2">
+                    <block.icon className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle className="text-base font-bold">{block.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{block.desc}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SERVICES SECTION */}
+      <section className="py-24 bg-slate-50 border-y border-slate-100">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16 space-y-4">
+            <h2 className="text-4xl font-black text-slate-900">Our Accounting, Tax & Compliance Services</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Specialized financial solutions to power your business growth.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Accounting */}
+            <Card className="flex flex-col border-none shadow-xl bg-white group hover:-translate-y-1 transition-all">
+              <CardHeader>
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <Calculator className="h-6 w-6" />
+                </div>
+                <CardTitle className="text-xl">Accounting & Bookkeeping Services</CardTitle>
+                <CardDescription>
+                  We provide monthly bookkeeping, management accounts, annual financial statements, and accounting support for South African businesses.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <ul className="space-y-2 text-sm font-medium">
+                  <li><Link href="/monthly-accounting" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Monthly bookkeeping services</Link></li>
+                  <li><Link href="/products#accounting-services" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Annual financial statements</Link></li>
+                  <li><Link href="/monthly-accounting" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Management accounts</Link></li>
+                  <li><Link href="/products#accounting-services" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Accounting services</Link></li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* Tax */}
+            <Card className="flex flex-col border-none shadow-xl bg-white group hover:-translate-y-1 transition-all">
+              <CardHeader>
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <Landmark className="h-6 w-6" />
+                </div>
+                <CardTitle className="text-xl">Tax & SARS Compliance Services</CardTitle>
+                <CardDescription>
+                  Our tax specialists assist with SARS registrations, tax returns, VAT compliance, PAYE, tax clearance PINs, and tax compliance support.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <ul className="space-y-2 text-sm font-medium">
+                  <li><Link href="/products/vat-registration" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> VAT registration</Link></li>
+                  <li><Link href="/products#sars-services" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> VAT returns</Link></li>
+                  <li><Link href="/products/paye-registration" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> PAYE registration</Link></li>
+                  <li><Link href="/products#sars-services" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Income tax returns</Link></li>
+                  <li><Link href="/products/tax-clearance-pin" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Tax clearance PIN</Link></li>
+                  <li><Link href="/compliance" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> SARS compliance services</Link></li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* CIPC */}
+            <Card className="flex flex-col border-none shadow-xl bg-white group hover:-translate-y-1 transition-all">
+              <CardHeader>
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <Building className="h-6 w-6" />
+                </div>
+                <CardTitle className="text-xl">Company Registration & CIPC Services</CardTitle>
+                <CardDescription>
+                  We assist businesses with company registration, annual returns, beneficial ownership declarations, company reinstatements, and ongoing CIPC compliance.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <ul className="space-y-2 text-sm font-medium">
+                  <li><Link href="/products/company-registration" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Company registration</Link></li>
+                  <li><Link href="/products/cipc-annual-returns" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> CIPC annual returns</Link></li>
+                  <li><Link href="/products/beneficial-ownership-declaration" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Beneficial ownership declarations</Link></li>
+                  <li><Link href="/products/company-reinstatement" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Company reinstatement</Link></li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* Payroll */}
+            <Card className="flex flex-col border-none shadow-xl bg-white group hover:-translate-y-1 transition-all">
+              <CardHeader>
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <Users className="h-6 w-6" />
+                </div>
+                <CardTitle className="text-xl">Payroll & Employee Compliance</CardTitle>
+                <CardDescription>
+                  Our payroll services help businesses remain compliant with PAYE, UIF, SDL, EMP201, and EMP501 requirements.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <ul className="space-y-2 text-sm font-medium">
+                  <li><Link href="/monthly-payroll" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Payroll services</Link></li>
+                  <li><Link href="/products/paye-registration" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> PAYE registration</Link></li>
+                  <li><Link href="/products/uif-registration" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> UIF registration</Link></li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* Business Compliance */}
+            <Card className="flex flex-col border-none shadow-xl bg-white group hover:-translate-y-1 transition-all md:col-span-2 lg:col-span-1">
+              <CardHeader>
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <CardTitle className="text-xl">Business Compliance Services</CardTitle>
+                <CardDescription>
+                  We assist businesses with various compliance requirements including COIDA, CIDB, and more.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <ul className="space-y-2 text-sm font-medium">
+                  <li><Link href="/products/coida-registration" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> COIDA registration</Link></li>
+                  <li><Link href="/products/cidb-registration" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> CIDB registration</Link></li>
+                  <li><Link href="/products/ncr-registration" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> NCR registration</Link></li>
+                  <li><Link href="/products/bee-certificate" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> BEE certificates</Link></li>
+                  <li><Link href="/products/pbo-registration" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> PBO registration</Link></li>
+                  <li><Link href="/products/import-export-license" className="hover:text-primary transition-colors flex items-center gap-2"><ArrowRight className="h-3 w-3" /> Import/export licences</Link></li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* PROCESS SECTION */}
+      <section className="py-24 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-black text-slate-900 md:text-4xl uppercase tracking-tighter">How Our Online Accounting Process Works</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
+            {[
+              { step: "01", title: "Choose Your Service", desc: "Browse our online store and select the accounting, tax, or compliance service your business requires.", icon: ShoppingCart },
+              { step: "02", title: "Upload Your Documents", desc: "Securely upload your supporting documents through our online platform.", icon: FileUp },
+              { step: "03", title: "We Process Your Application", desc: "Our team handles the accounting, SARS, CIPC, or compliance process on your behalf.", icon: RefreshCw },
+              { step: "04", title: "Receive Confirmation & Support", desc: "We provide updates, confirmations, and ongoing support throughout the process.", icon: CheckCircle2 }
+            ].map((step, idx) => (
+              <div key={idx} className="relative text-center space-y-4 group">
+                <div className="h-16 w-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4 group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
+                  <step.icon className="h-8 w-8" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black text-primary uppercase tracking-widest leading-none block mb-1">Step {step.step}</span>
+                  <h3 className="font-bold text-lg text-slate-900 leading-tight">{step.title}</h3>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{step.desc}</p>
+                {idx < 3 && <ArrowRight className="hidden lg:block absolute -right-4 top-8 h-8 w-8 text-slate-200" />}
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* SEO Content Section */}
-      <section className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto space-y-12">
-            <div className="text-center space-y-6">
-                <h2 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">Professional Accounting & Tax Services in South Africa</h2>
-                <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
-                    <p>
-                        At My Accountant, we help South African businesses, entrepreneurs, freelancers and individuals stay compliant with SARS, CIPC and all financial regulations. Our online accounting firm provides affordable and professional accounting services throughout South Africa.
-                    </p>
-                    <p>
-                        Whether you need assistance with company registration, VAT registration, bookkeeping, payroll, annual financial statements, tax returns or CIPC compliance, our experienced team is ready to assist.
-                    </p>
-                </div>
-            </div>
-            
-            <div className="space-y-6">
-                <h3 className="text-xl font-bold text-center text-slate-900 uppercase tracking-widest text-xs">We specialise in:</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {specialisations.map((item) => (
-                        <Link key={item.label} href={item.href} className="group">
-                            <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 shadow-sm transition-all group-hover:border-primary/30 group-hover:bg-primary/5">
-                                <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                                <span className="text-sm font-semibold text-slate-700 group-hover:text-primary transition-colors">{item.label}</span>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
-            </div>
-
-            <p className="text-lg text-center text-muted-foreground leading-relaxed font-medium">
-                Our goal is to simplify accounting and compliance so that business owners can focus on growing their businesses while we manage the administration and regulatory requirements.
-            </p>
-        </div>
-      </section>
-
-      {/* Service Pillars / Internal Linking Blocks */}
-      <section className="bg-slate-50 py-16 border-y">
+      {/* SOUTH AFRICA SEO SECTION */}
+      <section className="py-24 bg-slate-900 text-white overflow-hidden">
         <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900">Explore Our Core Solutions</h2>
-                <p className="text-muted-foreground mt-2">Comprehensive financial and regulatory support for your growing business.</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div className="space-y-6">
+              <h2 className="text-3xl font-black md:text-4xl">Accounting & Tax Services for Businesses Across South Africa</h2>
+              <div className="space-y-4 text-lg text-slate-300 leading-relaxed">
+                <p>My Accountant provides online accounting and compliance services to businesses throughout South Africa.</p>
+                <p>We assist clients in Johannesburg, Randburg, Sandton, Midrand, Pretoria, Durban, Cape Town, Gauteng, and South Africa nationwide.</p>
+                <p>Our online service model allows businesses to access professional accounting and tax services regardless of location.</p>
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-                {servicePillars.map((pillar) => (
-                    <Link key={pillar.title} href={pillar.href} className="group">
-                        <Card className="h-full border-2 transition-all group-hover:border-primary group-hover:shadow-xl group-hover:-translate-y-1">
-                            <CardHeader>
-                                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-colors">
-                                    <pillar.icon className="h-6 w-6" />
-                                </div>
-                                <CardTitle className="text-xl group-hover:text-primary transition-colors">{pillar.title}</CardTitle>
-                                <CardDescription className="leading-relaxed">
-                                    {pillar.description}
-                                </CardDescription>
-                            </CardHeader>
-                            <CardFooter className="pt-0">
-                                <span className="text-sm font-bold text-primary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Learn More <ArrowRight className="h-3 w-3" />
-                                </span>
-                            </CardFooter>
-                        </Card>
-                    </Link>
-                ))}
+            <div className="relative h-[400px] rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+               <Image 
+                  src="https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&q=80&w=800"
+                  alt="South African Business Support"
+                  fill
+                  className="object-cover"
+                  data-ai-hint="business team"
+               />
             </div>
-        </div>
-      </section>
-
-      {/* Location SEO Section */}
-      <section className="container mx-auto px-4 py-12 bg-white">
-        <div className="max-w-4xl mx-auto text-center space-y-6">
-            <div className="flex items-center justify-center gap-2 text-primary font-bold uppercase text-xs tracking-widest">
-                <MapPin className="h-4 w-4" /> Based in Gauteng
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">Accounting Firm in Randburg, Johannesburg</h2>
-            <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
-                <p>
-                    My Accountant is based in Randburg, Johannesburg and provides online accounting and tax services across South Africa. Our digital platform allows clients nationwide to securely upload documents, purchase services online and communicate directly with our team.
-                </p>
-                <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-semibold text-slate-500 uppercase tracking-tighter">
-                    <span>• Accountant Randburg</span>
-                    <span>• Accountants Johannesburg</span>
-                    <span>• Tax Consultant Johannesburg</span>
-                    <span>• Bookkeeping Randburg</span>
-                </div>
-            </div>
-        </div>
-      </section>
-
-      {/* Industry-Specific SEO Sections */}
-      <section className="bg-white py-24 text-slate-900 overflow-hidden relative">
-        <div className="container mx-auto px-4 relative z-10">
-            <div className="text-center mb-16 space-y-4">
-                <Badge className="bg-primary/10 text-primary border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Specialised Solutions</Badge>
-                <h2 className="text-4xl font-bold tracking-tight">Industry-Specific Accounting</h2>
-                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Expert financial guidance tailored to your specific business sector.</p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-                {industryNiches.map((niche) => (
-                    <Link key={niche.title} href={niche.href} className="group">
-                        <Card className="h-full border-2 transition-all group-hover:border-primary group-hover:shadow-2xl group-hover:-translate-y-1 bg-white">
-                            <CardHeader>
-                                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary transition-colors">
-                                    <niche.icon className="h-6 w-6 text-primary group-hover:text-white" />
-                                </div>
-                                <CardTitle className="text-xl group-hover:text-primary transition-colors">{niche.title}</CardTitle>
-                                <CardDescription className="leading-relaxed">
-                                    {niche.description}
-                                </CardDescription>
-                            </CardHeader>
-                            <CardFooter className="pt-0">
-                                <span className="text-xs font-bold text-primary flex items-center gap-1">
-                                    Explore Sector Solutions <ArrowRight className="h-3 w-3" />
-                                </span>
-                            </CardFooter>
-                        </Card>
-                    </Link>
-                ))}
-            </div>
-        </div>
-      </section>
-
-      {/* Blog Section */}
-      <section className="container mx-auto px-4 py-16">
-          <div className="text-center mb-12 space-y-4">
-              <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Resources</Badge>
-              <h2 className="text-4xl font-bold tracking-tight text-slate-900">Latest from our Tax Tip Blog</h2>
-              <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Stay updated with the latest South African tax and compliance news.</p>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {isBlogLoading ? (
-                  <div className="col-span-full flex justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </section>
+
+      {/* SMALL BUSINESS SECTION */}
+      <section className="py-24 bg-white">
+        <div className="container mx-auto px-4 text-center">
+          <div className="max-w-4xl mx-auto space-y-12">
+            <div className="space-y-6">
+              <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Accounting Solutions for South African SMEs & Entrepreneurs</h2>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                We understand the challenges faced by small businesses and startups in South Africa. Our services are designed to help businesses:
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                "Stay compliant with SARS", "Maintain accurate accounting records", "Submit CIPC annual returns",
+                "Register for VAT and PAYE", "Manage payroll requirements", "Prepare annual financial statements",
+                "Maintain good standing status"
+              ].map(item => (
+                <div key={item} className="flex items-center gap-3 p-4 rounded-xl border border-slate-100 shadow-sm bg-slate-50 text-left">
+                  <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
+                  <span className="text-sm font-bold text-slate-700 leading-tight">{item}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-lg font-medium text-slate-800">
+              Whether you are launching a startup, growing your SME, or managing an established business, My Accountant provides practical compliance support tailored to your needs.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* WHY ONLINE ACCOUNTING SECTION */}
+      <section className="py-24 bg-slate-50 border-y border-slate-100">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div className="relative h-[400px] rounded-3xl overflow-hidden shadow-xl border border-slate-200 order-2 lg:order-1">
+               <Image 
+                  src="https://images.unsplash.com/photo-1551288049-bbbda546697c?auto=format&fit=crop&q=80&w=800"
+                  alt="Online Accounting Dashboard"
+                  fill
+                  className="object-cover"
+                  data-ai-hint="digital finance"
+               />
+            </div>
+            <div className="space-y-6 order-1 lg:order-2">
+              <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Why Businesses Are Moving to Online Accounting Services</h2>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                Online accounting services provide businesses with faster turnaround times, improved convenience, and simplified compliance management.
+              </p>
+              <div className="space-y-4">
+                <p className="font-bold text-sm text-primary uppercase tracking-widest">By using My Accountant, businesses can:</p>
+                {[
+                  { label: "Purchase services online", icon: ShoppingCart },
+                  { label: "Avoid unnecessary office visits", icon: MapPin },
+                  { label: "Upload documents securely", icon: FileUp },
+                  { label: "Receive digital compliance support", icon: Bot },
+                  { label: "Track compliance requirements more efficiently", icon: ClipboardList },
+                  { label: "Access accounting and tax assistance from anywhere in South Africa", icon: Globe }
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0"><item.icon className="h-4 w-4" /></div>
+                    <span className="text-sm font-bold text-slate-700">{item.label}</span>
                   </div>
-              ) : (
-                  blogPosts.slice(0, 3).map((post) => (
-                      <Card key={post.id} className="flex flex-col overflow-hidden group hover:shadow-xl transition-all duration-300 border shadow-sm">
-                          <Link href={`/blog/${post.slug}`} className="relative h-48 block overflow-hidden">
-                              <Image 
-                                  src={post.imageUrl} 
-                                  alt={post.title} 
-                                  fill 
-                                  className="object-cover transition-transform duration-500 group-hover:scale-105"
-                                  data-ai-hint={post.imageHint}
-                              />
-                          </Link>
-                          <CardHeader className="pb-4">
-                              <CardTitle className="text-xl leading-tight group-hover:text-primary transition-colors line-clamp-2">
-                                  <Link href={`/blog/${post.slug}`}>{post.title}</Link>
-                              </CardTitle>
-                              <CardDescription className="flex items-center gap-2 text-xs font-medium uppercase tracking-tighter pt-1">
-                                  <Clock className="h-3 w-3" />
-                                  {format(new Date(post.date), 'dd MMMM yyyy')}
-                              </CardDescription>
-                          </CardHeader>
-                          <CardContent className="flex-grow">
-                              <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{post.excerpt}</p>
-                          </CardContent>
-                          <CardFooter className="pt-0">
-                              <Button variant="link" asChild className="p-0 h-auto font-bold text-primary group-hover:translate-x-1 transition-transform">
-                                  <Link href={`/blog/${post.slug}`}>
-                                      Read Article <ArrowRight className="ml-2 h-4 w-4" />
-                                  </Link>
-                              </Button>
-                          </CardFooter>
-                      </Card>
-                  ))
-              )}
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CASE STUDY / RESULTS SECTION */}
+      <section className="py-24 bg-white">
+        <div className="container mx-auto px-4 text-center">
+          <div className="mb-16 space-y-4">
+            <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Helping South African Businesses Stay Compliant</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Proven results across tax, CIPC, and bookkeeping.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {[
+              { title: "SARS Compliance Support", desc: "Assisting businesses with VAT registrations, tax compliance, and SARS submissions.", icon: ShieldCheck },
+              { title: "CIPC Compliance Assistance", desc: "Helping companies maintain annual returns and beneficial ownership compliance.", icon: Building },
+              { title: "SME Accounting Support", desc: "Providing bookkeeping and financial support to growing South African businesses.", icon: TrendingUp }
+            ].map((caseStudy, idx) => (
+              <Card key={idx} className="border-none shadow-lg bg-slate-50 group hover:shadow-2xl transition-all h-full flex flex-col">
+                <CardHeader className="text-center pt-8">
+                  <div className="mx-auto h-16 w-16 rounded-2xl bg-white shadow-md flex items-center justify-center mb-4 group-hover:bg-primary transition-colors">
+                    <caseStudy.icon className="h-8 w-8 text-primary group-hover:text-white" />
+                  </div>
+                  <CardTitle className="text-xl font-bold group-hover:text-primary transition-colors">{caseStudy.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <p className="text-sm text-muted-foreground leading-relaxed px-4">{caseStudy.desc}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ SECTION */}
+      <section className="py-24 bg-slate-50 border-y border-slate-100 scroll-m-20">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <div className="text-center mb-16 space-y-4">
+            <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Frequently Asked Questions</h2>
+            <p className="text-muted-foreground text-lg">Clear answers to common client queries.</p>
           </div>
           
-          <div className="mt-12 text-center">
-              <Button asChild variant="outline" size="lg" className="font-bold h-12 px-10 border-2 border-primary/20 text-primary hover:bg-primary/5 transition-all">
-                  <Link href="/blog">View All Tax Tips</Link>
-              </Button>
+          <Accordion type="single" collapsible className="w-full space-y-4">
+            {faqData.map((faq, idx) => (
+              <AccordionItem key={idx} value={`item-${idx}`} className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-50 transition-colors text-left font-bold text-slate-900">
+                  {faq.q}
+                </AccordionTrigger>
+                <AccordionContent className="px-6 pb-6 pt-2 text-muted-foreground leading-relaxed text-sm font-medium">
+                  {faq.a}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
+      </section>
+
+      {/* FINAL CTA SECTION */}
+      <section className="py-24 bg-white">
+        <div className="container mx-auto px-4 text-center">
+          <div className="max-w-4xl mx-auto p-12 rounded-[2.5rem] bg-slate-900 text-white shadow-2xl relative overflow-hidden">
+            <div className="relative z-10 space-y-8">
+              <h2 className="text-4xl font-black md:text-5xl">Get Professional Accounting & Compliance Support</h2>
+              <p className="text-xl text-slate-300 max-w-2xl mx-auto font-medium leading-relaxed">
+                Whether you need accounting services, tax compliance, company registration, payroll support, or CIPC assistance, My Accountant is ready to assist your business.
+              </p>
+              <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
+                <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
+                  <Link href="/products">View Services</Link>
+                </Button>
+                <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2 border-white/20 text-white hover:bg-white/10">
+                  <Link href="/compliance">Request a Compliance Assessment</Link>
+                </Button>
+                <Button asChild variant="secondary" size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
+                  <Link href="/contact">Contact Us</Link>
+                </Button>
+              </div>
+            </div>
+            {/* Background elements */}
+            <div className="absolute top-0 right-0 p-8 opacity-10"><Calculator size={200} /></div>
+            <div className="absolute bottom-0 left-0 p-8 opacity-10"><Landmark size={200} /></div>
           </div>
-      </section>
-
-      {/* Product FAQ Section */}
-      <section className="bg-white py-24 border-y">
-        <div className="container mx-auto px-4 max-w-4xl">
-            <div className="text-center mb-12 space-y-4">
-                <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Product Knowledge</Badge>
-                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Service Frequently Asked Questions</h2>
-                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Learn more about our individual services, turnaround times, and requirements.</p>
-            </div>
-
-            <div className="space-y-12">
-                {categorizedServices.map((category) => (
-                    <div key={category.id} className="space-y-6">
-                        <div className="flex items-center gap-4">
-                            <h3 className="text-xl font-bold text-slate-900">{category.name}</h3>
-                            <div className="h-px bg-slate-200 flex-grow" />
-                        </div>
-                        <Accordion type="single" collapsible className="w-full space-y-4">
-                            {category.data.map((service) => (
-                                <div key={service.id} className="bg-white border rounded-xl overflow-hidden shadow-sm">
-                                    <AccordionItem value={`service-${service.id}`} className="border-none">
-                                        <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-50 transition-colors text-left font-bold text-slate-900">
-                                            {service.title}
-                                        </AccordionTrigger>
-                                        <AccordionContent className="px-6 pb-6 pt-2">
-                                            <div className="space-y-6">
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    <div className="space-y-2">
-                                                        <p className="flex items-center gap-2 text-xs font-black uppercase text-primary tracking-widest">
-                                                            <Clock className="h-3 w-3" /> Turnaround Time
-                                                        </p>
-                                                        <p className="text-sm text-slate-700 font-medium">
-                                                            How long does {service.title} take to complete?
-                                                        </p>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            This service typically takes <strong>{service.turnaroundTime}</strong> to finalize once all documents are received.
-                                                        </p>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <p className="flex items-center gap-2 text-xs font-black uppercase text-primary tracking-widest">
-                                                            <ClipboardList className="h-3 w-3" /> Requirements
-                                                        </p>
-                                                        <p className="text-sm text-slate-700 font-medium">
-                                                            What are the requirements for {service.title}?
-                                                        </p>
-                                                        <ul className="space-y-1">
-                                                            {service.clientRequirements.map((req, i) => (
-                                                                <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                                                                    <span className="text-primary font-bold mt-1">•</span>
-                                                                    <span>{req}</span>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                                <Separator />
-                                                <div className="flex justify-between items-center">
-                                                    <p className="text-xs text-muted-foreground italic">
-                                                        Pricing: {service.isPriceTbc ? 'Price on Request' : formatPrice(service.price)}
-                                                    </p>
-                                                    <Button asChild size="sm" variant="link" className="font-bold gap-1 text-primary">
-                                                        <Link href={`/products/${service.slug}`}>
-                                                            View Product Details <ArrowRight className="h-3 w-3" />
-                                                        </Link>
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                </div>
-                            ))}
-                        </Accordion>
-                    </div>
-                ))}
-            </div>
         </div>
       </section>
-
-      <section className="bg-background pt-8">
-         <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold text-slate-900">Why Choose My Accountant?</h2>
-                <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-                    We're committed to providing you with the best service possible.
-                </p>
-            </div>
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                {whyChooseUs.map(item => (
-                    <div key={item.title} className="flex items-start gap-4">
-                        <div className="flex-shrink-0">
-                            <item.icon className="h-8 w-8 text-primary" />
-                        </div>
-                        <div>
-                            <h3 className="font-semibold text-slate-900">{item.title}</h3>
-                            <p className="text-sm text-muted-foreground">{item.description}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-      </section>
-
-      <section>
-        <div className="container mx-auto max-w-2xl px-4">
-          <form className="relative" onSubmit={(e) => e.preventDefault()}>
-            <Input
-              type="search"
-              placeholder="Search for a product (e.g., 'Company Registration')"
-              className="h-12 w-full rounded-md border-input bg-background pr-14 text-base"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <div
-              className="absolute right-1 top-1/2 h-10 w-10 -translate-y-1/2 flex items-center justify-center"
-            >
-              <Search className="h-5 w-5 text-muted-foreground" />
-              <span className="sr-only">Search</span>
-            </div>
-          </form>
-        </div>
-      </section>
-      
-        <div className="container mx-auto px-4 space-y-12 scroll-m-20">
-            {isLoading ? (
-                <div className="flex justify-center items-center h-40">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                </div>
-            ) : categorizedServices.length > 0 ? (
-                categorizedServices.map(category => (
-                <section key={category.id} id={category.name.toLowerCase().replace(/ /g, '-')}>
-                    <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold text-slate-900">{category.name}</h2>
-                        <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-                            {category.description}
-                        </p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {category.data.map(service => (
-                        <Card key={service.id} className="flex flex-col group hover:shadow-xl transition-all duration-300 border shadow-sm">
-                            <CardHeader className="space-y-2 pb-4">
-                                <CardTitle className="text-2xl font-bold leading-tight group-hover:text-primary transition-colors">
-                                    {service.title}
-                                </CardTitle>
-                                <div className="space-y-1">
-                                    {service.isPriceTbc ? (
-                                        <span className="text-xl font-bold opacity-50 block">Price on Request</span>
-                                    ) : (
-                                        <span className="text-2xl font-bold text-primary block">
-                                            {formatPrice(service.price)}
-                                        </span>
-                                    )}
-                                    <div className="flex items-center text-xs opacity-70 font-medium">
-                                        <Clock className="h-4 w-4 mr-1.5 opacity-70" />
-                                        {service.turnaroundTime}
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="flex-grow space-y-6">
-                                <p className="text-sm opacity-80 leading-relaxed line-clamp-3">
-                                    {service.description}
-                                </p>
-                                <div className="space-y-3">
-                                    <p className="text-sm font-semibold">What&apos;s Included:</p>
-                                    <ul className="space-y-2">
-                                        {(service.whatsIncluded || []).slice(0, 3).map((item, i) => (
-                                            <li key={i} className="flex items-start text-xs opacity-90">
-                                                <CheckCircle2 className="h-4 w-4 mr-3 mt-0.5 text-primary flex-shrink-0" />
-                                                <span className="leading-tight text-slate-700">{item}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </CardContent>
-                            <CardFooter className="pt-0">
-                                <Button variant="outline" className="w-full border-primary text-primary font-semibold h-11" asChild>
-                                    <Link href={`/products/${service.slug}`}>
-                                        View Details <ArrowRight className="ml-2 h-4 w-4" />
-                                    </Link>
-                                </Button>
-                            </CardFooter>
-                        </Card>
-                    ))}
-                    </div>
-                </section>
-                ))
-              ) : (
-                 <div className="text-center py-10">
-                    <p className="text-muted-foreground">No services found for "{searchTerm}".</p>
-                 </div>
-              )
-            }
-      </div>
     </div>
   );
 }
