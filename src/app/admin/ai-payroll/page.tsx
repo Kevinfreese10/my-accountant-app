@@ -1,5 +1,7 @@
-import { notFound } from 'next/navigation';
+'use client';
 
-export default function AIPayrollPage() {
-  return notFound();
+import { redirect } from 'next/navigation';
+
+export default function AIPayrollRedirectPage() {
+    redirect('/admin/ai-payroll/clients');
 }
