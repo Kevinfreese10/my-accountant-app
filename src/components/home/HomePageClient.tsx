@@ -25,7 +25,8 @@ import {
   PlusCircle,
   Users,
   ShoppingCart,
-  FileUp
+  FileUp,
+  TrendingUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
