@@ -189,7 +189,7 @@ export default function HomePageClient() {
       {/* TRUST & AUTHORITY SECTION */}
       <section className="py-24 bg-white">
         <div className="container mx-auto px-4 space-y-16">
-          <div className="max-w-4xl mx-auto text-center space-y-6">
+          <div className="max-w-6xl mx-auto text-center space-y-6">
             <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl text-center">
               Why South African Businesses Choose My Accountant
             </h2>
@@ -228,19 +228,78 @@ export default function HomePageClient() {
                 ))}
             </div>
             
-            <div className="space-y-4 pt-12">
-                <p className="font-bold text-slate-900 uppercase text-xs tracking-widest text-center">We assist businesses throughout South Africa with:</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
-                  {[
-                    "Accounting services", "Tax compliance", "SARS registrations", "CIPC compliance",
-                    "Payroll administration", "VAT services", "Company registrations", "COIDA compliance",
-                    "CIDB registrations", "NCR registrations", "BEE certificates", "PBO registrations"
-                  ].map((service) => (
-                    <div key={service} className="flex items-center justify-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                      <span className="text-xs font-bold text-slate-700">{service}</span>
-                    </div>
-                  ))}
+            <div className="space-y-8 pt-12">
+                <p className="font-bold text-slate-900 uppercase text-xs tracking-widest text-center">Our Primary Pillars of Expertise:</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+                    {/* Accounting Pillar */}
+                    <Card className="border-2 border-slate-100 shadow-none bg-slate-50">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-lg font-black uppercase text-primary tracking-tight">Accounting Services</CardTitle>
+                            <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">Core Compliance Pillar</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ul className="space-y-3">
+                                {[
+                                    { label: "Monthly Accounting Services", href: "/monthly-accounting" },
+                                    { label: "Management Accounts", href: "/management-accounts" },
+                                    { label: "Annual Financial Statements", href: "/annual-financial-statements" }
+                                ].map(item => (
+                                    <li key={item.label} className="flex items-start gap-2 text-sm font-bold text-slate-700">
+                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                                        <Link href={item.href} className="hover:text-primary transition-colors">{item.label}</Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        </CardContent>
+                    </Card>
+
+                    {/* Tax Pillar */}
+                    <Card className="border-2 border-slate-100 shadow-none bg-slate-50">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-lg font-black uppercase text-primary tracking-tight">Tax Services</CardTitle>
+                            <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">Strategic Tax Support</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ul className="space-y-3">
+                                {[
+                                    { label: "SARS S200 Compromises", href: "/sars-compromise" },
+                                    { label: "SARS Dispute Resolution", href: "/sars-disputes" },
+                                    { label: "SARS Objections", href: "/sars-disputes" },
+                                    { label: "Remission of Fines & Penalties", href: "/remission-of-fines" },
+                                    { label: "CIT, VAT & PAYE Returns", href: "/products#sars-services" }
+                                ].map(item => (
+                                    <li key={item.label} className="flex items-start gap-2 text-sm font-bold text-slate-700">
+                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                                        <Link href={item.href} className="hover:text-primary transition-colors">{item.label}</Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        </CardContent>
+                    </Card>
+
+                    {/* Payroll Pillar */}
+                    <Card className="border-2 border-slate-100 shadow-none bg-slate-50">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-lg font-black uppercase text-primary tracking-tight">Payroll Services</CardTitle>
+                            <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">Workforce Compliance</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ul className="space-y-3">
+                                {[
+                                    { label: "Payroll Outsourcing", href: "/monthly-payroll" },
+                                    { label: "PAYE Compliance", href: "/paye-compliance" },
+                                    { label: "UIF & SDL Compliance", href: "/uif-compliance" },
+                                    { label: "Payroll Administration", href: "/payroll-administration" }
+                                ].map(item => (
+                                    <li key={item.label} className="flex items-start gap-2 text-sm font-bold text-slate-700">
+                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                                        <Link href={item.href} className="hover:text-primary transition-colors">{item.label}</Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
           </div>

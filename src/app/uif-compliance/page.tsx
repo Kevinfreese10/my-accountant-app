@@ -1,0 +1,83 @@
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CheckCircle2, ShieldCheck, Users, FileUp, Scale } from 'lucide-react';
+import Link from 'next/link';
+import { Metadata } from 'next';
+import { getStaticPageMetadata } from '@/lib/seo-utils';
+import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function generateMetadata(): Promise<Metadata> {
+    const defaults: Metadata = {
+        title: 'UIF & SDL Compliance Services | My Accountant',
+        description: 'Ensure your business meets its UIF and SDL obligations. We handle uFiling registrations and monthly declarations.',
+    };
+    return getStaticPageMetadata('uif-compliance', defaults);
+}
+
+export default function UifCompliancePage() {
+  const services = [
+    { title: 'UIF Registration', description: 'Full registration of your company and employees with the Department of Labour.', icon: Users },
+    { title: 'Monthly uFiling', description: 'Automated monthly declarations to keep your employee records current.', icon: FileUp },
+    { title: 'SDL Monitoring', description: 'Strategic tracking of Skills Development Levy obligations and exemptions.', icon: ShieldCheck },
+    { title: 'Compliance Letters', description: 'Assistance in obtaining necessary letters of good standing.', icon: Scale },
+  ];
+
+  return (
+    <div className="space-y-16 pb-16 bg-white">
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
+        <div className="container relative z-10 mx-auto px-4 text-center">
+          <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
+            UIF & SDL <span className="text-primary">#Compliance</span>
+          </h1>
+          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
+            Protect your employees and your business. We manage the administration of Unemployment Insurance and Skills Development Levies for South African employers.
+          </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-8">
+            <Button asChild size="lg" className="font-bold px-10 shadow-xl">
+                <Link href="/contact">Check My UIF Status</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <TrustIndexWidget />
+
+      <section className="container mx-auto px-4 bg-white">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold">Labor Compliance Simplified</h2>
+          <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">Essential statutory requirements for every South African employer.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {services.map((service, index) => (
+            <Card key={index} className="border-2 bg-slate-50 shadow-sm h-full">
+              <CardHeader>
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
+                  <service.icon className="h-5 w-5 text-primary" />
+                </div>
+                <CardTitle className="text-lg font-bold">{service.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground leading-relaxed">{service.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section className="container mx-auto px-4 text-center bg-white py-12">
+        <div className="max-w-3xl mx-auto p-12 rounded-3xl bg-slate-50 border border-slate-100 shadow-sm">
+            <h2 className="text-3xl font-bold">Avoid Department of Labour Fines</h2>
+            <p className="text-lg text-muted-foreground mt-4 leading-relaxed">
+                Failure to declare employees for UIF can lead to severe penalties. Our team ensures your uFiling is submitted correctly every month.
+            </p>
+            <Button asChild size="lg" className="mt-8 shadow-lg font-bold">
+                <Link href="/contact">Get Compliant Today</Link>
+            </Button>
+        </div>
+      </section>
+    </div>
+  );
+}
