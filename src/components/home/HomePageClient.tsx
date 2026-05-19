@@ -189,8 +189,8 @@ export default function HomePageClient() {
       {/* TRUST & AUTHORITY SECTION */}
       <section className="py-24 bg-white">
         <div className="container mx-auto px-4 space-y-16">
-          <div className="max-w-4xl space-y-6">
-            <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
+          <div className="max-w-4xl mx-auto text-center space-y-6">
+            <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl text-center">
               Why South African Businesses Choose My Accountant
             </h2>
             <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
@@ -213,36 +213,36 @@ export default function HomePageClient() {
                 From startups and small businesses to established companies operating across Johannesburg, Randburg, Gauteng, and throughout South Africa, My Accountant remains committed to helping businesses stay compliant, organised, and financially supported through every stage of growth.
               </p>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-12">
+                {trustBlocks.map((block, idx) => (
+                    <Card key={idx} className="border-2 border-slate-100 shadow-none bg-slate-50 hover:border-primary/20 transition-all text-center">
+                        <CardHeader className="pb-2 flex flex-col items-center">
+                            <block.icon className="h-8 w-8 text-primary mb-2" />
+                            <CardTitle className="text-base font-bold">{block.title}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-xs text-muted-foreground leading-relaxed">{block.desc}</p>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
             
-            <div className="space-y-3 pt-4">
-                <p className="font-bold text-slate-900 uppercase text-xs tracking-widest">We assist businesses throughout South Africa with:</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+            <div className="space-y-4 pt-12">
+                <p className="font-bold text-slate-900 uppercase text-xs tracking-widest text-center">We assist businesses throughout South Africa with:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
                   {[
                     "Accounting services", "Tax compliance", "SARS registrations", "CIPC compliance",
                     "Payroll administration", "VAT services", "Company registrations", "COIDA compliance",
                     "CIDB registrations", "NCR registrations", "BEE certificates", "PBO registrations"
                   ].map((service) => (
-                    <div key={service} className="flex items-center gap-2">
+                    <div key={service} className="flex items-center justify-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
                       <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                      <span className="text-sm font-semibold text-slate-700">{service}</span>
+                      <span className="text-xs font-bold text-slate-700">{service}</span>
                     </div>
                   ))}
                 </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {trustBlocks.map((block, idx) => (
-              <Card key={idx} className="border-2 border-slate-100 shadow-none bg-slate-50 hover:border-primary/20 transition-all">
-                <CardHeader className="pb-2">
-                  <block.icon className="h-8 w-8 text-primary mb-2" />
-                  <CardTitle className="text-base font-bold">{block.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{block.desc}</p>
-                </CardContent>
-              </Card>
-            ))}
           </div>
         </div>
       </section>
@@ -253,7 +253,7 @@ export default function HomePageClient() {
               <div className="text-center mb-16 space-y-4">
                   <Badge variant="outline" className="px-4 py-1 uppercase font-black text-[10px] tracking-widest text-primary border-primary/20">Our Solutions</Badge>
                   <h2 className="text-4xl font-black text-slate-900">Our Accounting, Tax & Compliance Services</h2>
-                  <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Strategic financial management and statutory support for your practice.</p>
+                  <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Strategic financial management and statutory support for your business.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -334,7 +334,7 @@ export default function HomePageClient() {
                       </CardHeader>
                       <CardContent className="space-y-4 flex-grow">
                           <p className="text-sm text-muted-foreground">We assist businesses with various compliance requirements including:</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-center">
                               <Link href="/products/coida-registration" className="text-xs font-bold text-primary hover:underline">COIDA registration</Link>
                               <Link href="/products#cipc-services" className="text-xs font-bold text-primary hover:underline">CIDB registration</Link>
                               <Link href="/products#cipc-services" className="text-xs font-bold text-primary hover:underline">NCR registration</Link>
@@ -383,13 +383,13 @@ export default function HomePageClient() {
       <section className="py-24 bg-white border-t">
           <div className="container mx-auto px-4">
               <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-                  <div className="space-y-6">
-                      <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary"><MapPin className="h-6 w-6" /></div>
+                  <div className="space-y-6 text-center lg:text-left">
+                      <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mx-auto lg:mx-0"><MapPin className="h-6 w-6" /></div>
                       <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Accounting & Tax Services for Businesses Across South Africa</h2>
                       <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
                           <p>My Accountant provides online accounting and compliance services to businesses throughout South Africa.</p>
                           <p>We assist clients in:</p>
-                          <div className="grid grid-cols-2 gap-2 text-sm font-bold text-slate-700">
+                          <div className="grid grid-cols-2 gap-2 text-sm font-bold text-slate-700 max-w-sm mx-auto lg:mx-0">
                              <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Johannesburg</div>
                              <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Randburg</div>
                              <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Sandton</div>
@@ -398,12 +398,10 @@ export default function HomePageClient() {
                              <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Durban</div>
                              <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Cape Town</div>
                              <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Gauteng</div>
-                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> South Africa nationwide</div>
                           </div>
-                          <p>Our online service model allows businesses to access professional accounting and tax services regardless of location.</p>
                       </div>
                   </div>
-                  <div className="relative h-[450px] rounded-3xl overflow-hidden shadow-xl border-8 border-slate-50">
+                  <div className="relative h-[400px] rounded-3xl overflow-hidden shadow-xl border-8 border-slate-50">
                       <iframe
                           src="https://www.google.com/maps?q=Stonemill+Office+Park+Johannesburg&output=embed"
                           width="100%"
@@ -418,93 +416,6 @@ export default function HomePageClient() {
           </div>
       </section>
 
-      {/* SMALL BUSINESS SECTION */}
-      <section className="py-24 bg-white border-t">
-          <div className="container mx-auto px-4">
-              <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                  <div className="space-y-6">
-                      <Badge variant="outline" className="px-4 py-1 uppercase font-black text-[10px] tracking-widest text-primary border-primary/20">SME Solutions</Badge>
-                      <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Accounting Solutions for South African SMEs & Entrepreneurs</h2>
-                      <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
-                        <p>We understand the challenges faced by small businesses and startups in South Africa.</p>
-                        <p>Our services are designed to help businesses:</p>
-                      </div>
-                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6">
-                          {[
-                              "Stay compliant with SARS", "Maintain accurate accounting records", "Submit CIPC annual returns", 
-                              "Register for VAT and PAYE", "Manage payroll requirements", "Prepare annual financial statements", 
-                              "Maintain good standing status"
-                          ].map(item => (
-                              <li key={item} className="flex items-center gap-2 text-sm font-semibold text-slate-700 p-2 bg-slate-50 rounded-lg">
-                                  <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> {item}
-                              </li>
-                          ))}
-                      </ul>
-                      <p className="text-lg text-muted-foreground leading-relaxed pt-4">Whether you are launching a startup, growing your SME, or managing an established business, My Accountant provides practical compliance support tailored to your needs.</p>
-                  </div>
-                  <Card className="bg-slate-50 border-2 shadow-sm p-8 flex flex-col items-center text-center h-full justify-center">
-                    <Building className="h-12 w-12 text-primary mb-4" />
-                    <h3 className="text-xl font-bold mb-2">Dedicated SME Support</h3>
-                    <p className="text-sm text-muted-foreground mb-6">Our accounting packages are designed to grow with your business.</p>
-                    <Button asChild className="w-full">
-                        <Link href="/signup">Get Started for my SME</Link>
-                    </Button>
-                  </Card>
-              </div>
-          </div>
-      </section>
-
-      {/* WHY ONLINE ACCOUNTING SECTION */}
-      <section className="py-24 bg-white border-t">
-          <div className="container mx-auto px-4 max-w-4xl text-center space-y-8">
-              <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Why Businesses Are Moving to Online Accounting Services</h2>
-              <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
-                <p>Online accounting services provide businesses with faster turnaround times, improved convenience, and simplified compliance management.</p>
-                <p>By using My Accountant, businesses can:</p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left pt-6">
-                  {[
-                      "Purchase services online", "Avoid unnecessary office visits", "Upload documents securely", 
-                      "Receive digital compliance support", "Track compliance requirements more efficiently", "Access accounting and tax assistance from anywhere in South Africa"
-                  ].map(item => (
-                      <div key={item} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 shadow-sm font-bold text-sm text-slate-800">
-                          <CheckCircle className="h-5 w-5 text-primary shrink-0" /> {item}
-                      </div>
-                  ))}
-              </div>
-          </div>
-      </section>
-
-      {/* CASE STUDY / RESULTS SECTION */}
-      <section className="py-24 bg-white border-t">
-          <div className="container mx-auto px-4">
-              <div className="text-center mb-16 space-y-4">
-                  <Badge variant="outline" className="px-4 py-1 uppercase font-black text-[10px] tracking-widest text-primary border-primary/20">Our Impact</Badge>
-                  <h2 className="text-4xl font-black text-slate-900">Helping South African Businesses Stay Compliant</h2>
-                  <p className="text-muted-foreground text-lg">Proven results across accounting, tax, and CIPC compliance.</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  {[
-                      { title: "SARS Compliance Support", icon: ShieldCheck, desc: "Assisting businesses with VAT registrations, tax compliance, and SARS submissions." },
-                      { title: "CIPC Compliance Assistance", icon: Building, desc: "Helping companies maintain annual returns and beneficial ownership compliance." },
-                      { title: "SME Accounting Support", icon: TrendingUp, desc: "Providing bookkeeping and financial support to growing South African businesses." }
-                  ].map((study, idx) => (
-                      <Card key={idx} className="border-none shadow-sm bg-slate-50 text-slate-900 text-center overflow-hidden h-full">
-                          <CardHeader className="pt-8 pb-4">
-                              <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 shadow-sm">
-                                  <study.icon className="h-6 w-6 text-primary" />
-                              </div>
-                              <CardTitle className="text-xl font-bold">{study.title}</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pb-8 px-8 flex-grow">
-                              <p className="text-sm text-muted-foreground leading-relaxed">{study.desc}</p>
-                          </CardContent>
-                      </Card>
-                  ))}
-              </div>
-          </div>
-      </section>
-
       {/* GENERAL FAQ SECTION */}
       <section className="py-24 bg-white border-t scroll-m-20">
         <div className="container mx-auto px-4 max-w-4xl">
@@ -515,11 +426,11 @@ export default function HomePageClient() {
           
           <Accordion type="single" collapsible className="w-full space-y-4">
             {faqData.map((faq, idx) => (
-              <AccordionItem key={idx} value={`item-${idx}`} className="bg-slate-50 border rounded-xl overflow-hidden shadow-sm">
-                <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-100 transition-colors text-left font-bold text-slate-900">
+              <AccordionItem key={idx} value={`item-${idx}`} className="bg-slate-50 border rounded-xl overflow-hidden shadow-sm px-6">
+                <AccordionTrigger className="py-4 hover:no-underline hover:bg-slate-100 transition-colors text-left font-bold text-slate-900">
                   {faq.q}
                 </AccordionTrigger>
-                <AccordionContent className="px-6 pb-6 pt-2 text-muted-foreground leading-relaxed text-sm font-medium">
+                <AccordionContent className="pb-6 pt-2 text-muted-foreground leading-relaxed text-sm font-medium">
                   {faq.a}
                 </AccordionContent>
               </AccordionItem>
@@ -574,23 +485,12 @@ export default function HomePageClient() {
 
       {/* STICKY CONVERSION BAR */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t shadow-2xl p-3 md:hidden animate-in slide-in-from-bottom duration-500">
-          <div className="grid grid-cols-3 gap-2">
-              <Button asChild variant="outline" className="h-10 text-[10px] font-black uppercase tracking-tighter px-1">
-                  <a href="tel:0101091625">
-                      <Phone className="mr-1 h-3.5 w-3.5" /> Call Now
-                  </a>
-              </Button>
-              <Button asChild variant="secondary" className="h-10 text-[10px] font-black uppercase tracking-tighter px-1 bg-green-500 text-white hover:bg-green-600 border-none">
-                  <a href="https://wa.me/27101091625" target="_blank">
-                      <MessageCircle className="mr-1 h-3.5 w-3.5" /> WhatsApp
-                  </a>
-              </Button>
-              <Button asChild className="h-10 text-[10px] font-black uppercase tracking-tighter px-1">
-                  <Link href="/signup">Get Started</Link>
+          <div className="grid grid-cols-1 gap-2">
+              <Button asChild className="h-10 text-xs font-black uppercase tracking-widest">
+                  <Link href="/signup">Get Started Now</Link>
               </Button>
           </div>
       </div>
     </div>
   );
 }
-
