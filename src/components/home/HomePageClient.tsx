@@ -22,7 +22,10 @@ import {
   ShoppingBag, 
   Loader2, 
   Clock,
-  PlusCircle
+  PlusCircle,
+  Users,
+  ShoppingCart,
+  FileUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -100,13 +103,12 @@ export default function HomePageClient() {
   ];
 
   const faqData = [
-    { q: "Do you assist clients throughout South Africa?", a: "Yes. My Accountant provides online accounting, tax, and compliance services nationwide." },
-    { q: "What accounting services do you provide?", a: "We assist with bookkeeping, annual financial statements, payroll, management accounts, and accounting compliance services." },
-    { q: "Do you assist with SARS registrations?", a: "Yes. We assist with VAT registration, PAYE registration, income tax registration, and other SARS compliance services." },
-    { q: "Can I buy services online?", a: "Yes. Our online platform allows clients to purchase accounting and compliance services online." },
-    { q: "Do you assist with CIPC annual returns?", a: "Yes. We assist companies and close corporations with annual return submissions and CIPC compliance requirements." },
-    { q: "How long does company registration take?", a: "Turnaround times vary depending on CIPC processing times and document submission requirements." },
-    { q: "Do you assist startups and small businesses?", a: "Yes. We work with startups, entrepreneurs, SMEs, and established businesses throughout South Africa." }
+    { q: "How long does company registration take in South Africa?", a: "Most company registrations are completed within 1–3 working days depending on CIPC processing times." },
+    { q: "Can I register for VAT online?", a: "Yes. My Accountant assists businesses throughout South Africa with SARS VAT registrations and VAT compliance services." },
+    { q: "Do you offer online accounting services?", a: "Yes. Our systems allow clients nationwide to securely upload documents and communicate directly with our consultants online." },
+    { q: "Can you assist with SARS tax debt?", a: "Yes. We assist with SARS disputes, payment arrangements, penalty remissions and tax debt compromise applications." },
+    { q: "Do you assist small businesses?", a: "Yes. We specialize in assisting startups, entrepreneurs and small to medium-sized businesses throughout South Africa." },
+    { q: "Do you provide bookkeeping services?", a: "Yes. We provide monthly bookkeeping and accounting services tailored to the needs of South African businesses." }
   ];
 
   const categorizedServices = useMemo(() => {
@@ -147,11 +149,11 @@ export default function HomePageClient() {
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
             Online Accounting, Tax & CIPC Services in South Africa
           </h1>
-          <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed">
+          <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed text-center">
             <p>
               My Accountant helps South African businesses stay compliant with professional accounting, tax, payroll, SARS, and CIPC services — all through a simple online process.
             </p>
-            <p className="mt-4 text-base text-muted-foreground/70">
+            <p className="mt-4">
               Whether you need company registration, VAT registration, bookkeeping, payroll, annual financial statements, tax compliance, or CIPC annual returns, our team assists businesses throughout Johannesburg, Randburg, Gauteng, and across South Africa.
             </p>
           </div>
