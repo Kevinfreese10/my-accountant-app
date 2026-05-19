@@ -26,7 +26,9 @@ import {
   Users,
   ShoppingCart,
   FileUp,
-  TrendingUp
+  TrendingUp,
+  Phone,
+  MessageCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -104,12 +106,13 @@ export default function HomePageClient() {
   ];
 
   const faqData = [
-    { q: "How long does company registration take in South Africa?", a: "Most company registrations are completed within 1–3 working days depending on CIPC processing times." },
-    { q: "Can I register for VAT online?", a: "Yes. My Accountant assists businesses throughout South Africa with SARS VAT registrations and VAT compliance services." },
-    { q: "Do you offer online accounting services?", a: "Yes. Our systems allow clients nationwide to securely upload documents and communicate directly with our consultants online." },
-    { q: "Can you assist with SARS tax debt?", a: "Yes. We assist with SARS disputes, payment arrangements, penalty remissions and tax debt compromise applications." },
-    { q: "Do you assist small businesses?", a: "Yes. We specialize in assisting startups, entrepreneurs and small to medium-sized businesses throughout South Africa." },
-    { q: "Do you provide bookkeeping services?", a: "Yes. We provide monthly bookkeeping and accounting services tailored to the needs of South African businesses." }
+    { q: "Do you assist clients throughout South Africa?", a: "Yes. My Accountant provides online accounting, tax, and compliance services nationwide." },
+    { q: "What accounting services do you provide?", a: "We assist with bookkeeping, annual financial statements, payroll, management accounts, and accounting compliance services." },
+    { q: "Do you assist with SARS registrations?", a: "Yes. We assist with VAT registration, PAYE registration, income tax registration, and other SARS compliance services." },
+    { q: "Can I buy services online?", a: "Yes. Our online platform allows clients to purchase accounting and compliance services online." },
+    { q: "Do you assist with CIPC annual returns?", a: "Yes. We assist companies and close corporations with annual return submissions and CIPC compliance requirements." },
+    { q: "How long does company registration take?", a: "Turnaround times vary depending on CIPC processing times and document submission requirements." },
+    { q: "Do you assist startups and small businesses?", a: "Yes. We work with startups, entrepreneurs, SMEs, and established businesses throughout South Africa." }
   ];
 
   const categorizedServices = useMemo(() => {
@@ -211,6 +214,7 @@ export default function HomePageClient() {
                   From startups and small businesses to established companies operating across Johannesburg, Randburg, Gauteng, and throughout South Africa, My Accountant remains committed to helping businesses stay compliant, organised, and financially supported through every stage of growth.
                 </p>
               </div>
+              
               <div className="space-y-3 pt-4">
                   <p className="font-bold text-slate-900 uppercase text-xs tracking-widest">We assist businesses throughout South Africa with:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
@@ -568,6 +572,25 @@ export default function HomePageClient() {
           </div>
         </div>
       </section>
+
+      {/* STICKY CONVERSION BAR */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t shadow-2xl p-3 md:hidden animate-in slide-in-from-bottom duration-500">
+          <div className="grid grid-cols-3 gap-2">
+              <Button asChild variant="outline" className="h-10 text-[10px] font-black uppercase tracking-tighter px-1">
+                  <a href="tel:0101091625">
+                      <Phone className="mr-1 h-3.5 w-3.5" /> Call Now
+                  </a>
+              </Button>
+              <Button asChild variant="secondary" className="h-10 text-[10px] font-black uppercase tracking-tighter px-1 bg-green-500 text-white hover:bg-green-600 border-none">
+                  <a href="https://wa.me/27101091625" target="_blank">
+                      <MessageCircle className="mr-1 h-3.5 w-3.5" /> WhatsApp
+                  </a>
+              </Button>
+              <Button asChild className="h-10 text-[10px] font-black uppercase tracking-tighter px-1">
+                  <Link href="/signup">Get Started</Link>
+              </Button>
+          </div>
+      </div>
     </div>
   );
 }
