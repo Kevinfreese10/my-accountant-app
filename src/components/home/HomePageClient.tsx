@@ -9,41 +9,29 @@ import {
   CheckCircle2, 
   ArrowRight, 
   Calculator, 
-  Users, 
   Landmark, 
   Building, 
   MapPin,
-  ClipboardList,
-  RefreshCw,
-  Info,
-  Briefcase,
-  TrendingUp,
-  ShoppingCart,
-  FileUp,
-  Bot,
-  CheckCircle,
-  FileText,
-  Smartphone,
-  Globe,
-  HardHat,
-  Camera,
-  User,
-  Utensils,
-  ShoppingBag,
-  Loader2,
-  ChevronRight,
-  PlusCircle,
-  Calendar as CalendarIcon,
-  Clock
+  CheckCircle, 
+  RefreshCw, 
+  Globe, 
+  HardHat, 
+  Camera, 
+  User, 
+  Utensils, 
+  ShoppingBag, 
+  Loader2, 
+  Clock,
+  PlusCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
+  CardFooter
 } from '@/components/ui/card';
 import { 
   Accordion, 
@@ -57,7 +45,6 @@ import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import Script from 'next/script';
 import { useBlog } from '@/contexts/BlogContext';
 import { format } from 'date-fns';
-import { useCart } from '@/contexts/CartContext';
 import { Service } from '@/lib/types';
 import { getFirestore, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -113,12 +100,13 @@ export default function HomePageClient() {
   ];
 
   const faqData = [
-    { q: "How long does company registration take in South Africa?", a: "Most company registrations are completed within 1–3 working days depending on CIPC processing times." },
-    { q: "Can I register for VAT online?", a: "Yes. My Accountant assists businesses throughout South Africa with SARS VAT registrations and VAT compliance services." },
-    { q: "Do you offer online accounting services?", a: "Yes. Our systems allow clients nationwide to securely upload documents and communicate directly with our consultants online." },
-    { q: "Can you assist with SARS tax debt?", a: "Yes. We assist with SARS disputes, payment arrangements, penalty remissions and tax debt compromise applications." },
-    { q: "Do you assist small businesses?", a: "Yes. We specialize in assisting startups, entrepreneurs and small to medium-sized businesses throughout South Africa." },
-    { q: "Do you provide bookkeeping services?", a: "Yes. We provide monthly bookkeeping and accounting services tailored to the needs of South African businesses." }
+    { q: "Do you assist clients throughout South Africa?", a: "Yes. My Accountant provides online accounting, tax, and compliance services nationwide." },
+    { q: "What accounting services do you provide?", a: "We assist with bookkeeping, annual financial statements, payroll, management accounts, and accounting compliance services." },
+    { q: "Do you assist with SARS registrations?", a: "Yes. We assist with VAT registration, PAYE registration, income tax registration, and other SARS compliance services." },
+    { q: "Can I buy services online?", a: "Yes. Our online platform allows clients to purchase accounting and compliance services online." },
+    { q: "Do you assist with CIPC annual returns?", a: "Yes. We assist companies and close corporations with annual return submissions and CIPC compliance requirements." },
+    { q: "How long does company registration take?", a: "Turnaround times vary depending on CIPC processing times and document submission requirements." },
+    { q: "Do you assist startups and small businesses?", a: "Yes. We work with startups, entrepreneurs, SMEs, and established businesses throughout South Africa." }
   ];
 
   const categorizedServices = useMemo(() => {
@@ -157,7 +145,7 @@ export default function HomePageClient() {
       <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
         <div className="container relative z-10 mx-auto px-4 text-center">
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            Online Accounting, Tax & <span className="text-primary">CIPC Services</span> in South Africa
+            Online Accounting, Tax & CIPC Services in South Africa
           </h1>
           <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed">
             <p>
@@ -179,7 +167,7 @@ export default function HomePageClient() {
             </Button>
           </div>
 
-          <div className="mt-16 grid grid-cols-2 md:grid-cols-5 gap-4 max-w-5xl mx-auto">
+          <div className="mt-16 grid grid-cols-2 md:grid-cols-5 gap-4 max-w-5xl mx-auto border-t pt-8">
               {trustIndicators.map((item, idx) => (
                   <div key={idx} className="flex flex-col items-center gap-2 text-muted-foreground">
                       <item.icon className="h-5 w-5 text-primary" />
@@ -202,10 +190,22 @@ export default function HomePageClient() {
               </h2>
               <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
                 <p>
-                  At My Accountant, we focus on helping South African entrepreneurs, startups, SMEs, and established businesses simplify accounting and compliance.
+                  At My Accountant, we focus on helping South African entrepreneurs, startups, SMEs, and established businesses simplify accounting, tax, payroll, SARS, and CIPC compliance through a modern online service model designed for convenience, efficiency, and ongoing business support.
                 </p>
                 <p>
-                  Our online accounting platform allows clients to purchase services online, upload documents securely, and receive professional support without needing to visit a physical office.
+                  Our platform allows clients to purchase services online, upload documents securely, and receive professional accounting and compliance assistance from anywhere in South Africa without needing to visit a physical office. Whether you require bookkeeping, annual financial statements, VAT registration, payroll services, tax compliance, company registration, or ongoing CIPC support, our team provides practical solutions tailored to the South African business environment.
+                </p>
+                <p>
+                  My Accountant is backed by strong client satisfaction and has earned over 200+ 5-star Google reviews from businesses across South Africa. View our Google Reviews & Client Feedback to see what our clients have to say about our accounting, tax, payroll, SARS, and compliance services.
+                </p>
+                <p>
+                  Our team includes professionals affiliated with recognised professional bodies including South African Institute of Chartered Accountants (SAICA), Chartered Institute for Business Accountants (CIBA), and South African Institute of Taxation (SAIT), with expertise spanning chartered accounting, management accounting, bookkeeping, taxation, and registered tax practitioner services. This provides clients with confidence that their accounting, tax, SARS, and compliance matters are handled professionally, ethically, and in accordance with recognised industry standards.
+                </p>
+                <p>
+                  We are also proud to be the appointed financial management partner for Carte Blanche, South Africa’s longest-running and most trusted current affairs television programme, further reinforcing our commitment to professionalism, reliability, and high-quality financial management services.
+                </p>
+                <p>
+                  From startups and small businesses to established companies operating across Johannesburg, Randburg, Gauteng, and throughout South Africa, My Accountant remains committed to helping businesses stay compliant, organised, and financially supported through every stage of growth.
                 </p>
               </div>
               <div className="space-y-3 pt-4">
@@ -252,13 +252,13 @@ export default function HomePageClient() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {/* Accounting & Bookkeeping */}
-                  <Card className="border-2 bg-slate-50 shadow-sm">
+                  <Card className="border-2 bg-slate-50 shadow-sm flex flex-col h-full">
                       <CardHeader>
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Calculator className="h-5 w-5" /></div>
                           <CardTitle className="text-xl">Accounting & Bookkeeping Services</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                          <p className="text-sm text-muted-foreground">We provide monthly bookkeeping, management accounts, annual financial statements, and accounting support.</p>
+                      <CardContent className="space-y-4 flex-grow">
+                          <p className="text-sm text-muted-foreground">We provide monthly bookkeeping, management accounts, annual financial statements, and accounting support for South African businesses.</p>
                           <div className="flex flex-col gap-2">
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#accounting-services">Monthly bookkeeping services <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#accounting-services">Annual financial statements <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
@@ -269,12 +269,12 @@ export default function HomePageClient() {
                   </Card>
 
                   {/* Tax & SARS */}
-                  <Card className="border-2 bg-slate-50 shadow-sm">
+                  <Card className="border-2 bg-slate-50 shadow-sm flex flex-col h-full">
                       <CardHeader>
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Landmark className="h-5 w-5" /></div>
                           <CardTitle className="text-xl">Tax & SARS Compliance Services</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
+                      <CardContent className="space-y-4 flex-grow">
                           <p className="text-sm text-muted-foreground">Our tax specialists assist with SARS registrations, tax returns, VAT compliance, PAYE, tax clearance PINs, and tax compliance support.</p>
                           <div className="flex flex-col gap-2">
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products/vat-registration">VAT registration <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
@@ -282,18 +282,19 @@ export default function HomePageClient() {
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#sars-services">PAYE registration <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#sars-services">Income tax returns <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products/tax-clearance-pin">Tax clearance PIN <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
+                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/compliance">SARS compliance services <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
                           </div>
                       </CardContent>
                   </Card>
 
                   {/* CIPC */}
-                  <Card className="border-2 bg-slate-50 shadow-sm">
+                  <Card className="border-2 bg-slate-50 shadow-sm flex flex-col h-full">
                       <CardHeader>
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Building className="h-5 w-5" /></div>
                           <CardTitle className="text-xl">Company Registration & CIPC Services</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                          <p className="text-sm text-muted-foreground">We assist businesses with company registration, annual returns, beneficial ownership, and company reinstatements.</p>
+                      <CardContent className="space-y-4 flex-grow">
+                          <p className="text-sm text-muted-foreground">We assist businesses with company registration, annual returns, beneficial ownership declarations, company reinstatements, and ongoing CIPC compliance.</p>
                           <div className="flex flex-col gap-2">
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products/company-registration">Company registration <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products/cipc-annual-returns">CIPC annual returns <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
@@ -304,12 +305,12 @@ export default function HomePageClient() {
                   </Card>
 
                   {/* Payroll */}
-                  <Card className="border-2 bg-slate-50 shadow-sm">
+                  <Card className="border-2 bg-slate-50 shadow-sm flex flex-col h-full">
                       <CardHeader>
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Users className="h-5 w-5" /></div>
                           <CardTitle className="text-xl">Payroll & Employee Compliance</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
+                      <CardContent className="space-y-4 flex-grow">
                           <p className="text-sm text-muted-foreground">Our payroll services help businesses remain compliant with PAYE, UIF, SDL, EMP201, and EMP501 requirements.</p>
                           <div className="flex flex-col gap-2">
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/monthly-payroll">Payroll services <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
@@ -320,13 +321,13 @@ export default function HomePageClient() {
                   </Card>
 
                   {/* Business Compliance */}
-                  <Card className="border-2 bg-slate-50 shadow-sm md:col-span-2 lg:col-span-1">
+                  <Card className="border-2 bg-slate-50 shadow-sm flex flex-col h-full md:col-span-2 lg:col-span-1">
                       <CardHeader>
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><ShieldCheck className="h-5 w-5" /></div>
                           <CardTitle className="text-xl">Business Compliance Services</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                          <p className="text-sm text-muted-foreground">We assist businesses with industry-specific registrations including COIDA, CIDB, NCR, BEE, CSD, and PBO.</p>
+                      <CardContent className="space-y-4 flex-grow">
+                          <p className="text-sm text-muted-foreground">We assist businesses with various compliance requirements including:</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                               <Link href="/products/coida-registration" className="text-xs font-bold text-primary hover:underline">COIDA registration</Link>
                               <Link href="/products#cipc-services" className="text-xs font-bold text-primary hover:underline">CIDB registration</Link>
@@ -343,7 +344,7 @@ export default function HomePageClient() {
       </section>
 
       {/* PROCESS SECTION */}
-      <section className="py-24 bg-white">
+      <section className="py-24 bg-white border-t">
         <div className="container mx-auto px-4">
           <div className="text-center mb-20 space-y-4">
             <h2 className="text-3xl font-black md:text-5xl uppercase tracking-tighter text-slate-900">How Our Online Accounting Process Works</h2>
@@ -357,7 +358,7 @@ export default function HomePageClient() {
               { step: "04", title: "Receive Confirmation & Support", desc: "We provide updates, confirmations, and ongoing support throughout the process.", icon: CheckCircle2 }
             ].map((step, idx) => (
               <div key={idx} className="relative text-center space-y-6 group">
-                <div className="h-20 w-20 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6 group-hover:bg-primary group-hover:text-white transition-all shadow-md border border-primary/5">
+                <div className="h-20 w-20 rounded-3xl bg-slate-50 text-primary flex items-center justify-center mx-auto mb-6 group-hover:bg-primary group-hover:text-white transition-all shadow-md border border-primary/5">
                   <step.icon className="h-10 w-10" />
                 </div>
                 <div className="space-y-2">
@@ -380,13 +381,20 @@ export default function HomePageClient() {
                       <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary"><MapPin className="h-6 w-6" /></div>
                       <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Accounting & Tax Services for Businesses Across South Africa</h2>
                       <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
-                          <p>My Accountant provides online accounting and compliance services to businesses throughout South Africa. Our online service model allows businesses to access professional accounting and tax services regardless of location.</p>
-                          <p>We assist clients in Johannesburg, Randburg, Sandton, Midrand, Pretoria, Durban, Cape Town, Gauteng, and nationwide.</p>
-                      </div>
-                      <div className="pt-4 flex flex-wrap gap-2">
-                          {["Johannesburg", "Randburg", "Sandton", "Midrand", "Pretoria", "Cape Town", "Durban", "Gauteng", "South Africa Nationwide"].map(city => (
-                              <Badge key={city} variant="secondary" className="bg-slate-50 text-slate-600 border-none font-bold text-[10px] uppercase px-3 py-1">{city}</Badge>
-                          ))}
+                          <p>My Accountant provides online accounting and compliance services to businesses throughout South Africa.</p>
+                          <p>We assist clients in:</p>
+                          <div className="grid grid-cols-2 gap-2 text-sm font-bold text-slate-700">
+                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Johannesburg</div>
+                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Randburg</div>
+                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Sandton</div>
+                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Midrand</div>
+                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Pretoria</div>
+                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Durban</div>
+                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Cape Town</div>
+                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Gauteng</div>
+                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> South Africa nationwide</div>
+                          </div>
+                          <p>Our online service model allows businesses to access professional accounting and tax services regardless of location.</p>
                       </div>
                   </div>
                   <div className="relative h-[450px] rounded-3xl overflow-hidden shadow-xl border-8 border-slate-50">
@@ -411,20 +419,24 @@ export default function HomePageClient() {
                   <div className="space-y-6">
                       <Badge variant="outline" className="px-4 py-1 uppercase font-black text-[10px] tracking-widest text-primary border-primary/20">SME Solutions</Badge>
                       <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Accounting Solutions for South African SMEs & Entrepreneurs</h2>
-                      <p className="text-lg text-muted-foreground leading-relaxed">We understand the challenges faced by small businesses and startups in South Africa. Whether you are launching a startup, growing your SME, or managing an established business, My Accountant provides practical compliance support tailored to your needs.</p>
+                      <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
+                        <p>We understand the challenges faced by small businesses and startups in South Africa.</p>
+                        <p>Our services are designed to help businesses:</p>
+                      </div>
                       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6">
                           {[
-                              "Stay compliant with SARS", "Maintain accurate records", "Submit CIPC annual returns", 
-                              "Register for VAT and PAYE", "Manage payroll requirements", "Prepare financial statements", 
-                              "Maintain good standing"
+                              "Stay compliant with SARS", "Maintain accurate accounting records", "Submit CIPC annual returns", 
+                              "Register for VAT and PAYE", "Manage payroll requirements", "Prepare annual financial statements", 
+                              "Maintain good standing status"
                           ].map(item => (
                               <li key={item} className="flex items-center gap-2 text-sm font-semibold text-slate-700 p-2 bg-slate-50 rounded-lg">
                                   <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> {item}
                               </li>
                           ))}
                       </ul>
+                      <p className="text-lg text-muted-foreground leading-relaxed pt-4">Whether you are launching a startup, growing your SME, or managing an established business, My Accountant provides practical compliance support tailored to your needs.</p>
                   </div>
-                  <Card className="bg-slate-50 border-2 shadow-sm p-8 flex flex-col items-center text-center">
+                  <Card className="bg-slate-50 border-2 shadow-sm p-8 flex flex-col items-center text-center h-full justify-center">
                     <Building className="h-12 w-12 text-primary mb-4" />
                     <h3 className="text-xl font-bold mb-2">Dedicated SME Support</h3>
                     <p className="text-sm text-muted-foreground mb-6">Our accounting packages are designed to grow with your business.</p>
@@ -436,46 +448,18 @@ export default function HomePageClient() {
           </div>
       </section>
 
-      {/* INDUSTRY SPECIFIC SECTION */}
-      <section className="py-24 bg-white border-t">
-          <div className="container mx-auto px-4">
-              <div className="text-center mb-16 space-y-4">
-                  <Badge variant="outline" className="px-4 py-1 uppercase font-black text-[10px] tracking-widest text-primary border-primary/20">Specialized Expertise</Badge>
-                  <h2 className="text-4xl font-black text-slate-900">Industries We Assist</h2>
-                  <p className="text-muted-foreground text-lg max-w-2xl mx-auto leading-relaxed">Tailored accounting and tax solutions for South Africa's high-growth sectors.</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {industries.map((item, idx) => (
-                      <Card key={idx} className="border-2 border-slate-100 bg-slate-50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 group">
-                          <CardHeader className="pb-3">
-                              <div className="h-10 w-10 rounded-lg bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors mb-2">
-                                  <item.icon className="h-5 w-5" />
-                              </div>
-                              <CardTitle className="text-lg font-bold">{item.title}</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                              <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{item.desc}</p>
-                          </CardContent>
-                          <CardFooter className="pt-2">
-                              <Button variant="link" asChild className="p-0 h-auto font-black text-[10px] uppercase tracking-widest text-primary group-hover:translate-x-1 transition-transform">
-                                  <Link href={`/industries/${item.slug}`}>Explore Industry <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                              </Button>
-                          </CardFooter>
-                      </Card>
-                  ))}
-              </div>
-          </div>
-      </section>
-
       {/* WHY ONLINE ACCOUNTING SECTION */}
       <section className="py-24 bg-white border-t">
           <div className="container mx-auto px-4 max-w-4xl text-center space-y-8">
               <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Why Businesses Are Moving to Online Accounting Services</h2>
-              <p className="text-lg text-muted-foreground leading-relaxed">Online accounting services provide businesses with faster turnaround times, improved convenience, and simplified compliance management.</p>
+              <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
+                <p>Online accounting services provide businesses with faster turnaround times, improved convenience, and simplified compliance management.</p>
+                <p>By using My Accountant, businesses can:</p>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left pt-6">
                   {[
                       "Purchase services online", "Avoid unnecessary office visits", "Upload documents securely", 
-                      "Receive digital compliance support", "Track requirements efficiently", "Access assistance nationwide"
+                      "Receive digital compliance support", "Track compliance requirements more efficiently", "Access accounting and tax assistance from anywhere in South Africa"
                   ].map(item => (
                       <div key={item} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 shadow-sm font-bold text-sm text-slate-800">
                           <CheckCircle className="h-5 w-5 text-primary shrink-0" /> {item}
@@ -506,7 +490,7 @@ export default function HomePageClient() {
                               </div>
                               <CardTitle className="text-xl font-bold">{study.title}</CardTitle>
                           </CardHeader>
-                          <CardContent className="pb-8 px-8">
+                          <CardContent className="pb-8 px-8 flex-grow">
                               <p className="text-sm text-muted-foreground leading-relaxed">{study.desc}</p>
                           </CardContent>
                       </Card>
@@ -549,15 +533,15 @@ export default function HomePageClient() {
               </p>
               
               <div className="space-y-6">
-                  <p className="text-xs font-black uppercase text-primary tracking-[0.2em]">Quick Links</p>
+                  <p className="text-xs font-black uppercase text-primary tracking-[0.2em]">Popular Services</p>
                   <div className="flex flex-wrap justify-center gap-3">
                       {[
-                          { label: "Company Registration", href: "/products/company-registration" },
-                          { label: "VAT Registration", href: "/products/vat-registration" },
-                          { label: "Bookkeeping", href: "/products#accounting-services" },
-                          { label: "Tax Clearance", href: "/products/tax-clearance-pin" },
-                          { label: "Annual Returns", href: "/products/cipc-annual-returns" },
-                          { label: "Beneficial Ownership", href: "/products/beneficial-ownership-declaration" }
+                          { label: "Company Registration Services", href: "/products/company-registration" },
+                          { label: "VAT Registration Services", href: "/products/vat-registration" },
+                          { label: "Bookkeeping Services", href: "/products#accounting-services" },
+                          { label: "Tax Clearance Certificate PIN", href: "/products/tax-clearance-pin" },
+                          { label: "CIPC Annual Returns", href: "/products/cipc-annual-returns" },
+                          { label: "Beneficial Ownership Services", href: "/products/beneficial-ownership-declaration" }
                       ].map(s => (
                           <Button key={s.label} variant="outline" size="sm" asChild className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-900 font-bold rounded-full transition-all shadow-sm">
                               <Link href={s.href}><PlusCircle className="mr-2 h-3.5 w-3.5" /> {s.label}</Link>
