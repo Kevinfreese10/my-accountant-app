@@ -151,7 +151,7 @@ export default function HomePageClient() {
       <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
         <div className="container relative z-10 mx-auto px-4 text-center">
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            Online Accounting, Tax & CIPC Services in South Africa
+            Online Accounting, Tax & Payroll Services in South Africa
           </h1>
           <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed text-center">
             <p>
@@ -163,13 +163,13 @@ export default function HomePageClient() {
           </div>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
             <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
-              <Link href="/signup">Get Started</Link>
+              <Link href="/contact">Get Accounting Support</Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2">
-              <Link href="/products">View Services</Link>
+              <Link href="/contact">Speak to a Tax Consultant</Link>
             </Button>
             <Button asChild variant="secondary" size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
-              <Link href="/compliance">Request a Compliance Assessment</Link>
+              <Link href="/contact">Speak to a payroll specialist</Link>
             </Button>
           </div>
 
@@ -193,7 +193,7 @@ export default function HomePageClient() {
             <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl text-center">
               Why South African Businesses Choose My Accountant
             </h2>
-            <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
+            <div className="space-y-4 text-lg text-muted-foreground leading-relaxed text-center">
               <p>
                 At My Accountant, we focus on helping South African entrepreneurs, startups, SMEs, and established businesses simplify accounting, tax, payroll, SARS, and CIPC compliance through a modern online service model designed for convenience, efficiency, and ongoing business support.
               </p>
