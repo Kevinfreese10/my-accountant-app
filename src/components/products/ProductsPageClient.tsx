@@ -22,6 +22,7 @@ import { collection, getFirestore, orderBy, query, onSnapshot } from 'firebase/f
 import { firebaseApp } from '@/lib/firebase';
 import { Service } from '@/lib/types';
 import { useEffect, useState, useMemo } from 'react';
+import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 
 const db = getFirestore(firebaseApp);
 
@@ -82,6 +83,8 @@ export default function ProductsPageClient() {
           Comprehensive solutions to meet all your financial needs. We offer a range of products for individuals and businesses.
         </p>
       </div>
+
+      <TrustIndexWidget />
 
       <div className="space-y-12">
         {isLoading ? (
