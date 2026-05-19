@@ -95,14 +95,6 @@ export default function HomePageClient() {
     { title: "Business Compliance Specialists", desc: "We assist businesses with ongoing SARS, CIPC, payroll, and accounting compliance requirements.", icon: Landmark }
   ];
 
-  const industries = [
-    { title: "Accounting for SMEs", slug: "sme", icon: Building, desc: "Scale from startup to market player with expert financial structure." },
-    { title: "Accounting for Construction", slug: "construction", icon: HardHat, desc: "Project-based tracking for builders and contractors." },
-    { title: "Accounting for Influencers", slug: "influencers", icon: Camera, desc: "Tax optimization and income tracking for digital creators." },
-    { title: "Accounting for Freelancers", slug: "freelancers", icon: User, desc: "Simple bookkeeping and tax for independent professionals." },
-    { title: "Accounting for Restaurants", slug: "restaurants", icon: Utensils, desc: "Inventory and food cost tracking for the hospitality sector." },
-  ];
-
   const faqData = [
     { q: "Do you assist clients throughout South Africa?", a: "Yes. My Accountant provides online accounting, tax, and compliance services nationwide." },
     { q: "What accounting services do you provide?", a: "We assist with bookkeeping, annual financial statements, payroll, management accounts, and accounting compliance services." },
@@ -152,13 +144,13 @@ export default function HomePageClient() {
           </div>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
             <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
-              <Link href="/contact">Speak to an Accountant</Link>
+              <Link href="/contact">Book Free Consultation</Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2">
-              <Link href="/contact">Speak to a Tax Consultant</Link>
+              <Link href="/contact">Speak to an Accountant</Link>
             </Button>
             <Button asChild variant="secondary" size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
-              <Link href="/contact">Speak to a Payroll Specialist</Link>
+              <Link href="/products">Visit our online store</Link>
             </Button>
           </div>
 
