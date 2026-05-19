@@ -2,7 +2,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, ShieldCheck, Scale, Users, FileText } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Metadata } from 'next';
 import { getStaticPageMetadata } from '@/lib/seo-utils';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';

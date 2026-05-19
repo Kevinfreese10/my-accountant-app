@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, Landmark, Users, Receipt, ShieldCheck } from 'lucide-react';
+import { Landmark, Users, Receipt, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { Metadata } from 'next';
 import { getStaticPageMetadata } from '@/lib/seo-utils';
@@ -29,8 +29,8 @@ export default function PayeCompliancePage() {
     <div className="space-y-16 pb-16 bg-white">
       <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
         <div className="container relative z-10 mx-auto px-4">
-          <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            PAYE <span className="text-gradient">#Compliance</span> & EMP201
+          <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl text-center">
+            <span className="text-gradient">PAYE #Compliance & EMP201</span>
           </h1>
           <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
             Stay on the right side of SARS. We manage your monthly employee tax declarations so you avoid costly non-compliance penalties.
