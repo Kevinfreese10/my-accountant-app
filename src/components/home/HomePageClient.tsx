@@ -163,13 +163,13 @@ export default function HomePageClient() {
           </div>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
             <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
-              <Link href="/contact">Get Accounting Support</Link>
+              <Link href="/contact">Speak to an Accountant</Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2">
               <Link href="/contact">Speak to a Tax Consultant</Link>
             </Button>
             <Button asChild variant="secondary" size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
-              <Link href="/contact">Speak to a payroll specialist</Link>
+              <Link href="/contact">Speak to a Payroll Specialist</Link>
             </Button>
           </div>
 
