@@ -188,62 +188,61 @@ export default function HomePageClient() {
 
       {/* TRUST & AUTHORITY SECTION */}
       <section className="py-24 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div className="space-y-6">
-              <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
-                Why South African Businesses Choose My Accountant
-              </h2>
-              <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
-                <p>
-                  At My Accountant, we focus on helping South African entrepreneurs, startups, SMEs, and established businesses simplify accounting, tax, payroll, SARS, and CIPC compliance through a modern online service model designed for convenience, efficiency, and ongoing business support.
-                </p>
-                <p>
-                  Our platform allows clients to purchase services online, upload documents securely, and receive professional accounting and compliance assistance from anywhere in South Africa without needing to visit a physical office. Whether you require bookkeeping, annual financial statements, VAT registration, payroll services, tax compliance, company registration, or ongoing CIPC support, our team provides practical solutions tailored to the South African business environment.
-                </p>
-                <p>
-                  My Accountant is backed by strong client satisfaction and has earned over 200+ 5-star Google reviews from businesses across South Africa. View our Google Reviews & Client Feedback to see what our clients have to say about our accounting, tax, payroll, SARS, and compliance services.
-                </p>
-                <p>
-                  Our team includes professionals affiliated with recognised professional bodies including South African Institute of Chartered Accountants (SAICA), Chartered Institute for Business Accountants (CIBA), and South African Institute of Taxation (SAIT), with expertise spanning chartered accounting, management accounting, bookkeeping, taxation, and registered tax practitioner services. This provides clients with confidence that their accounting, tax, SARS, and compliance matters are handled professionally, ethically, and in accordance with recognised industry standards.
-                </p>
-                <p>
-                  We are also proud to be the appointed financial management partner for Carte Blanche, South Africa’s longest-running and most trusted current affairs television programme, further reinforcing our commitment to professionalism, reliability, and high-quality financial management services.
-                </p>
-                <p>
-                  From startups and small businesses to established companies operating across Johannesburg, Randburg, Gauteng, and throughout South Africa, My Accountant remains committed to helping businesses stay compliant, organised, and financially supported through every stage of growth.
-                </p>
-              </div>
-              
-              <div className="space-y-3 pt-4">
-                  <p className="font-bold text-slate-900 uppercase text-xs tracking-widest">We assist businesses throughout South Africa with:</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                    {[
-                      "Accounting services", "Tax compliance", "SARS registrations", "CIPC compliance",
-                      "Payroll administration", "VAT services", "Company registrations", "COIDA compliance",
-                      "CIDB registrations", "NCR registrations", "BEE certificates", "PBO registrations"
-                    ].map((service) => (
-                      <div key={service} className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                        <span className="text-sm font-semibold text-slate-700">{service}</span>
-                      </div>
-                    ))}
-                  </div>
-              </div>
+        <div className="container mx-auto px-4 space-y-16">
+          <div className="max-w-4xl space-y-6">
+            <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
+              Why South African Businesses Choose My Accountant
+            </h2>
+            <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
+              <p>
+                At My Accountant, we focus on helping South African entrepreneurs, startups, SMEs, and established businesses simplify accounting, tax, payroll, SARS, and CIPC compliance through a modern online service model designed for convenience, efficiency, and ongoing business support.
+              </p>
+              <p>
+                Our platform allows clients to purchase services online, upload documents securely, and receive professional accounting and compliance assistance from anywhere in South Africa without needing to visit a physical office. Whether you require bookkeeping, annual financial statements, VAT registration, payroll services, tax compliance, company registration, or ongoing CIPC support, our team provides practical solutions tailored to the South African business environment.
+              </p>
+              <p>
+                My Accountant is backed by strong client satisfaction and has earned over 200+ 5-star Google reviews from businesses across South Africa. View our Google Reviews & Client Feedback to see what our clients have to say about our accounting, tax, payroll, SARS, and compliance services.
+              </p>
+              <p>
+                Our team includes professionals affiliated with recognised professional bodies including South African Institute of Chartered Accountants (SAICA), Chartered Institute for Business Accountants (CIBA), and South African Institute of Taxation (SAIT), with expertise spanning chartered accounting, management accounting, bookkeeping, taxation, and registered tax practitioner services. This provides clients with confidence that their accounting, tax, SARS, and compliance matters are handled professionally, ethically, and in accordance with recognised industry standards.
+              </p>
+              <p>
+                We are also proud to be the appointed financial management partner for Carte Blanche, South Africa’s longest-running and most trusted current affairs television programme, further reinforcing our commitment to professionalism, reliability, and high-quality financial management services.
+              </p>
+              <p>
+                From startups and small businesses to established companies operating across Johannesburg, Randburg, Gauteng, and throughout South Africa, My Accountant remains committed to helping businesses stay compliant, organised, and financially supported through every stage of growth.
+              </p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {trustBlocks.map((block, idx) => (
-                <Card key={idx} className="border-2 border-slate-100 shadow-none bg-slate-50 hover:border-primary/20 transition-all">
-                  <CardHeader className="pb-2">
-                    <block.icon className="h-8 w-8 text-primary mb-2" />
-                    <CardTitle className="text-base font-bold">{block.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{block.desc}</p>
-                  </CardContent>
-                </Card>
-              ))}
+            
+            <div className="space-y-3 pt-4">
+                <p className="font-bold text-slate-900 uppercase text-xs tracking-widest">We assist businesses throughout South Africa with:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                  {[
+                    "Accounting services", "Tax compliance", "SARS registrations", "CIPC compliance",
+                    "Payroll administration", "VAT services", "Company registrations", "COIDA compliance",
+                    "CIDB registrations", "NCR registrations", "BEE certificates", "PBO registrations"
+                  ].map((service) => (
+                    <div key={service} className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                      <span className="text-sm font-semibold text-slate-700">{service}</span>
+                    </div>
+                  ))}
+                </div>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {trustBlocks.map((block, idx) => (
+              <Card key={idx} className="border-2 border-slate-100 shadow-none bg-slate-50 hover:border-primary/20 transition-all">
+                <CardHeader className="pb-2">
+                  <block.icon className="h-8 w-8 text-primary mb-2" />
+                  <CardTitle className="text-base font-bold">{block.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{block.desc}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       </section>
@@ -594,3 +593,4 @@ export default function HomePageClient() {
     </div>
   );
 }
+
