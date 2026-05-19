@@ -75,7 +75,7 @@ export default function HomePageClient() {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
-      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(price);
   };
@@ -146,7 +146,7 @@ export default function HomePageClient() {
             <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
               <Link href="/contact">Book Free Consultation</Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2">
+            <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2 shadow-sm">
               <Link href="/contact">Speak to an Accountant</Link>
             </Button>
             <Button asChild variant="secondary" size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
@@ -208,83 +208,185 @@ export default function HomePageClient() {
                     </Card>
                 ))}
             </div>
-            
-            <div className="space-y-8 pt-12">
-                <p className="font-bold text-slate-900 uppercase text-xs tracking-widest text-center">Our Primary Pillars of Expertise:</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
-                    {/* Accounting Pillar */}
-                    <Card className="border-2 border-slate-100 shadow-none bg-slate-50">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-lg font-black uppercase text-primary tracking-tight">Accounting Services</CardTitle>
-                            <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">Core Compliance Pillar</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <ul className="space-y-3">
-                                {[
-                                    { label: "Monthly Accounting Services", href: "/monthly-accounting" },
-                                    { label: "Management Accounts", href: "/management-accounts" },
-                                    { label: "Annual Financial Statements", href: "/annual-financial-statements" }
-                                ].map(item => (
-                                    <li key={item.label} className="flex items-start gap-2 text-sm font-bold text-slate-700">
-                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                                        <Link href={item.href} className="hover:text-primary transition-colors">{item.label}</Link>
-                                    </li>
-                                ))}
-                            </ul>
-                        </CardContent>
-                    </Card>
-
-                    {/* Tax Pillar */}
-                    <Card className="border-2 border-slate-100 shadow-none bg-slate-50">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-lg font-black uppercase text-primary tracking-tight">Tax Services</CardTitle>
-                            <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">Strategic Tax Support</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <ul className="space-y-3">
-                                {[
-                                    { label: "SARS S200 Compromises", href: "/sars-compromise" },
-                                    { label: "SARS Dispute Resolution", href: "/sars-disputes" },
-                                    { label: "SARS Objections", href: "/sars-disputes" },
-                                    { label: "Remission of Fines & Penalties", href: "/remission-of-fines" },
-                                    { label: "CIT, VAT & PAYE Returns", href: "/products#sars-services" }
-                                ].map(item => (
-                                    <li key={item.label} className="flex items-start gap-2 text-sm font-bold text-slate-700">
-                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                                        <Link href={item.href} className="hover:text-primary transition-colors">{item.label}</Link>
-                                    </li>
-                                ))}
-                            </ul>
-                        </CardContent>
-                    </Card>
-
-                    {/* Payroll Pillar */}
-                    <Card className="border-2 border-slate-100 shadow-none bg-slate-50">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-lg font-black uppercase text-primary tracking-tight">Payroll Services</CardTitle>
-                            <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">Workforce Compliance</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <ul className="space-y-3">
-                                {[
-                                    { label: "Payroll Outsourcing", href: "/monthly-payroll" },
-                                    { label: "PAYE Compliance", href: "/paye-compliance" },
-                                    { label: "UIF & SDL Compliance", href: "/uif-compliance" },
-                                    { label: "Payroll Administration", href: "/payroll-administration" }
-                                ].map(item => (
-                                    <li key={item.label} className="flex items-start gap-2 text-sm font-bold text-slate-700">
-                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                                        <Link href={item.href} className="hover:text-primary transition-colors">{item.label}</Link>
-                                    </li>
-                                ))}
-                            </ul>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
           </div>
         </div>
+      </section>
+
+      {/* CORE SERVICES SEO SECTION */}
+      <section className="py-24 bg-slate-50 border-y">
+          <div className="container mx-auto px-4">
+              <div className="text-center mb-16 space-y-4">
+                  <h2 className="text-3xl font-black text-slate-900 md:text-5xl uppercase tracking-tighter">Core Business Services</h2>
+                  <p className="text-muted-foreground text-lg">Specialised accounting and tax compliance for the South African market.</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                  {/* Accounting Pillar */}
+                  <Card className="border-2 border-slate-100 shadow-sm bg-white hover:border-primary/20 transition-all">
+                      <CardHeader className="pb-3">
+                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-3">
+                              <Calculator className="h-5 w-5" />
+                          </div>
+                          <CardTitle className="text-xl font-bold">Accounting Services</CardTitle>
+                          <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-primary">Core Compliance</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                          <ul className="space-y-4">
+                              <li className="group">
+                                  <Link href="/monthly-accounting" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      monthly accounting services
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/annual-financial-statements" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      financial statement preparation
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/management-accounts" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      management accounts
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/contact" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      outsourced accounting
+                                  </Link>
+                              </li>
+                          </ul>
+                      </CardContent>
+                  </Card>
+
+                  {/* Tax Pillar */}
+                  <Card className="border-2 border-slate-100 shadow-sm bg-white hover:border-primary/20 transition-all">
+                      <CardHeader className="pb-3">
+                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-3">
+                              <Landmark className="h-5 w-5" />
+                          </div>
+                          <CardTitle className="text-xl font-bold">Tax Services</CardTitle>
+                          <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-primary">SARS Specialists</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                          <ul className="space-y-4">
+                              <li className="group">
+                                  <Link href="/products/vat-registration" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      VAT Registration
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/products/vat-returns" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      VAT Returns
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/products/tax-clearance-pin" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      Tax Clearance
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/sars-disputes" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      SARS Disputes
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/sars-compromise" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      Tax Debt Relief
+                                  </Link>
+                              </li>
+                          </ul>
+                      </CardContent>
+                  </Card>
+
+                  {/* Payroll Pillar */}
+                  <Card className="border-2 border-slate-100 shadow-sm bg-white hover:border-primary/20 transition-all">
+                      <CardHeader className="pb-3">
+                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-3">
+                              <Users className="h-5 w-5" />
+                          </div>
+                          <CardTitle className="text-xl font-bold">Payroll Services</CardTitle>
+                          <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-primary">Workforce Management</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase leading-tight italic">
+                              Targeting payroll services South Africa, PAYE submissions, and IRP5 submissions.
+                          </p>
+                          <ul className="space-y-4">
+                              <li className="group">
+                                  <Link href="/monthly-payroll" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      payroll outsourcing
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/paye-compliance" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      PAYE Compliance (EMP201)
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/uif-compliance" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      UIF & SDL Compliance
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/payroll-administration" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      payroll compliance (EMP501)
+                                  </Link>
+                              </li>
+                          </ul>
+                      </CardContent>
+                  </Card>
+
+                  {/* CIPC Pillar */}
+                  <Card className="border-2 border-slate-100 shadow-sm bg-white hover:border-primary/20 transition-all">
+                      <CardHeader className="pb-3">
+                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-3">
+                              <Building className="h-5 w-5" />
+                          </div>
+                          <CardTitle className="text-xl font-bold">CIPC & Compliance</CardTitle>
+                          <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-primary">Entity Maintenance</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                          <ul className="space-y-4">
+                              <li className="group">
+                                  <Link href="/products/company-registration" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      Company Registration
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/products/cipc-annual-returns" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      CIPC Annual Returns
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/products/beneficial-ownership-declaration" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      Beneficial Ownership
+                                  </Link>
+                              </li>
+                              <li className="group">
+                                  <Link href="/liquidations" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      Company Liquidations
+                                  </Link>
+                              </li>
+                          </ul>
+                      </CardContent>
+                  </Card>
+              </div>
+          </div>
       </section>
 
       {/* SOUTH AFRICA SEO SECTION */}
