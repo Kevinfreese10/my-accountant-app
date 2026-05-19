@@ -9,7 +9,15 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
+import { 
+  Clock, 
+  Loader2, 
+  CheckCircle2, 
+  ArrowRight, 
+  ShoppingCart, 
+  FileUp, 
+  RefreshCw 
+} from 'lucide-react';
 import { collection, getFirestore, orderBy, query, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Service } from '@/lib/types';
@@ -88,7 +96,7 @@ export default function ProductsPageClient() {
                 {category.data.map(service => (
                     <Card
                     key={service.id}
-                    className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                    className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-slate-50"
                     >
                     <CardHeader>
                         <CardTitle>{service.title}</CardTitle>
@@ -118,6 +126,36 @@ export default function ProductsPageClient() {
             ))
         )}
       </div>
+
+      {/* PROCESS SECTION */}
+      <section className="py-24 bg-white border-t mt-12">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-20 space-y-4">
+            <h2 className="text-3xl font-black md:text-5xl uppercase tracking-tighter text-slate-900">How Our Online Accounting Process Works</h2>
+            <p className="text-muted-foreground text-lg">Four simple steps to full compliance.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
+            {[
+              { step: "01", title: "Choose Your Service", desc: "Browse our online store and select the accounting, tax, or compliance service your business requires.", icon: ShoppingCart },
+              { step: "02", title: "Upload Your Documents", desc: "Securely upload your supporting documents through our online platform.", icon: FileUp },
+              { step: "03", title: "We Process Your Application", desc: "Our team handles the accounting, SARS, CIPC, or compliance process on your behalf.", icon: RefreshCw },
+              { step: "04", title: "Receive Confirmation & Support", desc: "We provide updates, confirmations, and ongoing support throughout the process.", icon: CheckCircle2 }
+            ].map((step, idx) => (
+              <div key={idx} className="relative text-center space-y-6 group">
+                <div className="h-20 w-20 rounded-3xl bg-slate-50 text-primary flex items-center justify-center mx-auto mb-6 group-hover:bg-primary group-hover:text-white transition-all shadow-md border border-primary/5">
+                  <step.icon className="h-10 w-10" />
+                </div>
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black text-primary uppercase tracking-widest leading-none block mb-1">Step {step.step}</span>
+                  <h3 className="font-bold text-xl leading-tight text-slate-900">{step.title}</h3>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed px-4">{step.desc}</p>
+                {idx < 3 && <ArrowRight className="hidden lg:block absolute -right-6 top-10 h-8 w-8 text-primary/10" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

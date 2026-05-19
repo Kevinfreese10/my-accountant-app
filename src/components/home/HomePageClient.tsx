@@ -19,13 +19,10 @@ import {
   Camera, 
   User, 
   Utensils, 
-  ShoppingBag, 
   Loader2, 
   Clock,
   PlusCircle,
   Users,
-  ShoppingCart,
-  FileUp,
   TrendingUp,
   Phone,
   MessageCircle
@@ -102,7 +99,6 @@ export default function HomePageClient() {
     { title: "Accounting for Influencers", slug: "influencers", icon: Camera, desc: "Tax optimization and income tracking for digital creators." },
     { title: "Accounting for Freelancers", slug: "freelancers", icon: User, desc: "Simple bookkeeping and tax for independent professionals." },
     { title: "Accounting for Restaurants", slug: "restaurants", icon: Utensils, desc: "Inventory and food cost tracking for the hospitality sector." },
-    { title: "Accounting for E-commerce", slug: "ecommerce", icon: ShoppingBag, desc: "Automated VAT and multi-currency tracking for online stores." },
   ];
 
   const faqData = [
@@ -114,15 +110,6 @@ export default function HomePageClient() {
     { q: "How long does company registration take?", a: "Turnaround times vary depending on CIPC processing times and document submission requirements." },
     { q: "Do you assist startups and small businesses?", a: "Yes. We work with startups, entrepreneurs, SMEs, and established businesses throughout South Africa." }
   ];
-
-  const categorizedServices = useMemo(() => {
-    const groups: Record<string, Service[]> = {};
-    services.forEach(s => {
-        if (!groups[s.category]) groups[s.category] = [];
-        groups[s.category].push(s);
-    });
-    return groups;
-  }, [services]);
 
   if (!mounted) return null;
 
@@ -302,138 +289,6 @@ export default function HomePageClient() {
                     </Card>
                 </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* SERVICES SECTION */}
-      <section className="py-24 bg-white border-t">
-          <div className="container mx-auto px-4">
-              <div className="text-center mb-16 space-y-4">
-                  <Badge variant="outline" className="px-4 py-1 uppercase font-black text-[10px] tracking-widest text-primary border-primary/20">Our Solutions</Badge>
-                  <h2 className="text-4xl font-black text-slate-900">Our Accounting, Tax & Compliance Services</h2>
-                  <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Strategic financial management and statutory support for your business.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {/* Accounting & Bookkeeping */}
-                  <Card className="border-2 bg-slate-50 shadow-sm flex flex-col h-full">
-                      <CardHeader>
-                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Calculator className="h-5 w-5" /></div>
-                          <CardTitle className="text-xl">Accounting & Bookkeeping Services</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4 flex-grow">
-                          <p className="text-sm text-muted-foreground">We provide monthly bookkeeping, management accounts, annual financial statements, and accounting support for South African businesses.</p>
-                          <div className="flex flex-col gap-2">
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#accounting-services">Monthly bookkeeping services <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#accounting-services">Annual financial statements <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#accounting-services">Management accounts <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#accounting-services">Accounting services <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                          </div>
-                      </CardContent>
-                  </Card>
-
-                  {/* Tax & SARS */}
-                  <Card className="border-2 bg-slate-50 shadow-sm flex flex-col h-full">
-                      <CardHeader>
-                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Landmark className="h-5 w-5" /></div>
-                          <CardTitle className="text-xl">Tax & SARS Compliance Services</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4 flex-grow">
-                          <p className="text-sm text-muted-foreground">Our tax specialists assist with SARS registrations, tax returns, VAT compliance, PAYE, tax clearance PINs, and tax compliance support.</p>
-                          <div className="flex flex-col gap-2">
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products/vat-registration">VAT registration <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#sars-services">VAT returns <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#sars-services">PAYE registration <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#sars-services">Income tax returns <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products/tax-clearance-pin">Tax clearance PIN <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/compliance">SARS compliance services <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                          </div>
-                      </CardContent>
-                  </Card>
-
-                  {/* CIPC */}
-                  <Card className="border-2 bg-slate-50 shadow-sm flex flex-col h-full">
-                      <CardHeader>
-                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Building className="h-5 w-5" /></div>
-                          <CardTitle className="text-xl">Company Registration & CIPC Services</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4 flex-grow">
-                          <p className="text-sm text-muted-foreground">We assist businesses with company registration, annual returns, beneficial ownership declarations, company reinstatements, and ongoing CIPC compliance.</p>
-                          <div className="flex flex-col gap-2">
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products/company-registration">Company registration <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products/cipc-annual-returns">CIPC annual returns <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products/beneficial-ownership-declaration">Beneficial ownership declarations <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#cipc-services">Company reinstatement <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                          </div>
-                      </CardContent>
-                  </Card>
-
-                  {/* Payroll */}
-                  <Card className="border-2 bg-slate-50 shadow-sm flex flex-col h-full">
-                      <CardHeader>
-                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Users className="h-5 w-5" /></div>
-                          <CardTitle className="text-xl">Payroll & Employee Compliance</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4 flex-grow">
-                          <p className="text-sm text-muted-foreground">Our payroll services help businesses remain compliant with PAYE, UIF, SDL, EMP201, and EMP501 requirements.</p>
-                          <div className="flex flex-col gap-2">
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/monthly-payroll">Payroll services <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#sars-services">PAYE registration <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                              <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#payroll-services">UIF registration <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
-                          </div>
-                      </CardContent>
-                  </Card>
-
-                  {/* Business Compliance */}
-                  <Card className="border-2 bg-slate-50 shadow-sm flex flex-col h-full md:col-span-2 lg:col-span-1">
-                      <CardHeader>
-                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><ShieldCheck className="h-5 w-5" /></div>
-                          <CardTitle className="text-xl">Business Compliance Services</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4 flex-grow">
-                          <p className="text-sm text-muted-foreground">We assist businesses with various compliance requirements including:</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-center">
-                              <Link href="/products/coida-registration" className="text-xs font-bold text-primary hover:underline">COIDA registration</Link>
-                              <Link href="/products#cipc-services" className="text-xs font-bold text-primary hover:underline">CIDB registration</Link>
-                              <Link href="/products#cipc-services" className="text-xs font-bold text-primary hover:underline">NCR registration</Link>
-                              <Link href="/products#cipc-services" className="text-xs font-bold text-primary hover:underline">BEE certificates</Link>
-                              <Link href="/products#cipc-services" className="text-xs font-bold text-primary hover:underline">CSD registration</Link>
-                              <Link href="/products#sars-services" className="text-xs font-bold text-primary hover:underline">PBO registration</Link>
-                              <Link href="/products#sars-services" className="text-xs font-bold text-primary hover:underline">Import/export licences</Link>
-                          </div>
-                      </CardContent>
-                  </Card>
-              </div>
-          </div>
-      </section>
-
-      {/* PROCESS SECTION */}
-      <section className="py-24 bg-white border-t">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-20 space-y-4">
-            <h2 className="text-3xl font-black md:text-5xl uppercase tracking-tighter text-slate-900">How Our Online Accounting Process Works</h2>
-            <p className="text-muted-foreground text-lg">Four simple steps to full compliance.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
-            {[
-              { step: "01", title: "Choose Your Service", desc: "Browse our online store and select the accounting, tax, or compliance service your business requires.", icon: ShoppingCart },
-              { step: "02", title: "Upload Your Documents", desc: "Securely upload your supporting documents through our online platform.", icon: FileUp },
-              { step: "03", title: "We Process Your Application", desc: "Our team handles the accounting, SARS, CIPC, or compliance process on your behalf.", icon: RefreshCw },
-              { step: "04", title: "Receive Confirmation & Support", desc: "We provide updates, confirmations, and ongoing support throughout the process.", icon: CheckCircle2 }
-            ].map((step, idx) => (
-              <div key={idx} className="relative text-center space-y-6 group">
-                <div className="h-20 w-20 rounded-3xl bg-slate-50 text-primary flex items-center justify-center mx-auto mb-6 group-hover:bg-primary group-hover:text-white transition-all shadow-md border border-primary/5">
-                  <step.icon className="h-10 w-10" />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-[10px] font-black text-primary uppercase tracking-widest leading-none block mb-1">Step {step.step}</span>
-                  <h3 className="font-bold text-xl leading-tight text-slate-900">{step.title}</h3>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed px-4">{step.desc}</p>
-                {idx < 3 && <ArrowRight className="hidden lg:block absolute -right-6 top-10 h-8 w-8 text-primary/10" />}
-              </div>
-            ))}
           </div>
         </div>
       </section>
