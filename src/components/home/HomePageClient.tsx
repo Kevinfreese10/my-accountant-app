@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useState, useEffect, useMemo } from 'react';
 import { 
   Rocket, 
@@ -74,7 +73,7 @@ export default function HomePageClient() {
   useEffect(() => {
     setMounted(true);
     const unsub = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snap) => {
-        setServices(snap.docs.map(d => ({ ...doc.data(), id: d.id } as Service)));
+        setServices(snap.docs.map(d => ({ ...d.data(), id: d.id } as Service)));
         setIsLoadingServices(false);
     });
     return () => unsub();
@@ -157,7 +156,7 @@ export default function HomePageClient() {
       {/* HERO SECTION */}
       <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
         <div className="container relative z-10 mx-auto px-4 text-center">
-          <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-6xl lg:text-7xl">
+          <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
             Online Accounting, Tax & <span className="text-primary">CIPC Services</span> in South Africa
           </h1>
           <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed">
@@ -276,7 +275,7 @@ export default function HomePageClient() {
                           <CardTitle className="text-xl">Tax & SARS Compliance Services</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                          <p className="text-sm text-muted-foreground">Our tax specialists assist with SARS registrations, tax returns, VAT compliance, PAYE, and tax clearance PINs.</p>
+                          <p className="text-sm text-muted-foreground">Our tax specialists assist with SARS registrations, tax returns, VAT compliance, PAYE, tax clearance PINs, and tax compliance support.</p>
                           <div className="flex flex-col gap-2">
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products/vat-registration">VAT registration <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
                               <Button variant="link" asChild className="p-0 h-auto justify-start text-xs font-bold"><Link href="/products#sars-services">VAT returns <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
