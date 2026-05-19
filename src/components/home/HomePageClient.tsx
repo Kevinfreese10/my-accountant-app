@@ -96,13 +96,13 @@ export default function HomePageClient() {
   ];
 
   const faqData = [
-    { q: "Do you assist clients throughout South Africa?", a: "Yes. My Accountant provides online accounting, tax, and compliance services nationwide." },
-    { q: "What accounting services do you provide?", a: "We assist with bookkeeping, annual financial statements, payroll, management accounts, and accounting compliance services." },
-    { q: "Do you assist with SARS registrations?", a: "Yes. We assist with VAT registration, PAYE registration, income tax registration, and other SARS compliance services." },
-    { q: "Can I buy services online?", a: "Yes. Our online platform allows clients to purchase accounting and compliance services online." },
-    { q: "Do you assist with CIPC annual returns?", a: "Yes. We assist companies and close corporations with annual return submissions and CIPC compliance requirements." },
-    { q: "How long does company registration take?", a: "Turnaround times vary depending on CIPC processing times and document submission requirements." },
-    { q: "Do you assist startups and small businesses?", a: "Yes. We work with startups, entrepreneurs, SMEs, and established businesses throughout South Africa." }
+    { q: "What accounting services do you provide for SMEs?", a: "We provide comprehensive bookkeeping, annual financial statements, management accounts, and outsourced CFO services tailored for South African SMEs." },
+    { q: "How does the VAT registration process work?", a: "We handle the entire VAT registration process with SARS, ensuring your business meets the mandatory or voluntary requirements correctly." },
+    { q: "Can you help with tax debt relief and SARS compromises?", a: "Yes, our specialists assist with Section 200 compromises and negotiations to settle outstanding tax debt legally and affordably." },
+    { q: "Do you provide monthly management reports?", a: "Yes, we prepare regular management accounts, including Income Statements and Balance Sheets, to help you track your business performance." },
+    { q: "What is the process for SARS disputes and objections?", a: "We analyze the grounds for assessment, draft Section 104 objections, and manage the entire dispute resolution process with SARS." },
+    { q: "Where can I find the latest South African tax tips?", a: "You can visit our Tax Tip Blog, where we regularly publish articles on tax optimization, compliance updates, and financial advice for freelancers and business owners." },
+    { q: "Do you assist with annual financial statement preparation?", a: "Yes, we prepare IFRS-compliant annual financial statements for companies and trusts to ensure year-end compliance and audit readiness." }
   ];
 
   if (!mounted) return null;
@@ -235,25 +235,25 @@ export default function HomePageClient() {
                               <li className="group">
                                   <Link href="/monthly-accounting" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
                                       <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                                      monthly accounting services
+                                      Monthly accounting services
                                   </Link>
                               </li>
                               <li className="group">
                                   <Link href="/annual-financial-statements" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
                                       <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                                      financial statement preparation
+                                      Financial statement preparation
                                   </Link>
                               </li>
                               <li className="group">
                                   <Link href="/management-accounts" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
                                       <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                                      management accounts
+                                      Management accounts
                                   </Link>
                               </li>
                               <li className="group">
                                   <Link href="/contact" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
                                       <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                                      outsourced accounting
+                                      Outsourced accounting
                                   </Link>
                               </li>
                           </ul>
@@ -322,7 +322,7 @@ export default function HomePageClient() {
                               <li className="group">
                                   <Link href="/monthly-payroll" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
                                       <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                                      payroll outsourcing
+                                      Payroll outsourcing
                                   </Link>
                               </li>
                               <li className="group">
@@ -340,7 +340,7 @@ export default function HomePageClient() {
                               <li className="group">
                                   <Link href="/payroll-administration" className="text-sm font-bold text-slate-700 hover:text-primary transition-colors flex items-center gap-2">
                                       <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                                      payroll compliance (EMP501)
+                                      Payroll compliance (EMP501)
                                   </Link>
                               </li>
                           </ul>
