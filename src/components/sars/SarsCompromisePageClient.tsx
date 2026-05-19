@@ -203,7 +203,7 @@ In such cases:
   ];
 
   return (
-    <div className="space-y-16 pb-16">
+    <div className="space-y-16 pb-16 bg-white">
       {/* HERO SECTION */}
       <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
         <div className="container relative z-10 mx-auto px-4 text-center">
@@ -214,7 +214,7 @@ In such cases:
             Settle Your Tax Debt Legally & Affordably. If you owe SARS money and cannot realistically pay the full amount, a Section 200 Compromise may allow you to settle for less.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
-            <Button asChild size="lg" className="font-bold px-10">
+            <Button asChild size="lg" className="font-bold px-10 shadow-xl">
                 <Link href="/contact">Book a Free Consultation</Link>
             </Button>
           </div>
@@ -225,26 +225,16 @@ In such cases:
               </Button>
             ))}
           </div>
-
-          <div className="mt-20 relative w-full aspect-[16/9] lg:aspect-[21/9] max-w-6xl mx-auto rounded-[2.5rem] overflow-hidden shadow-2xl border-8 border-slate-50 bg-slate-100">
-            <Image 
-              src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
-              alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
-              fill
-              priority
-              className="object-cover"
-            />
-          </div>
         </div>
       </section>
 
       <TrustIndexWidget />
 
-      <section className="container mx-auto px-4">
+      <section className="container mx-auto px-4 bg-white">
         <div className="text-center mb-12">
             <h2 className="text-3xl font-bold">When Is a Compromise Appropriate?</h2>
         </div>
-        <Card className="max-w-xl mx-auto mt-4 text-left">
+        <Card className="max-w-xl mx-auto mt-4 text-left border-2 bg-slate-50 shadow-sm">
             <CardHeader>
                 <CardTitle>A compromise may be suitable if:</CardTitle>
             </CardHeader>
@@ -260,19 +250,19 @@ In such cases:
         </Card>
       </section>
 
-       <section className="bg-background py-16">
+       <section className="py-16 bg-white border-t border-b">
         <div className="container mx-auto px-4">
             <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold">What Our Service Includes</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
                 {serviceIncludes.map((item, index) => (
-                <div key={index} className="flex items-start gap-4">
+                <div key={index} className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 shadow-sm">
                     <div className="bg-primary/10 rounded-full h-10 w-10 flex items-center justify-center flex-shrink-0">
                          <CheckCircle className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                        <p className="font-medium text-sm">{item}</p>
+                        <p className="font-medium text-sm leading-relaxed">{item}</p>
                     </div>
                 </div>
                 ))}
@@ -280,37 +270,39 @@ In such cases:
         </div>
       </section>
 
-       <section className="container mx-auto px-4 max-w-4xl">
+       <section className="container mx-auto px-4 max-w-4xl bg-white">
          <div className="text-center mb-12">
             <h2 className="text-3xl font-bold">SARS Section 200 to 205 Explained</h2>
         </div>
-         <Accordion type="single" collapsible className="w-full">
+         <Accordion type="single" collapsible className="w-full space-y-4">
             {sarsSections.map((section, index) => (
-              <AccordionItem key={index} value={`item-${index}`}>
-                <AccordionTrigger className="text-left font-semibold">{section.title}</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line text-muted-foreground text-sm leading-relaxed">{section.content}</AccordionContent>
+              <AccordionItem key={index} value={`item-${index}`} className="bg-slate-50 border rounded-xl px-4 shadow-sm overflow-hidden">
+                <AccordionTrigger className="text-left font-semibold hover:no-underline">{section.title}</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line text-muted-foreground text-sm leading-relaxed pb-4">{section.content}</AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
       </section>
       
-       <section className="container mx-auto px-4 max-w-4xl">
-         <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold">When You Cannot Enter Into a SARS Section 200 Compromise</h2>
-        </div>
-         <Accordion type="single" collapsible className="w-full">
-            {whenYouCannot.map((item, index) => (
-              <AccordionItem key={index} value={`item-cannot-${index}`}>
-                <AccordionTrigger className="text-left font-semibold">{item.title}</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line text-muted-foreground text-sm leading-relaxed">{item.content}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
+       <section className="py-24 bg-white border-t">
+         <div className="container mx-auto px-4 max-w-4xl">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold">When You Cannot Enter Into a SARS Section 200 Compromise</h2>
+            </div>
+            <Accordion type="single" collapsible className="w-full space-y-4">
+                {whenYouCannot.map((item, index) => (
+                <AccordionItem key={index} value={`item-cannot-${index}`} className="bg-slate-50 border rounded-xl px-4 shadow-sm overflow-hidden">
+                    <AccordionTrigger className="text-left font-semibold hover:no-underline">{item.title}</AccordionTrigger>
+                    <AccordionContent className="whitespace-pre-line text-muted-foreground text-sm leading-relaxed pb-4">{item.content}</AccordionContent>
+                </AccordionItem>
+                ))}
+            </Accordion>
+         </div>
       </section>
 
-      <section className="container mx-auto px-4 text-center">
+      <section className="container mx-auto px-4 text-center bg-white">
         <h2 className="text-3xl font-bold">Need Help With a SARS Compromise?</h2>
-        <Button asChild size="lg" className="mt-8">
+        <Button asChild size="lg" className="mt-8 shadow-lg">
             <Link href="/contact">Contact Us For A Confidential Assessment</Link>
         </Button>
       </section>

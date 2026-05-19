@@ -74,7 +74,7 @@ export default function LiquidationsPage() {
   ];
 
   return (
-    <div className="space-y-16 pb-16">
+    <div className="space-y-16 pb-16 bg-white">
       {/* HERO SECTION */}
       <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
         <div className="container relative z-10 mx-auto px-4 text-center">
@@ -85,7 +85,7 @@ export default function LiquidationsPage() {
             Simple, Compliant & Stress-Free Company Closures. We guide you through the process from start to finish—ensuring full compliance with CIPC and SARS.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
-            <Button asChild size="lg" className="font-bold px-10">
+            <Button asChild size="lg" className="font-bold px-10 shadow-xl">
                 <Link href="/contact">Get Professional Advice</Link>
             </Button>
           </div>
@@ -96,43 +96,26 @@ export default function LiquidationsPage() {
               </Button>
             ))}
           </div>
-
-          <div className="mt-20 relative w-full aspect-[16/9] lg:aspect-[21/9] max-w-6xl mx-auto rounded-[2.5rem] overflow-hidden shadow-2xl border-8 border-slate-50 bg-slate-100">
-            <Image 
-              src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
-              alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
-              fill
-              priority
-              className="object-cover"
-            />
-          </div>
         </div>
       </section>
 
       <TrustIndexWidget />
 
-       <section className="container mx-auto px-4">
+       <section className="container mx-auto px-4 bg-white">
         <div className="text-center mb-12">
             <h2 className="text-3xl font-bold">What Is a Company Liquidation?</h2>
             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-              A liquidation is the formal legal process of closing a company by settling its affairs, paying creditors (where applicable), and removing it from the Companies Register. Liquidation may be appropriate when:
+              A liquidation is the formal legal process of closing a company by settling its affairs, paying creditors (where applicable), and removing it from the Companies Register.
             </p>
-            <ul className="mt-4 text-muted-foreground list-disc list-inside inline-block text-left text-sm space-y-1">
-                <li>The company is no longer trading</li>
-                <li>The business is financially distressed</li>
-                <li>Shareholders wish to exit the business</li>
-                <li>The company cannot meet its financial obligations</li>
-                <li>There is no reasonable prospect of recovery</li>
-            </ul>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card>
+            <Card className="border-2 bg-slate-50 shadow-sm">
                 <CardHeader>
                     <CardTitle>1. Voluntary Liquidation (Solvent)</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-muted-foreground">
-                   <p>This applies when the company can pay its debts and shareholders decide to close the business voluntarily. We assist with:</p>
-                   <ul className="list-disc pl-6 space-y-1">
+                   <p className="text-sm">This applies when the company can pay its debts and shareholders decide to close the business voluntarily. We assist with:</p>
+                   <ul className="list-disc pl-6 space-y-1 text-xs">
                        <li>Shareholder resolutions</li>
                        <li>Appointment of a liquidator</li>
                        <li>Final CIPC and SARS compliance</li>
@@ -140,13 +123,13 @@ export default function LiquidationsPage() {
                    </ul>
                 </CardContent>
             </Card>
-             <Card>
+             <Card className="border-2 bg-slate-50 shadow-sm">
                 <CardHeader>
                     <CardTitle>2. Voluntary Liquidation (Insolvent)</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-muted-foreground">
-                   <p>This applies when the company cannot pay its debts and creditors’ interests must be protected. We manage:</p>
-                   <ul className="list-disc pl-6 space-y-1">
+                   <p className="text-sm">This applies when the company cannot pay its debts and creditors’ interests must be protected. We manage:</p>
+                   <ul className="list-disc pl-6 space-y-1 text-xs">
                        <li>Required resolutions and notices</li>
                        <li>Coordination with the appointed liquidator</li>
                        <li>SARS and CIPC compliance support</li>
@@ -154,13 +137,13 @@ export default function LiquidationsPage() {
                    </ul>
                 </CardContent>
             </Card>
-             <Card>
+             <Card className="border-2 bg-slate-50 shadow-sm">
                 <CardHeader>
-                    <CardTitle>3. Compulsory Liquidation (Court-Ordered)</CardTitle>
+                    <CardTitle>3. Compulsory Liquidation</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-muted-foreground">
-                   <p>In cases where creditors apply to court to liquidate the company or there is severe financial distress or dispute. My Accountant supports directors with:</p>
-                   <ul className="list-disc pl-6 space-y-1">
+                   <p className="text-sm">In cases where creditors apply to court to liquidate the company or there is severe financial distress. We support directors with:</p>
+                   <ul className="list-disc pl-6 space-y-1 text-xs">
                        <li>Compliance preparation</li>
                        <li>SARS matters and outstanding returns</li>
                        <li>Advisory support during liquidation</li>
@@ -170,7 +153,7 @@ export default function LiquidationsPage() {
         </div>
       </section>
 
-      <section className="bg-background py-16">
+      <section className="py-24 bg-white border-t border-b">
         <div className="container mx-auto px-4">
             <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold">What Our Liquidation Service Includes</h2>
@@ -180,13 +163,13 @@ export default function LiquidationsPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
                 {processSteps.map((step, index) => (
-                <div key={step.title} className="flex items-start gap-4">
+                <div key={step.title} className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 shadow-sm">
                     <div className="bg-primary/10 rounded-full h-10 w-10 flex items-center justify-center flex-shrink-0">
                          <CheckCircle className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-semibold">{step.title}</h3>
-                        <p className="text-sm text-muted-foreground">{step.description}</p>
+                        <h3 className="text-base font-bold">{step.title}</h3>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{step.description}</p>
                     </div>
                 </div>
                 ))}
@@ -194,68 +177,31 @@ export default function LiquidationsPage() {
         </div>
       </section>
 
-       <section className="container mx-auto px-4">
+       <section className="container mx-auto px-4 bg-white py-12">
             <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold">Why Use My Accountant?</h2>
-                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-                    We don’t sell time — we sell comfort.
-                </p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                 {whyChooseUs.map((benefit) => (
-                    <div key={benefit.title} className="flex flex-col items-center text-center gap-4">
+                    <div key={benefit.title} className="flex flex-col items-center text-center gap-4 p-6 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
                         <div className="bg-primary/10 rounded-full h-16 w-16 flex items-center justify-center">
                             <benefit.icon className="h-8 w-8 text-primary" />
                         </div>
                         <div>
-                            <h3 className="font-semibold">{benefit.title}</h3>
-                            <p className="text-xs text-muted-foreground mt-1">{benefit.description}</p>
+                            <h3 className="font-bold text-slate-900">{benefit.title}</h3>
+                            <p className="text-[10px] text-muted-foreground mt-1 uppercase font-black tracking-widest">{benefit.description}</p>
                         </div>
                     </div>
                 ))}
             </div>
       </section>
-      
-        <section className="container mx-auto px-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Important Things Directors Should Know</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-muted-foreground">
-                        <ul className="list-disc pl-6 space-y-2 text-sm">
-                            <li>Liquidation does not automatically remove director liability</li>
-                            <li>Outstanding tax returns and compliance issues must still be addressed</li>
-                            <li>Early professional advice can prevent unnecessary personal exposure</li>
-                            <li>Each liquidation is unique — getting the right guidance matters</li>
-                        </ul>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Documents Typically Required</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-muted-foreground">
-                        <p className="text-sm">While requirements differ by case, we usually need:</p>
-                        <ul className="list-disc pl-6 space-y-1 text-sm">
-                            <li>Company registration details</li>
-                            <li>Latest financial statements (if available)</li>
-                            <li>List of assets and liabilities</li>
-                            <li>Director and shareholder information</li>
-                            <li>SARS tax numbers and compliance status</li>
-                        </ul>
-                        <p className="text-xs italic pt-2">Don’t worry — if something is missing, we’ll help you work through it.</p>
-                    </CardContent>
-                </Card>
-            </div>
-        </section>
 
-      <section className="container mx-auto px-4 text-center">
+      <section className="container mx-auto px-4 text-center bg-white">
         <h2 className="text-3xl font-bold">Need Help Deciding If Liquidation Is Right?</h2>
-        <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-            If you’re unsure whether liquidation is the correct step, we’re happy to assess your situation and explain your options before you commit. Contact My Accountant today for professional liquidation assistance and clear guidance you can trust.
+        <p className="text-lg text-muted-foreground mt-2 max-w-2xl mx-auto">
+            If you’re unsure whether liquidation is the correct step, we’re happy to assess your situation and explain your options before you commit.
         </p>
-        <Button asChild size="lg" className="mt-8">
+        <Button asChild size="lg" className="mt-8 shadow-lg">
             <Link href="/contact">Book a Consultation</Link>
         </Button>
       </section>

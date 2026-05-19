@@ -70,7 +70,7 @@ export default function ContactPageClient() {
   ];
 
   return (
-    <div className="space-y-16 pb-16">
+    <div className="space-y-16 pb-16 bg-white">
       {/* HERO SECTION */}
       <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
         <div className="container relative z-10 mx-auto px-4 text-center">
@@ -88,21 +88,11 @@ export default function ContactPageClient() {
               </Button>
             ))}
           </div>
-
-          <div className="mt-20 relative w-full aspect-[16/9] lg:aspect-[21/9] max-w-6xl mx-auto rounded-[2.5rem] overflow-hidden shadow-2xl border-8 border-slate-50 bg-slate-100">
-            <Image 
-              src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
-              alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
-              fill
-              priority
-              className="object-cover"
-            />
-          </div>
         </div>
       </section>
 
-      <div className="container mx-auto max-w-2xl px-4 py-8">
-        <Card>
+      <div className="container mx-auto max-w-2xl px-4 py-8 bg-white">
+        <Card className="border-2 bg-slate-50 shadow-lg">
           <CardHeader>
             <CardTitle>Send us a Message</CardTitle>
             <CardDescription>Have a question? We'll get back to you within 24 business hours.</CardDescription>
@@ -116,7 +106,7 @@ export default function ContactPageClient() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Name</FormLabel>
-                      <FormControl><Input {...field} required /></FormControl>
+                      <FormControl><Input {...field} required className="bg-white" /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -127,7 +117,7 @@ export default function ContactPageClient() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Email</FormLabel>
-                      <FormControl><Input type="email" {...field} required /></FormControl>
+                      <FormControl><Input type="email" {...field} required className="bg-white" /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -138,12 +128,12 @@ export default function ContactPageClient() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Message</FormLabel>
-                      <FormControl><Textarea {...field} required minLength={10} /></FormControl>
+                      <FormControl><Textarea {...field} required minLength={10} className="bg-white" /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button type="submit" disabled={isLoading} className="w-full">
+                <Button type="submit" disabled={isLoading} className="w-full h-12 text-lg font-bold shadow-md">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {isLoading ? 'Sending...' : 'Send Message'}
                 </Button>

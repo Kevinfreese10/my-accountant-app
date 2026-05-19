@@ -193,7 +193,7 @@ export default function CompliancePageClient() {
 
   return (
      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <div className="space-y-16 pb-16">
+        <div className="space-y-16 pb-16 bg-white">
         {/* HERO SECTION */}
         <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
             <div className="container relative z-10 mx-auto px-4 text-center">
@@ -205,7 +205,7 @@ export default function CompliancePageClient() {
                 </p>
                 <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
                     <DialogTrigger asChild>
-                        <Button size="lg" className="font-bold px-10">Get My Free Assessment</Button>
+                        <Button size="lg" className="font-bold px-10 shadow-xl">Get My Free Assessment</Button>
                     </DialogTrigger>
                 </div>
                 <div className="flex flex-wrap justify-center gap-3 pt-6">
@@ -215,35 +215,25 @@ export default function CompliancePageClient() {
                     </Button>
                     ))}
                 </div>
-
-                <div className="mt-20 relative w-full aspect-[16/9] lg:aspect-[21/9] max-w-6xl mx-auto rounded-[2.5rem] overflow-hidden shadow-2xl border-8 border-slate-50 bg-slate-100">
-                    <Image 
-                        src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
-                        alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
-                        fill
-                        priority
-                        className="object-cover"
-                    />
-                </div>
             </div>
         </section>
 
         <TrustIndexWidget />
 
-         <section className="bg-background py-16">
+         <section className="bg-white py-16">
             <div className="container mx-auto px-4">
                 <div className="text-center mb-12">
                     <h2 className="text-3xl font-bold">🧾 SARS &amp; CIPC Compliance</h2>
                 </div>
                 <div className="mt-12 space-y-8">
-                    <Card>
+                    <Card className="border-2 bg-slate-50 shadow-sm">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-3"><Landmark className="h-6 w-6 text-primary"/> SARS Compliance</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <ul className="space-y-4 text-sm">
                                 {sarsServices.map((service, index) => (
-                                    <li key={index} className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] items-start gap-x-4">
+                                    <li key={index} className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] items-start gap-x-4 p-3 bg-white rounded-lg border border-slate-100">
                                         <div className="flex items-start gap-2 font-semibold">
                                             <CheckCircle className="h-4 w-4 mt-0.5 text-green-500"/> 
                                             <span>{service.title}</span>
@@ -255,14 +245,14 @@ export default function CompliancePageClient() {
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="border-2 bg-slate-50 shadow-sm">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-3"><Building className="h-6 w-6 text-primary"/> CIPC Compliance</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <ul className="space-y-4 text-sm">
                                 {cipcServices.map((service, index) => (
-                                    <li key={index} className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] items-start gap-x-4">
+                                    <li key={index} className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] items-start gap-x-4 p-3 bg-white rounded-lg border border-slate-100">
                                         <div className="flex items-start gap-2 font-semibold">
                                             <CheckCircle className="h-4 w-4 mt-0.5 text-green-500"/> 
                                             <span>{service.title}</span>
@@ -277,7 +267,7 @@ export default function CompliancePageClient() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-24">
                     {whyChooseUs.map((item) => (
-                        <div key={item.title} className="text-center">
+                        <div key={item.title} className="text-center p-6 bg-slate-50 rounded-2xl border border-slate-100">
                             <div className="flex justify-center mb-4">
                                 <div className="bg-primary/10 rounded-full h-16 w-16 flex items-center justify-center">
                                     <item.icon className="h-8 w-8 text-primary" />

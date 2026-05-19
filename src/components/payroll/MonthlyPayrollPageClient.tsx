@@ -48,7 +48,7 @@ export default function MonthlyPayrollPageClient() {
   ];
 
   return (
-    <div className="space-y-16 pb-16">
+    <div className="space-y-16 pb-16 bg-white">
       {/* HERO SECTION */}
       <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
         <div className="container relative z-10 mx-auto px-4 text-center">
@@ -68,22 +68,12 @@ export default function MonthlyPayrollPageClient() {
               </Button>
             ))}
           </div>
-
-          <div className="mt-20 relative w-full aspect-[16/9] lg:aspect-[21/9] max-w-6xl mx-auto rounded-[2.5rem] overflow-hidden shadow-2xl border-8 border-slate-50 bg-slate-100">
-            <Image 
-              src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
-              alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
-              fill
-              priority
-              className="object-cover"
-            />
-          </div>
         </div>
       </section>
 
       <TrustIndexWidget />
 
-      <section className="container mx-auto px-4">
+      <section className="container mx-auto px-4 bg-white">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold">Everything Your Business Needs</h2>
           <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
@@ -92,7 +82,7 @@ export default function MonthlyPayrollPageClient() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {features.map((feature, index) => (
-            <Card key={index} className="border-2 hover:border-primary/50 transition-colors shadow-sm">
+            <Card key={index} className="border-2 bg-slate-50 hover:border-primary/50 transition-colors shadow-sm">
               <CardHeader>
                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
                   <feature.icon className="h-5 w-5 text-primary" />
@@ -107,7 +97,7 @@ export default function MonthlyPayrollPageClient() {
         </div>
       </section>
 
-      <section className="bg-slate-50 py-16">
+      <section className="py-16 bg-white border-t border-b">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
@@ -117,23 +107,23 @@ export default function MonthlyPayrollPageClient() {
               </p>
               <ul className="space-y-4">
                 {complianceItems.map((item, index) => (
-                  <li key={index} className="flex items-center gap-3 text-sm font-medium text-slate-700">
+                  <li key={index} className="flex items-center gap-3 text-sm font-medium text-slate-700 p-3 bg-slate-50 rounded-lg border border-slate-100">
                     <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                     {item}
                   </li>
                 ))}
               </ul>
             </div>
-            <Card className="bg-white border-2 shadow-xl p-8">
+            <Card className="bg-slate-50 border-2 shadow-xl p-8">
                 <div className="space-y-4 text-center">
                     <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
                         <Users className="h-8 w-8 text-primary" />
                     </div>
                     <h3 className="text-2xl font-bold">Scale as You Grow</h3>
-                    <p className="text-muted-foreground">
+                    <p className="text-muted-foreground text-sm">
                         Whether you have 1 employee or 100, our scalable system handles the load. Get specialized support for commissions, bonuses, and complex deductions.
                     </p>
-                    <Separator className="my-6" />
+                    <Separator className="my-6 bg-slate-200" />
                     <Button asChild className="w-full">
                         <Link href="/contact">Speak to a Payroll Expert</Link>
                     </Button>
@@ -143,7 +133,7 @@ export default function MonthlyPayrollPageClient() {
         </div>
       </section>
 
-      <section className="container mx-auto px-4 text-center">
+      <section className="container mx-auto px-4 text-center bg-white">
         <h2 className="text-3xl font-bold">Stop Struggling with Manual Payroll</h2>
         <p className="text-lg text-muted-foreground mt-4 max-w-2xl mx-auto">
             Switch to a professional payroll solution and ensure your business remains compliant with the latest tax laws.

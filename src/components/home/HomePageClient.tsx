@@ -74,7 +74,7 @@ export default function HomePageClient() {
   useEffect(() => {
     setMounted(true);
     const unsub = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snap) => {
-        setServices(snap.docs.map(d => ({ ...d.data(), id: d.id } as Service)));
+        setServices(snap.docs.map(d => ({ ...doc.data(), id: d.id } as Service)));
         setIsLoadingServices(false);
     });
     return () => unsub();
@@ -109,7 +109,7 @@ export default function HomePageClient() {
     { title: "Accounting for Construction", slug: "construction", icon: HardHat, desc: "Project-based tracking for builders and contractors." },
     { title: "Accounting for Influencers", slug: "influencers", icon: Camera, desc: "Tax optimization and income tracking for digital creators." },
     { title: "Accounting for Freelancers", slug: "freelancers", icon: User, desc: "Simple bookkeeping and tax for independent professionals." },
-    { title: "Accounting for Restaurants", slug: "restaurants", icon: Utensils, desc: "Inventory and POS management for the hospitality sector." },
+    { title: "Accounting for Restaurants", slug: "restaurants", icon: Utensils, desc: "Inventory and food cost tracking for the hospitality sector." },
     { title: "Accounting for E-commerce", slug: "ecommerce", icon: ShoppingBag, desc: "Automated VAT and multi-currency tracking for online stores." },
   ];
 
@@ -147,7 +147,7 @@ export default function HomePageClient() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-white">
       <Script
         id="faq-schema"
         type="application/ld+json"
@@ -188,16 +188,6 @@ export default function HomePageClient() {
                   </div>
               ))}
           </div>
-
-          <div className="mt-20 relative w-full aspect-[16/9] lg:aspect-[21/9] max-w-6xl mx-auto rounded-[2.5rem] overflow-hidden shadow-2xl border-8 border-slate-50 bg-slate-100">
-            <Image 
-              src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
-              alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
-              fill
-              priority
-              className="object-cover"
-            />
-          </div>
         </div>
       </section>
 
@@ -237,7 +227,7 @@ export default function HomePageClient() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {trustBlocks.map((block, idx) => (
-                <Card key={idx} className="border-2 border-slate-100 shadow-none hover:border-primary/20 transition-all">
+                <Card key={idx} className="border-2 border-slate-100 shadow-none bg-slate-50 hover:border-primary/20 transition-all">
                   <CardHeader className="pb-2">
                     <block.icon className="h-8 w-8 text-primary mb-2" />
                     <CardTitle className="text-base font-bold">{block.title}</CardTitle>
@@ -263,7 +253,7 @@ export default function HomePageClient() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {/* Accounting & Bookkeeping */}
-                  <Card className="border-2 shadow-lg">
+                  <Card className="border-2 bg-slate-50 shadow-sm">
                       <CardHeader>
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Calculator className="h-5 w-5" /></div>
                           <CardTitle className="text-xl">Accounting & Bookkeeping Services</CardTitle>
@@ -280,7 +270,7 @@ export default function HomePageClient() {
                   </Card>
 
                   {/* Tax & SARS */}
-                  <Card className="border-2 shadow-lg">
+                  <Card className="border-2 bg-slate-50 shadow-sm">
                       <CardHeader>
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Landmark className="h-5 w-5" /></div>
                           <CardTitle className="text-xl">Tax & SARS Compliance Services</CardTitle>
@@ -298,7 +288,7 @@ export default function HomePageClient() {
                   </Card>
 
                   {/* CIPC */}
-                  <Card className="border-2 shadow-lg">
+                  <Card className="border-2 bg-slate-50 shadow-sm">
                       <CardHeader>
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Building className="h-5 w-5" /></div>
                           <CardTitle className="text-xl">Company Registration & CIPC Services</CardTitle>
@@ -315,7 +305,7 @@ export default function HomePageClient() {
                   </Card>
 
                   {/* Payroll */}
-                  <Card className="border-2 shadow-lg">
+                  <Card className="border-2 bg-slate-50 shadow-sm">
                       <CardHeader>
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><Users className="h-5 w-5" /></div>
                           <CardTitle className="text-xl">Payroll & Employee Compliance</CardTitle>
@@ -331,7 +321,7 @@ export default function HomePageClient() {
                   </Card>
 
                   {/* Business Compliance */}
-                  <Card className="border-2 shadow-lg md:col-span-2 lg:col-span-1">
+                  <Card className="border-2 bg-slate-50 shadow-sm md:col-span-2 lg:col-span-1">
                       <CardHeader>
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-2"><ShieldCheck className="h-5 w-5" /></div>
                           <CardTitle className="text-xl">Business Compliance Services</CardTitle>
@@ -354,11 +344,11 @@ export default function HomePageClient() {
       </section>
 
       {/* PROCESS SECTION */}
-      <section className="py-24 bg-slate-900 text-white overflow-hidden">
+      <section className="py-24 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-20 space-y-4">
-            <h2 className="text-3xl font-black md:text-5xl uppercase tracking-tighter">How Our Online Accounting Process Works</h2>
-            <p className="text-slate-400 text-lg">Four simple steps to full compliance.</p>
+            <h2 className="text-3xl font-black md:text-5xl uppercase tracking-tighter text-slate-900">How Our Online Accounting Process Works</h2>
+            <p className="text-muted-foreground text-lg">Four simple steps to full compliance.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
             {[
@@ -368,15 +358,15 @@ export default function HomePageClient() {
               { step: "04", title: "Receive Confirmation & Support", desc: "We provide updates, confirmations, and ongoing support throughout the process.", icon: CheckCircle2 }
             ].map((step, idx) => (
               <div key={idx} className="relative text-center space-y-6 group">
-                <div className="h-20 w-20 rounded-3xl bg-white/10 text-primary flex items-center justify-center mx-auto mb-6 group-hover:bg-primary group-hover:text-white transition-all shadow-2xl backdrop-blur-sm border border-white/5">
+                <div className="h-20 w-20 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6 group-hover:bg-primary group-hover:text-white transition-all shadow-md border border-primary/5">
                   <step.icon className="h-10 w-10" />
                 </div>
                 <div className="space-y-2">
                   <span className="text-[10px] font-black text-primary uppercase tracking-widest leading-none block mb-1">Step {step.step}</span>
-                  <h3 className="font-bold text-xl leading-tight">{step.title}</h3>
+                  <h3 className="font-bold text-xl leading-tight text-slate-900">{step.title}</h3>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed px-4">{step.desc}</p>
-                {idx < 3 && <ArrowRight className="hidden lg:block absolute -right-6 top-10 h-8 w-8 text-white/10" />}
+                <p className="text-xs text-muted-foreground leading-relaxed px-4">{step.desc}</p>
+                {idx < 3 && <ArrowRight className="hidden lg:block absolute -right-6 top-10 h-8 w-8 text-primary/10" />}
               </div>
             ))}
           </div>
@@ -384,7 +374,7 @@ export default function HomePageClient() {
       </section>
 
       {/* SOUTH AFRICA SEO SECTION */}
-      <section className="py-24 bg-white">
+      <section className="py-24 bg-white border-t">
           <div className="container mx-auto px-4">
               <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                   <div className="space-y-6">
@@ -396,11 +386,11 @@ export default function HomePageClient() {
                       </div>
                       <div className="pt-4 flex flex-wrap gap-2">
                           {["Johannesburg", "Randburg", "Sandton", "Midrand", "Pretoria", "Cape Town", "Durban", "Gauteng", "South Africa Nationwide"].map(city => (
-                              <Badge key={city} variant="secondary" className="bg-slate-100 text-slate-600 border-none font-bold text-[10px] uppercase px-3 py-1">{city}</Badge>
+                              <Badge key={city} variant="secondary" className="bg-slate-50 text-slate-600 border-none font-bold text-[10px] uppercase px-3 py-1">{city}</Badge>
                           ))}
                       </div>
                   </div>
-                  <div className="relative h-[450px] rounded-3xl overflow-hidden shadow-2xl border-8 border-slate-50">
+                  <div className="relative h-[450px] rounded-3xl overflow-hidden shadow-xl border-8 border-slate-50">
                       <iframe
                           src="https://www.google.com/maps?q=Stonemill+Office+Park+Johannesburg&output=embed"
                           width="100%"
@@ -419,10 +409,6 @@ export default function HomePageClient() {
       <section className="py-24 bg-white border-t">
           <div className="container mx-auto px-4">
               <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                  <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl">
-                      <Image src="https://picsum.photos/seed/sme/800/600" alt="Small Business Accounting" fill className="object-cover" />
-                      <div className="absolute inset-0 bg-primary/10" />
-                  </div>
                   <div className="space-y-6">
                       <Badge variant="outline" className="px-4 py-1 uppercase font-black text-[10px] tracking-widest text-primary border-primary/20">SME Solutions</Badge>
                       <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Accounting Solutions for South African SMEs & Entrepreneurs</h2>
@@ -433,17 +419,25 @@ export default function HomePageClient() {
                               "Register for VAT and PAYE", "Manage payroll requirements", "Prepare financial statements", 
                               "Maintain good standing"
                           ].map(item => (
-                              <li key={item} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                              <li key={item} className="flex items-center gap-2 text-sm font-semibold text-slate-700 p-2 bg-slate-50 rounded-lg">
                                   <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> {item}
                               </li>
                           ))}
                       </ul>
                   </div>
+                  <Card className="bg-slate-50 border-2 shadow-sm p-8 flex flex-col items-center text-center">
+                    <Building className="h-12 w-12 text-primary mb-4" />
+                    <h3 className="text-xl font-bold mb-2">Dedicated SME Support</h3>
+                    <p className="text-sm text-muted-foreground mb-6">Our accounting packages are designed to grow with your business.</p>
+                    <Button asChild className="w-full">
+                        <Link href="/signup">Get Started for my SME</Link>
+                    </Button>
+                  </Card>
               </div>
           </div>
       </section>
 
-      {/* INDUSTRY SPECIFIC SEO SECTION */}
+      {/* INDUSTRY SPECIFIC SECTION */}
       <section className="py-24 bg-white border-t">
           <div className="container mx-auto px-4">
               <div className="text-center mb-16 space-y-4">
@@ -453,7 +447,7 @@ export default function HomePageClient() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {industries.map((item, idx) => (
-                      <Card key={idx} className="border-2 border-slate-100 hover:border-primary/30 hover:shadow-lg transition-all duration-300 group">
+                      <Card key={idx} className="border-2 border-slate-100 bg-slate-50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 group">
                           <CardHeader className="pb-3">
                               <div className="h-10 w-10 rounded-lg bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors mb-2">
                                   <item.icon className="h-5 w-5" />
@@ -475,7 +469,7 @@ export default function HomePageClient() {
       </section>
 
       {/* WHY ONLINE ACCOUNTING SECTION */}
-      <section className="py-24 bg-slate-50">
+      <section className="py-24 bg-white border-t">
           <div className="container mx-auto px-4 max-w-4xl text-center space-y-8">
               <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Why Businesses Are Moving to Online Accounting Services</h2>
               <p className="text-lg text-muted-foreground leading-relaxed">Online accounting services provide businesses with faster turnaround times, improved convenience, and simplified compliance management.</p>
@@ -484,7 +478,7 @@ export default function HomePageClient() {
                       "Purchase services online", "Avoid unnecessary office visits", "Upload documents securely", 
                       "Receive digital compliance support", "Track requirements efficiently", "Access assistance nationwide"
                   ].map(item => (
-                      <div key={item} className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-100 shadow-sm font-bold text-sm text-slate-800">
+                      <div key={item} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 shadow-sm font-bold text-sm text-slate-800">
                           <CheckCircle className="h-5 w-5 text-primary shrink-0" /> {item}
                       </div>
                   ))}
@@ -493,7 +487,7 @@ export default function HomePageClient() {
       </section>
 
       {/* CASE STUDY / RESULTS SECTION */}
-      <section className="py-24 bg-white">
+      <section className="py-24 bg-white border-t">
           <div className="container mx-auto px-4">
               <div className="text-center mb-16 space-y-4">
                   <Badge variant="outline" className="px-4 py-1 uppercase font-black text-[10px] tracking-widest text-primary border-primary/20">Our Impact</Badge>
@@ -506,15 +500,15 @@ export default function HomePageClient() {
                       { title: "CIPC Compliance Assistance", icon: Building, desc: "Helping companies maintain annual returns and beneficial ownership compliance." },
                       { title: "SME Accounting Support", icon: TrendingUp, desc: "Providing bookkeeping and financial support to growing South African businesses." }
                   ].map((study, idx) => (
-                      <Card key={idx} className="border-none shadow-xl bg-slate-900 text-white text-center overflow-hidden h-full">
+                      <Card key={idx} className="border-none shadow-sm bg-slate-50 text-slate-900 text-center overflow-hidden h-full">
                           <CardHeader className="pt-8 pb-4">
-                              <div className="mx-auto h-12 w-12 rounded-full bg-primary flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
-                                  <study.icon className="h-6 w-6 text-white" />
+                              <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 shadow-sm">
+                                  <study.icon className="h-6 w-6 text-primary" />
                               </div>
                               <CardTitle className="text-xl font-bold">{study.title}</CardTitle>
                           </CardHeader>
                           <CardContent className="pb-8 px-8">
-                              <p className="text-sm text-slate-400 leading-relaxed">{study.desc}</p>
+                              <p className="text-sm text-muted-foreground leading-relaxed">{study.desc}</p>
                           </CardContent>
                       </Card>
                   ))}
@@ -522,83 +516,8 @@ export default function HomePageClient() {
           </div>
       </section>
 
-      {/* SERVICE FAQ SECTION (Grouped by Category) */}
-      <section id="service-faq" className="py-24 bg-white border-t scroll-m-24">
-          <div className="container mx-auto px-4 max-w-5xl">
-              <div className="text-center mb-16 space-y-4">
-                  <Badge variant="outline" className="px-4 py-1 uppercase font-black text-[10px] tracking-widest text-primary border-primary/20">Service FAQ</Badge>
-                  <h2 className="text-4xl font-black text-slate-900">Service Frequently Asked Questions</h2>
-                  <p className="text-muted-foreground text-lg">Detailed answers for every service we provide.</p>
-              </div>
-
-              {isLoadingServices ? (
-                  <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary h-8 w-8" /></div>
-              ) : (
-                  <div className="space-y-12">
-                      {Object.entries(categorizedServices).map(([category, catServices]) => (
-                          <div key={category} className="space-y-6">
-                              <div className="flex items-center gap-3">
-                                  <h3 className="text-xl font-black text-primary uppercase tracking-tighter">{category}</h3>
-                                  <Separator className="flex-grow bg-primary/10" />
-                              </div>
-                              <Accordion type="single" collapsible className="w-full space-y-4">
-                                {catServices.map((service) => (
-                                    <AccordionItem key={service.id} value={service.id} className="bg-white border rounded-xl overflow-hidden shadow-sm hover:border-primary/20 transition-colors">
-                                        <AccordionTrigger className="px-6 py-4 hover:no-underline text-left font-bold text-slate-900">
-                                            Everything you need to know about {service.title}
-                                        </AccordionTrigger>
-                                        <AccordionContent className="px-6 pb-6 pt-2 space-y-6">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                <div className="space-y-2">
-                                                    <p className="flex items-center gap-2 text-xs font-black uppercase text-primary tracking-widest">
-                                                        <Clock className="h-3 w-3" /> Turnaround Time
-                                                    </p>
-                                                    <p className="text-sm text-slate-700 font-medium">
-                                                        How long does a {service.title} take to complete?
-                                                    </p>
-                                                    <p className="text-sm text-muted-foreground italic leading-relaxed">
-                                                        Standard processing for this service is approximately <strong>{service.turnaroundTime}</strong>.
-                                                    </p>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <p className="flex items-center gap-2 text-xs font-black uppercase text-primary tracking-widest">
-                                                        <ClipboardList className="h-3 w-3" /> Requirements
-                                                    </p>
-                                                    <p className="text-sm text-slate-700 font-medium">
-                                                        What are the requirements for {service.title}?
-                                                    </p>
-                                                    <ul className="space-y-1">
-                                                        {service.clientRequirements.map((req, i) => (
-                                                            <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                                                                <span className="text-primary font-bold">•</span> {req}
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            </div>
-                                            <Separator className="opacity-50" />
-                                            <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg">
-                                                <div>
-                                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Pricing</p>
-                                                    <p className="text-lg font-black text-slate-900">{service.isPriceTbc ? 'Price on Request' : formatPrice(service.price)}</p>
-                                                </div>
-                                                <Button size="sm" className="font-bold gap-2" asChild>
-                                                    <Link href={`/products/${service.slug}`}>View Product Details <ArrowRight className="h-4 w-4" /></Link>
-                                                </Button>
-                                            </div>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                ))}
-                              </Accordion>
-                          </div>
-                      ))}
-                  </div>
-              )}
-          </div>
-      </section>
-
       {/* GENERAL FAQ SECTION */}
-      <section className="py-24 bg-white border-b scroll-m-20">
+      <section className="py-24 bg-white border-t scroll-m-20">
         <div className="container mx-auto px-4 max-w-4xl">
           <div className="text-center mb-16 space-y-4">
             <h2 className="text-3xl font-black text-slate-900 md:text-5xl uppercase tracking-tighter">Frequently Asked Questions</h2>
@@ -607,8 +526,8 @@ export default function HomePageClient() {
           
           <Accordion type="single" collapsible className="w-full space-y-4">
             {faqData.map((faq, idx) => (
-              <AccordionItem key={idx} value={`item-${idx}`} className="bg-white border rounded-xl overflow-hidden shadow-sm">
-                <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-50 transition-colors text-left font-bold text-slate-900">
+              <AccordionItem key={idx} value={`item-${idx}`} className="bg-slate-50 border rounded-xl overflow-hidden shadow-sm">
+                <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-100 transition-colors text-left font-bold text-slate-900">
                   {faq.q}
                 </AccordionTrigger>
                 <AccordionContent className="px-6 pb-6 pt-2 text-muted-foreground leading-relaxed text-sm font-medium">
@@ -621,12 +540,12 @@ export default function HomePageClient() {
       </section>
 
       {/* FINAL CTA SECTION */}
-      <section className="py-24 bg-white">
+      <section className="py-24 bg-white border-t">
         <div className="container mx-auto px-4 text-center">
-          <div className="max-w-5xl mx-auto p-12 rounded-[3rem] bg-slate-900 text-white shadow-2xl relative overflow-hidden">
+          <div className="max-w-5xl mx-auto p-12 rounded-[3rem] bg-slate-50 text-slate-900 shadow-sm border relative overflow-hidden">
             <div className="relative z-10 space-y-10">
               <h2 className="text-4xl font-black md:text-5xl lg:text-6xl">Get Professional Accounting & Compliance Support</h2>
-              <p className="text-xl text-slate-300 max-w-3xl mx-auto font-medium leading-relaxed">
+              <p className="text-xl text-muted-foreground max-w-3xl mx-auto font-medium leading-relaxed">
                 Whether you need accounting services, tax compliance, company registration, payroll support, or CIPC assistance, My Accountant is ready to assist your business.
               </p>
               
@@ -641,7 +560,7 @@ export default function HomePageClient() {
                           { label: "Annual Returns", href: "/products/cipc-annual-returns" },
                           { label: "Beneficial Ownership", href: "/products/beneficial-ownership-declaration" }
                       ].map(s => (
-                          <Button key={s.label} variant="outline" size="sm" asChild className="h-9 border-white/20 bg-white/5 hover:bg-white text-white hover:text-slate-900 font-bold rounded-full transition-all">
+                          <Button key={s.label} variant="outline" size="sm" asChild className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-900 font-bold rounded-full transition-all shadow-sm">
                               <Link href={s.href}><PlusCircle className="mr-2 h-3.5 w-3.5" /> {s.label}</Link>
                           </Button>
                       ))}
@@ -652,7 +571,7 @@ export default function HomePageClient() {
                 <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
                   <Link href="/products">View Services</Link>
                 </Button>
-                <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2 border-white/20 text-white hover:bg-white/10">
+                <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2 shadow-sm">
                   <Link href="/compliance">Request a Compliance Assessment</Link>
                 </Button>
                 <Button asChild variant="secondary" size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
@@ -660,9 +579,6 @@ export default function HomePageClient() {
                 </Button>
               </div>
             </div>
-            {/* Background elements */}
-            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none"><Calculator size={250} /></div>
-            <div className="absolute bottom-0 left-0 p-8 opacity-10 pointer-events-none"><Landmark size={250} /></div>
           </div>
         </div>
       </section>

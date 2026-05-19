@@ -59,7 +59,7 @@ export default function MonthlyAccountingPageClient() {
   ];
 
   return (
-    <div className="space-y-16 pb-16">
+    <div className="space-y-16 pb-16 bg-white">
       {/* HERO SECTION */}
       <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
         <div className="container relative z-10 mx-auto px-4 text-center">
@@ -79,22 +79,12 @@ export default function MonthlyAccountingPageClient() {
               </Button>
             ))}
           </div>
-
-          <div className="mt-20 relative w-full aspect-[16/9] lg:aspect-[21/9] max-w-6xl mx-auto rounded-[2.5rem] overflow-hidden shadow-2xl border-8 border-slate-50 bg-slate-100">
-            <Image 
-              src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
-              alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
-              fill
-              priority
-              className="object-cover"
-            />
-          </div>
         </div>
       </section>
 
       <TrustIndexWidget />
 
-      <section className="container mx-auto px-4">
+      <section className="container mx-auto px-4 bg-white">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold">Comprehensive Monthly Support</h2>
           <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
@@ -103,7 +93,7 @@ export default function MonthlyAccountingPageClient() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {coreServices.map((service, index) => (
-            <Card key={index} className="border-2 hover:border-primary/50 transition-colors">
+            <Card key={index} className="border-2 bg-slate-50 hover:border-primary/50 transition-colors">
               <CardHeader>
                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
                   <service.icon className="h-5 w-5 text-primary" />
@@ -118,7 +108,7 @@ export default function MonthlyAccountingPageClient() {
         </div>
       </section>
 
-      <section className="bg-slate-50 py-16">
+      <section className="py-16 bg-white border-t border-b">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-12">
@@ -126,7 +116,7 @@ export default function MonthlyAccountingPageClient() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
               {benefits.map((benefit, index) => (
-                <div key={index} className="flex gap-4 items-start">
+                <div key={index} className="flex gap-4 items-start p-4 bg-slate-50 rounded-xl border border-slate-100">
                   <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-1">
                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                   </div>
@@ -141,8 +131,8 @@ export default function MonthlyAccountingPageClient() {
         </div>
       </section>
 
-      <section className="container mx-auto px-4 text-center">
-        <div className="max-w-3xl mx-auto p-12 rounded-3xl bg-primary/5 border-2 border-dashed border-primary/20">
+      <section className="container mx-auto px-4 text-center bg-white">
+        <div className="max-w-3xl mx-auto p-12 rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200 shadow-sm">
           <h2 className="text-3xl font-bold">Ready for a Clean Set of Books?</h2>
           <p className="text-lg text-muted-foreground mt-4">
             Join hundreds of South African business owners who trust My Accountant for their monthly compliance and financial reporting.
