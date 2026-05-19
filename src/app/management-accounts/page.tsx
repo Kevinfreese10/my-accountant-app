@@ -27,10 +27,10 @@ export default function ManagementAccountsPage() {
 
   return (
     <div className="space-y-16 pb-16 bg-white">
-      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
-        <div className="container relative z-10 mx-auto px-4 text-center">
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
+        <div className="container relative z-10 mx-auto px-4">
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            Management <span className="text-primary">#Accounts</span> & Reporting
+            Management <span className="text-gradient">#Accounts</span> & Reporting
           </h1>
           <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
             Decisions are only as good as the data they are based on. Our management reporting gives you the clarity you need to lead your business with confidence.

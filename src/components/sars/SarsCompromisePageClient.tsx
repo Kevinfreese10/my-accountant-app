@@ -13,7 +13,7 @@ export default function SarsCompromisePageClient() {
     'Assessment of eligibility for Section 200',
     'Financial distress analysis',
     'Preparation of a legally compliant motivation',
-    'Compilation of all SARS-required supporting documents',
+    'Compilation of all SARS-required supporting documentation',
     'Submission and engagement with SARS',
     'Ongoing support until SARS issues a decision',
   ];
@@ -205,12 +205,12 @@ In such cases:
   return (
     <div className="space-y-16 pb-16 bg-white">
       {/* HERO SECTION */}
-      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
-        <div className="container relative z-10 mx-auto px-4 text-center">
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
+        <div className="container relative z-10 mx-auto px-4">
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            SARS <span className="text-primary">#Section 200</span> Compromise
+            SARS <span className="text-gradient">#Section 200</span> Compromise
           </h1>
-          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
+          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto text-center">
             Settle Your Tax Debt Legally & Affordably. If you owe SARS money and cannot realistically pay the full amount, a Section 200 Compromise may allow you to settle for less.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
@@ -232,7 +232,7 @@ In such cases:
 
       <section className="container mx-auto px-4 bg-white">
         <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold">When Is a Compromise Appropriate?</h2>
+            <h2 className="text-3xl font-bold text-center">When Is a Compromise Appropriate?</h2>
         </div>
         <Card className="max-w-xl mx-auto mt-4 text-left border-2 bg-slate-50 shadow-sm">
             <CardHeader>
@@ -253,7 +253,7 @@ In such cases:
        <section className="py-16 bg-white border-t border-b">
         <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">What Our Service Includes</h2>
+                <h2 className="text-3xl font-bold text-center">What Our Service Includes</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
                 {serviceIncludes.map((item, index) => (
@@ -272,11 +272,11 @@ In such cases:
 
        <section className="container mx-auto px-4 max-w-4xl bg-white">
          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold">SARS Section 200 to 205 Explained</h2>
+            <h2 className="text-3xl font-bold text-center">SARS Section 200 to 205 Explained</h2>
         </div>
          <Accordion type="single" collapsible className="w-full space-y-4">
             {sarsSections.map((section, index) => (
-              <AccordionItem key={index} value={`item-${index}`} className="bg-slate-50 border rounded-xl px-4 shadow-sm overflow-hidden">
+              <AccordionItem key={index} value={`item-${index}`} className="bg-slate-50 border rounded-xl px-4 shadow-sm overflow-hidden text-left">
                 <AccordionTrigger className="text-left font-semibold hover:no-underline">{section.title}</AccordionTrigger>
                 <AccordionContent className="whitespace-pre-line text-muted-foreground text-sm leading-relaxed pb-4">{section.content}</AccordionContent>
               </AccordionItem>
@@ -287,11 +287,11 @@ In such cases:
        <section className="py-24 bg-white border-t">
          <div className="container mx-auto px-4 max-w-4xl">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">When You Cannot Enter Into a SARS Section 200 Compromise</h2>
+                <h2 className="text-3xl font-bold text-center">When You Cannot Enter Into a SARS Section 200 Compromise</h2>
             </div>
             <Accordion type="single" collapsible className="w-full space-y-4">
                 {whenYouCannot.map((item, index) => (
-                <AccordionItem key={index} value={`item-cannot-${index}`} className="bg-slate-50 border rounded-xl px-4 shadow-sm overflow-hidden">
+                <AccordionItem key={index} value={`item-cannot-${index}`} className="bg-slate-50 border rounded-xl px-4 shadow-sm overflow-hidden text-left">
                     <AccordionTrigger className="text-left font-semibold hover:no-underline">{item.title}</AccordionTrigger>
                     <AccordionContent className="whitespace-pre-line text-muted-foreground text-sm leading-relaxed pb-4">{item.content}</AccordionContent>
                 </AccordionItem>
@@ -301,8 +301,8 @@ In such cases:
       </section>
 
       <section className="container mx-auto px-4 text-center bg-white">
-        <h2 className="text-3xl font-bold">Need Help With a SARS Compromise?</h2>
-        <Button asChild size="lg" className="mt-8 shadow-lg">
+        <h2 className="text-3xl font-bold text-center">Need Help With a SARS Compromise?</h2>
+        <Button asChild size="lg" className="mt-8 shadow-xl font-bold px-10">
             <Link href="/contact">Contact Us For A Confidential Assessment</Link>
         </Button>
       </section>

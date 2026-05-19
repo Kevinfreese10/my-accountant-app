@@ -25,7 +25,9 @@ import {
   Users,
   TrendingUp,
   Phone,
-  MessageCircle
+  MessageCircle,
+  FileUp,
+  ShoppingCart
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -135,12 +137,12 @@ export default function HomePageClient() {
       />
       
       {/* HERO SECTION */}
-      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
-        <div className="container relative z-10 mx-auto px-4 text-center">
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
+        <div className="container relative z-10 mx-auto px-4">
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            Online Accounting, Tax & Payroll Services in South Africa
+            Online <span className="text-gradient">Accounting, Tax & Payroll</span> Services in South Africa
           </h1>
-          <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed text-center">
+          <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed">
             <p>
               My Accountant helps South African businesses stay compliant with professional accounting, tax, payroll, SARS, and CIPC services — all through a simple online process.
             </p>
@@ -358,8 +360,8 @@ export default function HomePageClient() {
         <div className="container mx-auto px-4 text-center">
           <div className="max-w-5xl mx-auto p-12 rounded-[3rem] bg-slate-50 text-slate-900 shadow-sm border relative overflow-hidden">
             <div className="relative z-10 space-y-10">
-              <h2 className="text-4xl font-black md:text-5xl lg:text-6xl">Get Professional Accounting & Compliance Support</h2>
-              <p className="text-xl text-muted-foreground max-w-3xl mx-auto font-medium leading-relaxed">
+              <h2 className="text-4xl font-black md:text-5xl lg:text-6xl text-center">Get Professional Accounting & Compliance Support</h2>
+              <p className="text-xl text-muted-foreground max-w-3xl mx-auto font-medium leading-relaxed text-center">
                 Whether you need accounting services, tax compliance, company registration, payroll support, or CIPC assistance, My Accountant is ready to assist your business.
               </p>
               

@@ -18,9 +18,9 @@ export default function BlogPageClient() {
   const { blogPosts, isLoading } = useBlog();
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="container mx-auto px-4 py-12 bg-white">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold tracking-tight">Tax Tip Blog</h1>
+        <h1 className="text-4xl font-bold tracking-tight text-slate-900">Tax Tip <span className="text-gradient">Blog</span></h1>
         <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
           Stay informed with our latest articles, tips, and updates on tax-related topics for South Africans.
         </p>
@@ -33,7 +33,7 @@ export default function BlogPageClient() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {blogPosts.map(post => (
-            <Card key={post.id} className="flex flex-col overflow-hidden">
+            <Card key={post.id} className="flex flex-col overflow-hidden bg-slate-50 border-2 shadow-sm">
                 <Link href={`/blog/${post.slug}`} className="block">
                 <div className="relative h-48 w-full">
                     <Image
@@ -54,10 +54,10 @@ export default function BlogPageClient() {
                 </CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow">
-                <p className="text-muted-foreground">{post.excerpt}</p>
+                <p className="text-muted-foreground text-sm leading-relaxed">{post.excerpt}</p>
                 </CardContent>
                 <CardFooter>
-                <Button variant="link" asChild className="p-0">
+                <Button variant="link" asChild className="p-0 font-bold">
                     <Link href={`/blog/${post.slug}`}>
                     Read More <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>

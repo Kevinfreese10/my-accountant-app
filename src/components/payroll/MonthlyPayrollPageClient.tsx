@@ -50,10 +50,10 @@ export default function MonthlyPayrollPageClient() {
   return (
     <div className="space-y-16 pb-16 bg-white">
       {/* HERO SECTION */}
-      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
-        <div className="container relative z-10 mx-auto px-4 text-center">
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
+        <div className="container relative z-10 mx-auto px-4">
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-6xl lg:text-7xl">
-            Monthly <span className="text-primary">#Payroll</span> Services
+            Monthly <span className="text-gradient">#Payroll</span> Services
           </h1>
           <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed">
             <p>
@@ -75,8 +75,8 @@ export default function MonthlyPayrollPageClient() {
 
       <section className="container mx-auto px-4 bg-white">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold">Everything Your Business Needs</h2>
-          <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+          <h2 className="text-3xl font-bold text-center">Everything Your Business Needs</h2>
+          <p className="text-muted-foreground mt-2 max-w-2xl mx-auto text-center">
             Our end-to-end payroll service takes the administrative burden off your shoulders.
           </p>
         </div>
@@ -107,7 +107,7 @@ export default function MonthlyPayrollPageClient() {
               </p>
               <ul className="space-y-4">
                 {complianceItems.map((item, index) => (
-                  <li key={index} className="flex items-center gap-3 text-sm font-medium text-slate-700 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <li key={index} className="flex items-center gap-3 text-sm font-medium text-slate-700 p-3 bg-slate-50 rounded-lg border border-slate-100 shadow-sm">
                     <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                     {item}
                   </li>
@@ -124,7 +124,7 @@ export default function MonthlyPayrollPageClient() {
                         Whether you have 1 employee or 100, our scalable system handles the load. Get specialized support for commissions, bonuses, and complex deductions.
                     </p>
                     <Separator className="my-6 bg-slate-200" />
-                    <Button asChild className="w-full">
+                    <Button asChild className="w-full font-bold shadow-lg h-12">
                         <Link href="/contact">Speak to a Payroll Expert</Link>
                     </Button>
                 </div>
@@ -134,11 +134,11 @@ export default function MonthlyPayrollPageClient() {
       </section>
 
       <section className="container mx-auto px-4 text-center bg-white">
-        <h2 className="text-3xl font-bold">Stop Struggling with Manual Payroll</h2>
-        <p className="text-lg text-muted-foreground mt-4 max-w-2xl mx-auto">
+        <h2 className="text-3xl font-bold text-center">Stop Struggling with Manual Payroll</h2>
+        <p className="text-lg text-muted-foreground mt-4 max-w-2xl mx-auto text-center">
             Switch to a professional payroll solution and ensure your business remains compliant with the latest tax laws.
         </p>
-        <Button asChild size="lg" className="mt-8 font-bold px-12">
+        <Button asChild size="lg" className="mt-8 font-bold px-12 shadow-xl">
           <Link href="/contact">Inquire Now</Link>
         </Button>
       </section>

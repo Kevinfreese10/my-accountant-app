@@ -85,21 +85,19 @@ export default function AiAccountantPage() {
 
 
   return (
-    <div className="space-y-16 pb-16">
-      <section>
-        <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
-          <div className="space-y-6 text-center">
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-foreground">
-              AI Accountant – Your <span className="text-gradient">Smart Financial Assistant</span>
-            </h1>
-            <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              The AI Accountant automates your entire accounting workflow — from receipts to reconciliations — saving you hours of manual work every month.
-            </p>
-            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-              <Button asChild size="lg">
-                <Link href="/ai-accountant-signup">Get Started</Link>
-              </Button>
-            </div>
+    <div className="space-y-16 pb-16 bg-white">
+      <section className="text-center py-20 lg:py-32">
+        <div className="container mx-auto px-4">
+          <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-slate-900">
+            AI Accountant – Your <span className="text-gradient">Smart Financial Assistant</span>
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-3xl mx-auto mt-6">
+            The AI Accountant automates your entire accounting workflow — from receipts to reconciliations — saving you hours of manual work every month.
+          </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-center mt-10">
+            <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
+              <Link href="/ai-accountant-signup">Get Started</Link>
+            </Button>
           </div>
         </div>
       </section>
@@ -112,7 +110,7 @@ export default function AiAccountantPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {coreFunctions.map(feature => (
-                  <div key={feature.title} className="flex items-start gap-4 p-4">
+                  <div key={feature.title} className="flex items-start gap-4 p-4 bg-slate-50 border-2 border-transparent hover:border-primary/20 transition-all rounded-xl">
                       <div className="flex-shrink-0">
                         <feature.icon className="h-8 w-8 text-primary" />
                       </div>
@@ -125,7 +123,7 @@ export default function AiAccountantPage() {
           </div>
       </section>
       
-       <section id="pricing" className="bg-background py-16 scroll-m-20">
+       <section id="pricing" className="bg-white py-16 scroll-m-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold">Flexible Pricing for Every Need</h2>
@@ -136,19 +134,19 @@ export default function AiAccountantPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch max-w-3xl mx-auto">
             {pricingTiers.map((tier) => (
-              <Card key={tier.title} className="flex flex-col">
+              <Card key={tier.title} className="flex flex-col bg-slate-50 border-2 shadow-sm">
                 <CardHeader>
                   <CardTitle>{tier.title}</CardTitle>
                   <CardDescription>{tier.description}</CardDescription>
                   <div className="flex items-baseline pt-4">
-                    <span className="text-4xl font-bold">{tier.price}</span>
+                    <span className="text-4xl font-bold text-slate-900">{tier.price}</span>
                     {tier.period && <span className="text-sm text-muted-foreground">{tier.period}</span>}
                   </div>
                 </CardHeader>
                 <CardContent className="flex-grow">
                   <ul className="space-y-3">
                     {tier.features.map((feature, index) => (
-                      <li key={index} className="flex items-center gap-2 text-sm">
+                      <li key={index} className="flex items-center gap-2 text-sm text-slate-700">
                         <CheckCircle className="h-4 w-4 text-green-500" />
                         <span>{feature}</span>
                       </li>
@@ -156,7 +154,7 @@ export default function AiAccountantPage() {
                   </ul>
                 </CardContent>
                 <CardFooter>
-                  <Button asChild className="w-full">
+                  <Button asChild className="w-full font-bold">
                     <Link href={tier.href}>{tier.cta}</Link>
                   </Button>
                 </CardFooter>
@@ -164,12 +162,12 @@ export default function AiAccountantPage() {
             ))}
           </div>
           
-           <div className="text-center mt-16">
+           <div className="text-center mt-16 max-w-2xl mx-auto p-12 bg-slate-50 rounded-[3rem] border-2 border-dashed">
                 <h3 className="text-2xl font-bold">Need to Add More Users?</h3>
                 <p className="text-muted-foreground mt-2">Additional users can be added to any plan for just <span className="font-bold text-primary">R50 per user, per month</span>.</p>
                 <Dialog>
                     <DialogTrigger asChild>
-                        <Button className="mt-4">Sign Up Now</Button>
+                        <Button className="mt-6 h-12 px-10 font-bold shadow-lg">Sign Up Now</Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-2xl">
                         <DialogHeader>

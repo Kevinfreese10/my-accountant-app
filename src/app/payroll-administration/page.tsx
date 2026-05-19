@@ -27,10 +27,10 @@ export default function PayrollAdministrationPage() {
 
   return (
     <div className="space-y-16 pb-16 bg-white">
-      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
-        <div className="container relative z-10 mx-auto px-4 text-center">
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
+        <div className="container relative z-10 mx-auto px-4">
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            Payroll <span className="text-primary">#Administration</span> Services
+            Payroll <span className="text-gradient">#Administration</span> Services
           </h1>
           <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
             Accurate, on-time, and professional. We take the administrative burden out of paying your team, ensuring every calculation is perfect.
@@ -70,7 +70,7 @@ export default function PayrollAdministrationPage() {
       <section className="container mx-auto px-4 text-center bg-white py-12">
         <div className="max-w-3xl mx-auto p-12 rounded-3xl bg-slate-50 border border-slate-100 shadow-sm">
             <h2 className="text-3xl font-bold">Scale Your Business, Not Your Admin</h2>
-            <p className="text-lg text-muted-foreground mt-4 leading-relaxed">
+            <p className="text-lg text-muted-foreground mt-4 leading-relaxed text-center">
                 Whether you have 1 or 100 employees, our payroll engine scales with you. We ensure your team is paid correctly while you focus on leading them.
             </p>
             <Button asChild size="lg" className="mt-8 shadow-lg font-bold">

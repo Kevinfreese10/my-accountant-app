@@ -75,12 +75,12 @@ export default function RemissionOfFinesPageClient() {
   return (
     <div className="space-y-16 pb-16 bg-white">
       {/* HERO SECTION */}
-      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
-        <div className="container relative z-10 mx-auto px-4 text-center">
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
+        <div className="container relative z-10 mx-auto px-4">
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            Remission of <span className="text-primary">#Fines</span> & Penalties
+            Remission of <span className="text-gradient">#Fines</span> & Penalties
           </h1>
-          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
+          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto text-center">
             Get your tax penalties waived. SARS penalties can be aggressive, but they are not always final. If you have been hit with penalties, you have the right to request a remission.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
@@ -103,7 +103,7 @@ export default function RemissionOfFinesPageClient() {
        <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Our Penalty Resolution Service</h2>
+                <h2 className="text-3xl font-bold text-center">Our Penalty Resolution Service</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
                 {serviceIncludes.map((item, index) => (
@@ -123,7 +123,7 @@ export default function RemissionOfFinesPageClient() {
        <section className="py-24 bg-white border-t">
          <div className="container mx-auto px-4 max-w-4xl">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Understanding SARS Penalties</h2>
+                <h2 className="text-3xl font-bold text-center">Understanding SARS Penalties</h2>
             </div>
             <Accordion type="single" collapsible className="w-full space-y-4">
                 {penaltySections.map((section, index) => (
@@ -137,8 +137,8 @@ export default function RemissionOfFinesPageClient() {
       </section>
 
       <section className="container mx-auto px-4 text-center bg-white py-12">
-        <h2 className="text-3xl font-bold">Are your SARS penalties unfair?</h2>
-        <Button asChild size="lg" className="mt-8 shadow-lg">
+        <h2 className="text-3xl font-bold text-center">Are your SARS penalties unfair?</h2>
+        <Button asChild size="lg" className="mt-8 shadow-xl font-bold px-10">
             <Link href="/contact">Talk to a Penalty Expert</Link>
         </Button>
       </section>

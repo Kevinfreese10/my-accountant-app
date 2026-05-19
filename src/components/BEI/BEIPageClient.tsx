@@ -268,12 +268,12 @@ const faqs = [
 export default function BEIPageClient() {
   return (
     <div className="space-y-16 pb-16 bg-white">
-      <section className="bg-white border-b relative overflow-hidden">
+      <section className="bg-white border-b relative overflow-hidden text-center py-20">
         <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
             <div className="absolute top-10 left-10"><Bot size={120} /></div>
             <div className="absolute bottom-10 right-10"><Wallet size={120} /></div>
         </div>
-        <div className="container mx-auto px-4 py-20 text-center relative z-10">
+        <div className="container relative z-10 mx-auto px-4">
             <h1 className="text-4xl font-black tracking-tight md:text-6xl lg:text-7xl text-slate-900">
                 10X Your Practice — <span className="text-gradient">No Staff Required.</span>
             </h1>
@@ -323,12 +323,12 @@ export default function BEIPageClient() {
         </div>
       </section>
 
-      <section className="bg-slate-50 py-24 border-y">
+      <section className="bg-white py-24 border-y">
         <div className="container mx-auto px-4">
             <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 <div className="space-y-6">
                     <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-3 py-1 text-[10px] font-black uppercase tracking-widest">Pricing Plan</Badge>
-                    <h2 className="text-4xl md:text-5xl font-black leading-tight text-slate-900">One-Time Practice <br/><span className="text-primary">Investment</span></h2>
+                    <h2 className="text-4xl md:text-5xl font-black leading-tight text-slate-900">One-Time Practice <br/><span className="text-gradient">Investment</span></h2>
                     <p className="text-lg text-slate-600 leading-relaxed">
                         Scale your firm with a turn-key solution. The BEI setup fee replaces all monthly hosting costs, giving you a lifetime platform for growth.
                     </p>
@@ -347,7 +347,7 @@ export default function BEIPageClient() {
                         ))}
                     </ul>
                 </div>
-                <Card className="border shadow-2xl bg-white overflow-hidden transform lg:scale-110">
+                <Card className="border shadow-2xl bg-slate-50 overflow-hidden transform lg:scale-110">
                     <CardHeader className="bg-white border-b p-8 text-center">
                         <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Setup & Activation</CardTitle>
                         <div className="mt-4 flex items-baseline justify-center gap-1">
@@ -389,14 +389,14 @@ export default function BEIPageClient() {
         <div className="container mx-auto px-4">
             <div className="text-center mb-16 space-y-4">
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none px-4 py-1 text-xs font-bold uppercase tracking-widest">Practice Benefits</Badge>
-                <h2 className="text-4xl font-bold tracking-tight text-slate-900">Features vs Benefits</h2>
-                <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Everything you need to build a professional, scalable firm.</p>
+                <h2 className="text-4xl font-bold tracking-tight text-slate-900 text-center">Features vs Benefits</h2>
+                <p className="text-muted-foreground max-w-2xl mx-auto text-lg text-center">Everything you need to build a professional, scalable firm.</p>
             </div>
 
             <div className="max-w-5xl mx-auto bg-white rounded-2xl overflow-hidden shadow-2xl border">
                 <div className="grid grid-cols-1 md:grid-cols-2 bg-slate-900 text-white font-black uppercase tracking-widest text-[10px]">
-                    <div className="p-4 border-r border-slate-800 hidden md:block">The Platform Feature</div>
-                    <div className="p-4 hidden md:block">The Business Benefit</div>
+                    <div className="p-4 border-r border-slate-800 hidden md:block text-center">The Platform Feature</div>
+                    <div className="p-4 hidden md:block text-center">The Business Benefit</div>
                 </div>
                 <div className="divide-y divide-slate-100">
                     {featureBenefits.map((item, idx) => (

@@ -75,9 +75,9 @@ export default function ProductsPageClient() {
 
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="container mx-auto px-4 py-12 bg-white">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold tracking-tight">Our Products</h1>
+        <h1 className="text-4xl font-bold tracking-tight text-slate-900">Our <span className="text-gradient">Products</span></h1>
         <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
           Comprehensive solutions to meet all your financial needs. We offer a range of products for individuals and businesses.
         </p>
@@ -99,7 +99,7 @@ export default function ProductsPageClient() {
                     className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-slate-50"
                     >
                     <CardHeader>
-                        <CardTitle>{service.title}</CardTitle>
+                        <CardTitle className="leading-tight">{service.title}</CardTitle>
                         {service.isPriceTbc ? (
                             <p className="text-xl font-bold text-muted-foreground pt-2">Price on request</p>
                         ) : (
@@ -115,7 +115,7 @@ export default function ProductsPageClient() {
                         <p className="text-xs text-muted-foreground mt-2">Brand: {service.brand || 'My Accountant'}</p>
                     </CardContent>
                     <CardFooter>
-                        <Button asChild className="w-full">
+                        <Button asChild className="w-full font-bold shadow-sm">
                         <Link href={`/products/${service.slug}`}>Learn More</Link>
                         </Button>
                     </CardFooter>

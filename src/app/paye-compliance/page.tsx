@@ -27,10 +27,10 @@ export default function PayeCompliancePage() {
 
   return (
     <div className="space-y-16 pb-16 bg-white">
-      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
-        <div className="container relative z-10 mx-auto px-4 text-center">
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
+        <div className="container relative z-10 mx-auto px-4">
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            PAYE <span className="text-primary">#Compliance</span> & EMP201
+            PAYE <span className="text-gradient">#Compliance</span> & EMP201
           </h1>
           <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
             Stay on the right side of SARS. We manage your monthly employee tax declarations so you avoid costly non-compliance penalties.
@@ -48,7 +48,7 @@ export default function PayeCompliancePage() {
       <section className="container mx-auto px-4 bg-white">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold">Comprehensive PAYE Support</h2>
-          <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">We handle the complexity of employer tax obligations for you.</p>
+          <p className="text-muted-foreground mt-2 max-w-2xl mx-auto text-center">We handle the complexity of employer tax obligations for you.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {highlights.map((item, index) => (
@@ -69,8 +69,8 @@ export default function PayeCompliancePage() {
 
       <section className="container mx-auto px-4 text-center bg-white py-12">
         <div className="max-w-3xl mx-auto p-12 rounded-3xl bg-slate-50 border border-slate-100 shadow-sm">
-            <h2 className="text-3xl font-bold">Simplify Your Payroll Tax</h2>
-            <p className="text-lg text-muted-foreground mt-4 leading-relaxed">
+            <h2 className="text-3xl font-bold text-center">Simplify Your Payroll Tax</h2>
+            <p className="text-lg text-muted-foreground mt-4 leading-relaxed text-center">
                 SARS PAYE compliance is rigorous. Our specialists ensure your calculations are correct and your returns are filed before the 7th of every month.
             </p>
             <Button asChild size="lg" className="mt-8 shadow-lg font-bold">

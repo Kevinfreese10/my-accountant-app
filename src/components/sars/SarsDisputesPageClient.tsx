@@ -83,12 +83,12 @@ export default function SarsDisputesPageClient() {
   return (
     <div className="space-y-16 pb-16 bg-white">
       {/* HERO SECTION */}
-      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
-        <div className="container relative z-10 mx-auto px-4 text-center">
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
+        <div className="container relative z-10 mx-auto px-4">
           <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            SARS <span className="text-primary">#Disputes</span> & Objections
+            SARS <span className="text-gradient">#Disputes</span> & Objections
           </h1>
-          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
+          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto text-center">
             Challenge incorrect assessments legally. Don't pay for SARS errors. If you have received an assessment that is factually incorrect, you have the legal right to dispute it.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
@@ -111,7 +111,7 @@ export default function SarsDisputesPageClient() {
        <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">What Our Dispute Service Includes</h2>
+                <h2 className="text-3xl font-bold text-center">What Our Dispute Service Includes</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
                 {serviceIncludes.map((item, index) => (
@@ -131,11 +131,11 @@ export default function SarsDisputesPageClient() {
        <section className="py-24 bg-white border-t">
          <div className="container mx-auto px-4 max-w-4xl">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">The SARS Dispute Process</h2>
+                <h2 className="text-3xl font-bold text-center">The SARS Dispute Process</h2>
             </div>
             <Accordion type="single" collapsible className="w-full space-y-4">
                 {disputeSteps.map((step, index) => (
-                <AccordionItem key={index} value={`item-${index}`} className="bg-slate-50 border rounded-xl px-4 shadow-sm overflow-hidden">
+                <AccordionItem key={index} value={`item-${index}`} className="bg-slate-50 border rounded-xl px-4 shadow-sm overflow-hidden text-left">
                     <AccordionTrigger className="text-left font-semibold hover:no-underline">{step.title}</AccordionTrigger>
                     <AccordionContent className="whitespace-pre-line text-muted-foreground text-sm leading-relaxed pb-4">{step.content}</AccordionContent>
                 </AccordionItem>
@@ -161,8 +161,8 @@ export default function SarsDisputesPageClient() {
         </section>
 
       <section className="container mx-auto px-4 text-center bg-white py-12">
-        <h2 className="text-3xl font-bold">Unfair SARS Assessment?</h2>
-        <Button asChild size="lg" className="mt-8 shadow-lg">
+        <h2 className="text-3xl font-bold text-center">Unfair SARS Assessment?</h2>
+        <Button asChild size="lg" className="mt-8 shadow-xl font-bold px-10">
             <Link href="/contact">Book a Consultation</Link>
         </Button>
       </section>

@@ -76,12 +76,12 @@ export default function LiquidationsPage() {
   return (
     <div className="space-y-16 pb-16 bg-white">
       {/* HERO SECTION */}
-      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
-        <div className="container relative z-10 mx-auto px-4 text-center">
-          <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-            Liquidation Services in South Africa
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
+        <div className="container relative z-10 mx-auto px-4">
+          <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl text-center">
+            <span className="text-gradient">Liquidation Services</span> in South Africa
           </h1>
-          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
+          <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto text-center">
             Simple, Compliant & Stress-Free Company Closures. We guide you through the process from start to finish—ensuring full compliance with CIPC and SARS.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-4">
@@ -103,8 +103,8 @@ export default function LiquidationsPage() {
 
        <section className="container mx-auto px-4 bg-white">
         <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold">What Is a Company Liquidation?</h2>
-            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+            <h2 className="text-3xl font-bold text-center">What Is a Company Liquidation?</h2>
+            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto text-center">
               A liquidation is the formal legal process of closing a company by settling its affairs, paying creditors (where applicable), and removing it from the Companies Register.
             </p>
         </div>
@@ -156,8 +156,8 @@ export default function LiquidationsPage() {
       <section className="py-24 bg-white border-t border-b">
         <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">What Our Liquidation Service Includes</h2>
-                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                <h2 className="text-3xl font-bold text-center">What Our Liquidation Service Includes</h2>
+                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto text-center">
                     We don’t just process paperwork — we walk the journey with you.
                 </p>
             </div>
@@ -179,7 +179,7 @@ export default function LiquidationsPage() {
 
        <section className="container mx-auto px-4 bg-white py-12">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Why Use My Accountant?</h2>
+                <h2 className="text-3xl font-bold text-center">Why Use My Accountant?</h2>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                 {whyChooseUs.map((benefit) => (
@@ -197,11 +197,11 @@ export default function LiquidationsPage() {
       </section>
 
       <section className="container mx-auto px-4 text-center bg-white">
-        <h2 className="text-3xl font-bold">Need Help Deciding If Liquidation Is Right?</h2>
-        <p className="text-lg text-muted-foreground mt-2 max-w-2xl mx-auto">
+        <h2 className="text-3xl font-bold text-center">Need Help Deciding If Liquidation Is Right?</h2>
+        <p className="text-lg text-muted-foreground mt-2 max-w-2xl mx-auto text-center">
             If you’re unsure whether liquidation is the correct step, we’re happy to assess your situation and explain your options before you commit.
         </p>
-        <Button asChild size="lg" className="mt-8 shadow-lg">
+        <Button asChild size="lg" className="mt-8 shadow-xl font-bold px-10">
             <Link href="/contact">Book a Consultation</Link>
         </Button>
       </section>

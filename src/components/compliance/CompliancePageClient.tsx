@@ -195,8 +195,8 @@ export default function CompliancePageClient() {
      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <div className="space-y-16 pb-16 bg-white">
         {/* HERO SECTION */}
-        <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
-            <div className="container relative z-10 mx-auto px-4 text-center">
+        <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
+            <div className="container relative z-10 mx-auto px-4">
                 <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
                     Free <span className="text-gradient">#Compliance</span> Check
                 </h1>
@@ -225,7 +225,7 @@ export default function CompliancePageClient() {
                 <div className="text-center mb-12">
                     <h2 className="text-3xl font-bold">🧾 SARS &amp; CIPC Compliance</h2>
                 </div>
-                <div className="mt-12 space-y-8">
+                <div className="mt-12 space-y-8 text-left">
                     <Card className="border-2 bg-slate-50 shadow-sm">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-3"><Landmark className="h-6 w-6 text-primary"/> SARS Compliance</CardTitle>
