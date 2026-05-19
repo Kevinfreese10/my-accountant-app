@@ -104,13 +104,6 @@ export default function HomePageClient() {
     { title: "Business Compliance Specialists", desc: "We assist businesses with ongoing SARS, CIPC, payroll, and accounting compliance requirements.", icon: Landmark }
   ];
 
-  const servicePillars = [
-      { title: 'Monthly Accounting', href: '/monthly-accounting', icon: Calculator, desc: 'Professional bookkeeping, management accounts, and financial reporting.' },
-      { title: 'Monthly Payroll', href: '/monthly-payroll', icon: Users, desc: 'Digital payslips, EMP201 submissions, and UIF declarations.' },
-      { title: 'Tax Compliance', href: '/compliance', icon: Landmark, desc: 'VAT registration, income tax returns, and SARS disputes.' },
-      { title: 'Company Liquidations', href: '/liquidations', icon: Briefcase, desc: 'Voluntary liquidations and legal company closures.' },
-  ];
-
   const industries = [
     { title: "Accounting for SMEs", slug: "sme", icon: Building, desc: "Scale from startup to market player with expert financial structure." },
     { title: "Accounting for Construction", slug: "construction", icon: HardHat, desc: "Project-based tracking for builders and contractors." },
@@ -162,27 +155,16 @@ export default function HomePageClient() {
       />
       
       {/* HERO SECTION */}
-      <section className="relative w-full overflow-hidden bg-slate-900 pt-16 lg:pt-24 pb-20">
-        <div className="absolute inset-0 z-0 opacity-20">
-          <Image 
-            src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
-            alt="My Accountant - Online Accounting & Tax Services"
-            fill
-            priority
-            className="object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 to-slate-900" />
-        </div>
-
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
         <div className="container relative z-10 mx-auto px-4 text-center">
-          <h1 className="mb-6 text-4xl font-black tracking-tight text-white md:text-6xl lg:text-7xl">
+          <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-6xl lg:text-7xl">
             Online Accounting, Tax & <span className="text-primary">CIPC Services</span> in South Africa
           </h1>
-          <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-slate-300 md:text-xl leading-relaxed">
+          <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed">
             <p>
               My Accountant helps South African businesses stay compliant with professional accounting, tax, payroll, SARS, and CIPC services — all through a simple online process.
             </p>
-            <p className="mt-4 text-base text-slate-400">
+            <p className="mt-4 text-base text-muted-foreground/70">
               Whether you need company registration, VAT registration, bookkeeping, payroll, annual financial statements, tax compliance, or CIPC annual returns, our team assists businesses throughout Johannesburg, Randburg, Gauteng, and across South Africa.
             </p>
           </div>
@@ -190,7 +172,7 @@ export default function HomePageClient() {
             <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
               <Link href="/signup">Get Started</Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm">
+            <Button asChild variant="outline" size="lg" className="h-14 px-10 text-lg font-bold border-2">
               <Link href="/products">View Services</Link>
             </Button>
             <Button asChild variant="secondary" size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
@@ -200,11 +182,21 @@ export default function HomePageClient() {
 
           <div className="mt-16 grid grid-cols-2 md:grid-cols-5 gap-4 max-w-5xl mx-auto">
               {trustIndicators.map((item, idx) => (
-                  <div key={idx} className="flex flex-col items-center gap-2 text-slate-300">
+                  <div key={idx} className="flex flex-col items-center gap-2 text-muted-foreground">
                       <item.icon className="h-5 w-5 text-primary" />
                       <span className="text-[10px] font-bold uppercase tracking-wider text-center leading-tight">{item.label}</span>
                   </div>
               ))}
+          </div>
+
+          <div className="mt-20 relative w-full aspect-[16/9] lg:aspect-[21/9] max-w-6xl mx-auto rounded-[2.5rem] overflow-hidden shadow-2xl border-8 border-slate-50 bg-slate-100">
+            <Image 
+              src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
+              alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
+              fill
+              priority
+              className="object-cover"
+            />
           </div>
         </div>
       </section>
@@ -599,54 +591,6 @@ export default function HomePageClient() {
                                 ))}
                               </Accordion>
                           </div>
-                      ))}
-                  </div>
-              )}
-          </div>
-      </section>
-
-      {/* LATEST FROM BLOG */}
-      <section className="py-24 bg-slate-50 border-y">
-          <div className="container mx-auto px-4">
-              <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-12">
-                  <div className="space-y-4 text-left">
-                      <Badge variant="outline" className="px-4 py-1 uppercase font-black text-[10px] tracking-widest text-primary border-primary/20">Resources</Badge>
-                      <h2 className="text-4xl font-black text-slate-900">Latest from our Tax Tip Blog</h2>
-                      <p className="text-muted-foreground text-lg max-w-2xl">Expert insights to help you navigate the complexities of South African tax and business legislation.</p>
-                  </div>
-                  <Button asChild variant="outline" className="font-bold gap-2 group border-primary/20 text-primary">
-                      <Link href="/blog">Visit the Blog <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></Link>
-                  </Button>
-              </div>
-
-              {isBlogLoading ? (
-                  <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary h-8 w-8" /></div>
-              ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                      {blogPosts.slice(0, 3).map(post => (
-                          <Card key={post.id} className="border-none shadow-xl flex flex-col group overflow-hidden bg-white">
-                              <Link href={`/blog/${post.slug}`} className="block relative h-56 overflow-hidden">
-                                  <Image src={post.imageUrl} alt={post.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </Link>
-                              <CardHeader className="space-y-3">
-                                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
-                                      <CalendarIcon className="h-3 w-3" />
-                                      {format(new Date(post.date), 'dd MMMM yyyy')}
-                                  </div>
-                                  <CardTitle className="text-xl font-bold leading-tight group-hover:text-primary transition-colors">
-                                      <Link href={`/blog/${post.slug}`}>{post.title}</Link>
-                                  </CardTitle>
-                              </CardHeader>
-                              <CardContent className="flex-grow">
-                                  <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{post.excerpt}</p>
-                              </CardContent>
-                              <CardFooter className="pt-0 pb-6">
-                                  <Button variant="link" asChild className="p-0 h-auto font-black text-[10px] uppercase tracking-widest gap-2">
-                                      <Link href={`/blog/${post.slug}`}>Read Article <ChevronRight className="h-3 w-3" /></Link>
-                                  </Button>
-                              </CardFooter>
-                          </Card>
                       ))}
                   </div>
               )}

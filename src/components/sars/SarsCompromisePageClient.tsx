@@ -6,6 +6,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { CheckCircle, ShieldCheck, Scale, FileText, LifeBuoy } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 
 export default function SarsCompromisePageClient() {
   const serviceIncludes = [
@@ -203,21 +204,10 @@ In such cases:
 
   return (
     <div className="space-y-16 pb-16">
-      {/* Hero Image Section */}
-      <section className="relative w-full aspect-[16/9] lg:aspect-[21/9] xl:aspect-[24/9] overflow-hidden bg-slate-900">
-        <Image 
-          src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
-          alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
-          fill
-          priority
-          className="object-contain lg:object-cover"
-        />
-      </section>
-
-      {/* Hero Content Section */}
-      <section className="container mx-auto px-4 text-center">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <h1 className="text-3xl font-extrabold tracking-tight md:text-5xl lg:text-6xl text-slate-900">
+      {/* HERO SECTION */}
+      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b">
+        <div className="container relative z-10 mx-auto px-4 text-center">
+          <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
             SARS <span className="text-primary">#Section 200</span> Compromise
           </h1>
           <p className="text-lg sm:text-xl md:text-2xl font-medium text-muted-foreground max-w-3xl mx-auto">
@@ -235,8 +225,20 @@ In such cases:
               </Button>
             ))}
           </div>
+
+          <div className="mt-20 relative w-full aspect-[16/9] lg:aspect-[21/9] max-w-6xl mx-auto rounded-[2.5rem] overflow-hidden shadow-2xl border-8 border-slate-50 bg-slate-100">
+            <Image 
+              src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1778852737208-South%20Africa%E2%80%99s%20Trusted%20Online%20Accounting%20%26%20Tax%20Compliance%20Partner%20(2).png?alt=media&token=3e8db3bc-8d7a-44b3-a258-dce170c9076d"
+              alt="My Accountant - South Africa's Trusted Online Accounting & Tax Compliance Partner"
+              fill
+              priority
+              className="object-cover"
+            />
+          </div>
         </div>
       </section>
+
+      <TrustIndexWidget />
 
       <section className="container mx-auto px-4">
         <div className="text-center mb-12">
