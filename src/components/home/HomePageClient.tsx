@@ -168,9 +168,9 @@ export default function HomePageClient() {
       <TrustIndexWidget />
 
       {/* TRUST & AUTHORITY SECTION */}
-      <section className="py-24 bg-white">
+      <section className="py-24 bg-white text-center">
         <div className="container mx-auto px-4 space-y-16">
-          <div className="max-w-6xl mx-auto text-center space-y-6">
+          <div className="max-w-6xl mx-auto space-y-6">
             <h2 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl text-center">
               Why South African Businesses Choose My Accountant
             </h2>
@@ -213,7 +213,7 @@ export default function HomePageClient() {
       </section>
 
       {/* CORE SERVICES SEO SECTION */}
-      <section className="py-24 bg-slate-50 border-y">
+      <section className="py-24 bg-white border-y">
           <div className="container mx-auto px-4">
               <div className="text-center mb-16 space-y-4">
                   <h2 className="text-3xl font-black text-slate-900 md:text-5xl uppercase tracking-tighter">Core Business Services</h2>
@@ -222,7 +222,7 @@ export default function HomePageClient() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                   {/* Accounting Pillar */}
-                  <Card className="border-2 border-slate-100 shadow-sm bg-white hover:border-primary/20 transition-all">
+                  <Card className="border-2 border-slate-100 shadow-sm bg-slate-50 hover:border-primary/20 transition-all">
                       <CardHeader className="pb-3">
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-3">
                               <Calculator className="h-5 w-5" />
@@ -261,7 +261,7 @@ export default function HomePageClient() {
                   </Card>
 
                   {/* Tax Pillar */}
-                  <Card className="border-2 border-slate-100 shadow-sm bg-white hover:border-primary/20 transition-all">
+                  <Card className="border-2 border-slate-100 shadow-sm bg-slate-50 hover:border-primary/20 transition-all">
                       <CardHeader className="pb-3">
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-3">
                               <Landmark className="h-5 w-5" />
@@ -306,7 +306,7 @@ export default function HomePageClient() {
                   </Card>
 
                   {/* Payroll Pillar */}
-                  <Card className="border-2 border-slate-100 shadow-sm bg-white hover:border-primary/20 transition-all">
+                  <Card className="border-2 border-slate-100 shadow-sm bg-slate-50 hover:border-primary/20 transition-all">
                       <CardHeader className="pb-3">
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-3">
                               <Users className="h-5 w-5" />
@@ -348,7 +348,7 @@ export default function HomePageClient() {
                   </Card>
 
                   {/* CIPC Pillar */}
-                  <Card className="border-2 border-slate-100 shadow-sm bg-white hover:border-primary/20 transition-all">
+                  <Card className="border-2 border-slate-100 shadow-sm bg-slate-50 hover:border-primary/20 transition-all">
                       <CardHeader className="pb-3">
                           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-3">
                               <Building className="h-5 w-5" />
