@@ -393,25 +393,62 @@ export default function HomePageClient() {
       <section className="py-24 bg-white border-t">
           <div className="container mx-auto px-4">
               <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-                  <div className="space-y-6 text-center lg:text-left">
+                  <div className="space-y-8 text-center lg:text-left">
                       <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mx-auto lg:mx-0"><MapPin className="h-6 w-6" /></div>
-                      <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Accounting & Tax Services for Businesses Across South Africa</h2>
-                      <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
-                          <p>My Accountant provides online accounting and compliance services to businesses throughout South Africa.</p>
-                          <p>We assist clients in:</p>
-                          <div className="grid grid-cols-2 gap-2 text-sm font-bold text-slate-700 max-w-sm mx-auto lg:mx-0">
-                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Johannesburg</div>
-                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Randburg</div>
-                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Sandton</div>
-                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Midrand</div>
-                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Pretoria</div>
-                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Durban</div>
-                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Cape Town</div>
-                             <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /> Gauteng</div>
-                          </div>
+                      
+                      <div className="space-y-4">
+                        <h2 className="text-3xl font-black text-slate-900 md:text-4xl">Accounting & Tax Services for Businesses Across South Africa</h2>
+                        <div className="space-y-4 text-lg text-muted-foreground leading-relaxed">
+                            <p>
+                                My Accountant provides professional online accounting, tax, payroll, bookkeeping, and compliance services to businesses throughout South Africa. Our team assists startups, SMEs, established companies, non-profit organisations, and growing enterprises with reliable financial management, SARS compliance, payroll administration, VAT submissions, annual financial statements, and CIPC services.
+                            </p>
+                            <p>
+                                As a modern online accounting firm, we work with clients remotely across the country, allowing businesses to access qualified accounting and tax support without needing to visit a physical office. Whether you require monthly bookkeeping, payroll processing, VAT returns, tax compliance, or outsourced accounting services, our team is equipped to assist businesses of all sizes across South Africa.
+                            </p>
+                        </div>
                       </div>
+
+                      <div className="space-y-4">
+                        <h3 className="text-xl font-bold text-slate-900">We proudly assist businesses in:</h3>
+                        <div className="grid grid-cols-2 gap-2 text-sm font-bold text-slate-700 max-w-sm mx-auto lg:mx-0">
+                            {[
+                                "Johannesburg", "Randburg", "Sandton", "Midrand", 
+                                "Pretoria", "Durban", "Cape Town", "Gauteng"
+                            ].map((loc) => (
+                                <div key={loc} className="flex items-center gap-2">
+                                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> {loc}
+                                </div>
+                            ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h3 className="text-xl font-bold text-slate-900">Our services include:</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm font-bold text-slate-700 text-left">
+                            {[
+                                "Monthly Accounting & Bookkeeping",
+                                "Payroll Processing & PAYE Submissions",
+                                "VAT Registration & VAT Returns",
+                                "Annual Financial Statements",
+                                "Tax Returns & SARS Compliance",
+                                "Tax Clearance Certificates",
+                                "Company Registrations & CIPC Annual Returns",
+                                "Beneficial Ownership Declarations",
+                                "Outsourced Accounting Services",
+                                "Management Accounts & Financial Reporting"
+                            ].map((service) => (
+                                <div key={service} className="flex items-center gap-2">
+                                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> {service}
+                                </div>
+                            ))}
+                        </div>
+                      </div>
+
+                      <p className="text-lg font-medium text-slate-900 leading-relaxed italic">
+                        My Accountant combines technology-driven convenience with experienced financial professionals to help South African businesses remain compliant, financially organised, and focused on growth.
+                      </p>
                   </div>
-                  <div className="relative h-[400px] rounded-3xl overflow-hidden shadow-xl border-8 border-slate-50">
+                  <div className="relative h-[400px] lg:h-[600px] rounded-3xl overflow-hidden shadow-xl border-8 border-slate-50">
                       <iframe
                           src="https://www.google.com/maps?q=Stonemill+Office+Park+Johannesburg&output=embed"
                           width="100%"
