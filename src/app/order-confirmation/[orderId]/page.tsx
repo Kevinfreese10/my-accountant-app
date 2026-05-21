@@ -91,12 +91,14 @@ export default function OrderConfirmationPage() {
         form.method = 'POST';
         form.action = payfastUrl;
 
+        const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za');
+
         const data: { [key: string]: string } = {
             merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
             merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
-            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders`,
-            notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+            return_url: `${origin}/payment-success/${order.id}`,
+            cancel_url: `${origin}/dashboard/orders`,
+            notify_url: `${origin}/api/payfast/notify`,
             name_first: order.customerName.split(' ')[0],
             name_last: order.customerName.split(' ').slice(1).join(' '),
             email_address: order.customerEmail,
