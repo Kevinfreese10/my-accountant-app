@@ -17,9 +17,8 @@ import { Order, Service, OrderNote, User } from '@/lib/types';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
-import { sendEmail } from '@/lib/email';
-import { render } from '@react-email/components';
-import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
+import { sendOrderConfirmationEmailAction } from '@/app/actions';
+import { serializeForServerAction } from '@/lib/utils';
 import { getNextOrderId } from '@/lib/sequence';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
@@ -163,6 +162,13 @@ export default function CreateOrderForm() {
       description: 'Please wait while we generate the new order.',
     });
 
+    // --- TEMPORARY DIAGNOSTIC LOGGING START ---
+    console.log("=== CreateResellerOrderForm - Order Generation Initiated ===");
+    console.log("Input Payload (Zod values):", JSON.stringify(values, null, 2));
+    console.log("Current Admin User State:", currentUser ? { uid: currentUser.uid, role: currentUser.role, email: currentUser.email } : "Not Logged In");
+    console.log("Calculated Total:", total);
+    // --- TEMPORARY DIAGNOSTIC LOGGING END ---
+
     try {
         const orderId = await getNextOrderId();
         const firstService = allServices.find(s => s.id === values.items[0]?.serviceId);
@@ -203,26 +209,41 @@ export default function CreateOrderForm() {
         source: 'Staff',
       };
 
+      // --- TEMPORARY DIAGNOSTIC LOGGING FOR ORDER WRITE ---
+      console.log("Order Data Payload to be written to Firestore (orders/" + orderId + "):", JSON.stringify(orderData, null, 2));
+      // --- TEMPORARY DIAGNOSTIC LOGGING END ---
+
       await setDoc(doc(db, 'orders', orderId), orderData);
+      console.log("Firestore Order document successfully written!");
       
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
-      await sendEmail({
-        to: values.customerEmail,
-        bcc: 'kev@thinkestry.co.za',
-        subject: confirmationEmailSubject,
-        html: emailHtml,
+      console.log("Calling sendOrderConfirmationEmailAction server action...");
+      const emailResult = await sendOrderConfirmationEmailAction({
+        order: serializeForServerAction(orderData),
+        showPaymentButton: true
       });
 
-      toast({
-        title: 'Order Created Successfully',
-        description: `Order ${orderId} has been created for the client.`,
-      });
+      console.log("sendEmail Server Action response returned to UI:", JSON.stringify(emailResult, null, 2));
+
+      if (emailResult && !emailResult.success) {
+          console.error("Email delivery failed on server:", emailResult.error);
+          toast({
+            title: 'Order Created, Email Pending',
+            description: `Order ${orderId} has been created, but email confirmation failed: ${emailResult.error || 'SMTP Connection Error'}`,
+            variant: 'default',
+          });
+      } else {
+          toast({
+            title: 'Order Created Successfully',
+            description: `Order ${orderId} has been created for the client.`,
+          });
+      }
       
       setIsLoading(false);
       router.push('/admin/orders');
 
-    } catch (error) {
-        console.error("Error creating order: ", error);
+    } catch (error: any) {
+        console.error("FATAL ERROR in CreateResellerOrderForm onSubmit flow:", error);
+        console.error("Full server-side / client-side stack trace:", error.stack || error);
         toast({
             title: 'Order Creation Failed',
             description: 'There was a problem saving the order. Please try again.',

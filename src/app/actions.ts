@@ -10,6 +10,10 @@ import { ClientDocumentUploadEmail } from '@/components/emails/ClientDocumentUpl
 import { DocumentReviewEmail } from '@/components/emails/DocumentReviewEmail';
 import { NewNoteNotificationEmail } from '@/components/emails/NewNoteNotificationEmail';
 import { OutstandingDocumentsEmail } from '@/components/emails/OutstandingDocumentsEmail';
+import { OrderConfirmationEmail } from '@/components/emails/OrderConfirmationEmail';
+import { AIAccountantWelcomeEmail } from '@/components/emails/AIAccountantWelcomeEmail';
+import { PartnerWelcomeEmail } from '@/components/emails/PartnerWelcomeEmail';
+import { WelcomeDiscountEmail } from '@/components/emails/WelcomeDiscountEmail';
 import { format, addDays, addMonths, addYears } from 'date-fns';
 import { BankCleaner } from '@/lib/bank-cleaner';
 
@@ -21,7 +25,7 @@ const db = getFirestore(firebaseApp);
 export async function checkTerritoryAvailability(slug: string) {
     try {
         const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('franchise.areaSlug', '==', slug.toLowerCase().trim()));
+        const q = query(usersRef, where('franchise.areaSlug', '==', slug.toLowerCase().trim()), limit(1));
         const snap = await getDocs(q);
         return { available: snap.empty };
     } catch (e) {
@@ -62,7 +66,7 @@ export async function notifyStaffOfDocumentUpload({ orderId, clientName, assigne
     });
 }
 
-export async function sendDocumentReviewFeedback({ orderId, clientName, clientEmail, documentUploads, resellerId }: { orderId: string, clientName: string, clientEmail: string, documentUploads: DocumentUpload[], resellerId?: string }) {
+export async function sendDocumentReviewFeedback({ orderId, clientName, clientEmail, documentUploads, resellerId }: { orderId: string, clientName: string, clientEmail: string, documentUploads: DocumentUpload[], resellerId?: string | null }) {
     let resellerName = 'The My Accountant Team';
     if (resellerId) {
         const resellerSnap = await getDoc(doc(db, 'users', resellerId));
@@ -106,7 +110,7 @@ export async function notifyOfNewNote({
     notePreview: string, 
     actionUrl: string, 
     isToClient: boolean,
-    resellerId?: string 
+    resellerId?: string | null 
 }) {
     let resellerName = 'My Accountant';
     if (resellerId && isToClient) {
@@ -136,7 +140,7 @@ export async function notifyOfNewNote({
     });
 }
 
-export async function sendOutstandingDocumentsReminder({ orderId, clientName, clientEmail, resellerId }: { orderId: string, clientName: string, clientEmail: string, resellerId?: string }) {
+export async function sendOutstandingDocumentsReminder({ orderId, clientName, clientEmail, resellerId }: { orderId: string, clientName: string, clientEmail: string, resellerId?: string | null }) {
     let resellerName = 'The My Accountant Team';
     if (resellerId) {
         const resellerSnap = await getDoc(doc(db, 'users', resellerId));
@@ -261,12 +265,22 @@ export async function runAiAccountantAnalysis({ clientId, bankAccountId, initiat
         allRules = [...allRules, ...globalSnap.docs.map(d => ({ ...d.data(), id: d.id } as AllocationRule))];
     }
 
+    const getKeywordsArray = (keywords: string[] | string | undefined): string[] => {
+        if (!keywords) return [];
+        if (typeof keywords === 'string') return [keywords];
+        if (Array.isArray(keywords)) return keywords;
+        return [];
+    };
+
     const batch = writeBatch(db);
     for (const d of snap.docs) {
         const tx = d.data() as ImportedTransaction;
         const result = BankCleaner.process(tx.description);
         
-        const match = allRules.find(r => r.keywords.some(kw => result.cleanDescription.includes(kw.toUpperCase())));
+        const match = allRules.find(r => {
+            const kws = getKeywordsArray(r.keywords);
+            return kws.some(kw => result.cleanDescription.includes(kw.toUpperCase()));
+        });
         
         if (match) {
             batch.update(d.ref, {
@@ -279,7 +293,7 @@ export async function runAiAccountantAnalysis({ clientId, bankAccountId, initiat
                     confidence: 100,
                     summary: `Match found for rule keyword.`,
                     ruleId: match.id,
-                    matchedKeyword: match.keywords.find(kw => result.cleanDescription.includes(kw.toUpperCase()))
+                    matchedKeyword: getKeywordsArray(match.keywords).find(kw => result.cleanDescription.includes(kw.toUpperCase()))
                 },
                 allocationSource: 'rule'
             });
@@ -327,12 +341,116 @@ export async function bulkMoveTransactionsToNew({ clientId, transactionIds }: { 
 
 export async function researchMerchantWithAi({ clientId, description, chartOfAccounts, isVatRegistered, isExpense }: any) {
     const { suggestTransactionAllocation } = await import('@/ai/flows/suggest-transaction-allocation');
+    
+    // Fetch custom client API key if configured in Firestore
+    const clientRef = doc(db, 'aiAccountantClients', clientId);
+    const clientDoc = await getDoc(clientRef);
+    const geminiApiKey = clientDoc.data()?.geminiApiKey;
+
     const res = await suggestTransactionAllocation({
         description,
         chartOfAccounts,
-        isVatRegistered
+        isVatRegistered,
+        useWebSearch: true,
+        apiKey: geminiApiKey
     });
     return res as SmartAllocationResult;
+}
+
+export async function researchAndAutoApproveGroup({
+    clientId,
+    merchantKey,
+    description,
+    chartOfAccounts,
+    isVatRegistered,
+    transactionIds
+}: {
+    clientId: string;
+    merchantKey: string;
+    description: string;
+    chartOfAccounts: string;
+    isVatRegistered: boolean;
+    transactionIds: string[];
+}) {
+    const { suggestTransactionAllocation } = await import('@/ai/flows/suggest-transaction-allocation');
+    
+    // Fetch custom client API key if configured in Firestore
+    const clientRef = doc(db, 'aiAccountantClients', clientId);
+    const clientDoc = await getDoc(clientRef);
+    const geminiApiKey = clientDoc.data()?.geminiApiKey;
+
+    const suggestion = await suggestTransactionAllocation({
+        description,
+        chartOfAccounts,
+        isVatRegistered,
+        useWebSearch: true,
+        apiKey: geminiApiKey
+    });
+
+    const batch = writeBatch(db);
+    const transRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+    const accuracy = suggestion.confidence;
+    const isHighConfidence = accuracy > 90;
+
+    transactionIds.forEach(id => {
+        const updateData: any = {
+            smartAllocationResult: {
+                accountId: suggestion.accountId,
+                vatType: isVatRegistered ? (suggestion.vatType || 'no_vat') : 'no_vat',
+                confidence: suggestion.confidence,
+                summary: isHighConfidence ? `[Suggested >90%] ${suggestion.summary}` : suggestion.summary,
+                suggestedKeyword: suggestion.suggestedKeyword
+            },
+            allocationSource: 'ai',
+            status: 'ai_review'
+        };
+
+        if (isHighConfidence) {
+            updateData.allocatedTo = { value: suggestion.accountId, type: 'account' };
+            updateData.vatType = isVatRegistered ? (suggestion.vatType || 'no_vat') : 'no_vat';
+        }
+
+        batch.update(doc(transRef, id), updateData);
+    });
+
+    await batch.commit();
+
+    return {
+        approved: false,
+        highConfidence: isHighConfidence,
+        suggestion
+    };
+}
+
+export async function bulkAiResearchAndMatch({
+    clientId,
+    groups,
+    chartOfAccounts,
+    isVatRegistered
+}: {
+    clientId: string;
+    groups: { merchantKey: string; description: string; transactionIds: string[] }[];
+    chartOfAccounts: string;
+    isVatRegistered: boolean;
+}) {
+    const results = [];
+    for (const group of groups) {
+        try {
+            const res = await researchAndAutoApproveGroup({
+                clientId,
+                merchantKey: group.merchantKey,
+                description: group.description,
+                chartOfAccounts,
+                isVatRegistered,
+                transactionIds: group.transactionIds
+            });
+            results.push({ merchantKey: group.merchantKey, ...res });
+        } catch (e) {
+            console.error(`Failed research for ${group.merchantKey}:`, e);
+            results.push({ merchantKey: group.merchantKey, approved: false, error: String(e) });
+        }
+    }
+    return results;
 }
 
 export async function updateGlobalMerchantDb(data: any) {
@@ -547,11 +665,11 @@ export async function updateDraftPayslipHoursAction({ clientId, employeeId, hour
     
     const { PayrollService } = await import('@/services/PayrollService');
     const freq = PayrollService.getFrequencyMultiplier(ps.frequency);
-    const baseValue = employee.payType === 'Hourly' ? employee.hourlyRate : employee.basicSalary;
+    const baseValue = (employee.payType === 'Hourly' ? employee.hourlyRate : employee.basicSalary) || 0;
 
-    const earnings = PayrollService.calculateEarningsList(employee, baseValue, ps.period, freq, hours);
+    const earnings = PayrollService.calculateEarningsList(employee, baseValue, ps.period || '', freq, hours);
     const gross = earnings.reduce((s, i) => s + i.amount, 0);
-    const deductions = PayrollService.getInitialDeductions(gross, ps.period, freq);
+    const deductions = PayrollService.getInitialDeductions(gross, ps.period || '', freq);
     const totalDeductions = deductions.reduce((s, i) => s + i.amount, 0);
 
     await updateDoc(snap.docs[0].ref, {
@@ -580,9 +698,9 @@ export async function syncEmployeeSalaryToActivePayslipAction({ clientId, employ
     const empSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'employees', employeeId));
     const employee = empSnap.data() as Employee;
 
-    const earnings = PayrollService.calculateEarningsList(employee, newSalary, ps.period, freq);
+    const earnings = PayrollService.calculateEarningsList(employee, newSalary, ps.period || '', freq);
     const gross = earnings.reduce((s, i) => s + i.amount, 0);
-    const deductions = PayrollService.getInitialDeductions(gross, ps.period, freq);
+    const deductions = PayrollService.getInitialDeductions(gross, ps.period || '', freq);
     
     await updateDoc(snap.docs[0].ref, {
         earnings,
@@ -676,4 +794,158 @@ function parse(str: string, fmt: string, base: Date) {
     const parts = str.split(' ');
     const m = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].indexOf(parts[0]);
     return new Date(parseInt(parts[1]), m, 1);
+}
+
+export async function sendOrderConfirmationEmailAction({
+    order,
+    resellerId,
+    isNewUser,
+    generatedPassword,
+    showPaymentButton
+}: {
+    order: Order;
+    resellerId?: string | null;
+    isNewUser?: boolean;
+    generatedPassword?: string | null;
+    showPaymentButton?: boolean;
+}) {
+    // --- TEMPORARY DIAGNOSTIC LOGGING ---
+    console.log("=== SEND ORDER CONFIRMATION EMAIL ACTION START ===");
+    console.log("1. Input Payload parameters:", JSON.stringify({ resellerId, isNewUser, hasPassword: !!generatedPassword, showPaymentButton }, null, 2));
+    console.log("2. Customer Info:", JSON.stringify({ name: order?.customerName, email: order?.customerEmail, phone: order?.customerPhone, endCustomerName: order?.endCustomerName, endCustomerEmail: order?.endCustomerEmail }, null, 2));
+    console.log("3. Cart Items:", JSON.stringify(order?.items, null, 2));
+    console.log("4. Calculated Totals:", JSON.stringify({ total: order?.total, clientTotal: order?.clientTotal, discountCode: order?.discountCode, discountAmount: order?.discountAmount }, null, 2));
+    console.log("5. Full Firestore Document Data (passed order data):", JSON.stringify(order, null, 2));
+    
+    // Validated payload check
+    const validationErrors = [];
+    if (!order) validationErrors.push("Order object is null/undefined");
+    else {
+        if (!order.id) validationErrors.push("Missing order ID");
+        if (!order.customerEmail) validationErrors.push("Missing customer email");
+        if (!order.customerName) validationErrors.push("Missing customer name");
+        if (!order.items || order.items.length === 0) validationErrors.push("Missing or empty order items");
+    }
+    
+    console.log("6. Validated Payload Status:", validationErrors.length === 0 ? "VALID" : "INVALID: " + validationErrors.join(", "));
+    // --- TEMPORARY DIAGNOSTIC LOGGING END ---
+
+    try {
+        if (validationErrors.length > 0) {
+            throw new Error(`Order validation failed on server: ${validationErrors.join(", ")}`);
+        }
+
+        let resellerData: User | undefined;
+        if (resellerId) {
+            const resellerSnap = await getDoc(doc(db, 'users', resellerId));
+            if (resellerSnap.exists()) {
+                resellerData = { ...resellerSnap.data(), id: resellerSnap.id } as User;
+            }
+        }
+
+        const emailHtml = render(
+            React.createElement(OrderConfirmationEmail, {
+                order,
+                reseller: resellerData,
+                isNewUser,
+                generatedPassword,
+                showPaymentButton
+            })
+        );
+
+        const result = await sendEmail({
+            to: order.customerEmail,
+            subject: `Order Confirmation #${order.id}`,
+            html: emailHtml,
+            resellerId: resellerId || undefined,
+        });
+
+        console.log("7. Response returned to UI:", JSON.stringify(result, null, 2));
+        console.log("=== SEND ORDER CONFIRMATION EMAIL ACTION END ===");
+        return result;
+
+    } catch (error: any) {
+        console.error("FATAL SERVER-SIDE ERROR in sendOrderConfirmationEmailAction:");
+        console.error("Full Server-Side Error Stack Trace:", error.stack || error);
+        console.log("=== SEND ORDER CONFIRMATION EMAIL ACTION FAILED ===");
+        
+        return {
+            success: false,
+            error: error.message || 'Unknown server error rendering or sending confirmation email.',
+            code: error.code || 'SERVER_ERROR'
+        };
+    }
+}
+
+export async function sendAIAccountantWelcomeEmailAction({
+    email,
+    name
+}: {
+    email: string;
+    name: string;
+}) {
+    const emailHtml = render(
+        React.createElement(AIAccountantWelcomeEmail, {
+            name,
+            loginUrl: `${process.env.NEXT_PUBLIC_APP_URL}/login`
+        })
+    );
+
+    return await sendEmail({
+        to: email,
+        subject: `Welcome to My Accountant!`,
+        html: emailHtml,
+        bcc: 'kev@thinkestry.co.za'
+    });
+}
+
+export async function sendPartnerWelcomeEmailAction({
+    email,
+    partnerName,
+    password,
+    loginUrl
+}: {
+    email: string;
+    partnerName: string;
+    password?: string;
+    loginUrl: string;
+}) {
+    const emailHtml = render(
+        React.createElement(PartnerWelcomeEmail, {
+            partnerName,
+            email,
+            password,
+            loginUrl
+        })
+    );
+
+    return await sendEmail({
+        to: email,
+        cc: 'kev@thinkestry.co.za',
+        subject: `Welcome to the My Accountant Partner Program!`,
+        html: emailHtml
+    });
+}
+
+export async function sendWelcomeDiscountEmailAction({
+    email,
+    name,
+    discountCode
+}: {
+    email: string;
+    name: string;
+    discountCode: string;
+}) {
+    const emailHtml = render(
+        React.createElement(WelcomeDiscountEmail, {
+            name,
+            discountCode
+        })
+    );
+
+    return await sendEmail({
+        to: email,
+        subject: `Welcome to My Accountant!`,
+        html: emailHtml
+    });
 }

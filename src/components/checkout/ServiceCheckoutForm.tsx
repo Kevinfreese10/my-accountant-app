@@ -13,9 +13,8 @@ import { firebaseApp } from '@/lib/firebase';
 import { getNextOrderId } from '@/lib/sequence';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
-import { render } from '@react-email/components';
-import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
-import { sendEmail } from '@/lib/email';
+import { sendOrderConfirmationEmailAction } from '@/app/actions';
+import { serializeForServerAction } from '@/lib/utils';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Input } from '@/components/ui/input';
@@ -151,6 +150,15 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
       description: 'Please wait while we prepare your order.',
     });
 
+    // --- TEMPORARY DIAGNOSTIC LOGGING START ---
+    console.log("=== ServiceCheckoutForm - Order Generation Initiated ===");
+    console.log("Input Payload (Zod values):", JSON.stringify(values, null, 2));
+    console.log("Current Auth User State:", user ? { uid: user.uid, role: user.role, email: user.email } : "Not Logged In");
+    console.log("Linked User State:", linkedUser ? { id: linkedUser.id, name: linkedUser.name } : "None Linked");
+    console.log("Checkout Service Details:", JSON.stringify({ id: service.id, title: service.title, price: service.price }, null, 2));
+    console.log("Partner ID (Reseller):", partnerId || "None");
+    // --- TEMPORARY DIAGNOSTIC LOGGING END ---
+
     try {
         let finalUserId = (user?.role === 'client' ? user?.uid : null) || linkedUser?.id || null;
         const email = values.email.toLowerCase().trim();
@@ -168,6 +176,8 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
             }
         }
 
+        console.log("Resolved Final Client User ID:", finalUserId || "New Guest User (Will be created)");
+
         let isNewUser = false;
         let generatedPassword = null;
 
@@ -175,13 +185,14 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
         if (!finalUserId) {
             isNewUser = true;
             generatedPassword = nanoid();
+            console.log("Creating new user account for client...", { email, generatedPassword });
             
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, values.email, generatedPassword);
                 finalUserId = userCredential.user.uid;
 
                 const userDocRef = doc(db, 'users', finalUserId);
-                await setDoc(userDocRef, {
+                const newUserProfile = {
                     id: finalUserId,
                     uid: finalUserId,
                     name: `${values.firstName} ${values.lastName}`,
@@ -190,12 +201,16 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
                     role: 'client',
                     source: partnerId ? 'Partner Landing Page' : 'Website',
                     createdAt: serverTimestamp(),
-                });
+                };
+                
+                console.log("Writing new client profile to Firestore users collection:", newUserProfile);
+                await setDoc(userDocRef, newUserProfile);
 
                 if (auth.currentUser) {
                     await reauthenticate(auth.currentUser);
                 }
             } catch (authError: any) {
+                console.error("Firebase Auth Account creation failed:", authError);
                 if (authError.code === 'auth/email-already-in-use') {
                     toast({
                         title: 'Account Exists',
@@ -211,9 +226,13 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
 
         let resellerData: User | undefined;
         if (partnerId) {
+            console.log("Fetching partner reseller data for ID:", partnerId);
             const partnerSnap = await getDoc(doc(db, 'users', partnerId));
             if (partnerSnap.exists()) {
                 resellerData = { ...partnerSnap.data(), id: partnerSnap.id } as User;
+                console.log("Partner Reseller data found:", JSON.stringify(resellerData, null, 2));
+            } else {
+                console.warn("Partner Reseller SNAP does not exist for ID:", partnerId);
             }
         }
 
@@ -236,29 +255,38 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
             resellerId: partnerId || null,
         };
 
+        // --- TEMPORARY DIAGNOSTIC LOGGING FOR ORDER WRITE ---
+        console.log("Order Data Payload to be written to Firestore (orders/" + orderId + "):", JSON.stringify(orderData, null, 2));
+        // --- TEMPORARY DIAGNOSTIC LOGGING END ---
+
         await setDoc(doc(db, 'orders', orderId), orderData);
+        console.log("Firestore Order document successfully written!");
         
-        const emailHtml = render(
-            <OrderConfirmationEmail 
-                order={orderData} 
-                reseller={resellerData}
-                isNewUser={isNewUser}
-                generatedPassword={generatedPassword}
-                showPaymentButton={!resellerData?.bankingDetails?.bankName}
-            />
-        );
-        
-        await sendEmail({
-            to: orderData.customerEmail,
-            subject: `Order Confirmation #${orderId}`,
-            html: emailHtml,
-            resellerId: partnerId || undefined,
+        console.log("Calling sendOrderConfirmationEmailAction server action...");
+        const emailResult = await sendOrderConfirmationEmailAction({
+            order: serializeForServerAction(orderData),
+            resellerId: partnerId || null,
+            isNewUser,
+            generatedPassword,
+            showPaymentButton: !resellerData?.bankingDetails?.bankName
         });
+
+        console.log("sendEmail Server Action response returned to UI:", JSON.stringify(emailResult, null, 2));
+
+        if (emailResult && !emailResult.success) {
+            console.error("Email delivery failed on server:", emailResult.error);
+            toast({
+                title: "Order Placed, Email Pending",
+                description: `Your order was successfully placed, but we couldn't send the confirmation email right now: ${emailResult.error || 'SMTP Connection Error'}. Our support team has been alerted.`,
+                variant: "default",
+            });
+        }
 
         router.push(`/order-confirmation/${orderId}`);
 
     } catch (error: any) {
-      console.error("Error creating order: ", error);
+      console.error("FATAL ERROR in ServiceCheckoutForm handleCheckout flow:", error);
+      console.error("Full server-side / client-side stack trace:", error.stack || error);
       toast({
         title: 'Order Failed',
         description: error.message || 'There was a problem saving your order.',

@@ -18,9 +18,8 @@ import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
-import { sendEmail } from '@/lib/email';
-import { render } from '@react-email/components';
-import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
+import { sendOrderConfirmationEmailAction } from '@/app/actions';
+import { serializeForServerAction } from '@/lib/utils';
 import { getNextOrderId } from '@/lib/sequence';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import Link from 'next/link';
@@ -114,7 +113,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     const unsubscribe = onSnapshot(overridesRef, (snap) => {
         const data: Record<string, any> = {};
         snap.docs.forEach(doc => data[doc.id] = doc.data());
-        setOverrides(data);
+        setServiceOverrides(data);
     });
     return () => unsubscribe();
   }, [partnerId]);
@@ -259,6 +258,14 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
     setIsLoading(true);
     toast({ title: 'Processing Order...', description: 'Checking user profile and creating order.' });
 
+    // --- TEMPORARY DIAGNOSTIC LOGGING START ---
+    console.log("=== CreatePartnerOrderForm - Order Generation Initiated ===");
+    console.log("Input Payload (Zod values):", JSON.stringify(values, null, 2));
+    console.log("Current Partner User State:", partner ? { uid: partner.uid, role: partner.role, email: partner.email, companyName: partner.companyName } : "Not Logged In");
+    console.log("Linked Client User State:", linkedUser ? { id: linkedUser.id, name: linkedUser.name } : "None Linked");
+    console.log("Practice Total (Client Facing):", total);
+    // --- TEMPORARY DIAGNOSTIC LOGGING END ---
+
     try {
         let finalUserId = linkedUser?.id || null;
         const email = values.customerEmail.toLowerCase().trim();
@@ -276,12 +283,15 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
             }
         }
 
+        console.log("Resolved Final Client User ID:", finalUserId || "New Guest User (Will be created)");
+
         let isNewUser = false;
         let generatedPassword = null;
 
         if (!finalUserId) {
             isNewUser = true;
             generatedPassword = nanoid();
+            console.log("Creating new user account for client...", { email, generatedPassword });
             
             // Create Firebase Auth Account
             try {
@@ -290,7 +300,7 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
 
                 // Create Firestore Profile
                 const userDocRef = doc(db, 'users', finalUserId);
-                await setDoc(userDocRef, {
+                const newUserProfile = {
                     id: finalUserId,
                     uid: finalUserId,
                     name: `${values.customerFirstName} ${values.customerLastName}`,
@@ -299,13 +309,17 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
                     role: 'client',
                     source: `Partner Order (${partner.companyName})`,
                     createdAt: serverTimestamp(),
-                });
+                };
+                
+                console.log("Writing new client profile to Firestore users collection:", newUserProfile);
+                await setDoc(userDocRef, newUserProfile);
 
                 // Re-authenticate partner to prevent auth state switch
                 if (auth.currentUser) {
                     await reauthenticate(auth.currentUser);
                 }
             } catch (authError: any) {
+                console.error("Firebase Auth Account creation failed:", authError);
                 if (authError.code === 'auth/email-already-in-use') {
                     toast({
                         title: 'Account Exists',
@@ -329,14 +343,14 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
 
         const orderData: Order = {
             id: orderId,
-            resellerId: partnerId,
+            resellerId: partnerId || null,
             userId: finalUserId,
             customerName: partner.companyName || partner.name,
             customerEmail: partner.email,
-            customerPhone: partner.contactNumber,
+            customerPhone: partner.contactNumber || null,
             endCustomerName: customerFullName,
             endCustomerEmail: values.customerEmail,
-            documentContact: 'reseller',
+            documentContact: 'partner',
             date: Timestamp.now(),
             items: values.items.map(item => ({ 
                 id: item.serviceId,
@@ -357,30 +371,40 @@ export default function CreatePartnerOrderForm({ onOrderCreated }: { onOrderCrea
             source: 'Partner',
         };
 
-        await setDoc(doc(db, 'orders', orderId), orderData);
+        // --- TEMPORARY DIAGNOSTIC LOGGING FOR ORDER WRITE ---
+        console.log("Order Data Payload to be written to Firestore (orders/" + orderId + "):", JSON.stringify(orderData, null, 2));
+        // --- TEMPORARY DIAGNOSTIC LOGGING END ---
 
-        const confirmationEmailSubject = `Order Confirmation: #${orderId}`;
-        const emailHtml = render(
-            <OrderConfirmationEmail 
-                order={orderData} 
-                reseller={partner} 
-                isNewUser={isNewUser}
-                generatedPassword={generatedPassword}
-            />
-        );
-        
-        await sendEmail({
-            to: values.customerEmail,
-            subject: confirmationEmailSubject,
-            html: emailHtml,
+        await setDoc(doc(db, 'orders', orderId), orderData);
+        console.log("Firestore Order document successfully written!");
+
+        console.log("Calling sendOrderConfirmationEmailAction server action...");
+        const emailResult = await sendOrderConfirmationEmailAction({
+            order: serializeForServerAction(orderData),
             resellerId: partnerId,
+            isNewUser: isNewUser,
+            generatedPassword: generatedPassword,
+            showPaymentButton: false
         });
 
-        toast({ title: 'Order Created', description: `Client notified. ${isNewUser ? 'New profile created.' : 'Existing profile linked.'}` });
+        console.log("sendEmail Server Action response returned to UI:", JSON.stringify(emailResult, null, 2));
+
+        if (emailResult && !emailResult.success) {
+            console.error("Email delivery failed on server:", emailResult.error);
+            toast({
+                title: 'Order Created, Email Delivery Pending',
+                description: `Order #${orderId} was successfully generated, but we couldn't send the client confirmation email right now: ${emailResult.error || 'SMTP Connection Error'}. Our support team has been alerted.`,
+                variant: 'default',
+            });
+        } else {
+            toast({ title: 'Order Created', description: `Client notified. ${isNewUser ? 'New profile created.' : 'Existing profile linked.'}` });
+        }
+        
         onOrderCreated();
 
     } catch (error: any) {
-        console.error("Error creating order: ", error);
+        console.error("FATAL ERROR in CreatePartnerOrderForm onSubmit flow:", error);
+        console.error("Full server-side / client-side stack trace:", error.stack || error);
         toast({
             title: 'Operation Failed',
             description: error.message || 'There was a problem processing your request.',
