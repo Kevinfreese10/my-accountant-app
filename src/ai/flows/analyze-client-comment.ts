@@ -32,7 +32,7 @@ export async function analyzeClientComment(
 
 const prompt = ai.definePrompt({
   name: 'analyzeClientCommentPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: { schema: AnalyzeClientCommentInputSchema },
   output: { schema: AnalyzeClientCommentOutputSchema },
   prompt: `You are an expert South African Chartered Accountant. Your task is to analyze a "Client Comment" and suggest the correct general ledger account and VAT type.

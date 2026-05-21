@@ -1,9 +1,6 @@
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
+import { fetchDocumentRest } from '@/lib/firestore-rest';
 import { Metadata } from 'next';
 import { SITE_URL, GLOBAL_OG_IMAGE } from './constants';
-
-const db = getFirestore(firebaseApp);
 
 /**
  * Fetches dynamic SEO overrides for static pages from Firestore.
@@ -18,11 +15,9 @@ export async function getStaticPageMetadata(pageId: string, defaults: Metadata):
   let imageAlt = title;
 
   try {
-    const docRef = doc(db, 'staticSeo', pageId);
-    const docSnap = await getDoc(docRef);
+    const data = await fetchDocumentRest('staticSeo', pageId);
 
-    if (docSnap.exists()) {
-      const data = docSnap.data();
+    if (data) {
       title = String(data.metaTitle || data.title || title);
       description = String(data.metaDescription || data.description || description);
       if (data.seoImageUrl) {

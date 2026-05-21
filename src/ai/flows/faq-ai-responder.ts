@@ -27,7 +27,7 @@ export async function faqAIResponder(input: FAQAIResponderInput): Promise<FAQAIR
 
 const prompt = ai.definePrompt({
   name: 'faqAIResponderPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: {schema: FAQAIResponderInputSchema},
   output: {schema: FAQAIResponderOutputSchema},
   prompt: `You are an AI-powered FAQ section. Answer the following question:

@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, Calendar, ShieldAlert, Settings, Eraser, Info, CalendarIcon } from 'lucide-react';
+import { Loader2, Trash2, CheckCircle2, AlertCircle, Building, Landmark, CreditCard, Image as ImageIcon, ShieldAlert, Settings, Eraser, Info, CalendarIcon } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -24,7 +25,7 @@ import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
-const clientStatuses: ('Active' | 'Inactive' | 'Archived')[] = ['Active', 'Inactive', 'Archived'];
+const clientStatuses = ['Active', 'Inactive', 'Archived', 'Pending Setup Payment'] as const;
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
 const vatCategories: { value: 'A' | 'B' | 'C'; label: string }[] = [
     { value: 'A', label: 'Category A (Odd Months)' },
@@ -47,7 +48,7 @@ const formSchema = z.object({
   payeReference: z.string().optional(),
   firstProcessingMonth: z.string().optional(),
   firstRunStartDate: z.date().optional(),
-  payrollFrequency: z.enum(['Monthly', 'Fortnightly']).default('Monthly'),
+  payrollFrequency: z.enum(['Monthly', 'Weekly', 'Fortnightly']).default('Monthly'),
   excludeSdl: z.boolean().default(false),
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
@@ -162,10 +163,11 @@ export default function ClientForm({
                     const snapshot = await getDocs(q);
                     const rules = snapshot.docs.map(doc => {
                         const data = doc.data() as AllocationRule;
+                        const keywordsArray = Array.isArray(data.keywords) ? data.keywords : (data.keywords ? [data.keywords] : []);
                         return {
                             id: doc.id,
-                            description: data.description,
-                            keywords: data.keywords.join(', '),
+                            description: data.description || '',
+                            keywords: keywordsArray.join(', '),
                             accountId: data.accountId,
                             vatType: data.vatType,
                         };
@@ -243,6 +245,7 @@ export default function ClientForm({
                                             <SelectContent>
                                                 <SelectItem value="Monthly">Monthly</SelectItem>
                                                 <SelectItem value="Fortnightly">Bi-Weekly (Fortnightly)</SelectItem>
+                                                <SelectItem value="Weekly">Weekly</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />

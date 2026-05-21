@@ -1,5 +1,4 @@
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
+import { runQueryRest } from '@/lib/firestore-rest';
 import { User } from '@/lib/types';
 import { notFound } from 'next/navigation';
 import PartnerHeader from '@/components/partner/PartnerHeader';
@@ -7,26 +6,41 @@ import PartnerFooter from '@/components/partner/PartnerFooter';
 import { Metadata } from 'next';
 import { SITE_URL, GLOBAL_OG_IMAGE } from '@/lib/constants';
 
-const db = getFirestore(firebaseApp);
-
 export const dynamic = 'force-dynamic';
 
 async function getFranchiseBySlug(slug: string): Promise<User | null> {
-  const q = query(
-    collection(db, "users"), 
-    where("role", "==", "franchisee"),
-    where("franchise.areaSlug", "==", slug)
-  );
-  const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
-  const doc = snapshot.docs[0];
-  const data = doc.data();
+  try {
+    const results = await runQueryRest("users", {
+      where: {
+        fieldFilter: {
+          field: { fieldPath: "role" },
+          op: "EQUAL",
+          value: { stringValue: "franchisee" }
+        }
+      }
+    });
 
-  return {
-    ...data,
-    id: doc.id,
-    uid: doc.id,
-  } as User;
+    const franchisee = results.find(user => 
+      user.areaSlug === slug || 
+      user.franchise?.areaSlug === slug ||
+      user.landingPage?.slug === slug
+    );
+
+    if (!franchisee) return null;
+
+    // Synthetically construct franchise sub-object if missing to prevent layout crashes
+    if (!franchisee.franchise) {
+      franchisee.franchise = {
+        areaSlug: franchisee.areaSlug || franchisee.landingPage?.slug || slug,
+        areaName: franchisee.companyName?.replace("My Accountant ", "") || franchisee.name || slug
+      };
+    }
+
+    return franchisee as User;
+  } catch (error) {
+    console.error(`Error querying franchisee by slug ${slug}:`, error);
+    return null;
+  }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {

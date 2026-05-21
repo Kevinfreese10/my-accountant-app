@@ -1,7 +1,8 @@
 
 import { redirect } from 'next/navigation';
 
-export default function ReportsRedirectPage({ params }: { params: { clientId: string }}) {
-  redirect(`/admin/ai-accountant/${params.clientId}/reports/trial-balance`);
+export default async function ReportsRedirectPage({ params }: { params: Promise<{ clientId: string }> }) {
+  const { clientId } = await params;
+  redirect(`/admin/ai-accountant/${clientId}/reports/trial-balance`);
   return null;
 }

@@ -278,7 +278,10 @@ export default function AIStatementImportDialog({
 
         filteredTransactions.forEach(tx => {
             const isExpense = tx.amount < 0;
-            const match = isExpense ? allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase()))) : null;
+            const match = isExpense ? allRules.find(r => {
+                const keywordsArray = Array.isArray(r.keywords) ? r.keywords : (r.keywords ? [r.keywords] : []);
+                return keywordsArray.some((kw: string) => tx.description.toUpperCase().includes(kw.toUpperCase()));
+            }) : null;
             
             const txData: any = {
                 clientId: client.id,
@@ -292,7 +295,8 @@ export default function AIStatementImportDialog({
             };
 
             if (isExpense && match) {
-                const keyword = match.keywords.find(kw => tx.description.toUpperCase().includes(kw.toUpperCase()));
+                const keywordsArray = Array.isArray(match.keywords) ? match.keywords : (match.keywords ? [match.keywords] : []);
+                const keyword = keywordsArray.find((kw: string) => tx.description.toUpperCase().includes(kw.toUpperCase()));
                 txData.allocatedTo = { value: match.accountId, type: 'account' };
                 txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
                 txData.allocatedAt = serverTimestamp();
@@ -345,7 +349,7 @@ export default function AIStatementImportDialog({
                           <SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {client.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('8400-')).map(acc => (
+                          {client.chartOfAccounts?.filter(acc => acc.accountNumber?.startsWith('8400-')).map(acc => (
                             <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
                           ))}
                         </SelectContent>

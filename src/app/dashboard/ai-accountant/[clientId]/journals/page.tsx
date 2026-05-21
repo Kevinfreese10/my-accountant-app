@@ -1,8 +1,9 @@
 
 'use client';
 import { redirect, useSearchParams, useParams } from 'next/navigation';
+import { Suspense } from 'react';
 
-export default function NumeraJournalsRedirectPage() {
+function Redirector() {
   const params = useParams();
   const clientId = params.clientId as string;
   const searchParams = useSearchParams();
@@ -16,4 +17,12 @@ export default function NumeraJournalsRedirectPage() {
   
   redirect(redirectUrl);
   return null;
+}
+
+export default function NumeraJournalsRedirectPage() {
+  return (
+    <Suspense fallback={null}>
+      <Redirector />
+    </Suspense>
+  );
 }

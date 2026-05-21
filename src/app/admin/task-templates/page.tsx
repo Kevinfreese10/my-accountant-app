@@ -24,7 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const db = getFirestore(firebaseApp);
 
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
-const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Semi-Annually', 'Annually'];
+const taskRecurrences = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Semi-Annually', 'Annually'] as const;
 const triggerFields = [
     'preparesFinancials', 
     'requiresManagementAccounts', 
@@ -36,7 +36,7 @@ const triggerFields = [
     'submitsAnnualReturns',
     'submitsBeneficialOwnership',
 ];
-const vatCategories: ('A' | 'B' | 'C')[] = ['A', 'B', 'C'];
+const vatCategories = ['A', 'B', 'C'] as const;
 
 
 const formSchema = z.object({
@@ -48,8 +48,8 @@ const formSchema = z.object({
     recurrence: z.enum(taskRecurrences),
     dueMonthOffset: z.preprocess(val => Number(val), z.number()),
     dueDay: z.preprocess(val => Number(val), z.number().min(1).max(31)),
-    triggerField: z.enum([...triggerFields, '']),
-    vatCategory: z.enum([...vatCategories, '']).optional(),
+    triggerField: z.enum([...triggerFields, ''] as unknown as [string, ...string[]]),
+    vatCategory: z.enum([...vatCategories, ''] as unknown as [string, ...string[]]).optional(),
 });
 
 function TemplateForm({ template, onSubmit, onCancel }: { template: Task | null; onSubmit: (data: any) => void; onCancel: () => void; }) {
@@ -59,7 +59,7 @@ function TemplateForm({ template, onSubmit, onCancel }: { template: Task | null;
             id: template?.id || '',
             title: template?.title || '{clientName} - ',
             description: template?.description || '',
-            department: template?.department || 'Administration',
+            department: (departments.includes(template?.department as any) ? template?.department : 'Administration') as 'Accounting and Tax' | 'Administration' | 'CAP',
             priority: template?.priority || 'Medium',
             recurrence: template?.recurrence || 'Annually',
             dueMonthOffset: template?.dueMonthOffset || 0,
@@ -77,18 +77,18 @@ function TemplateForm({ template, onSubmit, onCancel }: { template: Task | null;
                 <FormField control={form.control} name="title" render={({ field }) => ( <FormItem><FormLabel>Template Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                 <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem> )} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="department" render={({ field }) => ( <FormItem><FormLabel>Department</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a department" /></SelectTrigger></FormControl><SelectContent>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="priority" render={({ field }) => ( <FormItem><FormLabel>Priority</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{['High', 'Medium', 'Low'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="department" render={({ field }) => ( <FormItem><FormLabel>Department</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a department" /></SelectTrigger></FormControl><SelectContent>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="priority" render={({ field }) => ( <FormItem><FormLabel>Priority</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{['High', 'Medium', 'Low'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
                 </div>
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField control={form.control} name="recurrence" render={({ field }) => ( <FormItem><FormLabel>Recurrence</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{taskRecurrences.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="recurrence" render={({ field }) => ( <FormItem><FormLabel>Recurrence</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{taskRecurrences.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
                     <FormField control={form.control} name="dueMonthOffset" render={({ field }) => ( <FormItem><FormLabel>Due Month Offset</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem> )} />
                     <FormField control={form.control} name="dueDay" render={({ field }) => ( <FormItem><FormLabel>Due Day of Month</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <FormField control={form.control} name="triggerField" render={({ field }) => ( <FormItem><FormLabel>Automation Trigger</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select trigger field..." /></SelectTrigger></FormControl><SelectContent>{triggerFields.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                     <FormField control={form.control} name="triggerField" render={({ field }) => ( <FormItem><FormLabel>Automation Trigger</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select trigger field..." /></SelectTrigger></FormControl><SelectContent>{triggerFields.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
                      {triggerField === 'isVatRegistered' && (
-                        <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT category..." /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(c => <SelectItem key={c} value={c}>Category {c}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT category..." /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(c => <SelectItem key={c} value={c}>Category {c}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
                      )}
                  </div>
                  <div className="flex justify-end gap-2 pt-4">

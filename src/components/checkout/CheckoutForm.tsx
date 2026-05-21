@@ -133,7 +133,7 @@ export default function CheckoutForm() {
   }, [watchedEmail, user, form]);
   
   const submitToPayFast = (order: Order) => {
-    const payfastUrl = 'https://www.payfast.co.za/eng/process';
+    const payfastUrl = process.env.NEXT_PUBLIC_PAYFAST_PROCESS_URL || 'https://www.payfast.co.za/eng/process';
     const formElement = document.createElement('form');
     formElement.method = 'POST';
     formElement.action = payfastUrl;

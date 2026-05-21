@@ -64,7 +64,7 @@ const generateEmailReplyFlow = ai.defineFlow(
 
     const prompt = ai.definePrompt({
         name: 'generateEmailReplyPrompt',
-        model: 'googleai/gemini-2.5-flash',
+        model: 'googleai/gemini-3.5-flash',
         input: { schema: GenerateEmailReplyInputSchema },
         output: { schema: GenerateEmailReplyOutputSchema },
         prompt: `You are an expert administrative assistant for an accounting firm called "My Accountant". Your name is Winifred Beukes.

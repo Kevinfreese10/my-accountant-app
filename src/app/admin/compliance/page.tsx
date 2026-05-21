@@ -100,6 +100,8 @@ export default function AdminCompliancePage() {
         createdBy: user.uid,
         createdAt: Timestamp.now(),
         comments: [],
+        dueMonthOffset: 0,
+        dueDay: 0,
     };
     await addDoc(collection(db, 'tasks'), taskData);
 

@@ -144,7 +144,7 @@ export default function PayslipEditor({
             fringe += p.fringeBenefits.reduce((s, i) => s + i.amount, 0);
         });
 
-        return { gross, tax, contrib, fringe };
+        return { gross, tax, contrib, contributions: contrib, fringe };
     }, [allPayslips, employee.id, payslip.period, totals, payslip.id]);
 
     const handleAddItem = (type: 'earning' | 'deduction' | 'contribution' | 'fringe') => {
@@ -192,7 +192,7 @@ export default function PayslipEditor({
 
             const res = await updatePayslipAction({
                 clientId: client.id,
-                payslipId: payslip.id,
+                payslipId: payslip.id || '',
                 data: finalData
             });
 

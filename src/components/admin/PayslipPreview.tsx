@@ -132,9 +132,9 @@ export default function PayslipPreview({ payslip, employee, client }: PayslipPre
             <CreditCard className="h-3 w-3" /> Payment Destination
           </div>
           <div className="text-xs space-y-1">
-            <p><span className="text-muted-foreground">Bank:</span> <span className="font-bold">{employee.bankingDetails.bankName}</span></p>
-            <p><span className="text-muted-foreground">Account:</span> <span className="font-mono font-bold">{employee.bankingDetails.accountNumber}</span></p>
-            <p><span className="text-muted-foreground">Type:</span> <span className="font-bold">{employee.bankingDetails.accountType}</span></p>
+            <p><span className="text-muted-foreground">Bank:</span> <span className="font-bold">{employee.bankingDetails?.bankName}</span></p>
+            <p><span className="text-muted-foreground">Account:</span> <span className="font-mono font-bold">{employee.bankingDetails?.accountNumber}</span></p>
+            <p><span className="text-muted-foreground">Type:</span> <span className="font-bold">{employee.bankingDetails?.accountType}</span></p>
           </div>
         </div>
         <div className="text-right space-y-1">

@@ -20,9 +20,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Briefcase, CheckCircle2, UserPlus, Wallet2, CreditCard } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Service, Order } from '@/lib/types';
-import { sendEmail } from '@/lib/email';
-import { render } from '@react-email/components';
-import PartnerWelcomeEmail from '../emails/PartnerWelcomeEmail';
+import { sendPartnerWelcomeEmailAction } from '@/app/actions';
 import { getNextOrderId } from '@/lib/sequence';
 import { Timestamp } from 'firebase/firestore';
 
@@ -199,18 +197,11 @@ export default function PartnerSignupForm() {
 
         // Send welcome email (credentials)
         try {
-            const emailHtml = render(<PartnerWelcomeEmail 
-                partnerName={values.name} 
-                email={values.email}
-                password={values.password}
-                loginUrl={`${process.env.NEXT_PUBLIC_APP_URL}/login`} 
-            />);
-
-            await sendEmail({
-                to: values.email,
-                cc: 'kev@thinkestry.co.za',
-                subject: `Welcome to the My Accountant Partner Program!`,
-                html: emailHtml,
+            await sendPartnerWelcomeEmailAction({
+                email: values.email,
+                partnerName: values.name,
+                password: values.password,
+                loginUrl: `${process.env.NEXT_PUBLIC_APP_URL}/login`
             });
         } catch (e) {
             console.error("Welcome email failed", e);

@@ -11,8 +11,49 @@ runConfig:
 
 # Environment variables and secrets
 env:
+  # Standard Storage Bucket
   - variable: STORAGE_BUCKET
-    value: mybucket.firebasestorage.app
+    value: studio-2604127518-57889.firebasestorage.app
     availability:
       - BUILD
       - RUNTIME
+
+  # Next.js Application URL
+  - variable: NEXT_PUBLIC_APP_URL
+    value: https://www.myacc.co.za
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # PayFast Client Configuration (Sandbox / Production)
+  - variable: NEXT_PUBLIC_PAYFAST_MERCHANT_ID
+    value: "23836312"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_PAYFAST_MERCHANT_KEY
+    value: "h4fkhz6ouoksx"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_PAYFAST_PROCESS_URL
+    value: https://www.payfast.co.za/eng/process
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # Backend PayFast configuration secrets
+  - variable: PAYFAST_MERCHANT_ID
+    secret: PAYFAST_MERCHANT_ID
+
+  - variable: PAYFAST_PASSPHRASE
+    secret: PAYFAST_PASSPHRASE
+
+  # System integration secrets
+  - variable: SMTP_PASS
+    secret: SMTP_PASS
+
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY

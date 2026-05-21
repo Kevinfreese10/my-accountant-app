@@ -10,7 +10,8 @@ const STOPWORDS = new Set([
     'THE', 'AND', 'OF', 'FOR', 'ON', 'IN', 'AT', 'WITH', 'BY', 'AN', 'A',
     'ONLINE', 'PAYMENT', 'TRANSFER', 'ACCOUNT', 'EFT', 'MOBILE', 'APP',
     'BANKING', 'PURCHASE', 'CREDIT', 'DEBIT', 'CARD', 'PURCH',
-    'TRADING', 'SERVICES', 'ENTERPRISE', 'PROPERTIES', 'HOLDINGS', 'GROUP', 'STORE', 'SHOP', 'N'
+    'TRADING', 'SERVICES', 'ENTERPRISE', 'PROPERTIES', 'HOLDINGS', 'GROUP', 'STORE', 'SHOP', 'N',
+    'LC', 'SPOR', 'SPORT'
 ]);
 
 const SIMILARITY_STOPWORDS = new Set([
@@ -40,42 +41,15 @@ export class BankCleaner {
         let str = description.toUpperCase();
         let channel = 'UNKNOWN';
 
-        // 1. Initial sanitization
-        str = str.replace(/[_|]+/g, ' ');
-        str = str.replace(/[•·]+/g, ' ');
-        str = str.replace(/\s*[-–—]\s*/g, ' ');
+        // Insert space between letters and numbers when glued together
+        str = str.replace(/([A-Z])([0-9])/g, '$1 $2');
+        str = str.replace(/([0-9])([A-Z])/g, '$1 $2');
 
-        // 2. Aggressive Reference/Blob Stripping
-        // Remove standalone numbers 5+ digits (auth codes, trace numbers)
-        str = str.replace(/(?<!\d)\d{5,}(?!\d)/g, ' ');
-        
-        // Remove standard ISO/Time patterns
-        str = str.replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\b/g, ' ');
-        str = str.replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, ' ');
-        str = str.replace(/\b\d{1,2}H\d{2}\b/g, ' ');
-        str = str.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ' ');
-        str = str.replace(/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/g, ' ');
+        // Channel identification
+        if (/\b(INTERNET|IB|ONLINE|APP|EFT|ELECTRONIC)\b/.test(str)) channel = 'EFT';
+        if (/\b(POS|CARD\s*PURCHASE|VISA|MASTERCARD)\b/.test(str)) channel = 'CARD';
 
-        // Remove alpha-numeric dates (e.g. 15 JAN, 07 OCT)
-        str = str.replace(/\b\d{1,2}\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/g, ' ');
-
-        // Remove masked card numbers (handles 123456****1234 or 123456*1234)
-        str = str.replace(/\b\d{4,6}[*Xx]+\d{2,4}\b/g, ' ');
-        
-        // Remove trailing card label digits
-        str = str.replace(/\b(CARD|CRD)\s*\d{2,4}\b/g, ' ');
-
-        // 3. Channel Identification & Removal
-        if (/\b(INTERNET|IB|ONLINE|APP|EFT|ELECTRONIC)\b/i.test(str)) channel = 'EFT';
-        if (/\b(POS|CARD\s*PURCHASE|VISA|MASTERCARD)\b/i.test(str)) channel = 'CARD';
-
-        const channelRegex = /\b(INTERNET\s*BANKING|IB|ONLINE\s*BANKING|MOBILE\s*BANKING|APP|EFT|ELECTRONIC\s*FUNDS\s*TRANSFER|IMMEDIATE\s*PAYMENT|REAL\s*TIME\s*CLEARING|RTC|PAY\s*AND\s*CLEAR)\b/g;
-        str = str.replace(channelRegex, ' ');
-
-        const directionRegex = /\b(PAYMENT\s*TO|PAY\s*TO|PAID\s*TO|TRANSFER\s*TO|XFER\s*TO|TRF\s*TO|PAYMENT\s*FROM|RECEIVED\s*FROM|TRANSFER\s*FROM|XFER\s*FROM|TRF\s*FROM)\b/g;
-        str = str.replace(directionRegex, ' ');
-
-        // 4. SA Specific Standardization
+        // Check SA Specific Standardizations
         if (/\bINSTANT\s*MONEY\b/i.test(str)) return { clean: 'INSTANT MONEY', channel: 'EFT' };
         if (/\bE\s*WALLET\b/i.test(str)) return { clean: 'EWALLET', channel: 'EFT' };
         if (/\bCASH\s*SEND\b/i.test(str)) return { clean: 'CASH SEND', channel: 'EFT' };
@@ -88,13 +62,39 @@ export class BankCleaner {
             return { clean: 'CASH WITHDRAWAL', channel: 'ATM' };
         }
 
-        // 5. Clutter word removal
-        str = str.replace(/\b(REF|REFERENCE|REFF|DESC|DESCRIPTION|TRN|TRAN|TXN|TRANS|TRANSACTION|AUTH|AUTHCODE|TRACE|PURCH|PURCHASE)\b/g, ' ');
-        str = str.replace(/^\b[A-Z]\b\s+/g, ''); // Remove single initials
-        
-        // Final trim and collapse
-        str = str.replace(/\s+/g, ' ').trim();
-        str = str.replace(/^[\s\W]+|[\s\W]+$/g, '');
+        // 1. Remove common bank transaction prefixes (supporting optional amount prefix)
+        const prefixRegex = /^(CHEQUE CARD PURCHASE|CARD PURCHASE|DEBIT CARD PURCHASE|POS PURCHASE|EFT PAYMENT|EFT CREDIT|ELECTRONIC PAYMENT|ONLINE PAYMENT|INTERNET PAYMENT|INSTANT PAYMENT|CASH DEPOSIT|ATM WITHDRAWAL|STOP ORDER|DEBIT ORDER|NAEDO|ACB DEBIT|BANK CHARGES?|PURCHASE|PURCH)\s*(?:\d+(?:\.\d{2})?)?\s+/;
+        str = str.replace(prefixRegex, ' ');
+
+        // 2. Remove dates and times
+        str = str.replace(/\b\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2,4}\b/g, ' ');
+        str = str.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, ' ');
+
+        // 3. Remove card / terminal / auth references (strictly bounded)
+        str = str.replace(/\b(AUTH|AUTH CODE|APPROVAL|TRACE|REF|REFERENCE|TERM|TERMINAL|CARD|CARD NO|SEQ|STAN)\b\s*[:\-]?\s*[A-Z0-9]+\b/g, ' ');
+
+        // 4. Remove account/payment references (strictly bounded)
+        str = str.replace(/\b(ACC|ACCOUNT|INV|INVOICE|PMT|PAYMENT|CLIENT|CUSTOMER|POLICY|CONTRACT)\b\s*[:\-]?\s*[A-Z0-9\-\/]+\b/g, ' ');
+
+        // 5. Remove long numeric IDs (and 4+ digit numeric references)
+        str = str.replace(/\b\d{4,}\b/g, ' ');
+
+        // 6. Remove South African bank/channel noise (including PAYFAST, LC, SPOR, SPORT)
+        str = str.replace(/\b(PAYFAST|FNB|ABSA|NEDBANK|STANDARD BANK|CAPITEC|DISCOVERY BANK|TYMEBANK|SBSA|NED|ZA|ZAF|ECOM|POS|ATM|INT|IBANK|MOBILE|APP|LC|SPOR|SPORT)\b/g, ' ');
+
+        // 7. Remove legal suffixes
+        str = str.replace(/\b(PTY|PTY LTD|PROPRIETARY LIMITED|LIMITED|LTD|CC|INC|NPC|NPO|TRUST)\b\.?/g, ' ');
+
+        // 8. Remove location/store codes at the end
+        str = str.replace(/\s+[-\/]?\s*(JHB|CPT|DBN|PTA|SANDTON|RANDBURG|MIDRAND|ROSEBANK|STORE\s*\d+|BRANCH\s*\d+)(?:\s*)$/g, ' ');
+
+        // 9. Remove special characters, keep useful text (replace with a space)
+        str = str.replace(/[^A-Z0-9& ]+/g, ' ');
+
+        // 10. Collapse whitespace (replace with one space)
+        str = str.replace(/\s{2,}/g, ' ');
+
+        str = str.trim();
 
         return {
             clean: str || description.trim() || 'UNKNOWN',

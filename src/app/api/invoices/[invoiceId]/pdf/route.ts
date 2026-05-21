@@ -63,7 +63,7 @@ export async function POST(req: Request, context: { params: Promise<{ invoiceId:
       customer,
     });
 
-    const buffer = await renderToBuffer(element);
+    const buffer = await renderToBuffer(element as any);
 
     console.log('API Route: PDF buffer created, size:', buffer.length);
 

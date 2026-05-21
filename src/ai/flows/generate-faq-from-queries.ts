@@ -32,7 +32,7 @@ export async function generateFaqFromQueries(
 
 const prompt = ai.definePrompt({
   name: 'generateFaqFromQueriesPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: {schema: GenerateFaqFromQueriesInputSchema},
   output: {schema: GenerateFaqFromQueriesOutputSchema},
   prompt: `You are an AI-powered tool that generates FAQ content from a list of common client queries.

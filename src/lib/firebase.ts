@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, enableIndexedDbPersistence, memoryLocalCache } from 'firebase/firestore';
+import { getFirestore, Firestore, enableIndexedDbPersistence } from 'firebase/firestore';
 
 export const firebaseConfig = {
   "projectId": "studio-2604127518-57889",
@@ -32,14 +32,7 @@ function initializeFirebase(): FirebaseServices {
   const db = getFirestore(app);
 
   if (typeof window !== 'undefined' && !persistenceEnabled) {
-    enableIndexedDbPersistence(db, {
-        // Use memoryLocalCache as a fallback for multiple tabs.
-        // This prevents the "failed-precondition" error and subsequent timeouts.
-        localCache: memoryLocalCache({
-          // Force ownership of the local cache.
-          forceOwnership: true,
-        }),
-      })
+    enableIndexedDbPersistence(db, { forceOwnership: true })
       .then(() => {
         persistenceEnabled = true;
         console.log("Firestore persistence enabled.");

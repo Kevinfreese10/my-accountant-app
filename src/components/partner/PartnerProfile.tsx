@@ -303,7 +303,7 @@ export default function PartnerProfile({ partner: propPartner }: { partner?: Use
         const theme = THEMES[themePreset as keyof typeof THEMES];
         if (theme) {
             Object.entries(theme).forEach(([key, value]) => {
-                setValue(`landingPage.${key as any}`, value, { shouldDirty: true });
+                setValue(`landingPage.${key}` as any, value, { shouldDirty: true });
             });
         }
     }

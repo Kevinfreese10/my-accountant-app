@@ -120,8 +120,8 @@ function CustomerLedgerReport({
             Description: '',
             Debit: totals.totalDebits,
             Credit: totals.totalCredits,
-            Balance: '',
-        });
+            Balance: 0,
+        } as any);
 
         const worksheet = XLSX.utils.json_to_sheet(dataToExport, { skipHeader: true });
         worksheet['!cols'] = [{ wch: 12 }, { wch: 20 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];

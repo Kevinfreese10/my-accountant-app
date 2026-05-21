@@ -147,7 +147,7 @@ export default function LoginForm() {
         router.push('/admin/dashboard');
     } else if (result.role === 'partner' || result.role === 'partner_staff') {
         router.push('/partner/dashboard');
-    } else if (result.role === 'reseller') {
+    } else if ((result.role as string) === 'reseller') {
         router.push('/reseller/dashboard');
     } else if (result.role === 'ai_accountant') {
         router.push('/dashboard/ai-accountant/clients');

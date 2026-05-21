@@ -33,7 +33,9 @@ export default function SignupPage() {
           <CardDescription>Join My Accountant to manage your services and orders.</CardDescription>
         </CardHeader>
         <CardContent>
-          <SignupFormWrapper />
+          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+            <SignupFormWrapper />
+          </Suspense>
            <div className="mt-6 text-center text-sm text-muted-foreground">
             Already have an account?{' '}
             <Link href="/login" className="font-semibold text-primary underline-offset-4 hover:underline">

@@ -123,7 +123,7 @@ function calculateBalances(client: User, transactions: (ImportedTransaction | Al
             }
 
             // 1. Bank Account Entry (always inclusive)
-            processEntry(tx.bankAccountId, inclusiveAmount);
+            processEntry(tx.bankAccountId || '', inclusiveAmount);
 
             // 2. Contra Account Entry (exclusive amount)
             let contraAccountId = '9500-001'; // Default to suspense

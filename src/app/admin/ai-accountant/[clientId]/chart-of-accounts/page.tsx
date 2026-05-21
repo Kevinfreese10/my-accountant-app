@@ -66,7 +66,7 @@ function ImportAccountsDialog({ client, onImportComplete }: { client: User | nul
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
                 const json = XLSX.utils.sheet_to_json(sheet) as any[];
 
-                const newAccounts: ChartOfAccount[] = json.map(row => {
+                const newAccounts = json.map(row => {
                     const accNum = String(row['Account Number'] || row['accountNumber'] || row['Code'] || '').trim();
                     const desc = String(row['Description'] || row['description'] || row['Name'] || '').trim();
                     const rawSection = String(row['Section'] || row['section'] || '').toLowerCase();
@@ -84,7 +84,7 @@ function ImportAccountsDialog({ client, onImportComplete }: { client: User | nul
                         description: desc,
                         section: section
                     };
-                }).filter((a): a is ChartOfAccount => a !== null);
+                }).filter(Boolean) as ChartOfAccount[];
 
                 if (newAccounts.length === 0) {
                     toast({ title: "Import Failed", description: "No valid accounts found. Ensure headers match the template.", variant: "destructive" });
@@ -158,7 +158,7 @@ function AccountForm({ account, onSave, onCancel }: { account: Partial<ChartOfAc
         resolver: zodResolver(accountFormSchema),
         defaultValues: account ? {
             ...account,
-            section: account.section || 'Income Statement',
+            section: (account.section === 'Income Statement' || account.section === 'Balance Sheet' ? account.section : 'Income Statement') as 'Income Statement' | 'Balance Sheet',
         } : {
             id: undefined,
             accountNumber: '',

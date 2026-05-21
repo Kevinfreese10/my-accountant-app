@@ -31,7 +31,7 @@ export async function extractSupplierName(
 
 const prompt = ai.definePrompt({
   name: 'extractSupplierNamePrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: { schema: ExtractSupplierNameInputSchema },
   output: { schema: ExtractSupplierNameOutputSchema },
   prompt: `You are an expert data normalization agent. Your only task is to extract the true supplier/merchant name from a noisy bank statement description.

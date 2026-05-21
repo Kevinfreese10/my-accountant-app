@@ -28,7 +28,7 @@ export async function proofreadNote(
 
 const prompt = ai.definePrompt({
   name: 'proofreadNotePrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: { schema: ProofreadNoteInputSchema },
   output: { schema: ProofreadNoteOutputSchema },
   prompt: `You are an expert editor for an accounting firm. Your task is to proofread the following note.

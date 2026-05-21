@@ -176,8 +176,8 @@ export default function PartnerOrdersPage() {
                 customerName: partnerProfile.companyName || partnerProfile.name,
                 customerEmail: partnerProfile.email,
                 customerPhone: partnerProfile.contactNumber || null,
-                endCustomerName: selectedOrderForOutsource.endCustomerName || selectedOrderForOutsource.customerName,
-                endCustomerEmail: selectedOrderForOutsource.endCustomerEmail || selectedOrderForOutsource.customerEmail,
+                endCustomerName: selectedOrderForOutsource.endCustomerName || selectedOrderForOutsource.customerName || null,
+                endCustomerEmail: selectedOrderForOutsource.endCustomerEmail || selectedOrderForOutsource.customerEmail || null,
                 documentContact: docContactPreference,
                 date: Timestamp.now(),
                 items: selectedOrderForOutsource.items.map(item => ({
@@ -188,7 +188,7 @@ export default function PartnerOrdersPage() {
                 })),
                 total: cost,
                 status: 'Processing', // PAID VIA CREDITS - MOVES DIRECTLY TO PROCESSING
-                resellerId: partnerId,
+                resellerId: partnerId || null,
                 originalOrderId: selectedOrderForOutsource.id,
                 discountCode: null,
                 discountAmount: null,

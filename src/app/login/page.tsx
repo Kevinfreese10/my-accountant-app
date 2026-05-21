@@ -38,7 +38,9 @@ export default function LoginPage() {
           <CardDescription>Enter your email and password to access your dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
-          <LoginFormWrapper />
+          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+            <LoginFormWrapper />
+          </Suspense>
           <div className="mt-6 text-center text-sm text-muted-foreground">
             Don't have an account?{' '}
             <Link href="/signup" className="font-semibold text-primary underline-offset-4 hover:underline">

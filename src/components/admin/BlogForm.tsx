@@ -111,7 +111,7 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
     });
 
     try {
-        const result = await generateBlogPost({ title: primaryKeyword, primaryKeyword, searchIntent });
+        const result = await generateBlogPost({ primaryKeyword, searchIntent });
         form.setValue('title', result.title);
         form.setValue('excerpt', result.excerpt);
         form.setValue('content', result.content);
@@ -152,7 +152,7 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
         const result = await generateBlogPostSeo({ title });
         form.setValue('metaTitle', result.metaTitle);
         form.setValue('metaDescription', result.metaDescription);
-        form.setValue('metaKeywords', result.metaKeywords.map(k => ({ value: k })));
+        form.setValue('metaKeywords', result.metaKeywords.map((k: any) => ({ value: typeof k === 'string' ? k : (k?.value || '') })));
         toast({
             title: 'SEO Content Updated',
             description: 'The SEO fields have been populated by AI.',

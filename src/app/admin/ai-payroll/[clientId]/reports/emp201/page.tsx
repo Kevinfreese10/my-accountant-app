@@ -45,7 +45,7 @@ export default function Emp201ReportPage() {
         // 1. Fetch Client
         const unsubClient = onSnapshot(doc(db, 'aiPayrollClients', clientId), (snap) => {
             if (snap.exists()) {
-                const data = snap.data() as User;
+                const data = snap.data();
                 setClient({ id: snap.id, ...data } as User);
                 // Default to current month if not set
                 if (!selectedMonth) {
@@ -129,13 +129,16 @@ export default function Emp201ReportPage() {
         const employeeAggregates: Record<string, any> = {};
 
         periodPayslips.forEach(ps => {
+            const empId = ps.employeeId;
+            if (!empId) return;
+
             const paye = ps.deductions.find(d => d.label.toLowerCase() === 'tax')?.amount || 0;
             const uifEmp = ps.deductions.find(d => d.label.toLowerCase().includes('unemployment'))?.amount || 0;
             const uifCo = ps.contributions.find(c => c.label.toLowerCase().includes('unemployment'))?.amount || 0;
             const sdl = ps.contributions.find(c => c.label.toLowerCase().includes('skills'))?.amount || 0;
             
-            if (!employeeAggregates[ps.employeeId]) {
-                employeeAggregates[ps.employeeId] = {
+            if (!employeeAggregates[empId]) {
+                employeeAggregates[empId] = {
                     name: ps.employeeName,
                     gross: 0,
                     paye: 0,
@@ -145,11 +148,11 @@ export default function Emp201ReportPage() {
                 };
             }
 
-            employeeAggregates[ps.employeeId].gross += (ps.grossPay || 0);
-            employeeAggregates[ps.employeeId].paye += paye;
-            employeeAggregates[ps.employeeId].uif += (uifEmp + uifCo);
-            employeeAggregates[ps.employeeId].sdl += sdl;
-            employeeAggregates[ps.employeeId].runs += 1;
+            employeeAggregates[empId].gross += (ps.grossPay || 0);
+            employeeAggregates[empId].paye += paye;
+            employeeAggregates[empId].uif += (uifEmp + uifCo);
+            employeeAggregates[empId].sdl += sdl;
+            employeeAggregates[empId].runs += 1;
 
             totalPaye += paye;
             totalUif += (uifEmp + uifCo);

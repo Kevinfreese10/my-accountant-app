@@ -66,9 +66,10 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
                 const workbook = XLSX.read(data, { type: 'array' });
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet) as { 'Supplier Name'?: string }[];
-
-                const supplierNames = json.map(row => row['Supplier Name'] || row['supplierName'] || row['Name']).filter((name): name is string => !!name);
+                const json = XLSX.utils.sheet_to_json(worksheet) as any[];
+                const supplierNames = json.map((row: any) => {
+                    return row['Supplier Name'] || row['supplierName'] || row['Name'];
+                }).filter((name: any): name is string => !!name);
 
                 if (supplierNames.length === 0) {
                     toast({ title: "No suppliers found", description: "Make sure your file has a column named 'Supplier Name'.", variant: "destructive" });

@@ -40,7 +40,7 @@ export async function brandService(input: BrandServiceInput): Promise<BrandServi
     });
 
     const { output } = await customAi.generate({
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-3.5-flash',
       output: { schema: BrandServiceOutputSchema },
       prompt: `You are a professional branding and SEO expert for an accounting practice named "${input.partnerName}".
       

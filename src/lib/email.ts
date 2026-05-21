@@ -1,11 +1,8 @@
 'use server';
 
 import nodemailer from 'nodemailer';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
 import { User } from './types';
-
-const db = getFirestore(firebaseApp);
+import { fetchDocumentRest } from './firestore-rest';
 
 type EmailPayload = {
     to: string | string[];
@@ -14,7 +11,7 @@ type EmailPayload = {
     subject: string;
     html: string;
     from?: string;
-    resellerId?: string;
+    resellerId?: string | null;
     attachments?: { filename: string; path: string }[];
     replyTo?: string;
     smtpOverride?: { host: string; port: string; user: string; pass: string };
@@ -75,21 +72,14 @@ export async function sendEmail({
       fromEmail = smtpOverride.user;
   }
 
-  // 3. Handle Reseller White-Labeling
+  // 3. Handle Reseller White-Labeling (Stateless REST fetches)
   if (resellerId && !smtpOverride) {
     try {
       let partnerData: User | null = null;
-      const userRef = doc(db, 'users', resellerId);
-      const userSnap = await getDoc(userRef);
+      partnerData = await fetchDocumentRest('users', resellerId);
       
-      if (userSnap.exists()) {
-          partnerData = userSnap.data() as User;
-      } else {
-          const aiClientRef = doc(db, 'aiAccountantClients', resellerId);
-          const aiClientSnap = await getDoc(aiClientRef);
-          if (aiClientSnap.exists()) {
-              partnerData = aiClientSnap.data() as User;
-          }
+      if (!partnerData) {
+          partnerData = await fetchDocumentRest('aiAccountantClients', resellerId);
       }
       
       if (partnerData) {
@@ -116,13 +106,25 @@ export async function sendEmail({
   
   if (!transportConfig.host || !transportConfig.auth.user || !transportConfig.auth.pass) {
       console.error('Master SMTP configuration is missing.');
-      throw new Error('Email server is not configured.');
+      return {
+          success: false,
+          error: 'Email server is not configured.',
+          code: 'CONFIG_ERROR'
+      };
   }
 
   const fromAddress = from || `"${fromName}" <${fromEmail}>`;
   const transporter = nodemailer.createTransport(transportConfig);
 
   try {
+      console.log('Sending email through Nodemailer...', {
+          to: Array.isArray(to) ? to.join(', ') : to,
+          subject,
+          from: fromAddress,
+          cc: cc ? (Array.isArray(cc) ? cc.join(', ') : cc) : undefined,
+          bcc: finalBcc.length > 0 ? finalBcc.join(', ') : undefined,
+      });
+
       const info = await transporter.sendMail({
           from: fromAddress,
           to: Array.isArray(to) ? to.join(', ') : to,
@@ -133,9 +135,20 @@ export async function sendEmail({
           attachments: attachments,
           replyTo: finalReplyTo,
       });
-      return info;
+
+      console.log('Nodemailer SMTP Send Success:', { messageId: info.messageId });
+
+      return {
+          success: true,
+          messageId: info.messageId,
+          response: info.response,
+      };
   } catch (error: any) {
-      console.error('Nodemailer Error:', error);
-      throw new Error(`SMTP Error: ${error.code || 'Unknown'} - ${error.message}`);
+      console.error('Nodemailer SMTP Error:', error);
+      return {
+          success: false,
+          error: error.message || 'Unknown SMTP error',
+          code: error.code || 'Unknown',
+      };
   }
 }

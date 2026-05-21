@@ -14,17 +14,30 @@ import { SITE_URL, GLOBAL_OG_IMAGE } from '@/lib/constants';
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'My Accountant | Professional Accounting & Tax Services',
+    default: 'My Accountant | SME Accounting, Payroll & SARS Tax Services South Africa',
     template: '%s | My Accountant',
   },
-  description: 'Professional online tax, accounting, CIPC, SARS and compliance services for South African businesses.',
-  keywords: ['accounting', 'tax services', 'CIPC', 'SARS', 'bookkeeping', 'South Africa'],
+  description: 'Professional bookkeeping, monthly payroll, VAT compliance, CIPC company registration, and SARS tax returns eFiling services for small-to-medium businesses (SMEs) in South Africa.',
+  keywords: [
+    'SARS tax compliance South Africa',
+    'SME payroll services',
+    'CIPC company registration',
+    'monthly VAT returns',
+    'bookkeeping services Johannesburg',
+    'SARS tax returns eFiling',
+    'accounting',
+    'tax services',
+    'CIPC',
+    'SARS',
+    'bookkeeping',
+    'South Africa'
+  ],
   alternates: {
     canonical: SITE_URL,
   },
   openGraph: {
     title: 'My Accountant | South African Tax, Accounting & Compliance Services',
-    description: 'Professional online tax, accounting, CIPC, SARS and compliance services for South African businesses.',
+    description: 'Professional online bookkeeping, monthly payroll, VAT compliance, and SARS tax returns eFiling for SMEs in South Africa.',
     url: SITE_URL,
     siteName: 'My Accountant',
     images: [
@@ -40,9 +53,12 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'My Accountant | Professional Accounting & Tax Services',
-    description: 'Simplify your finances with our expert accounting and tax solutions.',
+    title: 'My Accountant | SME Accounting, Payroll & SARS Tax Services South Africa',
+    description: 'Simplify your small business bookkeeping, CIPC registrations, and SARS tax compliance with My Accountant.',
     images: [GLOBAL_OG_IMAGE],
+  },
+  verification: {
+    google: 'UJqrDV4weHPKHA8UCKC5Ns8gVfMvRG7-4so6iU116dA',
   },
 };
 

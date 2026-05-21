@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Order, Service, User, OrderNote } from '@/lib/types';
+import { Order, Service, User, OrderNote, PartnerLandingPageConfig } from '@/lib/types';
 import { getFirestore, doc, getDoc, collection, getDocs, orderBy, query, where, updateDoc, setDoc, Timestamp, onSnapshot, arrayUnion, increment } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -105,7 +105,7 @@ function TopUpDialog({ partner }: { partner: User }) {
                 errorEmitter.emit('permission-error', permissionError);
             });
 
-            const payfastUrl = 'https://www.payfast.co.za/eng/process';
+            const payfastUrl = process.env.NEXT_PUBLIC_PAYFAST_PROCESS_URL || 'https://www.payfast.co.za/eng/process';
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = payfastUrl;
@@ -272,7 +272,7 @@ export default function PartnerDashboardPage() {
         if (!source) return [];
         
         const watchedBanking = source.bankingDetails;
-        const watchedLp = source.landingPage || {};
+        const watchedLp = (source.landingPage || {}) as PartnerLandingPageConfig;
 
         return [
             { label: 'Update Pricing', done: overrideCount > 0, description: 'Set your markups in the Services tab.' },

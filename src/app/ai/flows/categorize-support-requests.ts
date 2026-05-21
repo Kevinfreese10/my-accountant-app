@@ -66,7 +66,7 @@ const categorizeSupportRequestFlow = ai.defineFlow(
     
      const prompt = ai.definePrompt({
       name: 'categorizeSupportRequestPrompt',
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-3.5-flash',
       input: {schema: CategorizeSupportRequestInputSchema},
       output: {schema: CategorizeSupportRequestOutputSchema},
       prompt: `You are an expert support agent and task manager for an accounting firm.

@@ -28,6 +28,36 @@ export function generateStructuredData(service: Service) {
     "worstRating": "1"
   };
 
+  // If the service is marked as a Service or is a TBC price, generate Service schema to avoid GSC Merchant Listing errors
+  if (service.schemaType === 'Service' || service.isPriceTbc) {
+    return {
+      "@context": "https://schema.org/",
+      "@type": "Service",
+      "name": service.title,
+      "image": [imageUrl],
+      "description": (service.longDescription || service.description || `Professional ${service.title} service for South African businesses.`).substring(0, 5000),
+      "provider": {
+        "@type": "AccountingService",
+        "name": "My Accountant",
+        "url": baseUrl,
+        "telephone": "+27-10-109-1625",
+        "email": "info@myacc.co.za",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Ground Floor, Waterstone Building, Stonemill Office Park, 300 Acacia Road, Darrenwood",
+          "addressLocality": "Johannesburg",
+          "postalCode": "2195",
+          "addressCountry": "ZA"
+        }
+      },
+      "areaServed": {
+        "@type": "Country",
+        "name": "ZA"
+      },
+      "aggregateRating": rating
+    };
+  }
+
   const schema: any = {
     "@context": "https://schema.org/",
     "@type": "Product",

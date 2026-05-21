@@ -24,7 +24,7 @@ const chartConfig = {
 };
 
 export default function ProductivityStats({ tasks, className }: ProductivityStatsProps) {
-  const completedTasks = useMemo(() => tasks.filter(t => t.status === 'Completed').length, [tasks]);
+  const completedTasks = useMemo(() => tasks.filter(t => t.status === 'Done').length, [tasks]);
   const pendingTasks = useMemo(() => tasks.length - completedTasks, [tasks, completedTasks]);
   const totalTasks = tasks.length;
   const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;

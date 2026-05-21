@@ -2,8 +2,9 @@ import type { Service, BlogPost, FAQ, Order, User } from './types';
 
 // IMPORTANT: This file is now deprecated for user data. Users should be managed in Firestore.
 export const users: Omit<User, 'uid'>[] = [
-  { name: 'John Doe', email: 'client@test.com', role: 'client' },
+  { id: 'client-test', name: 'John Doe', email: 'client@test.com', role: 'client' },
   { 
+    id: 'admin-kevin',
     name: 'Kevin Freese', 
     email: 'kev@thinkestry.co.za', 
     role: 'admin',
@@ -16,15 +17,17 @@ export const users: Omit<User, 'uid'>[] = [
     }
   },
   {
+    id: 'admin-generic',
     name: 'Admin User',
     email: 'admin@myacc.co.za',
     role: 'admin',
     department: 'Administration',
   },
   { 
+    id: 'partner-test',
     name: 'Reseller Pro', 
     email: 'reseller@test.com', 
-    role: 'reseller',
+    role: 'partner',
     companyName: 'Reseller Pro (Pty) Ltd',
     contactPerson: 'Alex King',
     contactNumber: '0721234567',

@@ -31,7 +31,7 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-const generateVatPeriods = (vatCategory: 'A' | 'B' | 'C' | undefined) => {
+const generateVatPeriods = (vatCategory: 'A' | 'B' | 'C' | null | undefined) => {
     const periods = [];
     const now = new Date();
     

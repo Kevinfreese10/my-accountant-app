@@ -129,10 +129,10 @@ export default function PayslipsPage() {
         if (res.success) {
             toast({ 
                 title: "Month Rolled Forward", 
-                description: `Successfully moved to ${res.nextPeriod}. Generated ${res.created} draft payslips.` 
+                description: `Successfully moved to ${(res as any).nextPeriod}. Generated ${(res as any).created} draft payslips.` 
             });
         } else {
-            toast({ title: "Roll Forward Failed", description: res.error, variant: "destructive" });
+            toast({ title: "Roll Forward Failed", description: (res as any).error, variant: "destructive" });
         }
     } catch (e) {
         toast({ title: "Error", description: "Internal server error.", variant: "destructive" });
@@ -150,10 +150,10 @@ export default function PayslipsPage() {
         if (res.success) {
             toast({ 
                 title: "Month Rolled Back", 
-                description: `Successfully moved back to ${res.prevPeriod}. Deleted ${res.deletedCount} draft records.` 
+                description: `Successfully moved back to ${(res as any).prevPeriod}. Deleted ${(res as any).deletedCount} draft records.` 
             });
         } else {
-            toast({ title: "Roll Back Failed", description: res.error, variant: "destructive" });
+            toast({ title: "Roll Back Failed", description: (res as any).error, variant: "destructive" });
         }
     } catch (e) {
         toast({ title: "Error", description: "Internal server error.", variant: "destructive" });
@@ -189,11 +189,11 @@ export default function PayslipsPage() {
                   const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0);
                   const res = await generateEmployeePayslipAction({
                       clientId,
-                      employeeId: employee.id,
+                      employeeId: employee.id || '',
                       basicSalary: baseValue
                   });
                   
-                  if (res.success && res.id) {
+                  if (res.success && 'id' in res) {
                       const newSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'payslips', res.id));
                       if (newSnap.exists()) {
                           setEditingPayslip({ id: newSnap.id, ...newSnap.data() } as Payslip);
@@ -478,9 +478,9 @@ export default function PayslipsPage() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">All Employees</SelectItem>
-                            {employees.map(emp => (
-                                <SelectItem key={emp.id} value={emp.id}>{emp.name} {emp.surname}</SelectItem>
-                            ))}
+                             {employees.map(emp => (
+                                 <SelectItem key={emp.id || ''} value={emp.id || ''}>{emp.name} {emp.surname}</SelectItem>
+                             ))}
                         </SelectContent>
                     </Select>
                 </div>

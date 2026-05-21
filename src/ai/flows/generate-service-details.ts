@@ -36,7 +36,7 @@ export async function generateServiceDetails(
 
 const prompt = ai.definePrompt({
   name: 'generateServiceDetailsPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: {schema: GenerateServiceDetailsInputSchema},
   output: {schema: GenerateServiceDetailsOutputSchema},
   prompt: `You are an expert copywriter and SEO specialist for "My Accountant", a financial services company in South Africa.

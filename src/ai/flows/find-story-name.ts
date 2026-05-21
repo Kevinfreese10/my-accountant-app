@@ -17,7 +17,7 @@ export async function findStoryName(
 
 const prompt = ai.definePrompt({
   name: 'findStoryNamePrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: { schema: FindStoryNameInputSchema },
   output: { schema: FindStoryNameOutputSchema },
   prompt: `You are a data lookup assistant. Your task is to find the corresponding "Story Name" for a given "Commission Number" from the provided knowledge base text.

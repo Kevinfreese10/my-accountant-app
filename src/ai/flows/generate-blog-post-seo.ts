@@ -31,7 +31,7 @@ export async function generateBlogPostSeo(
 
 const prompt = ai.definePrompt({
   name: 'generateBlogPostSeoPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: {schema: GenerateBlogPostSeoInputSchema},
   output: {schema: GenerateBlogPostSeoOutputSchema},
   prompt: `You are an expert copywriter and SEO specialist for "My Accountant", a financial services company in South Africa.

@@ -1,5 +1,4 @@
-import { getFirestore, collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
+import { runQueryRest } from '@/lib/firestore-rest';
 import { User, Service } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,8 +8,6 @@ import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-
-const db = getFirestore(firebaseApp);
 
 export const dynamic = 'force-dynamic';
 
@@ -22,33 +19,66 @@ type Category = {
 };
 
 async function getFranchiseBySlug(slug: string): Promise<User | null> {
-  const q = query(
-    collection(db, "users"), 
-    where("role", "==", "franchisee"),
-    where("franchise.areaSlug", "==", slug)
-  );
-  const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
-  const doc = snapshot.docs[0];
-  const data = doc.data();
+  try {
+    const results = await runQueryRest("users", {
+      where: {
+        fieldFilter: {
+          field: { fieldPath: "role" },
+          op: "EQUAL",
+          value: { stringValue: "franchisee" }
+        }
+      }
+    });
 
-  return {
-    ...data,
-    id: doc.id,
-    uid: doc.id,
-  } as User;
+    const franchisee = results.find(user => 
+      user.areaSlug === slug || 
+      user.franchise?.areaSlug === slug ||
+      user.landingPage?.slug === slug
+    );
+
+    if (!franchisee) return null;
+
+    // Synthetically construct franchise sub-object if missing to prevent layout crashes
+    if (!franchisee.franchise) {
+      franchisee.franchise = {
+        areaSlug: franchisee.areaSlug || franchisee.landingPage?.slug || slug,
+        areaName: franchisee.companyName?.replace("My Accountant ", "") || franchisee.name || slug
+      };
+    }
+
+    return franchisee as User;
+  } catch (error) {
+    console.error(`Error querying franchisee by slug ${slug}:`, error);
+    return null;
+  }
 }
 
 async function getServices(): Promise<Service[]> {
-  const q = query(collection(db, "services"), orderBy("title"));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
+  try {
+    return await runQueryRest("services", {
+      orderBy: [{
+        field: { fieldPath: "title" },
+        direction: "ASCENDING"
+      }]
+    });
+  } catch (error) {
+    console.error("Error fetching services via REST:", error);
+    return [];
+  }
 }
 
 async function getCategories(): Promise<Category[]> {
-    const q = query(collection(db, "categories"), orderBy("order"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Category));
+  try {
+    return await runQueryRest("categories", {
+      orderBy: [{
+        field: { fieldPath: "order" },
+        direction: "ASCENDING"
+      }]
+    });
+  } catch (error) {
+    console.error("Error fetching categories via REST:", error);
+    return [];
+  }
 }
 
 const formatPrice = (price: number) => {

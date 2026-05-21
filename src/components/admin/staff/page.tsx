@@ -45,7 +45,7 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             name: staffMember?.name || '',
             email: staffMember?.email || '',
             password: '',
-            department: staffMember?.department || 'Administration',
+            department: (staffMember?.department && departments.includes(staffMember.department as any)) ? (staffMember.department as "Accounting and Tax" | "Administration" | "CAP") : 'Administration',
             role: staffMember?.role === 'admin' ? 'admin' : 'staff',
         },
     });
@@ -53,10 +53,13 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
     const isEditing = !!staffMember;
 
     useEffect(() => {
-        if(isEditing){
+        if(isEditing && staffMember){
             form.reset({
-                ...staffMember,
-                role: staffMember?.role === 'admin' ? 'admin' : 'staff',
+                uid: staffMember.uid || '',
+                name: staffMember.name || '',
+                email: staffMember.email || '',
+                department: (staffMember.department && departments.includes(staffMember.department as any)) ? (staffMember.department as "Accounting and Tax" | "Administration" | "CAP") : 'Administration',
+                role: staffMember.role === 'admin' ? 'admin' : 'staff',
                 password: ''
             });
         } else {

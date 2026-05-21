@@ -64,7 +64,7 @@ function BankTransactionReport({
     const handleDownloadExcel = () => {
         const dataToExport = reportData.map(tx => ({
             'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
-            'Bank Account': getBankAccountName(tx.bankAccountId),
+            'Bank Account': getBankAccountName(tx.bankAccountId || ''),
             'Description': tx.description,
             'Reference': tx.reference,
             'Amount': tx.amount,
@@ -112,7 +112,7 @@ function BankTransactionReport({
                         reportData.map((tx, index) => (
                             <TableRow key={index}>
                                 <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                <TableCell>{getBankAccountName(tx.bankAccountId)}</TableCell>
+                                <TableCell>{getBankAccountName(tx.bankAccountId || '')}</TableCell>
                                 <TableCell>{tx.description}</TableCell>
                                 <TableCell>{tx.reference}</TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>

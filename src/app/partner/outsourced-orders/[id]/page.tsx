@@ -61,8 +61,9 @@ export default function PartnerOutsourcedOrderDetailsPage() {
           } as Order;
           setOrder(fetchedOrder);
           
-          if (fetchedOrder.assignedTo && fetchedOrder.assignedTo.length > 0) {
-            const assignedUser = fetchedStaff.find(u => u.id === fetchedOrder.assignedTo[0]);
+          const assignedTo = fetchedOrder.assignedTo;
+          if (assignedTo && assignedTo.length > 0) {
+            const assignedUser = fetchedStaff.find(u => u.id === assignedTo[0]);
             setAssignee(assignedUser || null);
           }
 

@@ -16,6 +16,7 @@ const SuggestTransactionAllocationInputSchema = z.object({
   chartOfAccounts: z.string().describe('A JSON string of the chart of accounts, with "id", "accountNumber", and "description" fields.'),
   isVatRegistered: z.boolean().describe('Whether the client is registered for VAT.'),
   apiKey: z.string().optional().describe('An optional Google AI API key to use for this specific suggestion.'),
+  useWebSearch: z.boolean().optional().describe('Whether to use Google Search grounding for this suggestion.'),
 });
 export type SuggestTransactionAllocationInput = z.infer<typeof SuggestTransactionAllocationInputSchema>;
 
@@ -31,17 +32,73 @@ export type SuggestTransactionAllocationOutput = z.infer<typeof SuggestTransacti
 export async function suggestTransactionAllocation(
   input: SuggestTransactionAllocationInput
 ): Promise<SuggestTransactionAllocationOutput> {
-  // If an API key is provided, we use a local genkit instance to perform the generation
+  // Choose the Genkit instance to use: either the custom one with the provided apiKey, or the default global 'ai'
+  let activeAi = ai;
   if (input.apiKey) {
     const { genkit } = await import('genkit');
     const { googleAI } = await import('@genkit-ai/google-genai');
-    
-    const customAi = genkit({
+    activeAi = genkit({
       plugins: [googleAI({ apiKey: input.apiKey })],
     });
+  }
 
-    const { output } = await customAi.generate({
-      model: 'googleai/gemini-2.5-flash',
+  // If we should use Google Search web grounding
+  if (input.useWebSearch) {
+    // Step 1: Research the merchant using Google Search without a structured output schema
+    const researchResult = await activeAi.generate({
+      model: 'googleai/gemini-3.5-flash',
+      config: {
+        // @ts-ignore
+        tools: [{ googleSearch: {} }]
+      },
+      prompt: `You are a research assistant. Your task is to research the following merchant or company description using Google Search to understand their primary business activity, products/services, and country of operation.
+
+Transaction Description: ${input.description}
+
+Write a detailed summary of what you found about this merchant, including:
+1. What kind of business/merchant is this?
+2. What are the main products or services they sell/provide?
+3. Where is this merchant located/operating (e.g. South Africa, Global, USA)?
+4. Is it a retail store, utility company, digital service, restaurant, fuel station, bank fee, tax authority, or something else?
+
+Be detailed, accurate, and objective.`,
+    });
+
+    // Step 2: Use the research results to suggest transaction allocation with structured schema
+    const { output } = await activeAi.generate({
+      model: 'googleai/gemini-3.5-flash',
+      output: { schema: SuggestTransactionAllocationOutputSchema },
+      prompt: `You are an experienced South African Chartered Accountant. Your task is to analyze the research findings about a merchant from a bank transaction and suggest the correct general ledger account and VAT type from the provided Chart of Accounts.
+
+**Client VAT Status**: The client is ${input.isVatRegistered ? 'REGISTERED' : 'NOT REGISTERED'} for VAT.
+
+**CRITICAL INSTRUCTION**: If the client is NOT registered for VAT, you MUST set the 'vatType' to 'no_vat' for all transactions.
+
+**Transaction Description**: ${input.description}
+
+**Merchant Research Findings**:
+${researchResult.text}
+
+**Chart of Accounts**:
+\`\`\`json
+${input.chartOfAccounts}
+\`\`\`
+
+Based on the research findings and transaction description, provide:
+1. The most likely Account ID (which MUST exactly match an ID from the provided chart of accounts).
+2. The correct VAT type (if client is registered for VAT, choose the most appropriate one; if not registered, it must be 'no_vat').
+3. A confidence score between 0 and 100. Be realistic based on how certain you are of the match.
+4. A brief CA summary of the transaction nature (explaining the merchant line of business and why the selected account was chosen).
+5. A high-impact "root" keyword for future matching (e.g. "WOOLWORTHS", "AUTOENTRY", "VODACOM").`,
+    });
+
+    return output!;
+  }
+
+  // If an API key is provided but we don't use web search, we use activeAi to perform the generation
+  if (input.apiKey) {
+    const { output } = await activeAi.generate({
+      model: 'googleai/gemini-3.5-flash',
       output: { schema: SuggestTransactionAllocationOutputSchema },
       prompt: `You are an experienced South African Chartered Accountant. Your task is to perform research on a bank transaction description and suggest the correct general ledger account and VAT type.
 

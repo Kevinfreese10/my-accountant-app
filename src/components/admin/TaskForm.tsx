@@ -51,7 +51,7 @@ export default function TaskForm({
 }) {
     const { user } = useAuth();
 
-    const getTaskDate = (task: Partial<Task>): Date => {
+    const getTaskDate = (task: Partial<Task> | null): Date => {
       if (!task?.dueDate) return new Date();
       if (task.dueDate instanceof Date) {
           return task.dueDate;
@@ -115,10 +115,10 @@ export default function TaskForm({
                                     role="combobox"
                                     className={cn(
                                         "w-full justify-between",
-                                        !field.value?.length && "text-muted-foreground"
+                                        (!field.value || !field.value.length) && "text-muted-foreground"
                                     )}
                                     >
-                                    {field.value?.length > 0
+                                    {field.value && field.value.length > 0
                                         ? `${field.value.length} selected`
                                         : "Select member"}
                                     <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -226,10 +226,10 @@ export default function TaskForm({
                                 role="combobox"
                                 className={cn(
                                     "w-full justify-between",
-                                    !field.value?.length && "text-muted-foreground"
+                                    (!field.value || !field.value.length) && "text-muted-foreground"
                                 )}
                                 >
-                                {field.value?.length > 0
+                                {field.value && field.value.length > 0
                                     ? `${field.value.length} tagged`
                                     : "Select staff to tag..."}
                                 <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />

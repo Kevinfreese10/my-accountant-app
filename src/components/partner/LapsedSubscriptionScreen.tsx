@@ -60,7 +60,7 @@ export function LapsedSubscriptionScreen({ user }: { user: User }) {
             
             await setDoc(doc(db, 'orders', orderId), topupOrder);
 
-            const payfastUrl = 'https://www.payfast.co.za/eng/process';
+            const payfastUrl = process.env.NEXT_PUBLIC_PAYFAST_PROCESS_URL || 'https://www.payfast.co.za/eng/process';
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = payfastUrl;

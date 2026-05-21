@@ -42,7 +42,7 @@ export async function processClientAllocationChat(
 
 const prompt = ai.definePrompt({
   name: 'clientAllocationChatPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: { schema: ClientAllocationChatInputSchema },
   output: { schema: ClientAllocationChatOutputSchema },
   prompt: `You are 'Khai', a professional, friendly, and helpful male AI Accountant. Your goal is to help the client identify the nature of unallocated bank transactions so they can be correctly recorded.

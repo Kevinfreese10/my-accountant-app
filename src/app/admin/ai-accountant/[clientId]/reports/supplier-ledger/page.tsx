@@ -135,8 +135,8 @@ function SupplierLedgerReport({
             Description: '',
             'Debit (Decrease)': totals.totalDebits,
             'Credit (Increase)': totals.totalCredits,
-            'Balance': '',
-        });
+            'Balance': 0,
+        } as any);
 
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         worksheet['!cols'] = [{ wch: 12 }, { wch: 20 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];

@@ -42,7 +42,7 @@ export async function generateSocialAds(input: SocialAdInput): Promise<SocialAdO
 
 const prompt = ai.definePrompt({
   name: 'generateSocialAdPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: { schema: SocialAdInputSchema },
   output: { schema: SocialAdOutputSchema },
   prompt: `You are an expert social media copywriter specializing in Facebook ads for the South African accounting and tax industry.

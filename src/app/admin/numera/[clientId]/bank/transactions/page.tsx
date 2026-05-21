@@ -1,6 +1,6 @@
 
 'use client';
-import { redirect, useSearchParams, useParams } from 'next/navigation';
+import { redirect, useParams } from 'next/navigation';
 
 export default function NumeraBankTransactionsRedirectPage() {
   const params = useParams();

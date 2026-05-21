@@ -36,7 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, resetAiAccountantAnalysis, combineMerchantGroups, proposeRegroups, applyRegroups, proposeAiRegroups, analyzeClientCommentAndSuggest, bulkMoveTransactionsToNew, matchTransactionsToSuppliers } from '@/app/actions';
+import { runAiAccountantAnalysis, prepareAiAccountantAnalysis, moveTransactionToNew, researchMerchantWithAi, updateGlobalMerchantDb, resetAiAccountantAnalysis, proposeRegroups, applyRegroups, proposeAiRegroups, analyzeClientCommentAndSuggest, bulkMoveTransactionsToNew, matchTransactionsToSuppliers, researchAndAutoApproveGroup, bulkAiResearchAndMatch } from '@/app/actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -91,7 +91,7 @@ function RuleViewDialog({ open, onOpenChange, rule, matchedKeyword }: { open: bo
                     <div className="space-y-2">
                         <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">All Rule Keywords</p>
                         <div className="flex flex-wrap gap-1">
-                            {rule.keywords.map(kw => (
+                            {(Array.isArray(rule.keywords) ? rule.keywords : typeof rule.keywords === 'string' ? [rule.keywords] : []).map(kw => (
                                 <Badge key={kw} variant="secondary" className={cn("text-[10px]", kw.toUpperCase() === matchedKeyword?.toUpperCase() && "bg-primary text-primary-foreground")}>
                                     {kw}
                                 </Badge>
@@ -252,7 +252,10 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                 const description = row.Description;
                 const isExpense = row.Amount < 0;
                 
-                const match = isExpense ? allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase()))) : null;
+                 const match = isExpense ? allRules.find(r => {
+                     const kws = Array.isArray(r.keywords) ? r.keywords : typeof r.keywords === 'string' ? [r.keywords] : [];
+                     return kws.some((kw: string) => description.toUpperCase().includes(kw.toUpperCase()));
+                 }) : null;
 
                 const txData: any = {
                     clientId: client.uid!,
@@ -266,7 +269,8 @@ function ImportDialog({ client, bankAccountId, currentBalance, onImportComplete 
                 };
 
                 if (isExpense && match) {
-                    const keyword = match.keywords.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
+                     const kws = Array.isArray(match.keywords) ? match.keywords : typeof match.keywords === 'string' ? [match.keywords] : [];
+                     const keyword = kws.find((kw: string) => description.toUpperCase().includes(kw.toUpperCase()));
                     txData.allocatedTo = { value: match.accountId, type: match.accountType || 'account' };
                     txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
                     txData.allocatedAt = serverTimestamp();
@@ -415,7 +419,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
                 const rule = existingRules.find(r => r.id === values.existingRuleId);
                 if (rule) {
                     const clientRef = doc(db, 'aiAccountantClients', client.uid);
-                    const updatedRules = (client.allocationRules || []).map(r => r.id === rule.id ? { ...r, keywords: Array.from(new Set([...r.keywords, ...keywordsArray])) } : r);
+                     const updatedRules = (client.allocationRules || []).map(r => r.id === rule.id ? { ...r, keywords: Array.from(new Set([...(Array.isArray(r.keywords) ? r.keywords : typeof r.keywords === 'string' ? [r.keywords] : []), ...keywordsArray])) } : r);
                     await updateDoc(clientRef, { allocationRules: updatedRules });
                 }
             } else {
@@ -538,7 +542,10 @@ function CreateManualTransactionDialog({ client, bankAccountId, open, onOpenChan
             }
             allRules.sort((a, b) => (a.priority || 99) - (b.priority || 99));
             
-            const match = isExpense ? allRules.find(r => r.keywords.some(kw => description.includes(kw.toUpperCase()))) : null;
+            const match = isExpense ? allRules.find(r => {
+                const kws = Array.isArray(r.keywords) ? r.keywords : typeof r.keywords === 'string' ? [r.keywords] : [];
+                return kws.some((kw: string) => description.includes(kw.toUpperCase()));
+            }) : null;
 
             const txData: any = {
                 clientId: client.uid,
@@ -555,7 +562,8 @@ function CreateManualTransactionDialog({ client, bankAccountId, open, onOpenChan
             };
 
             if (isExpense && match) {
-                const keyword = match.keywords.find(kw => description.includes(kw.toUpperCase()));
+                const kws = Array.isArray(match.keywords) ? match.keywords : typeof match.keywords === 'string' ? [match.keywords] : [];
+                const keyword = kws.find((kw: string) => description.includes(kw.toUpperCase()));
                 txData.allocatedTo = { value: match.accountId, type: 'account' };
                 txData.vatType = client.isVatRegistered ? match.vatType : 'no_vat';
                 txData.allocatedAt = serverTimestamp();
@@ -712,12 +720,12 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
     const getAllocationName = useCallback((allocation?: { value: string, type: 'account' | 'customer' | 'supplier' }) => {
         if (!allocation) return 'Select Account...';
         if (allocation.type === 'customer') {
-            return customers.find(c => c.id === allocation.value)?.name || 'Selected Customer';
+            return customers.find((c: ClientCustomer) => c.id === allocation.value)?.name || 'Selected Customer';
         }
         if (allocation.type === 'supplier') {
-            return suppliers.find(s => s.id === allocation.value)?.name || 'Selected Supplier';
+            return suppliers.find((s: Supplier) => s.id === allocation.value)?.name || 'Selected Supplier';
         }
-        return client?.chartOfAccounts?.find(a => a.id === allocation.value)?.description || 'Selected Account';
+        return client?.chartOfAccounts?.find((a: ChartOfAccount) => a.id === allocation.value)?.description || 'Selected Account';
     }, [client?.chartOfAccounts, customers, suppliers]);
 
     // REAL-TIME LISTENER FOR THE ENTIRE WORK QUEUE FOR THIS ACCOUNT
@@ -876,9 +884,13 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             let count = 0;
             snapshot.docs.forEach(d => {
                 const tx = d.data() as ImportedTransaction;
-                const match = allRules.find(r => r.keywords.some(kw => tx.description.toUpperCase().includes(kw.toUpperCase())));
+                const match = allRules.find(r => {
+                    const kws = Array.isArray(r.keywords) ? r.keywords : typeof r.keywords === 'string' ? [r.keywords] : [];
+                    return kws.some((kw: string) => tx.description.toUpperCase().includes(kw.toUpperCase()));
+                });
                 if (match) {
-                    const keyword = match.keywords.find(kw => tx.description.toUpperCase().includes(kw.toUpperCase()));
+                    const kws = Array.isArray(match.keywords) ? match.keywords : typeof match.keywords === 'string' ? [match.keywords] : [];
+                    const keyword = kws.find((kw: string) => tx.description.toUpperCase().includes(kw.toUpperCase()));
                     batch.update(d.ref, {
                         status: 'reviewed',
                         allocatedTo: { value: match.accountId, type: match.accountType || 'account' },
@@ -1035,8 +1047,8 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
             rows.push([
                 format(new Date(tx.date), 'dd/MM/yyyy'),
                 tx.description,
-                tx.reference,
-                tx.amount,
+                tx.reference || '',
+                tx.amount.toString(),
                 '',
                 ''
             ]);
@@ -1116,13 +1128,13 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                             </CommandGroup>
                                             <CommandSeparator />
                                             <CommandGroup heading="Customers">
-                                                {customers.map(c => <CommandItem key={c.id} value={c.name} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{c.name}</CommandItem>)}
+                                                {customers.map((c: ClientCustomer) => <CommandItem key={c.id} value={c.name} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{c.name}</CommandItem>)}
                                             </CommandGroup>
                                             <CommandGroup heading="Suppliers">
-                                                {suppliers.map(s => <CommandItem key={s.id} value={s.name} onSelect={() => handleBulkAllocate({value: s.id, type: 'supplier'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{s.name}</CommandItem>)}
+                                                {suppliers.map((s: Supplier) => <CommandItem key={s.id} value={s.name} onSelect={() => handleBulkAllocate({value: s.id, type: 'supplier'}, 'no_vat')} className="p-2 cursor-pointer hover:bg-muted">{s.name}</CommandItem>)}
                                             </CommandGroup>
                                             <CommandGroup heading="General Ledger Accounts">
-                                                {client?.chartOfAccounts?.map(acc => (
+                                                {client?.chartOfAccounts?.map((acc: ChartOfAccount) => (
                                                     <DropdownMenuSub key={acc.id}>
                                                         <DropdownMenuSubTrigger className="flex items-center justify-between w-full p-2 cursor-pointer hover:bg-muted">
                                                             <span>{acc.description}</span>
@@ -1211,7 +1223,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                     <CommandList>
                                                         <CommandEmpty>No results found.</CommandEmpty>
                                                         <CommandGroup heading="GL Accounts">
-                                                            {client?.chartOfAccounts?.map(a => (
+                                                            {client?.chartOfAccounts?.map((a: ChartOfAccount) => (
                                                                 <CommandItem 
                                                                     key={a.id} 
                                                                     value={a.description}
@@ -1229,7 +1241,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                             ))}
                                                         </CommandGroup>
                                                         <CommandGroup heading="Suppliers">
-                                                            {suppliers.map(s => (
+                                                            {suppliers.map((s: Supplier) => (
                                                                 <CommandItem 
                                                                     key={s.id} 
                                                                     value={s.name}
@@ -1248,7 +1260,7 @@ const NewTransactionsTab = React.forwardRef<any, any>(({ client, bankAccountId, 
                                                             ))}
                                                         </CommandGroup>
                                                         <CommandGroup heading="Customers">
-                                                            {customers.map(c => (
+                                                            {customers.map((c: ClientCustomer) => (
                                                                 <CommandItem 
                                                                     key={c.id} 
                                                                     value={c.name}
@@ -1360,6 +1372,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     const [selectedGroupKeys, setSelectedGroupKeys] = useState<string[]>([]);
     const [onlySelectedGroups, setOnlySelectedGroups] = useState(false);
     const [isSavingDrafts, setIsSavingDrafts] = useState(false);
+    const [isGlobalMatching, setIsGlobalMatching] = useState(false);
     
     // Regroup states
     const [isRegrouping, setIsRegrouping] = useState(false);
@@ -1393,7 +1406,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 merchantKey: key,
                 transactions: txs,
                 suggestion: txs[0].smartAllocationResult || null,
-                status: txs[0].status === 'ai_processing' ? 'server_researching' : 'ready'
+                status: (txs[0].status === 'ai_processing' ? 'server_researching' : 'ready') as TransactionGroup['status']
             })).sort((a, b) => a.merchantKey.localeCompare(b.merchantKey));
 
             setGroups(initialGroups);
@@ -1403,10 +1416,11 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 const newSettings = { ...prev };
                 initialGroups.forEach(g => { 
                     if (!newSettings[g.merchantKey]) {
+                        const firstTx = g.transactions[0];
                         newSettings[g.merchantKey] = { 
-                            accountId: g.suggestion?.accountId || '', 
-                            vatType: g.suggestion?.vatType || 'no_vat', 
-                            createRule: !g.suggestion // Default to true if manual identified
+                            accountId: firstTx.allocatedTo?.value || g.suggestion?.accountId || '', 
+                            vatType: client?.isVatRegistered ? (firstTx.vatType || g.suggestion?.vatType || 'no_vat') : 'no_vat', 
+                            createRule: firstTx.allocationSource === 'ai' || !g.suggestion
                         }; 
                     }
                 });
@@ -1511,10 +1525,15 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
 
             const updatedGroups = groups.map(group => {
                 const description = group.transactions[0].description;
-                const match = allRules.find(r => r.keywords.some(kw => description.toUpperCase().includes(kw.toUpperCase())));
+                const keywords0 = Array.isArray(allRules[0]?.keywords) ? allRules[0]?.keywords : [];
+                const match = allRules.find(r => {
+                    const kws = Array.isArray(r.keywords) ? r.keywords as string[] : (r.keywords ? [r.keywords as string] : []);
+                    return kws.some(kw => description.toUpperCase().includes(kw.toUpperCase()));
+                });
                 
                 if (match) {
-                    const keyword = match.keywords.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
+                    const kws = Array.isArray(match.keywords) ? match.keywords as string[] : (match.keywords ? [match.keywords as string] : []);
+                    const keyword = kws.find(kw => description.toUpperCase().includes(kw.toUpperCase()));
                     const newSuggestion: SmartAllocationResult = {
                         accountId: match.accountId,
                         accountType: match.accountType || 'account',
@@ -1628,7 +1647,12 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 vatType: settings.vatType || 'no_vat'
             });
 
-            if (settings.createRule) {
+            const firstTx = group.transactions[0];
+            const alreadyHasRule = client?.allocationRules?.some((r: any) => 
+                r.keywords?.some((kw: string) => kw.toUpperCase() === group.merchantKey.toUpperCase())
+            );
+
+            if (!alreadyHasRule && (settings.createRule || firstTx.allocationSource === 'ai')) {
                 const ruleId = `rule_${Math.random().toString(36).substr(2, 9)}`;
                 batch.update(doc(db, 'aiAccountantClients', client.uid), { 
                     allocationRules: arrayUnion({ 
@@ -1637,7 +1661,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         keywords: [group.merchantKey.toUpperCase()], 
                         accountId: settings.accountId, 
                         accountType: group.suggestion?.accountType || 'account',
-                        vatType: settings.vatType || 'no_vat', 
+                        vatType: client.isVatRegistered ? (settings.vatType || 'no_vat') : 'no_vat', 
                         type: 'hard', 
                         scope: 'client', 
                         priority: 99 
@@ -1666,8 +1690,12 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
         try {
             const batch = writeBatch(db);
             const transRef = collection(db, 'aiAccountantClients', client.uid, 'transactions');
+            const rulesToAdd: any[] = [];
+
             allocatableGroups.forEach(group => {
                 const settings = approvalSettings[group.merchantKey];
+                const firstTx = group.transactions[0];
+
                 group.transactions.forEach(tx => {
                     batch.update(doc(transRef, tx.id), {
                         status: 'reviewed',
@@ -1685,7 +1713,33 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                     accountId: settings.accountId,
                     vatType: settings.vatType || 'no_vat'
                 });
+
+                const alreadyHasRule = client?.allocationRules?.some((r: any) => 
+                    r.keywords?.some((kw: string) => kw.toUpperCase() === group.merchantKey.toUpperCase())
+                );
+                
+                if (!alreadyHasRule && (settings.createRule || firstTx.allocationSource === 'ai')) {
+                    const ruleId = `rule_${Math.random().toString(36).substr(2, 9)}`;
+                    rulesToAdd.push({ 
+                        id: ruleId, 
+                        description: `Auto-categorization for ${group.merchantKey}`, 
+                        keywords: [group.merchantKey.toUpperCase()], 
+                        accountId: settings.accountId, 
+                        accountType: group.suggestion?.accountType || 'account',
+                        vatType: client.isVatRegistered ? (settings.vatType || 'no_vat') : 'no_vat', 
+                        type: 'hard', 
+                        scope: 'client', 
+                        priority: 99 
+                    });
+                }
             });
+
+            if (rulesToAdd.length > 0) {
+                batch.update(doc(db, 'aiAccountantClients', client.uid), { 
+                    allocationRules: arrayUnion(...rulesToAdd) 
+                });
+            }
+
             await batch.commit();
             toast({ title: `Approved ${allocatableGroups.length} groups!` });
         } catch (e) { toast({ title: "Bulk Approval Failed", variant: "destructive" }); }
@@ -1701,17 +1755,47 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
     };
 
     const handleResearchWithAi = async (group: TransactionGroup) => {
-        if (!client) return;
+        if (!client?.uid) return;
         setIsResearchingId(group.merchantKey);
         try {
-            const res = await researchMerchantWithAi({
+            const res = await researchAndAutoApproveGroup({
                 clientId: client.uid,
+                merchantKey: group.merchantKey,
                 description: group.transactions[0].description,
                 chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
                 isVatRegistered: !!client.isVatRegistered,
-                isExpense: true // AI Workflow is exclusively expenses
+                transactionIds: group.transactions.map(t => t.id)
             });
-            toast({ title: "Research Complete" });
+
+            if (res.highConfidence) {
+                setApprovalSettings((prev: any) => ({
+                    ...prev,
+                    [group.merchantKey]: {
+                        ...prev[group.merchantKey],
+                        accountId: res.suggestion.accountId,
+                        vatType: res.suggestion.vatType || 'no_vat',
+                        createRule: true
+                    }
+                }));
+                toast({ 
+                    title: "High-Confidence Match (>90%)", 
+                    description: `Pre-filled allocation: ${res.suggestion.summary} (${res.suggestion.confidence}% confidence). Ready for approval.` 
+                });
+            } else {
+                setApprovalSettings((prev: any) => ({
+                    ...prev,
+                    [group.merchantKey]: {
+                        ...prev[group.merchantKey],
+                        accountId: res.suggestion.accountId,
+                        vatType: res.suggestion.vatType || 'no_vat',
+                        createRule: false
+                    }
+                }));
+                toast({ 
+                    title: "Research Complete", 
+                    description: `Suggested allocation: ${res.suggestion.summary} (${res.suggestion.confidence}% confidence)` 
+                });
+            }
         } catch (error) {
             console.error("Research Failed", error);
             toast({ title: "Research Failed", variant: "destructive" });
@@ -1719,6 +1803,59 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
             setIsResearchingId(null);
         }
     }
+
+    const handleGlobalAiSearchAndMatch = async () => {
+        if (!client?.uid || groups.length === 0) return;
+        setIsGlobalMatching(true);
+        
+        toast({ 
+            title: "AI Search & Auto-Match Started", 
+            description: `Performing internet research for ${onlySelectedGroups ? selectedGroupKeys.length : groups.length} merchant groups...` 
+        });
+
+        try {
+            let groupsToMatch = groups;
+            if (onlySelectedGroups && selectedGroupKeys.length > 0) {
+                groupsToMatch = groups.filter(g => selectedGroupKeys.includes(g.merchantKey));
+            }
+
+            if (!onlySelectedGroups) {
+                groupsToMatch = groupsToMatch.filter(g => !g.suggestion || g.suggestion.confidence < 95);
+            }
+
+            if (groupsToMatch.length === 0) {
+                toast({ title: "No Groups to Process", description: "All groups are already fully matched." });
+                setIsGlobalMatching(false);
+                return;
+            }
+
+            const payload = groupsToMatch.map(g => ({
+                merchantKey: g.merchantKey,
+                description: g.transactions[0].description,
+                transactionIds: g.transactions.map(t => t.id)
+            }));
+
+            const results = await bulkAiResearchAndMatch({
+                clientId: client.uid,
+                groups: payload,
+                chartOfAccounts: JSON.stringify(client.chartOfAccounts || []),
+                isVatRegistered: !!client.isVatRegistered
+            });
+
+            const highConfidenceCount = results.filter(r => !r.error && (r as any).highConfidence).length;
+            const updatedCount = results.filter(r => !r.error && !(r as any).highConfidence).length;
+
+            toast({
+                title: "AI Search & Match Completed",
+                description: `Successfully pre-filled ${highConfidenceCount} high-confidence groups (>90%) and updated suggestions for ${updatedCount} groups.`
+            });
+        } catch (e) {
+            console.error("Global AI Matching Failed", e);
+            toast({ title: "Process Failed", variant: "destructive" });
+        } finally {
+            setIsGlobalMatching(false);
+        }
+    };
 
     const handleAnalyzeComment = async (group: TransactionGroup) => {
         const comment = groupComments[group.merchantKey];
@@ -1785,7 +1922,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                 rows.push([
                     `  ${tx.description}`,
                     format(new Date(tx.date), 'dd/MM/yyyy'),
-                    tx.amount,
+                    tx.amount.toString(),
                     '',
                     ''
                 ]);
@@ -1943,6 +2080,10 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                         {isAiRegrouping ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
                         AI Smart Group
                     </Button>
+                    <Button variant="outline" onClick={handleGlobalAiSearchAndMatch} disabled={isGlobalMatching || groups.length === 0} className="border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/5">
+                        {isGlobalMatching ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                        AI Search & Auto-Match
+                    </Button>
                     <Button variant="outline" onClick={handleRecheckRules} disabled={isRechecking}>
                         {isRechecking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4" />}
                         Recheck Rules
@@ -2081,7 +2222,7 @@ const AIWorkflowTab = ({ client, bankAccountId, onAccountCreated }: {
                                                 No Match Found
                                             </Badge>
                                         )}
-                                        {!group.suggestion && (
+                                        {(!group.suggestion || group.suggestion.confidence < 95) && (
                                             <Button variant="ghost" size="sm" className="h-7 text-xs text-primary font-bold" onClick={() => handleResearchWithAi(group)} disabled={isResearchingId === group.merchantKey}>
                                                 {isResearchingId === group.merchantKey ? <Loader2 className="mr-1 h-3 w-3 animate-spin"/> : <Sparkles className="mr-1 h-3 w-3"/>}
                                                 Research with AI
@@ -2509,7 +2650,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, suppliers, globalRules,
                                                     <CommandList>
                                                         <CommandEmpty>No results found.</CommandEmpty>
                                                         <CommandGroup heading="GL Accounts">
-                                                            {client?.chartOfAccounts?.map(a => (
+                                                            {client?.chartOfAccounts?.map((a: ChartOfAccount) => (
                                                                 <CommandItem 
                                                                     key={a.id} 
                                                                     value={a.description}
@@ -2586,7 +2727,7 @@ const ReviewedTab = ({ client, bankAccountId, customers, suppliers, globalRules,
                                         ) : tx.allocationSource === 'global_db' ? (
                                             <Badge variant="outline" className="text-[10px] gap-1 border-green-500/30 text-green-600"><RotateCcw className="h-3 w-3"/> Smart DB</Badge>
                                         ) : (
-                                            <Badge variant="ghost" className="text-[10px] opacity-50">Manual</Badge>
+                                            <Badge variant="secondary" className="text-[10px] opacity-50">Manual</Badge>
                                         )}
                                     </TableCell>
                                     {client?.isVatRegistered && (

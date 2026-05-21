@@ -41,7 +41,7 @@ export async function extractInvoiceData(
 
 const prompt = ai.definePrompt({
   name: 'extractInvoiceDataPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: { schema: ExtractInvoiceDataInputSchema },
   output: { schema: ExtractInvoiceDataOutputSchema },
   prompt: `You are an expert OCR and data extraction agent specializing in South African supplier invoices.

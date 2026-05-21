@@ -52,7 +52,7 @@ export function PendingSetupScreen({ user }: { user: User }) {
             }
 
             // Redirect to PayFast
-            const payfastUrl = 'https://www.payfast.co.za/eng/process';
+            const payfastUrl = process.env.NEXT_PUBLIC_PAYFAST_PROCESS_URL || 'https://www.payfast.co.za/eng/process';
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = payfastUrl;
@@ -66,8 +66,8 @@ export function PendingSetupScreen({ user }: { user: User }) {
                 name_first: user.name.split(' ')[0],
                 name_last: user.name.split(' ').slice(1).join(' '),
                 email_address: user.email,
-                m_payment_id: setupOrder.id,
-                amount: setupOrder.total.toFixed(2),
+                m_payment_id: (setupOrder as any).id,
+                amount: (setupOrder as any).total.toFixed(2),
                 item_name: `BEI Practice Activation & Setup`,
             };
 

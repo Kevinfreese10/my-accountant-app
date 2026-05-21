@@ -145,11 +145,11 @@ export default function EmployeesPage() {
               const baseValue = employee.payType === 'Hourly' ? (employee.hourlyRate || 0) : (employee.basicSalary || 0);
               const res = await generateEmployeePayslipAction({
                   clientId,
-                  employeeId: employee.id,
+                  employeeId: employee.id || '',
                   basicSalary: baseValue
               });
               
-              if (res.success && res.id) {
+              if (res.success && 'id' in res) {
                   const newSnap = await getDoc(doc(db, 'aiPayrollClients', clientId, 'payslips', res.id));
                   if (newSnap.exists()) {
                       setEditingPayslip({ id: newSnap.id, ...newSnap.data() } as Payslip);
@@ -203,7 +203,7 @@ export default function EmployeesPage() {
   const filteredEmployees = employees.filter(emp => 
     `${emp.name} ${emp.surname}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.idNumber.includes(searchTerm) ||
-    emp.jobTitle.toLowerCase().includes(searchTerm.toLowerCase())
+    (emp.jobTitle || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -382,7 +382,7 @@ export default function EmployeesPage() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDeleteEmployee(emp.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                    <AlertDialogAction onClick={() => handleDeleteEmployee(emp.id || '')} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                     Confirm Removal
                                     </AlertDialogAction>
                                 </AlertDialogFooter>

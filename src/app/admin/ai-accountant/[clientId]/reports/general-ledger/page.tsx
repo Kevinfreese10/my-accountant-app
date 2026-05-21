@@ -210,9 +210,9 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
 
             if(isJournal) {
                  // Map sub-ledger actor IDs back to their Control Accounts
-                 let targetGLId = tx.allocatedTo!.value;
-                 if (tx.allocatedTo.type === 'supplier') targetGLId = supplierControlAccountId;
-                 else if (tx.allocatedTo.type === 'customer') targetGLId = customerControlAccountId;
+                 let targetGLId = tx.allocatedTo?.value || '';
+                 if (tx.allocatedTo?.type === 'supplier') targetGLId = supplierControlAccountId;
+                 else if (tx.allocatedTo?.type === 'customer') targetGLId = customerControlAccountId;
 
                  const entry = grouped.get(targetGLId);
                  if (entry) {
@@ -238,7 +238,7 @@ function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toA
                 }
 
                  // 1. Bank Account Entry
-                const bankEntry = grouped.get(tx.bankAccountId);
+                const bankEntry = grouped.get(tx.bankAccountId || '');
                 if (bankEntry) {
                     bankEntry.transactions.push({
                         id: tx.id,

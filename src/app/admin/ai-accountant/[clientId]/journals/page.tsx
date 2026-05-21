@@ -107,8 +107,8 @@ function EditJournalDialog({ isOpen, onOpenChange, journalEntries, client, actor
                 date: isNaN(entryDate.getTime()) ? new Date() : entryDate,
                 lines: journalEntries.map(entry => ({
                     id: entry.id,
-                    accountId: entry.allocatedTo.value,
-                    accountType: entry.allocatedTo.type || 'account',
+                    accountId: entry.allocatedTo?.value || '',
+                    accountType: entry.allocatedTo?.type || 'account',
                     description: entry.description,
                     amount: entry.amount,
                     vatType: entry.vatType || 'no_vat',
@@ -675,7 +675,7 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
     const groupedJournals = useMemo(() => {
         const grouped = new Map<string, AllocatedTransaction[]>();
         allJournals.forEach(tx => {
-            const key = tx.reference;
+            const key = tx.reference || '';
             if (!grouped.has(key)) grouped.set(key, []);
             grouped.get(key)?.push(tx);
         });
@@ -816,7 +816,7 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                                                                 <AlertDialogHeader><AlertDialogTitle>Delete Journal {ref}?</AlertDialogTitle><AlertDialogDescription>This will remove all associated transactions from the ledger.</AlertDialogDescription></AlertDialogHeader>
                                                                 <AlertDialogFooter>
                                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                    <AlertDialogAction onClick={() => handleDeleteJournal(ref)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                                                                    <AlertDialogAction onClick={() => handleDeleteJournal(ref || '')} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
                                                                 </AlertDialogFooter>
                                                             </AlertDialogContent>
                                                         </AlertDialog>
@@ -856,12 +856,12 @@ function JournalManager({ clientId, client, journalType, fetchAllData, allJourna
                             </TableHeader>
                             <TableBody>
                                 {viewingJournal?.map((tx, idx) => {
-                                    const account = client?.chartOfAccounts?.find(a => a.id === tx.allocatedTo.value);
+                                    const account = client?.chartOfAccounts?.find(a => a.id === tx.allocatedTo?.value);
                                     const date = tx.date?.toDate ? tx.date.toDate() : new Date(tx.date);
                                     return (
                                         <TableRow key={idx}>
                                             <TableCell className="text-xs">{format(date, 'dd/MM/yyyy')}</TableCell>
-                                            <TableCell className="text-xs font-bold">{account?.description || tx.allocatedTo.value}</TableCell>
+                                            <TableCell className="text-xs font-bold">{account?.description || tx.allocatedTo?.value}</TableCell>
                                             <TableCell className="text-xs italic">{tx.description}</TableCell>
                                             <TableCell className="text-right font-mono">{tx.amount > 0 ? formatPrice(tx.amount) : ''}</TableCell>
                                             <TableCell className="text-right font-mono">{tx.amount < 0 ? formatPrice(Math.abs(tx.amount)) : ''}</TableCell>

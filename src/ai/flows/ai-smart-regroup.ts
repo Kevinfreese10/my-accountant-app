@@ -35,7 +35,7 @@ export async function aiSmartRegroup(input: AISmartRegroupInput): Promise<AISmar
 
 const prompt = ai.definePrompt({
   name: 'aiSmartRegroupPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: { schema: AISmartRegroupInputSchema },
   output: { schema: AISmartRegroupOutputSchema },
   prompt: `You are an expert South African data normalization agent for an accounting firm. 

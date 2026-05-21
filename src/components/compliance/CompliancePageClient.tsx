@@ -14,9 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getFirestore, addDoc, doc, setDoc, serverTimestamp, collection, Timestamp, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { customAlphabet } from 'nanoid';
-import { sendEmail } from '@/lib/email';
-import { render } from '@react-email/components';
-import WelcomeDiscountEmail from '@/components/emails/WelcomeDiscountEmail';
+import { sendWelcomeDiscountEmailAction } from '@/app/actions';
 import { DiscountCode, Task, User } from '@/lib/types';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import { format } from 'date-fns';
@@ -110,11 +108,10 @@ function ComplianceFormCard({ onComplete }: { onComplete: () => void }) {
           await addDoc(collection(db, 'tasks'), taskData);
       }
 
-      const emailHtml = render(<WelcomeDiscountEmail name={values.yourName} discountCode={discountCode} />);
-      await sendEmail({
-        to: values.yourEmail,
-        subject: `Your Free Compliance Assessment & 5% Discount!`,
-        html: emailHtml,
+      await sendWelcomeDiscountEmailAction({
+        email: values.yourEmail,
+        name: values.yourName,
+        discountCode: discountCode
       });
 
       toast({

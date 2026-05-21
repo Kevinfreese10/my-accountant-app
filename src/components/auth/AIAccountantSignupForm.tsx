@@ -21,10 +21,8 @@ import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Order } from '@/lib/types';
 import { getNextOrderId } from '@/lib/sequence';
+import { sendAIAccountantWelcomeEmailAction } from '@/app/actions';
 import { Timestamp } from 'firebase/firestore';
-import { sendEmail } from '@/lib/email';
-import { render } from '@react-email/components';
-import AIAccountantWelcomeEmail from '../emails/AIAccountantWelcomeEmail';
 
 
 const auth = getAuth(firebaseApp);
@@ -133,12 +131,9 @@ export default function AIAccountantSignupForm() {
 
         // Send welcome email
         try {
-            const emailHtml = render(<AIAccountantWelcomeEmail name={values.name} loginUrl={`${process.env.NEXT_PUBLIC_APP_URL}/login`} />);
-            await sendEmail({
-                to: values.email,
-                subject: `Welcome to My Accountant!`,
-                html: emailHtml,
-                bcc: 'kev@thinkestry.co.za',
+            await sendAIAccountantWelcomeEmailAction({
+                email: values.email,
+                name: values.name
             });
         } catch (emailError) {
             console.error("Failed to send welcome email:", emailError);

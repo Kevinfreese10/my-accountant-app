@@ -45,7 +45,7 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             name: staffMember?.name || '',
             email: staffMember?.email || '',
             password: '',
-            department: staffMember?.department || 'Administration',
+            department: (departments.includes(staffMember?.department as any) ? staffMember?.department : 'Administration') as 'Accounting and Tax' | 'Administration' | 'CAP',
             role: staffMember?.role === 'admin' ? 'admin' : 'staff',
         },
     });
@@ -53,10 +53,13 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
     const isEditing = !!staffMember;
 
     useEffect(() => {
-        if(isEditing){
+        if(isEditing && staffMember){
             form.reset({
-                ...staffMember,
-                role: staffMember?.role === 'admin' ? 'admin' : 'staff',
+                uid: staffMember.uid || '',
+                name: staffMember.name || '',
+                email: staffMember.email || '',
+                department: (departments.includes(staffMember.department as any) ? staffMember.department : 'Administration') as 'Accounting and Tax' | 'Administration' | 'CAP',
+                role: staffMember.role === 'admin' ? 'admin' : 'staff',
                 password: ''
             });
         } else {
@@ -199,9 +202,7 @@ export default function AdminStaffPage() {
                 createdAt: serverTimestamp(),
             });
 
-            if (adminUser.email && adminUser.password) {
-               await login(adminUser.email, adminUser.password);
-            }
+            // Re-login after creating new user is handled by the auth state listener
 
 
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });

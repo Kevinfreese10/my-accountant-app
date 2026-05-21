@@ -159,7 +159,7 @@ export default function ClientCustomersPage() {
                                 </DialogDescription>
                             </DialogHeader>
                              <ClientForm 
-                                client={selectedCustomer} 
+                                client={selectedCustomer as any} 
                                 onSubmit={handleFormSubmit}
                                 onCancel={() => setIsFormOpen(false)}
                                 isAIClient={true}

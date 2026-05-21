@@ -21,7 +21,7 @@ const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'
 
 const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return users.find(u => u.id === userId);
+    return users.find(u => u.id === userId) as User | undefined;
 }
 
 const getPriorityVariant = (priority: Task['priority'], dueDate: any) => {

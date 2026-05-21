@@ -29,7 +29,7 @@ export type ExtractStatementDataOutput = z.infer<typeof ExtractStatementDataOutp
 
 const prompt = ai.definePrompt({
   name: 'extractStatementDataPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.5-flash',
   input: { schema: ExtractStatementDataInputSchema },
   output: { schema: ExtractStatementDataOutputSchema },
   prompt: `You are an expert OCR and data extraction agent specializing in South African bank statements.
@@ -77,7 +77,7 @@ export async function extractStatementData(
     });
 
     const { output } = await customAi.generate({
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-3.5-flash',
       output: { schema: ExtractStatementDataOutputSchema },
       prompt: [
         { text: `You are an expert OCR and data extraction agent specializing in South African bank statements.

@@ -93,7 +93,7 @@ export type OrderNote = {
   authorId: string;
   type?: 'note' | 'email';
   subject: string | null;
-  attachments: { name: string; url: string }[] | null;
+  attachments?: { name: string; url: string }[] | null;
   attachmentUrl?: string | null; // For legacy single attachments
   attachmentName?: string | null; // For legacy single attachments
 };
@@ -105,15 +105,23 @@ export type ItnLog = {
   payload: { [key: string]: any };
 };
 
+export type OrderStatusHistoryEntry = {
+  status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled' | 'Outsourced';
+  changedAt: any; // Firestore Timestamp
+  changedBy: string; // userId or 'system' or 'payfast_itn'
+  changedByName: string; // user.name or 'System' or 'PayFast ITN'
+  notes?: string;
+};
+
 export type Order = {
   id: string;
   userId?: string | null;
-  resellerId?: string;
+  resellerId?: string | null;
   customerName: string;
   customerEmail: string;
-  customerPhone?: string;
-  endCustomerName?: string; 
-  endCustomerEmail?: string; 
+  customerPhone?: string | null;
+  endCustomerName?: string | null; 
+  endCustomerEmail?: string | null; 
   date: any;
   items: any[];
   total: number;
@@ -121,7 +129,7 @@ export type Order = {
   discountAmount: number | null;
   paymentMethod?: string;
   clientTotal?: number;
-  status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled';
+  status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled' | 'Outsourced';
   isOutsourced?: boolean;
   assignedTo?: string[] | null;
   department?: 'Accounting and Tax' | 'Administration' | 'CAP' | null;
@@ -129,9 +137,10 @@ export type Order = {
   notes?: OrderNote[];
   documentUploads?: DocumentUpload[];
   itnHistory?: ItnLog[];
+  statusHistory?: OrderStatusHistoryEntry[];
   source?: 'Client' | 'Staff' | 'Partner' | 'AI Accountant Signup' | 'Partner Landing Page' | 'Franchise';
   renewalForClientId?: string;
-  documentContact?: 'partner' | 'client';
+  documentContact?: 'partner' | 'client' | 'reseller';
 };
 
 export type Invoice = {
@@ -287,8 +296,8 @@ export type User = {
   preparesManagementAccounts?: boolean;
   managementAccountsDay?: number;
   isVatRegistered?: boolean;
-  vatNumber?: string;
-  vatCategory?: 'A' | 'B' | 'C';
+  vatNumber?: string | null;
+  vatCategory?: 'A' | 'B' | 'C' | null;
   preparesPayroll?: boolean;
   payrollDay?: number;
   payrollDueDate?: any;
@@ -316,6 +325,11 @@ export type User = {
   payrollFrequency?: 'Monthly' | 'Weekly' | 'Fortnightly';
   firstRunStartDate?: any;
   franchise?: FranchiseConfig;
+  subscription?: SubscriptionData;
+  allocationRules?: AllocationRule[];
+  disableGlobalRules?: boolean;
+  chartOfAccounts?: ChartOfAccount[];
+  isBlankProfile?: boolean;
 };
 
 export type DiscountCode = {
@@ -344,6 +358,7 @@ export type Task = {
   dueDate: any;
   priority: 'High' | 'Medium' | 'Low';
   status: 'To-Do' | 'In Progress' | 'Review' | 'Done';
+  department?: string;
   recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly' | 'Bi-Monthly' | 'Semi-Annually' | 'Annually';
   type?: string;
   orderId?: string;
@@ -379,3 +394,171 @@ export const FindStoryNameOutputSchema = z.object({
   storyName: z.string().optional().describe('The corresponding story name found in the knowledge base. Returns nothing if no match is found.'),
 });
 export type FindStoryNameOutput = z.infer<typeof FindStoryNameOutputSchema>;
+
+export interface ExtractedInvoice {
+  supplier: string;
+  invoiceNumber: string;
+  date: string;
+  invoiceTotal: number;
+}
+
+export interface ClientCustomer {
+  id: string;
+  name: string;
+  vatNumber?: string;
+  contactPerson?: string;
+  email?: string;
+  cellNumber?: string;
+  address?: string;
+  street?: string;
+  suburb?: string;
+  city?: string;
+  country?: string;
+  zip?: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  vatNumber?: string;
+  email?: string;
+  contactNumber?: string;
+}
+
+export interface Employee {
+  id?: string;
+  name: string;
+  surname: string;
+  employeeCode: string;
+  idNumber: string;
+  bankingDetails?: {
+    bankName?: string;
+    accountHolder?: string;
+    accountNumber?: string;
+    branchCode?: string;
+    accountType?: string;
+  };
+  address?: {
+    street?: string;
+    suburb?: string;
+    city?: string;
+    province?: string;
+    zip?: string;
+  };
+  payType: 'Salary' | 'Hourly';
+  hourlyRate?: number;
+  isNetSalary?: boolean;
+  initials?: string;
+  cellNumber?: string;
+  email?: string;
+  jobTitle?: string;
+  department?: string;
+  joinDate?: any;
+  taxNumber?: string;
+  basicSalary?: number;
+  status?: string;
+}
+
+export interface PayslipItem {
+  label: string;
+  amount: number;
+  isStatutory?: boolean;
+}
+
+export interface Payslip {
+  id?: string;
+  employeeId?: string;
+  period?: string;
+  earnings: PayslipItem[];
+  deductions: PayslipItem[];
+  contributions: PayslipItem[];
+  fringeBenefits: PayslipItem[];
+  grossPay: number;
+  netPay: number;
+  hoursWorked?: number;
+  frequency?: string;
+  status?: string;
+  employeeName?: string;
+  date?: any;
+  totalDeductions?: number;
+}
+
+export interface AllocationRule {
+  id: string;
+  pattern: string;
+  accountId: string;
+  vatType: string;
+  descriptionOverride?: string;
+  description?: string;
+  keywords?: string[] | string;
+  priority?: number;
+  accountType?: string;
+}
+
+export interface ChartOfAccount {
+  id: string;
+  code?: string;
+  name?: string;
+  type?: string;
+  category?: string;
+  accountNumber: string;
+  description: string;
+  section: 'Income Statement' | 'Balance Sheet' | string;
+}
+
+export type VatType = 
+  | 'standard_rated_sales'
+  | 'zero_rated_sales'
+  | 'exempt_sales'
+  | 'standard_rated_purchases'
+  | 'capital_goods_purchases'
+  | 'zero_rated_purchases'
+  | 'exempt_purchases'
+  | 'no_vat';
+
+export interface ImportedTransaction {
+  id: string;
+  date: any;
+  description: string;
+  amount: number;
+  reference?: string;
+  merchantKey?: string;
+  isExpense?: boolean;
+  cleanDescription?: string;
+  vatType?: string;
+  vatAmount?: number;
+  netAmount?: number;
+  allocatedTo?: { value: string; type: 'account' | 'supplier' | 'customer' };
+  status?: string;
+  smartAllocationResult?: SmartAllocationResult;
+  clientComment?: string;
+  allocationSource?: string;
+  ruleId?: string;
+  matchedRuleId?: string;
+  matchedKeyword?: string;
+  bankAccountId?: string;
+  auditFiles?: { name: string; url: string }[];
+}
+
+export interface AllocatedTransaction extends ImportedTransaction {
+  accountId: string;
+  vatType: string;
+  vatAmount: number;
+  netAmount: number;
+  allocationSource: 'rule' | 'ai' | 'manual';
+  confidence?: number;
+  ruleId?: string;
+}
+
+export interface SmartAllocationResult {
+  accountId: string;
+  vatType: string;
+  confidence: number;
+  reasoning?: string;
+  summary?: string;
+  suggestedKeyword?: string;
+  accountType?: string;
+  ruleId?: string;
+  matchedRuleId?: string;
+  matchedKeyword?: string;
+}

@@ -2,9 +2,66 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow read and write access to any file for any authenticated user.
-    match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+    
+    // Core Role Helpers
+    function getRole() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdminOrStaff() {
+      return request.auth != null && (
+        getRole() == 'admin' ||
+        getRole() == 'staff' ||
+        getRole() == 'cap_staff' ||
+        getRole() == 'cap_supervisor'
+      );
+    }
+
+    function isOwnerOrStaffOrPartner(userId) {
+      return request.auth != null && (
+        request.auth.uid == userId ||
+        isAdminOrStaff() ||
+        (firestore.exists(/databases/(default)/documents/users/$(userId)) && 
+         firestore.get(/databases/(default)/documents/users/$(userId)).data.partnerId == request.auth.uid) ||
+        (firestore.exists(/databases/(default)/documents/aiAccountantClients/$(userId)) && 
+         firestore.get(/databases/(default)/documents/aiAccountantClients/$(userId)).data.partnerId == request.auth.uid)
+      );
+    }
+
+    function canAccessOrderStorage(orderId) {
+      return request.auth != null && (
+        isAdminOrStaff() ||
+        (firestore.exists(/databases/(default)/documents/orders/$(orderId)) && (
+          firestore.get(/databases/(default)/documents/orders/$(orderId)).data.userId == request.auth.uid ||
+          firestore.get(/databases/(default)/documents/orders/$(orderId)).data.resellerId == request.auth.uid ||
+          firestore.get(/databases/(default)/documents/orders/$(orderId)).data.partnerId == request.auth.uid
+        ))
+      );
+    }
+
+    // Segmented Storage Rules
+    
+    // 1. User Uploads
+    match /uploads/{userId}/{filename} {
+      allow read, write: if isOwnerOrStaffOrPartner(userId);
+    }
+
+    // 2. VAT Audit Documents
+    match /vat-audit-docs/{clientId}/{txId}/{uniqueFileName} {
+      allow read, write: if isOwnerOrStaffOrPartner(clientId);
+    }
+
+    // 3. Orders Documents & Notes
+    match /orders/{orderId}/{filename} {
+      allow read, write: if canAccessOrderStorage(orderId);
+    }
+    match /orders/{orderId}/notes/{filename} {
+      allow read, write: if canAccessOrderStorage(orderId);
+    }
+
+    // 4. Partner Applications
+    match /partner-applications/{authUid}/{filename} {
+      allow read, write: if request.auth != null && (request.auth.uid == authUid || isAdminOrStaff());
     }
   }
 }
