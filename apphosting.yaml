@@ -27,13 +27,13 @@ env:
 
   # PayFast Client Configuration (Sandbox / Production)
   - variable: NEXT_PUBLIC_PAYFAST_MERCHANT_ID
-    value: "23836312"
+    value: "10042278"
     availability:
       - BUILD
       - RUNTIME
 
   - variable: NEXT_PUBLIC_PAYFAST_MERCHANT_KEY
-    value: "h4fkhz6ouoksx"
+    value: "qqci9vis4sszy"
     availability:
       - BUILD
       - RUNTIME
