@@ -1,21 +1,18 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
-import { useParams, notFound, useRouter } from 'next/navigation';
-import { getFirestore, doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { useParams, notFound } from 'next/navigation';
+import { getFirestore, doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote } from '@/lib/types';
-import { Loader2, CheckCircle, Banknote } from 'lucide-react';
+import { Order, Service, User } from '@/lib/types';
+import { Loader2, CheckCircle, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { format, addDays } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { services as allServices } from '@/lib/data';
-import { render } from '@react-email/components';
-import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
-import { sendEmail } from '@/lib/email';
-import { useToast } from '@/hooks/use-toast';
 
 const db = getFirestore(firebaseApp);
 
@@ -33,107 +30,51 @@ export default function PaymentSuccessPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [assignee, setAssignee] = useState<User | null>(null);
     const { user: currentUser } = useAuth();
-    const { toast } = useToast();
 
     useEffect(() => {
-        if (orderId) {
-            const fetchOrderDetails = async () => {
-                setIsLoading(true);
-                const orderRef = doc(db, 'orders', orderId);
-                const orderSnap = await getDoc(orderRef);
+        if (!orderId) return;
 
-                if (orderSnap.exists()) {
-                    const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
-                    
-                    // Trigger Google Customer Reviews Opt-in
-                    const deliveryDate = format(addDays(new Date(), 10), 'yyyy-MM-dd');
-                    if (typeof window !== 'undefined' && (window as any).renderOptIn) {
-                        (window as any).renderOptIn({
-                            id: orderData.id,
-                            customerEmail: orderData.customerEmail,
-                            estimated_delivery_date: deliveryDate
-                        });
-                    }
+        // Real-time listener — the PayFast ITN fires asynchronously after the
+        // return_url redirect, so we watch for the status to flip to Processing.
+        const orderRef = doc(db, 'orders', orderId);
+        const unsubscribe = onSnapshot(orderRef, async (orderSnap) => {
+            if (!orderSnap.exists()) {
+                notFound();
+                return;
+            }
 
-                    // Fetch reseller details if it's a white-label order
-                    let resellerData: User | undefined;
-                    if (orderData.resellerId) {
-                        const resellerSnap = await getDoc(doc(db, 'users', orderData.resellerId));
-                        if (resellerSnap.exists()) {
-                            resellerData = { ...resellerSnap.data(), id: resellerSnap.id } as User;
-                        }
-                    }
+            const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
 
-                    // CHECK IF NOTIFICATION HAS BEEN SENT
-                    const alreadyNotified = orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`);
+            // Trigger Google Customer Reviews Opt-in once
+            if (isLoading && typeof window !== 'undefined' && (window as any).renderOptIn) {
+                const deliveryDate = format(addDays(new Date(), 10), 'yyyy-MM-dd');
+                (window as any).renderOptIn({
+                    id: orderData.id,
+                    customerEmail: orderData.customerEmail,
+                    estimated_delivery_date: deliveryDate,
+                });
+            }
 
-                    if (!alreadyNotified) {
-                        const itemsWithServices = orderData.items.map(item => {
-                            const service = allServices.find(s => s.id === item.id);
-                            return { ...item, service };
-                        }).filter(item => item.service) as { service: Service }[];
+            setOrder(orderData);
+            setIsLoading(false);
 
-                        const emailHtml = render(
-                            <DocumentRequestEmail 
-                                order={orderData} 
-                                items={itemsWithServices} 
-                                reseller={resellerData}
-                                replyTo={resellerData?.email || "info@myacc.co.za"} 
-                            />
-                        );
-                        
-                        const attachments = itemsWithServices
-                            .filter(item => item.service.attachmentUrl)
-                            .map(item => ({
-                                filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
-                                path: item.service.attachmentUrl!,
-                            }));
-                        
-                        const recipientEmail = orderData.resellerId && orderData.endCustomerEmail 
-                            ? orderData.endCustomerEmail 
-                            : orderData.customerEmail;
-
-                        try {
-                            await sendEmail({
-                                to: recipientEmail,
-                                subject: `Action Required for Your Order #${orderId}`,
-                                html: emailHtml,
-                                attachments: attachments,
-                                resellerId: orderData.resellerId || undefined,
-                            });
-                             const emailNote: OrderNote = {
-                                text: `Sent "Request Documents" email to ${recipientEmail} (Payment Successful).`,
-                                date: Timestamp.now(),
-                                authorId: 'system',
-                                type: 'email',
-                                subject: `Action Required for Your Order #${orderId}`,
-                                attachments: null,
-                            };
-                            await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
-                        } catch(e) {
-                             console.error("Failed to send document request email:", e);
-                             toast({ title: 'Email Failed', description: 'Could not notify client. Please check your SMTP settings.', variant: 'destructive'});
-                        }
-                    }
-                    
-                    setOrder(orderData);
-
-                    if (orderData.assignedTo && orderData.assignedTo.length > 0) {
-                         const staffQuery = query(collection(db, "users"), where('uid', '==', orderData.assignedTo[0]));
-                         const staffSnapshot = await getDocs(staffQuery);
-                         if (!staffSnapshot.empty) {
-                             setAssignee(staffSnapshot.docs[0].data() as User);
-                         }
-                    }
-                } else {
-                    notFound();
+            // Fetch assignee if set
+            if (orderData.assignedTo && orderData.assignedTo.length > 0 && !assignee) {
+                const staffQuery = query(
+                    collection(db, 'users'),
+                    where('uid', '==', orderData.assignedTo[0])
+                );
+                const staffSnapshot = await getDocs(staffQuery);
+                if (!staffSnapshot.empty) {
+                    setAssignee(staffSnapshot.docs[0].data() as User);
                 }
-                setIsLoading(false);
-            };
+            }
+        }, () => {
+            setIsLoading(false);
+        });
 
-            fetchOrderDetails();
-        }
-    }, [orderId, toast]);
+        return () => unsubscribe();
+    }, [orderId]);
 
     const orderUrl = useMemo(() => {
         if (!currentUser) return '/login';
@@ -166,13 +107,28 @@ export default function PaymentSuccessPage() {
             <Card>
                 <CardHeader className="text-center">
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
-                    <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
+                    <CardTitle className="text-3xl mt-4">Payment Received!</CardTitle>
                     <CardDescription>
-                       We have received your order. Please complete your payment to begin processing.
+                        Thank you — your payment was successful. We are now processing your order.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
-                     <section>
+
+                    {/* Real-time order status indicator */}
+                    <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
+                        <span className="text-sm font-medium text-muted-foreground">Order Status</span>
+                        {order.status === 'Processing' ? (
+                            <Badge variant="info" className="flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" /> Processing
+                            </Badge>
+                        ) : (
+                            <Badge variant="warning" className="flex items-center gap-1">
+                                <Clock className="h-3 w-3 animate-spin" /> Confirming payment…
+                            </Badge>
+                        )}
+                    </div>
+
+                    <section>
                         <h3 className="font-semibold text-lg mb-2">Order Summary</h3>
                         <div className="border rounded-lg p-4 space-y-2">
                            <div className="flex justify-between text-sm">
@@ -190,18 +146,18 @@ export default function PaymentSuccessPage() {
                                     <p className="font-semibold">{formatPrice(item.price)}</p>
                                 </div>
                             ))}
-                             <Separator />
+                            <Separator />
                             <div className="flex justify-between font-bold text-lg">
-                                <p>Total Due</p>
+                                <p>Total Paid</p>
                                 <p>{formatPrice(order.clientTotal || order.total)}</p>
                             </div>
                         </div>
                     </section>
-                    
+
                     <section>
-                        <h3 className="font-semibold text-lg mb-2">Next Steps: Action Required</h3>
-                         <p className="text-sm text-muted-foreground mb-4">
-                            To get started, please click the button below to log into your dashboard. You can then securely upload all the required documents so that we can start processing your order immediately.
+                        <h3 className="font-semibold text-lg mb-2">Next Steps</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            We have emailed you the documents required to get started. You can also log into your dashboard to securely upload everything so we can begin processing your order immediately.
                         </p>
                         <div className="space-y-4">
                             {orderedServices.map(service => (
@@ -216,7 +172,7 @@ export default function PaymentSuccessPage() {
                             ))}
                         </div>
                     </section>
-                    
+
                     <div className="text-center pt-4">
                         <Button asChild size="lg">
                             <Link href={orderUrl}>
