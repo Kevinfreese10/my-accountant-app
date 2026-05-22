@@ -1,5 +1,5 @@
 export const dynamic = 'force-static';
-export const revalidate = false;
+export const revalidate = 86400;
 import { getFirestore, collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { BlogPost, Service } from '@/lib/types';

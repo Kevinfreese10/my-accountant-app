@@ -170,7 +170,9 @@ export default async function BlogPostPage({ params }: Props) {
                     </CardContent>
                     <CardFooter>
                         <Button asChild className="w-full">
-                        <Link href={`/products/${service.slug}`}>Learn More</Link>
+                        <Link href={`/products/${service.slug}`} aria-label={`Learn more about ${service.title}`}>
+                          Learn More <span className="sr-only">about {service.title}</span>
+                        </Link>
                         </Button>
                     </CardFooter>
                     </Card>

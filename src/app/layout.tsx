@@ -70,7 +70,7 @@ export default function RootLayout({
   const organizationSchema = generateOrganizationSchema();
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en-ZA" suppressHydrationWarning>
       <head>
         <ExternalScripts />
         <Script

@@ -23,6 +23,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { customAlphabet } from 'nanoid';
+import { getPayFastConfig } from '@/lib/payfast';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -44,6 +45,43 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
   const [isLoading, setIsLoading] = useState(false);
   const [linkedUser, setLinkedUser] = useState<{name: string, id: string} | null>(null);
   const [isCheckingUser, setIsCheckingUser] = useState(false);
+
+  const submitToPayFast = (order: Order) => {
+    const { processUrl, merchantId, merchantKey } = getPayFastConfig();
+    const formElement = document.createElement('form');
+    formElement.method = 'POST';
+    formElement.action = processUrl;
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za');
+    const cancelUrl = typeof window !== 'undefined' ? window.location.href : `${origin}/products`;
+
+    const data: { [key: string]: string } = {
+        merchant_id: merchantId,
+        merchant_key: merchantKey,
+        return_url: `${origin}/payment-success/${order.id}`,
+        cancel_url: cancelUrl,
+        notify_url: `${origin}/api/payfast/notify`,
+        name_first: order.customerName.split(' ')[0],
+        name_last: order.customerName.split(' ').slice(1).join(' '),
+        email_address: order.customerEmail,
+        cell_number: order.customerPhone || '',
+        m_payment_id: order.id,
+        amount: order.total.toFixed(2),
+        item_name: `Order #${order.id}`,
+        item_description: order.items.map(i => i.title).join(', '),
+    };
+
+    for (const key in data) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = data[key];
+        formElement.appendChild(input);
+    }
+    
+    document.body.appendChild(formElement);
+    formElement.submit();
+  }
 
   const form = useForm<z.infer<typeof checkoutSchema>>({
       resolver: zodResolver(checkoutSchema),
@@ -282,7 +320,11 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
             });
         }
 
-        router.push(`/order-confirmation/${orderId}`);
+        if (orderData.paymentMethod === 'PayFast') {
+            submitToPayFast(orderData);
+        } else {
+            router.push(`/order-confirmation/${orderId}`);
+        }
 
     } catch (error: any) {
       console.error("FATAL ERROR in ServiceCheckoutForm handleCheckout flow:", error);
@@ -326,10 +368,14 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
                                     {isCheckingUser && <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />}
                                 </div>
                             </FormControl>
-                            {linkedUser && (
+                            {linkedUser ? (
                                 <div className="flex items-center gap-2 text-[10px] text-green-600 font-bold bg-green-50 p-2 rounded border border-green-100 mt-1">
                                     <CheckCircle2 className="h-3 w-3" /> Matched: {linkedUser.name}
                                 </div>
+                            ) : (
+                                <FormDescription className="text-[11px] text-muted-foreground mt-1">
+                                    If you don't have an account yet, we'll create one for you so you can upload documents and communicate with accountants via your dashboard.
+                                </FormDescription>
                             )}
                             <FormMessage />
                         </FormItem> 

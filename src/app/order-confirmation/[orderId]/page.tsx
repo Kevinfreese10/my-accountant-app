@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { getPayFastConfig } from '@/lib/payfast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { addDays, format } from 'date-fns';
 
@@ -86,16 +87,16 @@ export default function OrderConfirmationPage() {
             return;
         }
 
-        const payfastUrl = process.env.NEXT_PUBLIC_PAYFAST_PROCESS_URL || 'https://www.payfast.co.za/eng/process';
+        const { processUrl, merchantId, merchantKey } = getPayFastConfig();
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = payfastUrl;
+        form.action = processUrl;
 
         const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za');
 
         const data: { [key: string]: string } = {
-            merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
-            merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
+            merchant_id: merchantId,
+            merchant_key: merchantKey,
             return_url: `${origin}/payment-success/${order.id}`,
             cancel_url: `${origin}/dashboard/orders`,
             notify_url: `${origin}/api/payfast/notify`,

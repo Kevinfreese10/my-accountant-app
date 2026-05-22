@@ -138,12 +138,30 @@ export function generateOrganizationSchema() {
     "url": baseUrl,
     "telephone": "+27-10-109-1625",
     "email": "info@myacc.co.za",
+    "priceRange": "$$",
     "address": {
       "@type": "PostalAddress",
       "streetAddress": "Ground Floor, Waterstone Building, Stonemill Office Park, 300 Acacia Road, Darrenwood",
       "addressLocality": "Johannesburg",
       "postalCode": "2195",
       "addressCountry": "ZA"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": -26.12260,
+      "longitude": 27.97905
+    },
+    "openingHoursSpecification": {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday"
+      ],
+      "opens": "08:00",
+      "closes": "17:00"
     },
     "sameAs": [
       "https://www.facebook.com/myaccountantza",

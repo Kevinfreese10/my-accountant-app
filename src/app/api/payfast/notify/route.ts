@@ -9,6 +9,7 @@ import React from 'react';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import { sendEmail } from '@/lib/email';
 import { services as allServices } from '@/lib/data';
+import { getPayFastConfig } from '@/lib/payfast';
 
 const db = getFirestore(firebaseApp);
 
@@ -94,8 +95,8 @@ function verifyPayFastSignature(rawBody: string, receivedSignature: string, pass
  */
 async function validateWithPayFast(rawBody: string): Promise<boolean> {
     try {
-        const isSandbox = process.env.NEXT_PUBLIC_PAYFAST_PROCESS_URL?.includes('sandbox');
-        const host = isSandbox ? 'sandbox.payfast.co.za' : 'www.payfast.co.za';
+        const { isProduction } = getPayFastConfig();
+        const host = isProduction ? 'www.payfast.co.za' : 'sandbox.payfast.co.za';
         const url = `https://${host}/eng/query/validate`;
         
         console.log(`ITN Validation: Performing postback to ${url}`);
@@ -187,7 +188,8 @@ export async function POST(req: NextRequest) {
         }
 
         // 4. Merchant ID Verification
-        const expectedMerchantId = process.env.PAYFAST_MERCHANT_ID || process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID;
+        const { merchantId: fallbackMerchantId } = getPayFastConfig();
+        const expectedMerchantId = process.env.PAYFAST_MERCHANT_ID || process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || fallbackMerchantId;
         if (expectedMerchantId && data.merchant_id && data.merchant_id.trim() !== expectedMerchantId.trim()) {
             console.error(`Merchant ID mismatch. Expected: ${expectedMerchantId}, Got: ${data.merchant_id}`);
             await updateDoc(orderRef, { 

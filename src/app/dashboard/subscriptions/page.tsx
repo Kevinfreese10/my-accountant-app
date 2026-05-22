@@ -17,6 +17,7 @@ import { getNextOrderId } from '@/lib/sequence';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
+import { getPayFastConfig } from '@/lib/payfast';
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -100,16 +101,16 @@ export default function SubscriptionsPage() {
             await setDoc(doc(db, 'orders', orderId), orderData);
             
             // Redirect to PayFast with subscription parameters
-            const payfastUrl = process.env.NEXT_PUBLIC_PAYFAST_PROCESS_URL || 'https://www.payfast.co.za/eng/process';
+            const { processUrl, merchantId, merchantKey } = getPayFastConfig();
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = payfastUrl;
+            form.action = processUrl;
 
             const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za');
 
             const data: { [key: string]: string } = {
-                merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
-                merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
+                merchant_id: merchantId,
+                merchant_key: merchantKey,
                 return_url: `${origin}/payment-success/${orderId}`,
                 cancel_url: `${origin}/dashboard/subscriptions`,
                 notify_url: `${origin}/api/payfast/notify`,
