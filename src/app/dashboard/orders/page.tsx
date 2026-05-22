@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Order } from '@/lib/types';
 import { useState, useEffect } from 'react';
-import { getFirestore, collection, query, where, getDocs, orderBy, or } from 'firebase/firestore';
+import { getFirestore, collection, query, where, onSnapshot, orderBy, or } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,40 +20,40 @@ export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const fetchOrders = async () => {
-            if (!user?.uid) return;
-            setIsLoading(true);
-            try {
-                // Expanded query to look for userId OR email match in customer/end-customer fields
-                const q = query(
-                    collection(db, 'orders'), 
-                    or(
-                        where('userId', '==', user.uid),
-                        where('customerEmail', '==', user.email),
-                        where('endCustomerEmail', '==', user.email)
-                    ),
-                    orderBy('date', 'desc')
-                );
-                
-                const querySnapshot = await getDocs(q);
-                const fetchedOrders = querySnapshot.docs.map(doc => {
-                    const data = doc.data();
-                    return {
-                        ...data,
-                        id: doc.id,
-                        date: data.date.toDate().toISOString(),
-                    } as Order;
-                });
-                // Deduplicate in case an order matches multiple conditions
-                const uniqueOrders = Array.from(new Map(fetchedOrders.map(o => [o.id, o])).values());
-                setOrders(uniqueOrders.filter(order => order.status !== 'Cancelled'));
-            } catch (error) {
-                console.error("Error fetching orders:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchOrders();
+        if (!user?.uid) return;
+        setIsLoading(true);
+
+        // Real-time listener so order status updates (e.g. PayFast ITN → Processing)
+        // are reflected immediately without requiring a page refresh.
+        const q = query(
+            collection(db, 'orders'),
+            or(
+                where('userId', '==', user.uid),
+                where('customerEmail', '==', user.email),
+                where('endCustomerEmail', '==', user.email)
+            ),
+            orderBy('date', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetchedOrders = snapshot.docs.map(docSnap => {
+                const data = docSnap.data();
+                return {
+                    ...data,
+                    id: docSnap.id,
+                    date: data.date.toDate().toISOString(),
+                } as Order;
+            });
+            // Deduplicate in case an order matches multiple conditions
+            const uniqueOrders = Array.from(new Map(fetchedOrders.map(o => [o.id, o])).values());
+            setOrders(uniqueOrders.filter(order => order.status !== 'Cancelled'));
+            setIsLoading(false);
+        }, (error) => {
+            console.error('Error listening to orders:', error);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, [user]);
 
     const getStatusVariant = (status: Order['status'] | 'Outsourced') => {
