@@ -17,7 +17,6 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { getPayFastConfig } from '@/lib/payfast';
 
 const db = getFirestore(firebaseApp);
 
@@ -61,14 +60,14 @@ export function LapsedSubscriptionScreen({ user }: { user: User }) {
             
             await setDoc(doc(db, 'orders', orderId), topupOrder);
 
-            const { processUrl, merchantId, merchantKey } = getPayFastConfig();
+            const payfastUrl = process.env.NEXT_PUBLIC_PAYFAST_PROCESS_URL || 'https://www.payfast.co.za/eng/process';
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = processUrl;
+            form.action = payfastUrl;
 
             const data: { [key: string]: string } = {
-                merchant_id: merchantId,
-                merchant_key: merchantKey,
+                merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
+                merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
                 return_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`,
                 cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/partner/dashboard`,
                 notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,

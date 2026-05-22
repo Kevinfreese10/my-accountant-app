@@ -50,7 +50,7 @@ export async function checkCV(input: CVAnalysisInput): Promise<CVAnalysisOutput>
   const { googleAI } = await import('@genkit-ai/google-genai');
   
   const ai = genkit({
-    plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY || CV_CHECKER_API_KEY })],
+    plugins: [googleAI({ apiKey: CV_CHECKER_API_KEY })],
   });
 
   const { output } = await ai.generate({

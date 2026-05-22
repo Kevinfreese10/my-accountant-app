@@ -18,7 +18,6 @@ import { firebaseApp } from '@/lib/firebase';
 import { getNextOrderId } from '@/lib/sequence';
 import { Order } from '@/lib/types';
 import { customAlphabet } from 'nanoid';
-import { getPayFastConfig } from '@/lib/payfast';
 import { Separator } from '../ui/separator';
 
 const db = getFirestore(firebaseApp);
@@ -134,19 +133,17 @@ export default function CheckoutForm() {
   }, [watchedEmail, user, form]);
   
   const submitToPayFast = (order: Order) => {
-    const { processUrl, merchantId, merchantKey } = getPayFastConfig();
+    const payfastUrl = process.env.NEXT_PUBLIC_PAYFAST_PROCESS_URL || 'https://www.payfast.co.za/eng/process';
     const formElement = document.createElement('form');
     formElement.method = 'POST';
-    formElement.action = processUrl;
-
-    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za');
+    formElement.action = payfastUrl;
 
     const data: { [key: string]: string } = {
-        merchant_id: merchantId,
-        merchant_key: merchantKey,
-        return_url: `${origin}/payment-success/${order.id}`,
-        cancel_url: `${origin}/cart`,
-        notify_url: `${origin}/api/payfast/notify`,
+        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
+        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${order.id}`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/cart`,
+        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
         name_first: order.customerName.split(' ')[0],
         name_last: order.customerName.split(' ').slice(1).join(' '),
         email_address: order.customerEmail,
@@ -275,7 +272,7 @@ export default function CheckoutForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField
+         <FormField
           control={form.control}
           name="email"
           render={({ field }) => (
@@ -290,14 +287,10 @@ export default function CheckoutForm() {
                     {isCheckingUser && <Loader2 className="absolute right-3 top-4 h-4 w-4 animate-spin text-muted-foreground" />}
                 </div>
               </FormControl>
-              {linkedUser ? (
+              {linkedUser && (
                 <div className="flex items-center gap-2 text-[10px] text-green-600 font-bold bg-green-50 p-2 rounded border border-green-100 mt-1">
                     <CheckCircle2 className="h-3 w-3" /> Matched: {linkedUser.name}
                 </div>
-              ) : (
-                <FormDescription className="text-[11px] text-muted-foreground mt-1">
-                    If you don't have an account yet, we'll create one for you so you can upload documents and communicate with accountants via your dashboard.
-                </FormDescription>
               )}
               <FormMessage />
             </FormItem>

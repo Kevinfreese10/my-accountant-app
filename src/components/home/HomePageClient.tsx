@@ -1,4 +1,5 @@
 'use client';
+import { Fragment } from 'react';
 
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
@@ -29,6 +30,8 @@ import {
   FileUp,
   ShoppingCart
 } from 'lucide-react';
+import { motion } from 'framer-motion';
+const MotionDiv = motion.div;
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -48,6 +51,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import Script from 'next/script';
+
+
 import { useBlog } from '@/contexts/BlogContext';
 import { format } from 'date-fns';
 import { Service } from '@/lib/types';
@@ -55,6 +60,23 @@ import { getFirestore, collection, query, orderBy, onSnapshot } from 'firebase/f
 import { firebaseApp } from '@/lib/firebase';
 
 const db = getFirestore(firebaseApp);
+
+// Animation variants for hero section
+const containerVariants = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.2 }
+  }
+};
+
+const childVariant = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6, ease: [0.4, 0, 0.2, 1] }
+  }
+};
 
 export default function HomePageClient() {
   const [mounted, setMounted] = useState(false);
@@ -122,27 +144,21 @@ export default function HomePageClient() {
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
-      <Script
-        id="faq-schema"
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
-      
       {/* HERO SECTION */}
-      <section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center">
-        <div className="container relative z-10 mx-auto px-4">
-          <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
+      <motion.section className="relative w-full overflow-hidden bg-white pt-16 lg:pt-24 pb-20 border-b text-center" initial="hidden" whileInView="visible" viewport={{ once: false, amount: 0.3 }}>
+        <motion.div className="container relative z-10 mx-auto px-4" variants={containerVariants}>
+          <motion.h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 md:text-5xl lg:text-6xl" variants={childVariant}>
             Online <span className="text-gradient">Accounting, Tax & Payroll</span> Services in South Africa
-          </h1>
-          <div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed">
+          </motion.h1>
+          <motion.div className="mx-auto mb-10 max-w-4xl text-lg font-medium text-muted-foreground md:text-xl leading-relaxed" variants={childVariant}>
             <p>
               My Accountant helps South African businesses stay compliant with professional accounting, tax, payroll, SARS, and CIPC services — all through a simple online process.
             </p>
             <p className="mt-4">
               Whether you need company registration, VAT registration, bookkeeping, payroll, annual financial statements, tax compliance, or CIPC annual returns, our team assists businesses throughout Johannesburg, Randburg, Gauteng, and across South Africa.
             </p>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
+          </motion.div>
+          <motion.div className="flex flex-col gap-4 sm:flex-row sm:justify-center" variants={childVariant}>
             <Button asChild size="lg" className="h-14 px-10 text-lg font-bold shadow-xl">
               <Link href="/contact">Book Free Consultation</Link>
             </Button>
@@ -152,7 +168,7 @@ export default function HomePageClient() {
             <Button asChild variant="secondary" size="lg" className="h-14 px-10 text-lg font-bold shadow-lg">
               <Link href="/products">Visit our online store</Link>
             </Button>
-          </div>
+            </motion.div>
 
           <div className="mt-16 grid grid-cols-2 md:grid-cols-5 gap-4 max-w-5xl mx-auto border-t pt-8">
               {trustIndicators.map((item, idx) => (
@@ -162,10 +178,11 @@ export default function HomePageClient() {
                   </div>
               ))}
           </div>
-        </div>
-      </section>
+        </motion.div>
+
 
       <TrustIndexWidget />
+      </motion.section>
 
       {/* TRUST & AUTHORITY SECTION */}
       <section className="py-24 bg-white text-center">

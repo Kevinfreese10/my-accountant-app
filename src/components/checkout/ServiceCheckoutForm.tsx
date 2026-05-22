@@ -23,7 +23,6 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { customAlphabet } from 'nanoid';
-import { getPayFastConfig } from '@/lib/payfast';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -47,17 +46,17 @@ export default function ServiceCheckoutForm({ service, partnerId }: { service: S
   const [isCheckingUser, setIsCheckingUser] = useState(false);
 
   const submitToPayFast = (order: Order) => {
-    const { processUrl, merchantId, merchantKey } = getPayFastConfig();
+    const payfastUrl = process.env.NEXT_PUBLIC_PAYFAST_PROCESS_URL || 'https://www.payfast.co.za/eng/process';
     const formElement = document.createElement('form');
     formElement.method = 'POST';
-    formElement.action = processUrl;
+    formElement.action = payfastUrl;
 
     const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za');
     const cancelUrl = typeof window !== 'undefined' ? window.location.href : `${origin}/products`;
 
     const data: { [key: string]: string } = {
-        merchant_id: merchantId,
-        merchant_key: merchantKey,
+        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '23836312',
+        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'h4fkhz6ouoksx',
         return_url: `${origin}/payment-success/${order.id}`,
         cancel_url: cancelUrl,
         notify_url: `${origin}/api/payfast/notify`,
