@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, notFound } from 'next/navigation';
-import { getFirestore, doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, onSnapshot, collection, query, where, getDocs, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User } from '@/lib/types';
+import { Order, Service, User, OrderNote } from '@/lib/types';
 import { Loader2, CheckCircle, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -13,6 +13,10 @@ import Link from 'next/link';
 import { format, addDays } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { services as allServices } from '@/lib/data';
+import { render } from '@react-email/components';
+import React from 'react';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import { sendEmail } from '@/lib/email';
 
 const db = getFirestore(firebaseApp);
 
@@ -30,6 +34,7 @@ export default function PaymentSuccessPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [assignee, setAssignee] = useState<User | null>(null);
     const { user: currentUser } = useAuth();
+    const emailSentRef = useRef(false);
 
     useEffect(() => {
         if (!orderId) return;
@@ -57,6 +62,76 @@ export default function PaymentSuccessPage() {
 
             setOrder(orderData);
             setIsLoading(false);
+
+            // Send document-request email as a fallback (server action).
+            // The ITN also sends this email, but if the ITN is delayed or blocked,
+            // this ensures the customer still gets the notification promptly.
+            // The alreadyNotified check prevents duplicates.
+            if (!emailSentRef.current) {
+                emailSentRef.current = true;
+
+                const alreadyNotified = orderData.notes?.some(
+                    n => n.subject === `Action Required for Your Order #${orderId}`
+                );
+
+                if (!alreadyNotified) {
+                    try {
+                        // Fetch reseller details if it's a white-label order
+                        let resellerData: User | undefined;
+                        if (orderData.resellerId) {
+                            const resellerSnap = await getDoc(doc(db, 'users', orderData.resellerId));
+                            if (resellerSnap.exists()) {
+                                resellerData = { ...resellerSnap.data(), id: resellerSnap.id } as User;
+                            }
+                        }
+
+                        const itemsWithServices = orderData.items.map(item => {
+                            const service = allServices.find(s => s.id === item.id);
+                            return { ...item, service };
+                        }).filter(item => item.service) as { service: Service }[];
+
+                        const emailHtml = render(
+                            React.createElement(DocumentRequestEmail, {
+                                order: orderData,
+                                items: itemsWithServices,
+                                reseller: resellerData,
+                                replyTo: resellerData?.email || 'info@myacc.co.za',
+                            })
+                        );
+
+                        const attachments = itemsWithServices
+                            .filter(item => item.service.attachmentUrl)
+                            .map(item => ({
+                                filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
+                                path: item.service.attachmentUrl!,
+                            }));
+
+                        const recipientEmail = orderData.resellerId && orderData.endCustomerEmail
+                            ? orderData.endCustomerEmail
+                            : orderData.customerEmail;
+
+                        await sendEmail({
+                            to: recipientEmail,
+                            subject: `Action Required for Your Order #${orderId}`,
+                            html: emailHtml,
+                            attachments: attachments,
+                            resellerId: orderData.resellerId || undefined,
+                        });
+
+                        const emailNote: OrderNote = {
+                            text: `Sent "Request Documents" email to ${recipientEmail} (Payment Success Page).`,
+                            date: Timestamp.now(),
+                            authorId: 'system',
+                            type: 'email',
+                            subject: `Action Required for Your Order #${orderId}`,
+                            attachments: null,
+                        };
+                        await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
+                    } catch (e) {
+                        console.error('Failed to send document request email:', e);
+                    }
+                }
+            }
 
             // Fetch assignee if set
             if (orderData.assignedTo && orderData.assignedTo.length > 0 && !assignee) {

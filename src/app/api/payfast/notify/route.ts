@@ -120,10 +120,12 @@ async function validateWithPayFast(rawBody: string): Promise<boolean> {
 export async function POST(req: NextRequest) {
     console.log(`ITN Processing: ${new Date().toISOString()}`);
   
-    // 1. IP Validation
+    // 1. IP Validation (soft check — log only, do not block)
+    // Behind Firebase App Hosting / Cloud Run, x-forwarded-for often contains
+    // the CDN's IP rather than PayFast's IP. The real security comes from
+    // signature verification + PayFast postback validation below.
     if (!isIpAllowed(req)) {
-        console.error('ITN Error: Invalid IP address access attempt.');
-        return new NextResponse('Forbidden', { status: 403 });
+        console.warn('ITN Warning: Request IP does not match known PayFast ranges. Proceeding with signature/postback validation.');
     }
 
     try {
