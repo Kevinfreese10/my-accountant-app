@@ -46,6 +46,7 @@
     "firebase": "^11.9.1",
     "genkit": "1.19.1",
     "html2canvas": "^1.4.1",
+    "ipaddr.js": "^2.2.0",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.475.0",
